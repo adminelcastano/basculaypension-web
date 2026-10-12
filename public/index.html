@@ -207,7 +207,8 @@ p { margin: 0; }
 .mapcard {
   background: var(--brand); color: var(--brand-ink); border-radius: var(--radius); overflow: hidden;
 }
-.mapcard > svg { display: block; width: 100%; height: auto; }
+.mapframe { aspect-ratio: 4 / 3; max-width: 100%; background: var(--brand-soft); }
+.mapframe iframe { display: block; width: 100%; height: 100%; border: 0; }
 .mapcard .mc-body { padding: 20px 22px 22px; display: grid; gap: 14px; }
 .mapcard p { color: var(--brand-ink); }
 
@@ -387,19 +388,11 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
           <div><dt>Horario</dt><dd data-field="horarioGeneral">Abierto las 24 horas, los 365 días del año</dd></div>
         </dl>
         <div class="mapcard">
-          <svg viewBox="0 0 480 200" aria-hidden="true">
-            <rect width="480" height="200" fill="var(--brand)"/>
-            <path d="M-10 150C80 120 140 160 230 120S390 60 490 80" fill="none" stroke="var(--brand-ink)" stroke-width="14" opacity=".2"/>
-            <path d="M-10 150C80 120 140 160 230 120S390 60 490 80" fill="none" stroke="var(--brand-ink)" stroke-width="2" stroke-dasharray="10 10" opacity=".7"/>
-            <path d="M150 -10C170 60 200 90 230 120" fill="none" stroke="var(--brand-ink)" stroke-width="8" opacity=".15"/>
-            <g transform="translate(230 120)">
-              <circle r="26" fill="var(--amber)" opacity=".25"/>
-              <path d="M0 0c-10-12-15-20-15-28a15 15 0 0 1 30 0c0 8-5 16-15 28z" fill="var(--amber)" transform="translate(0 -4)"/>
-              <circle cy="-32" r="5" fill="var(--brand)"/>
-            </g>
-          </svg>
+          <div class="mapframe">
+            <iframe title="Mapa de Báscula y Pensión El Castaño en Google Maps" src="https://maps.google.com/maps?q=14.904438,-92.296688&amp;z=15&amp;hl=es&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+          </div>
           <div class="mc-body">
-            <p>Abre Google Maps con la ruta directa hasta nuestra entrada.</p>
+            <p>Toca el botón para abrir Google Maps con la ruta directa hasta nuestra entrada.</p>
             <a class="btn btn-amber" data-link="maps" href="https://www.google.com/maps/dir/?api=1&amp;destination=14.904438%2C-92.296688" target="_blank" rel="noopener">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
               Abrir en Google Maps
