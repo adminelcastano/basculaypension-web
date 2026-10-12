@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Báscula y Pensión El Castaño</title>
-<meta name="description" content="Báscula camionera pública y pensión de trailers en Tapachula, Chiapas. Abierto 24 horas, los 365 días. Carretera Costera km 287.">
+<meta name="description" content="Báscula camionera pública digital certificada y pensión de trailers en Tapachula, Chiapas. Abierto 24 horas, los 365 días. Carretera Costera km 287.">
 <link rel="canonical" href="https://basculaypension.com/">
 <meta name="theme-color" content="#5a2a17">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -28,7 +28,7 @@
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
   "name": "Báscula y Pensión El Castaño",
-  "description": "Báscula camionera pública y pensión para tractocamiones y remolques.",
+  "description": "Báscula camionera pública digital, calibrada y verificada periódicamente ante PROFECO conforme a la NOM aplicable, y pensión para tractocamiones y remolques.",
   "url": "https://basculaypension.com/",
   "image": "https://basculaypension.com/og-image.jpg",
   "telephone": "+52 962 564 2170",
@@ -213,6 +213,21 @@ p { margin: 0; }
 .mapcard p { color: var(--brand-ink); }
 
 
+
+/* Banda de báscula certificada */
+.cert { background: var(--surface); border-top: 1px solid var(--line); }
+.cert-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(24px, 5vw, 64px); align-items: center; }
+@media (max-width: 860px) { .cert-grid { grid-template-columns: 1fr; } }
+.cert-text { display: grid; gap: 18px; max-width: 36rem; min-width: 0; }
+.cert-text h2 { font-size: clamp(2rem, 4.2vw, 2.9rem); font-weight: 800; }
+.cert-text > p { color: var(--muted); font-size: 1.15rem; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.checks li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 1.1rem; }
+.checks svg { width: 30px; height: 30px; padding: 5px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); }
+.cert-photo { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.cert-photo img { display: block; width: 100%; height: auto; border-radius: var(--radius); box-shadow: 0 20px 44px -26px rgba(40,20,10,.55); }
+.cert-photo figcaption { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+
 /* Banda con foto del área con sombra */
 .shade { background: var(--brand); color: var(--brand-ink); border-top: 0 !important; }
 .shade + .band { border-top: 0; }
@@ -318,9 +333,10 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
           </figure>
           <div class="svc-body">
             <h2>Báscula pública</h2>
-            <p class="lead">Pesaje de tractocamiones, camiones y remolques, abierto a cualquier transportista.</p>
+            <p class="lead">Báscula digital para tractocamiones, camiones y remolques, abierta a cualquier transportista. Calibrada y verificada periódicamente ante PROFECO.</p>
             <ul class="facts">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span><dt>Horario:</dt> <span data-field="horarioBascula">24 horas, los 365 días</span></span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span><dt>Certificada:</dt> conforme a la NOM, <a href="#bascula-certificada">ver detalles</a></span></li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg><span><dt>Factura:</dt> disponible, <a href="#facturacion">ver cómo pedirla</a></span></li>
             </ul>
             <div class="svc-actions">
@@ -356,6 +372,24 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
     </div>
   </section>
 
+
+  <section class="band cert" id="bascula-certificada" aria-labelledby="t-cert">
+    <div class="wrap cert-grid">
+      <div class="cert-text">
+        <h2 id="t-cert">Báscula digital certificada</h2>
+        <p>El peso que te damos es el que puedes presentar con confianza en tus documentos y ante tus clientes.</p>
+        <ul class="checks">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Calibrada, verificada y certificada de manera periódica conforme a la NOM aplicable y ante <b>PROFECO</b>.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Monitoreo constante desde la caseta, con cámaras sobre la plataforma de pesaje.</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Mantenimiento constante del equipo.</span></li>
+        </ul>
+      </div>
+      <figure class="cert-photo">
+        <picture><source type="image/webp" srcset="/img/caseta-bascula-680.webp"><img src="/img/caseta-bascula-680.jpg" alt="Interior de la caseta de pesaje con monitores de cámaras sobre la plataforma, sistema de control e impresora de tickets" width="680" height="306" loading="lazy" decoding="async"></picture>
+        <figcaption>Caseta de pesaje</figcaption>
+      </figure>
+    </div>
+  </section>
 
   <section class="band shade" aria-labelledby="t-lugar">
     <div class="wrap shade-grid">
