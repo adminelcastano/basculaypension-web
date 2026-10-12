@@ -9,3 +9,13 @@ Al final de `index.html` está el bloque `NEGOCIO` con WhatsApp, teléfono, corr
 ## Publicación
 
 Cloudflare Pages publica automáticamente cada cambio en la rama `main`.
+
+## Archivos
+
+- `index.html`: la página.
+- `404.html`: página para enlaces que no existen.
+- `fonts/`: tipografía Barlow servida desde el propio sitio (licencia en `fonts/OFL.txt`).
+- `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`: íconos.
+- `og-image.png`: imagen que aparece al compartir el enlace por WhatsApp o redes.
+- `robots.txt`, `sitemap.xml`: para buscadores.
+- `_headers`: cabeceras de seguridad y caché para Cloudflare Pages.
