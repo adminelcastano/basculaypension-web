@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Báscula y Pensión El Castaño</title>
+<meta name="description" content="Báscula camionera pública y pensión de trailers en Tapachula, Chiapas. Abierto 24 horas, los 365 días. Carretera Costera km 287.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700;800&display=swap">
+<style>
+/* Layout: página clásica de negocio. Barra fija, nombre, dos servicios con imagen al inicio, llegar, facturación, contacto; barra de acciones fija en móvil. */
+:root {
+  --bg: #f5f3f1;
+  --surface: #ffffff;
+  --fg: #211b18;
+  --muted: #5e5450;
+  --line: #e2dcd7;
+  --brand: #5a2a17;          /* castaño */
+  --brand-ink: #fff7f1;
+  --brand-soft: #efe4dd;
+  --amber: #f0a00a;          /* ámbar de señal vial: acción principal */
+  --amber-ink: #241a10;
+  --wa: #157a45;             /* WhatsApp, más oscuro para contraste */
+  --wa-ink: #ffffff;
+  --ill-sky: #e9e3de;
+  --ill-ground: #cfc6bf;
+  --ill-steel: #6b625d;
+  --ill-dark: #2b2421;
+  --ill-light: #ffffff;
+  --font-display: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 10px;
+  --gutter: clamp(16px, 4vw, 40px);
+  --max: 1160px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161210; --surface: #201a17; --fg: #f4ede8; --muted: #b9ada5; --line: #3a312c;
+    --brand: #7a3d23; --brand-ink: #fff7f1; --brand-soft: #2c211c;
+    --amber: #f4ac24; --amber-ink: #1d140a; --wa: #177a46; --wa-ink: #ffffff;
+    --ill-sky: #2a221e; --ill-ground: #4a403a; --ill-steel: #9a8f88; --ill-dark: #0f0c0b; --ill-light: #f4ede8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161210; --surface: #201a17; --fg: #f4ede8; --muted: #b9ada5; --line: #3a312c;
+  --brand: #7a3d23; --brand-ink: #fff7f1; --brand-soft: #2c211c;
+  --amber: #f4ac24; --amber-ink: #1d140a; --wa: #177a46; --wa-ink: #ffffff;
+  --ill-sky: #2a221e; --ill-ground: #4a403a; --ill-steel: #9a8f88; --ill-dark: #0f0c0b; --ill-light: #f4ede8;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 1.0625rem; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--amber); color: var(--amber-ink); }
+a { color: inherit; text-underline-offset: 0.2em; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.05; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+.wrap { max-width: var(--max); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* Barra superior */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: var(--brand); color: var(--brand-ink);
+}
+.top .wrap { display: flex; align-items: center; gap: 16px; padding-block: 10px; }
+.mark { display: flex; align-items: center; gap: 10px; text-decoration: none; margin-right: auto; min-width: 0; }
+.mark svg { width: 34px; height: 34px; flex: none; }
+.mark b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; line-height: 1; }
+.mark small { display: block; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.85; }
+.nav { display: flex; gap: 22px; font-weight: 500; }
+.nav a { text-decoration: none; opacity: 0.9; }
+.nav a:hover { opacity: 1; text-decoration: underline; }
+@media (max-width: 760px) { .nav { display: none; } }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  min-height: 48px; padding: 0 20px; border-radius: 8px; border: 2px solid transparent;
+  font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; letter-spacing: 0.01em;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms cubic-bezier(.2,.8,.2,1), background-color 160ms;
+}
+.btn svg { width: 20px; height: 20px; flex: none; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -6px rgba(0,0,0,.35); }
+.btn:active { transform: translateY(0); box-shadow: none; }
+.btn-wa { background: var(--wa); color: var(--wa-ink); }
+.btn-amber { background: var(--amber); color: var(--amber-ink); }
+.btn-line { background: transparent; color: var(--fg); border-color: currentColor; }
+.top .btn-line { color: var(--brand-ink); min-height: 40px; padding: 0 14px; font-size: 1rem; }
+.btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Marcador de dato pendiente */
+.tbd {
+  display: inline-block; padding: 0 8px; border: 1.5px dashed currentColor; border-radius: 6px;
+  font-size: 0.9em; font-weight: 600; opacity: 0.8; white-space: nowrap;
+}
+
+/* Inicio */
+.hero { padding-block: clamp(28px, 5vw, 56px) clamp(36px, 6vw, 72px); }
+.hero-head { display: grid; gap: 14px; max-width: 46rem; }
+.hero h1 { font-size: clamp(2.4rem, 6.2vw, 4.4rem); font-weight: 800; color: var(--brand); }
+:root[data-theme="dark"] .hero h1 { color: var(--fg); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero h1 { color: var(--fg); } }
+.hero-sub { font-size: clamp(1.1rem, 2.2vw, 1.35rem); color: var(--muted); max-width: 38rem; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+
+.services { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 28px); margin-top: clamp(28px, 4vw, 44px); }
+@media (max-width: 760px) { .services { grid-template-columns: 1fr; } }
+.svc {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 10px 30px -18px rgba(40,20,10,.35);
+}
+.svc-img { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: var(--ill-sky); }
+.svc-img svg { display: block; width: 100%; height: 100%; }
+.svc-img figcaption {
+  position: absolute; left: 10px; bottom: 10px; padding: 3px 9px; border-radius: 5px;
+  background: var(--surface); color: var(--fg);
+  font-size: 0.78rem; font-weight: 600;
+}
+.svc-body { padding: clamp(18px, 2.5vw, 26px); display: grid; gap: 14px; align-content: start; }
+.svc h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); font-weight: 800; }
+.svc p.lead { color: var(--muted); }
+.facts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.facts li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+.facts svg { width: 22px; height: 22px; color: var(--brand); margin-top: 2px; }
+:root[data-theme="dark"] .facts svg { color: var(--amber); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .facts svg { color: var(--amber); } }
+.facts dt { display: inline; font-weight: 600; }
+.svc-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+
+/* Secciones */
+.band { padding-block: clamp(48px, 7vw, 88px); }
+.band + .band { border-top: 1px solid var(--line); }
+.section-head { display: grid; gap: 10px; max-width: 42rem; margin-bottom: clamp(22px, 3vw, 34px); }
+.section-head h2 { font-size: clamp(2rem, 4.2vw, 2.9rem); font-weight: 800; }
+.section-head p { color: var(--muted); font-size: 1.1rem; }
+
+.visit { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 36px); align-items: start; }
+@media (max-width: 860px) { .visit { grid-template-columns: 1fr; } }
+.data { display: grid; gap: 0; margin: 0; border-top: 2px solid var(--fg); }
+.data div { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 16px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+@media (max-width: 480px) { .data div { grid-template-columns: 1fr; gap: 4px; } }
+.data dt { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.data dd { margin: 0; font-size: 1.15rem; font-weight: 500; overflow-wrap: anywhere; }
+.data dd a { font-weight: 600; }
+.mapcard {
+  background: var(--brand); color: var(--brand-ink); border-radius: var(--radius); overflow: hidden;
+}
+.mapcard > svg { display: block; width: 100%; height: auto; }
+.mapcard .mc-body { padding: 20px 22px 22px; display: grid; gap: 14px; }
+.mapcard p { color: var(--brand-ink); }
+
+/* Facturación */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 28px); counter-reset: paso; }
+@media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+.steps > li { counter-increment: paso; display: grid; gap: 10px; align-content: start; min-width: 0; padding-top: 18px; border-top: 4px solid var(--amber); }
+.steps > li::before {
+  content: "Paso " counter(paso); font-family: var(--font-display); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.95rem; color: var(--muted);
+}
+.steps h3 { font-size: 1.55rem; font-weight: 700; }
+.steps p, .steps ul { color: var(--muted); }
+.steps ul { margin: 0; padding-left: 1.1em; display: grid; gap: 3px; }
+.invoice-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: clamp(24px, 3vw, 34px); }
+.copyline { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 500; }
+.copybtn {
+  font: inherit; font-size: 0.9rem; font-weight: 600; padding: 6px 12px; min-height: 36px; border-radius: 6px;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer;
+}
+.copybtn:hover { border-color: var(--fg); }
+.note { margin-top: 18px; color: var(--muted); font-size: 0.95rem; max-width: 46rem; }
+
+/* Pie */
+footer { background: var(--brand); color: var(--brand-ink); padding-block: 36px 40px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 18px 40px; align-items: center; justify-content: space-between; }
+footer p { opacity: 0.88; font-size: 0.95rem; }
+
+/* Barra de acciones fija en móvil */
+.dock { display: none; }
+@media (max-width: 760px) {
+  .dock {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface); border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 20px -14px rgba(0,0,0,.4);
+  }
+  .dock .btn { min-height: 52px; padding: 0 8px; font-size: 1rem; flex-direction: column; gap: 2px; }
+  .dock .btn svg { width: 22px; height: 22px; }
+  footer { padding-bottom: 110px; }
+}
+
+/* Momento de movimiento: la lectura de la báscula se enciende */
+.readout { animation: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .readout-seg { animation: seg 2.6s cubic-bezier(.16,1,.3,1) infinite; }
+  .readout-seg:nth-child(2) { animation-delay: .12s } .readout-seg:nth-child(3) { animation-delay: .24s }
+  .readout-seg:nth-child(4) { animation-delay: .36s } .readout-seg:nth-child(5) { animation-delay: .48s }
+  @keyframes seg { 0%, 55%, 100% { opacity: 1 } 70% { opacity: .25 } }
+}
+</style>
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#inicio" aria-label="Báscula y Pensión El Castaño, inicio">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="var(--brand-ink)"/>
+        <path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="var(--brand)" stroke-width="2.2"/>
+        <path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
+    </a>
+    <nav class="nav" aria-label="Secciones">
+      <a href="#servicios">Servicios</a>
+      <a href="#llegar">Cómo llegar</a>
+      <a href="#facturacion">Facturación</a>
+    </nav>
+    <a class="btn btn-line" data-link="tel" href="#llegar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+      Llamar
+    </a>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-head">
+        <h1>Báscula y Pensión El Castaño</h1>
+        <p class="hero-sub">Báscula camionera pública y pensión para tractocamiones y remolques en Tapachula, Chiapas. Abierto las 24 horas, los 365 días del año.</p>
+        <div class="hero-actions">
+          <a class="btn btn-wa" data-link="wa" href="#llegar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 9.5c.3 2.3 2.2 4.2 4.5 4.5l1-1.2 2 .9c-.2 1.2-1.2 1.8-2.3 1.7A6.5 6.5 0 0 1 8.1 9.8c-.1-1.1.5-2.1 1.7-2.3l.9 2z"/></svg>
+            Escribir por WhatsApp
+          </a>
+          <a class="btn btn-amber" data-link="maps" href="#llegar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+            Cómo llegar
+          </a>
+        </div>
+      </div>
+
+      <div class="services" id="servicios">
+        <article class="svc">
+          <figure class="svc-img" style="margin:0">
+            <svg viewBox="0 0 640 360" role="img" aria-labelledby="t-bascula">
+              <title id="t-bascula">Ilustración: tractocamión sobre la plataforma de una báscula, con el indicador de peso a un lado</title>
+              <rect width="640" height="360" fill="var(--ill-sky)"/>
+              <rect y="268" width="640" height="92" fill="var(--ill-ground)"/>
+              <!-- plataforma -->
+              <rect x="40" y="258" width="470" height="18" rx="2" fill="var(--ill-steel)"/>
+              <rect x="40" y="258" width="470" height="5" fill="var(--ill-dark)" opacity=".35"/>
+              <path d="M30 276h490l-14 10H44z" fill="var(--ill-dark)" opacity=".25"/>
+              <!-- remolque -->
+              <rect x="70" y="128" width="268" height="108" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
+              <path d="M110 128v108M150 128v108M190 128v108M230 128v108M270 128v108M310 128v108" stroke="var(--ill-dark)" stroke-width="2" opacity=".18"/>
+              <rect x="70" y="236" width="268" height="8" fill="var(--ill-dark)"/>
+              <!-- tractocamión -->
+              <path d="M346 244V150a8 8 0 0 1 8-8h52l30 40h22a10 10 0 0 1 10 10v52z" fill="var(--brand)" stroke="var(--ill-dark)" stroke-width="4" stroke-linejoin="round"/>
+              <path d="M362 156h40l22 28h-62z" fill="var(--ill-sky)" stroke="var(--ill-dark)" stroke-width="3" stroke-linejoin="round"/>
+              <rect x="346" y="112" width="10" height="40" rx="2" fill="var(--ill-steel)"/>
+              <rect x="458" y="214" width="14" height="10" rx="2" fill="var(--amber)"/>
+              <!-- llantas -->
+              <g fill="var(--ill-dark)"><circle cx="110" cy="250" r="16"/><circle cx="148" cy="250" r="16"/><circle cx="296" cy="250" r="16"/><circle cx="380" cy="250" r="16"/><circle cx="440" cy="250" r="16"/></g>
+              <g fill="var(--ill-steel)"><circle cx="110" cy="250" r="6"/><circle cx="148" cy="250" r="6"/><circle cx="296" cy="250" r="6"/><circle cx="380" cy="250" r="6"/><circle cx="440" cy="250" r="6"/></g>
+              <!-- indicador de peso -->
+              <rect x="556" y="150" width="8" height="118" fill="var(--ill-steel)"/>
+              <rect x="520" y="104" width="96" height="58" rx="6" fill="var(--ill-dark)"/>
+              <g class="readout" fill="var(--amber)">
+                <rect class="readout-seg" x="532" y="130" width="12" height="5" rx="1"/>
+                <rect class="readout-seg" x="548" y="130" width="12" height="5" rx="1"/>
+                <rect class="readout-seg" x="564" y="130" width="12" height="5" rx="1"/>
+                <rect class="readout-seg" x="580" y="130" width="12" height="5" rx="1"/>
+                <rect class="readout-seg" x="596" y="130" width="12" height="5" rx="1"/>
+              </g>
+              <text x="568" y="152" text-anchor="middle" font-family="Barlow Semi Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="13" fill="var(--ill-steel)" letter-spacing="1.5">KG</text>
+            </svg>
+            <figcaption>Ilustración · espacio para tu foto</figcaption>
+          </figure>
+          <div class="svc-body">
+            <h2>Báscula pública</h2>
+            <p class="lead">Pesaje de tractocamiones, camiones y remolques, abierto a cualquier transportista.</p>
+            <ul class="facts">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span><dt>Horario:</dt> <span data-field="horarioBascula"><span class="tbd">Por confirmar</span></span></span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16M6 20l2-12h8l2 12M9 8a3 3 0 0 1 6 0"/></svg><span><dt>Capacidad:</dt> <span data-field="capacidad"><span class="tbd">Por confirmar</span></span></span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg><span><dt>Factura:</dt> disponible, <a href="#facturacion">ver cómo pedirla</a></span></li>
+            </ul>
+            <div class="svc-actions">
+              <a class="btn btn-wa" data-link="wa" data-msg="Hola, quiero información sobre la báscula." href="#llegar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
+                Preguntar por la báscula
+              </a>
+            </div>
+          </div>
+        </article>
+
+        <article class="svc">
+          <figure class="svc-img" style="margin:0">
+            <svg viewBox="0 0 640 360" role="img" aria-labelledby="t-pension">
+              <title id="t-pension">Ilustración: remolques estacionados en cajones numerados, con lámpara y malla perimetral</title>
+              <rect width="640" height="360" fill="var(--ill-sky)"/>
+              <!-- malla -->
+              <g stroke="var(--ill-steel)" stroke-width="3" opacity=".7">
+                <path d="M0 150h640M0 196h640"/>
+                <path d="M30 140v70M110 140v70M190 140v70M270 140v70M350 140v70M430 140v70M510 140v70M590 140v70"/>
+              </g>
+              <path d="M0 150l46 46M46 150l-46 46M80 150l46 46M126 150l-46 46M160 150l46 46M206 150l-46 46M240 150l46 46M286 150l-46 46M320 150l46 46M366 150l-46 46M400 150l46 46M446 150l-46 46M480 150l46 46M526 150l-46 46M560 150l46 46M606 150l-46 46" stroke="var(--ill-steel)" stroke-width="1.2" opacity=".35"/>
+              <!-- piso -->
+              <rect y="210" width="640" height="150" fill="var(--ill-ground)"/>
+              <!-- cajones -->
+              <g stroke="var(--ill-light)" stroke-width="5">
+                <path d="M20 340l40-130M180 340l20-130M340 340l0-130M500 340l-20-130M640 330l-40-120"/>
+              </g>
+              <!-- remolques en perspectiva frontal -->
+              <g>
+                <rect x="62" y="150" width="104" height="128" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
+                <path d="M114 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
+                <rect x="70" y="278" width="88" height="12" fill="var(--ill-dark)"/>
+                <rect x="222" y="150" width="104" height="128" rx="4" fill="var(--brand)" stroke="var(--ill-dark)" stroke-width="4"/>
+                <path d="M274 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
+                <rect x="230" y="278" width="88" height="12" fill="var(--ill-dark)"/>
+                <rect x="382" y="150" width="104" height="128" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
+                <path d="M434 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
+                <rect x="390" y="278" width="88" height="12" fill="var(--ill-dark)"/>
+              </g>
+              <g fill="var(--amber)"><rect x="70" y="262" width="12" height="8" rx="2"/><rect x="146" y="262" width="12" height="8" rx="2"/><rect x="230" y="262" width="12" height="8" rx="2"/><rect x="306" y="262" width="12" height="8" rx="2"/><rect x="390" y="262" width="12" height="8" rx="2"/><rect x="466" y="262" width="12" height="8" rx="2"/></g>
+              <!-- lámpara -->
+              <rect x="560" y="62" width="8" height="210" fill="var(--ill-steel)"/>
+              <path d="M564 66h-40" stroke="var(--ill-steel)" stroke-width="6" stroke-linecap="round"/>
+              <rect x="508" y="62" width="28" height="12" rx="3" fill="var(--ill-dark)"/>
+              <path d="M512 76h20l18 70h-56z" fill="var(--amber)" opacity=".22"/>
+            </svg>
+            <figcaption>Ilustración · espacio para tu foto</figcaption>
+          </figure>
+          <div class="svc-body">
+            <h2>Pensión de trailers</h2>
+            <p class="lead">Un lugar para dejar tu tractocamión o tu remolque mientras descansas o esperas carga.</p>
+            <ul class="facts">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span><dt>Horario:</dt> <span data-field="horarioPension"><span class="tbd">Por confirmar</span></span></span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span><dt>Tarifas:</dt> <span data-field="tarifasPension"><span class="tbd">Por confirmar</span></span></span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg><span><dt>Factura:</dt> disponible, <a href="#facturacion">ver cómo pedirla</a></span></li>
+            </ul>
+            <div class="svc-actions">
+              <a class="btn btn-wa" data-link="wa" data-msg="Hola, quiero información sobre la pensión." href="#llegar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
+                Preguntar por la pensión
+              </a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="llegar">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Cómo llegar y contacto</h2>
+        <p>Escríbenos o llámanos antes de venir si tienes dudas sobre el servicio.</p>
+      </div>
+      <div class="visit">
+        <dl class="data">
+          <div><dt>Dirección</dt><dd data-field="direccion"><span class="tbd">Por confirmar</span></dd></div>
+          <div><dt>WhatsApp</dt><dd><span data-field="whatsappTexto"><span class="tbd">Por confirmar</span></span></dd></div>
+          <div><dt>Teléfono</dt><dd><span data-field="telefonoTexto"><span class="tbd">Por confirmar</span></span></dd></div>
+          <div><dt>Horario</dt><dd data-field="horarioGeneral"><span class="tbd">Por confirmar</span></dd></div>
+        </dl>
+        <div class="mapcard">
+          <svg viewBox="0 0 480 200" aria-hidden="true">
+            <rect width="480" height="200" fill="var(--brand)"/>
+            <path d="M-10 150C80 120 140 160 230 120S390 60 490 80" fill="none" stroke="var(--brand-ink)" stroke-width="14" opacity=".2"/>
+            <path d="M-10 150C80 120 140 160 230 120S390 60 490 80" fill="none" stroke="var(--brand-ink)" stroke-width="2" stroke-dasharray="10 10" opacity=".7"/>
+            <path d="M150 -10C170 60 200 90 230 120" fill="none" stroke="var(--brand-ink)" stroke-width="8" opacity=".15"/>
+            <g transform="translate(230 120)">
+              <circle r="26" fill="var(--amber)" opacity=".25"/>
+              <path d="M0 0c-10-12-15-20-15-28a15 15 0 0 1 30 0c0 8-5 16-15 28z" fill="var(--amber)" transform="translate(0 -4)"/>
+              <circle cy="-32" r="5" fill="var(--brand)"/>
+            </g>
+          </svg>
+          <div class="mc-body">
+            <p>Abre la ubicación en Google Maps para trazar tu ruta.</p>
+            <a class="btn btn-amber" data-link="maps" href="#llegar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+              Abrir en Google Maps
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="facturacion">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Facturación</h2>
+        <p>Si necesitas factura de tu pesaje o de la pensión, mándanos tu ticket y tus datos fiscales.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <h3>Guarda tu ticket</h3>
+          <p>Pide y conserva el ticket de tu servicio. Lo necesitamos para hacer la factura.</p>
+        </li>
+        <li>
+          <h3>Envía ticket y datos</h3>
+          <p>Mándanos una foto del ticket con tu Constancia de Situación Fiscal, o estos datos:</p>
+          <ul>
+            <li>RFC</li>
+            <li>Nombre o razón social</li>
+            <li>Régimen fiscal</li>
+            <li>Código postal fiscal</li>
+            <li>Uso del CFDI</li>
+            <li>Correo para recibir la factura</li>
+          </ul>
+        </li>
+        <li>
+          <h3>Recibe tu factura</h3>
+          <p>Te enviamos el PDF y el XML a tu correo.<span data-opt="plazoFactura"> Plazo de entrega: <span data-field="plazoFactura"></span></span></p>
+        </li>
+      </ol>
+      <div class="invoice-actions">
+        <a class="btn btn-wa" data-link="wa" data-msg="Hola, quiero facturar mi ticket. Les envío la foto del ticket y mis datos fiscales." href="#llegar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
+          Pedir factura por WhatsApp
+        </a>
+        <span class="copyline">o por correo: <span data-field="correoTexto"><span class="tbd">Por confirmar</span></span>
+          <button class="copybtn" id="copy-correo" type="button" hidden>Copiar correo</button>
+        </span>
+      </div>
+      <p class="note">Las facturas son CFDI 4.0 emitidas por el negocio. Revisa que tus datos coincidan con tu Constancia de Situación Fiscal para evitar rechazos.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="mark" href="#inicio" aria-label="Volver al inicio">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="var(--brand-ink)"/>
+        <path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="var(--brand)" stroke-width="2.2"/>
+        <path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
+    </a>
+    <p>Carretera Costera km 287, Col. Campestre, Tapachula, Chiapas · basculaypension.com</p>
+  </div>
+</footer>
+
+<nav class="dock" aria-label="Acciones rápidas">
+  <a class="btn btn-wa" data-link="wa" href="#llegar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
+    WhatsApp
+  </a>
+  <a class="btn btn-line" data-link="tel" href="#llegar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+    Llamar
+  </a>
+  <a class="btn btn-amber" data-link="maps" href="#llegar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+    Llegar
+  </a>
+</nav>
+
+<script>
+/* ======== DATOS DEL NEGOCIO: llena estos campos y la página se actualiza sola ======== */
+const NEGOCIO = {
+  whatsapp: "9625642170",        // 10 dígitos
+  telefono: "9625642170",        // 10 dígitos
+  correoFacturas: "administracion@basculaypension.com",
+  direccion: "Carretera Costera km 287, Col. Campestre, C.P. 30710, Tapachula, Chiapas",
+  mapsUrl: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Carretera Costera km 287, Col. Campestre, 30710 Tapachula, Chiapas, México"),  // se puede cambiar por el enlace exacto de Google Maps
+  horarioGeneral: "Abierto las 24 horas, los 365 días del año",
+  horarioBascula: "24 horas, los 365 días",
+  horarioPension: "24 horas, los 365 días",
+  capacidad: "",
+  tarifasPension: "",
+  plazoFactura: ""
+};
+/* ===================================================================================== */
+
+(function () {
+  const digits = s => (s || "").replace(/\D/g, "");
+  const fmt = d => d.length === 10 ? d.slice(0, 3) + " " + d.slice(3, 6) + " " + d.slice(6) : d;
+  const setText = (field, value) => {
+    if (!value) return;
+    document.querySelectorAll('[data-field="' + field + '"]').forEach(el => { el.textContent = value; });
+  };
+
+  ["direccion", "horarioGeneral", "horarioBascula", "horarioPension", "capacidad", "tarifasPension", "plazoFactura"]
+    .forEach(f => setText(f, NEGOCIO[f]));
+
+  ["capacidad", "tarifasPension"].forEach(f => {
+    if (!NEGOCIO[f]) document.querySelectorAll('[data-field="' + f + '"]').forEach(el => { const li = el.closest("li"); if (li) li.hidden = true; });
+  });
+  document.querySelectorAll("[data-opt]").forEach(el => { if (!NEGOCIO[el.dataset.opt]) el.hidden = true; });
+
+  const wa = digits(NEGOCIO.whatsapp), tel = digits(NEGOCIO.telefono);
+  setText("whatsappTexto", wa && fmt(wa));
+  setText("telefonoTexto", tel && fmt(tel));
+  setText("correoTexto", NEGOCIO.correoFacturas);
+
+  const disable = (a, why) => {
+    a.setAttribute("aria-disabled", "true");
+    a.setAttribute("title", why);
+    a.href = "#llegar";
+  };
+
+  document.querySelectorAll('[data-link="wa"]').forEach(a => {
+    if (!wa) return disable(a, "Número de WhatsApp por confirmar");
+    const msg = a.dataset.msg || "Hola, quiero información.";
+    a.href = "https://wa.me/52" + wa + "?text=" + encodeURIComponent(msg);
+    a.target = "_blank"; a.rel = "noopener";
+  });
+  document.querySelectorAll('[data-link="tel"]').forEach(a => {
+    if (!tel) return disable(a, "Teléfono por confirmar");
+    a.href = "tel:+52" + tel;
+  });
+  document.querySelectorAll('[data-link="maps"]').forEach(a => {
+    if (!NEGOCIO.mapsUrl) return disable(a, "Ubicación por confirmar");
+    a.href = NEGOCIO.mapsUrl; a.target = "_blank"; a.rel = "noopener";
+  });
+
+  const copy = document.getElementById("copy-correo");
+  if (NEGOCIO.correoFacturas) {
+    copy.hidden = false;
+    copy.addEventListener("click", () => {
+      const done = () => { copy.textContent = "Copiado"; setTimeout(() => { copy.textContent = "Copiar correo"; }, 1800); };
+      try {
+        navigator.clipboard.writeText(NEGOCIO.correoFacturas).then(done, () => selectEmail());
+      } catch (e) { selectEmail(); }
+    });
+  }
+  function selectEmail() {
+    const el = document.querySelector('[data-field="correoTexto"]');
+    const r = document.createRange(); r.selectNodeContents(el);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+})();
+</script>
+
+</body>
+</html>
