@@ -16,7 +16,7 @@
 <meta property="og:title" content="Báscula y Pensión El Castaño · Tapachula, Chiapas">
 <meta property="og:description" content="Báscula camionera pública y pensión de trailers. Abierto 24 horas, los 365 días. Carretera Costera km 287.">
 <meta property="og:url" content="https://basculaypension.com/">
-<meta property="og:image" content="https://basculaypension.com/og-image.png">
+<meta property="og:image" content="https://basculaypension.com/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Báscula y Pensión El Castaño, Tapachula, Chiapas">
@@ -30,7 +30,7 @@
   "name": "Báscula y Pensión El Castaño",
   "description": "Báscula camionera pública y pensión para tractocamiones y remolques.",
   "url": "https://basculaypension.com/",
-  "image": "https://basculaypension.com/og-image.png",
+  "image": "https://basculaypension.com/og-image.jpg",
   "telephone": "+52 962 564 2170",
   "email": "administracion@basculaypension.com",
   "address": {
@@ -169,7 +169,8 @@ p { margin: 0; }
   box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 10px 30px -18px rgba(40,20,10,.35);
 }
 .svc-img { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: var(--ill-sky); }
-.svc-img svg { display: block; width: 100%; height: 100%; }
+.svc-img picture, .svc-img img { display: block; width: 100%; height: 100%; }
+.svc-img img { object-fit: cover; }
 .svc-img figcaption {
   position: absolute; left: 10px; bottom: 10px; padding: 3px 9px; border-radius: 5px;
   background: var(--surface); color: var(--fg);
@@ -207,6 +208,19 @@ p { margin: 0; }
 .mapcard > svg { display: block; width: 100%; height: auto; }
 .mapcard .mc-body { padding: 20px 22px 22px; display: grid; gap: 14px; }
 .mapcard p { color: var(--brand-ink); }
+
+
+/* Banda con foto del área con sombra */
+.shade { background: var(--brand); color: var(--brand-ink); border-top: 0 !important; }
+.shade + .band { border-top: 0; }
+.shade-grid { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: clamp(24px, 5vw, 64px); align-items: center; }
+@media (max-width: 760px) { .shade-grid { grid-template-columns: 1fr; } }
+.shade-photo { margin: 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 4 / 5; max-width: 100%; box-shadow: 0 24px 50px -28px rgba(0,0,0,.6); }
+@media (max-width: 760px) { .shade-photo { aspect-ratio: 4 / 3; } }
+.shade-photo picture, .shade-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.shade-text { display: grid; gap: 18px; justify-items: start; max-width: 34rem; }
+.shade-text h2 { font-size: clamp(2rem, 4.2vw, 2.9rem); font-weight: 800; }
+.shade-text p { font-size: 1.15rem; color: var(--brand-ink); }
 
 /* Facturación */
 .steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2.5vw, 28px); counter-reset: paso; }
@@ -248,14 +262,6 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
   footer { padding-bottom: 110px; }
 }
 
-/* Momento de movimiento: la lectura de la báscula se enciende */
-.readout { animation: none; }
-@media (prefers-reduced-motion: no-preference) {
-  .readout-seg { animation: seg 2.6s cubic-bezier(.16,1,.3,1) infinite; }
-  .readout-seg:nth-child(2) { animation-delay: .12s } .readout-seg:nth-child(3) { animation-delay: .24s }
-  .readout-seg:nth-child(4) { animation-delay: .36s } .readout-seg:nth-child(5) { animation-delay: .48s }
-  @keyframes seg { 0%, 55%, 100% { opacity: 1 } 70% { opacity: .25 } }
-}
 </style>
 <style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
@@ -304,39 +310,8 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
       <div class="services" id="servicios">
         <article class="svc">
           <figure class="svc-img" style="margin:0">
-            <svg viewBox="0 0 640 360" role="img" aria-labelledby="t-bascula">
-              <title id="t-bascula">Ilustración: tractocamión sobre la plataforma de una báscula, con el indicador de peso a un lado</title>
-              <rect width="640" height="360" fill="var(--ill-sky)"/>
-              <rect y="268" width="640" height="92" fill="var(--ill-ground)"/>
-              <!-- plataforma -->
-              <rect x="40" y="258" width="470" height="18" rx="2" fill="var(--ill-steel)"/>
-              <rect x="40" y="258" width="470" height="5" fill="var(--ill-dark)" opacity=".35"/>
-              <path d="M30 276h490l-14 10H44z" fill="var(--ill-dark)" opacity=".25"/>
-              <!-- remolque -->
-              <rect x="70" y="128" width="268" height="108" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
-              <path d="M110 128v108M150 128v108M190 128v108M230 128v108M270 128v108M310 128v108" stroke="var(--ill-dark)" stroke-width="2" opacity=".18"/>
-              <rect x="70" y="236" width="268" height="8" fill="var(--ill-dark)"/>
-              <!-- tractocamión -->
-              <path d="M346 244V150a8 8 0 0 1 8-8h52l30 40h22a10 10 0 0 1 10 10v52z" fill="var(--brand)" stroke="var(--ill-dark)" stroke-width="4" stroke-linejoin="round"/>
-              <path d="M362 156h40l22 28h-62z" fill="var(--ill-sky)" stroke="var(--ill-dark)" stroke-width="3" stroke-linejoin="round"/>
-              <rect x="346" y="112" width="10" height="40" rx="2" fill="var(--ill-steel)"/>
-              <rect x="458" y="214" width="14" height="10" rx="2" fill="var(--amber)"/>
-              <!-- llantas -->
-              <g fill="var(--ill-dark)"><circle cx="110" cy="250" r="16"/><circle cx="148" cy="250" r="16"/><circle cx="296" cy="250" r="16"/><circle cx="380" cy="250" r="16"/><circle cx="440" cy="250" r="16"/></g>
-              <g fill="var(--ill-steel)"><circle cx="110" cy="250" r="6"/><circle cx="148" cy="250" r="6"/><circle cx="296" cy="250" r="6"/><circle cx="380" cy="250" r="6"/><circle cx="440" cy="250" r="6"/></g>
-              <!-- indicador de peso -->
-              <rect x="556" y="150" width="8" height="118" fill="var(--ill-steel)"/>
-              <rect x="520" y="104" width="96" height="58" rx="6" fill="var(--ill-dark)"/>
-              <g class="readout" fill="var(--amber)">
-                <rect class="readout-seg" x="532" y="130" width="12" height="5" rx="1"/>
-                <rect class="readout-seg" x="548" y="130" width="12" height="5" rx="1"/>
-                <rect class="readout-seg" x="564" y="130" width="12" height="5" rx="1"/>
-                <rect class="readout-seg" x="580" y="130" width="12" height="5" rx="1"/>
-                <rect class="readout-seg" x="596" y="130" width="12" height="5" rx="1"/>
-              </g>
-              <text x="568" y="152" text-anchor="middle" font-family="Barlow Semi Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="13" fill="var(--ill-steel)" letter-spacing="1.5">KG</text>
-            </svg>
-            <figcaption>Ilustración · espacio para tu foto</figcaption>
+            <picture><source type="image/webp" srcset="/img/bascula-entrada-640.webp 640w, /img/bascula-entrada-1280.webp 1280w" sizes="(max-width: 760px) 100vw, 560px"><img src="/img/bascula-entrada-1280.jpg" alt="Vista aérea de la entrada con la báscula y la caseta de pesaje" width="1280" height="714" fetchpriority="high" decoding="async"></picture>
+            <figcaption>La báscula, en la entrada</figcaption>
           </figure>
           <div class="svc-body">
             <h2>Báscula pública</h2>
@@ -356,41 +331,8 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
 
         <article class="svc">
           <figure class="svc-img" style="margin:0">
-            <svg viewBox="0 0 640 360" role="img" aria-labelledby="t-pension">
-              <title id="t-pension">Ilustración: remolques estacionados en cajones numerados, con lámpara y malla perimetral</title>
-              <rect width="640" height="360" fill="var(--ill-sky)"/>
-              <!-- malla -->
-              <g stroke="var(--ill-steel)" stroke-width="3" opacity=".7">
-                <path d="M0 150h640M0 196h640"/>
-                <path d="M30 140v70M110 140v70M190 140v70M270 140v70M350 140v70M430 140v70M510 140v70M590 140v70"/>
-              </g>
-              <path d="M0 150l46 46M46 150l-46 46M80 150l46 46M126 150l-46 46M160 150l46 46M206 150l-46 46M240 150l46 46M286 150l-46 46M320 150l46 46M366 150l-46 46M400 150l46 46M446 150l-46 46M480 150l46 46M526 150l-46 46M560 150l46 46M606 150l-46 46" stroke="var(--ill-steel)" stroke-width="1.2" opacity=".35"/>
-              <!-- piso -->
-              <rect y="210" width="640" height="150" fill="var(--ill-ground)"/>
-              <!-- cajones -->
-              <g stroke="var(--ill-light)" stroke-width="5">
-                <path d="M20 340l40-130M180 340l20-130M340 340l0-130M500 340l-20-130M640 330l-40-120"/>
-              </g>
-              <!-- remolques en perspectiva frontal -->
-              <g>
-                <rect x="62" y="150" width="104" height="128" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
-                <path d="M114 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
-                <rect x="70" y="278" width="88" height="12" fill="var(--ill-dark)"/>
-                <rect x="222" y="150" width="104" height="128" rx="4" fill="var(--brand)" stroke="var(--ill-dark)" stroke-width="4"/>
-                <path d="M274 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
-                <rect x="230" y="278" width="88" height="12" fill="var(--ill-dark)"/>
-                <rect x="382" y="150" width="104" height="128" rx="4" fill="var(--ill-light)" stroke="var(--ill-dark)" stroke-width="4"/>
-                <path d="M434 150v128" stroke="var(--ill-dark)" stroke-width="3"/>
-                <rect x="390" y="278" width="88" height="12" fill="var(--ill-dark)"/>
-              </g>
-              <g fill="var(--amber)"><rect x="70" y="262" width="12" height="8" rx="2"/><rect x="146" y="262" width="12" height="8" rx="2"/><rect x="230" y="262" width="12" height="8" rx="2"/><rect x="306" y="262" width="12" height="8" rx="2"/><rect x="390" y="262" width="12" height="8" rx="2"/><rect x="466" y="262" width="12" height="8" rx="2"/></g>
-              <!-- lámpara -->
-              <rect x="560" y="62" width="8" height="210" fill="var(--ill-steel)"/>
-              <path d="M564 66h-40" stroke="var(--ill-steel)" stroke-width="6" stroke-linecap="round"/>
-              <rect x="508" y="62" width="28" height="12" rx="3" fill="var(--ill-dark)"/>
-              <path d="M512 76h20l18 70h-56z" fill="var(--amber)" opacity=".22"/>
-            </svg>
-            <figcaption>Ilustración · espacio para tu foto</figcaption>
+            <picture><source type="image/webp" srcset="/img/pension-aerea-640.webp 640w, /img/pension-aerea-1280.webp 1280w, /img/pension-aerea-1920.webp 1920w" sizes="(max-width: 760px) 100vw, 560px"><img src="/img/pension-aerea-1920.jpg" alt="Vista aérea del patio de la pensión con tractocamiones y remolques estacionados" width="1920" height="1080" fetchpriority="high" decoding="async"></picture>
+            <figcaption>Patio de la pensión</figcaption>
           </figure>
           <div class="svc-body">
             <h2>Pensión de trailers</h2>
@@ -407,6 +349,23 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
             </div>
           </div>
         </article>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="band shade" aria-labelledby="t-lugar">
+    <div class="wrap shade-grid">
+      <figure class="shade-photo">
+        <picture><source type="image/webp" srcset="/img/area-sombra-600.webp 600w, /img/area-sombra-1000.webp 1000w" sizes="(max-width: 760px) 100vw, 440px"><img src="/img/area-sombra-1000.jpg" alt="Mesa de piedra bajo los árboles dentro de la pensión, con remolques al fondo" width="1000" height="1250" loading="lazy" decoding="async"></picture>
+      </figure>
+      <div class="shade-text">
+        <h2 id="t-lugar">Sombra mientras esperas</h2>
+        <p>Dentro de la pensión hay árboles grandes, jardín y mesas de piedra a la sombra. Un lugar para descansar del camino mientras tu unidad queda estacionada o esperas carga.</p>
+        <a class="btn btn-wa" href="https://wa.me/529625642170?text=Hola%2C%20quiero%20informaci%C3%B3n%20sobre%20la%20pensi%C3%B3n." target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
+          Preguntar por un lugar
+        </a>
       </div>
     </div>
   </section>
