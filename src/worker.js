@@ -71,7 +71,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -171,6 +171,9 @@ async function crearSolicitud(request, env, ctx) {
   if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
     ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", e)));
   }
+  if (ctx && env.AI) {
+    ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", e && e.message)));
+  }
 
   return json({ ok: true, folio });
 }
@@ -244,13 +247,14 @@ async function llamarScript(env, datos) {
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción", "Tarifa", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
+      r.placas || "", r.descripcion || "", r.tarifa ? "$" + Number(r.tarifa).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
       r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
   }
@@ -288,7 +292,7 @@ async function exportarXlsx(env, url) {
 function crearXlsx(filas) {
   const col = i => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
   const xml = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-  const anchos = [16, 17, 11, 16, 14, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
+  const anchos = [16, 17, 11, 16, 14, 12, 28, 11, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
   const archivos = {
@@ -449,6 +453,12 @@ async function panel(request, env, url) {
         await env.DB.prepare("UPDATE solicitudes SET estado='pendiente', resuelta_en=NULL WHERE id=?").bind(id).run();
         return json({ ok: true });
       }
+      if (partes[2] === "leer-ticket") {
+        if (!env.AI) return json({ ok: false, error: "La lectura automática no está activada." }, 503);
+        const r = await leerTicket(env, id, true);
+        if (r.error) return json({ ok: false, error: r.error }, 422);
+        return json({ ok: true, datos: r.datos });
+      }
       if (partes[2] === "eliminar") {
         if (fila.estado !== "rechazada") return json({ ok: false, error: "Solo se pueden eliminar solicitudes rechazadas." }, 409);
         await env.FILES.delete(`f:${id}:ticket`);
@@ -470,9 +480,13 @@ async function panel(request, env, url) {
         const telefono = "telefono" in cuerpo ? String(cuerpo.telefono || "").replace(/\D/g, "").slice(-10) : (fila.telefono || "");
         if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
         const folioTicket = "folio_ticket" in cuerpo ? String(cuerpo.folio_ticket || "").trim().slice(0, 40) : (fila.folio_ticket || "");
+        const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
+        const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
+        const tarifa = "tarifa" in cuerpo ? normalizarImporte(cuerpo.tarifa) : (fila.tarifa || "");
+        if (tarifa === null) errores.tarifa = "Tarifa inválida.";
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, id).run();
         return json({ ok: true });
       }
     }
@@ -584,6 +598,69 @@ async function limpiarArchivos(env) {
   }
   console.log("limpieza: borradas", results.length);
   return { borradas: results.length };
+}
+
+
+// ---------------------------------------------------------------------------
+// Lectura de la foto del ticket con Workers AI (modelo de visión)
+// ---------------------------------------------------------------------------
+const MODELO_VISION = "@cf/meta/llama-3.2-11b-vision-instruct";
+const TIPOS_LEGIBLES = ["image/jpeg", "image/png", "image/webp"];
+
+function limpiarPlacas(v) {
+  return String(v ?? "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 12);
+}
+
+async function aceptarLicenciaModelo(env) {
+  if (await env.FILES.get("ai:licencia")) return;
+  try { await env.AI.run(MODELO_VISION, { prompt: "agree" }); } catch (e) { console.log("licencia", e && e.message); }
+  await env.FILES.put("ai:licencia", "1");
+}
+
+async function leerTicket(env, id, forzar = false) {
+  await asegurarEsquema(env);
+  const fila = await env.DB.prepare("SELECT * FROM solicitudes WHERE id = ?").bind(id).first();
+  if (!fila) return { error: "No existe esa solicitud." };
+  const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:ticket`, { type: "arrayBuffer" });
+  if (!value) return { error: "La foto del ticket ya no está disponible." };
+  const tipo = metadata && metadata.tipo;
+  if (!TIPOS_LEGIBLES.includes(tipo)) return { error: "Solo se pueden leer fotos JPG, PNG o WebP. Captura los datos viendo el ticket." };
+  if (value.byteLength > 5 * 1024 * 1024) return { error: "La foto es demasiado grande para leerla automáticamente." };
+
+  await aceptarLicenciaModelo(env);
+  const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(value))}`;
+  const instrucciones = `Eres un lector de tickets de una báscula camionera y pensión de trailers en México. Lee el ticket de la imagen y responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
+"folio": folio o número del ticket,
+"placas": placas del vehículo,
+"descripcion": concepto o servicio cobrado (por ejemplo pesaje, pensión, báscula),
+"tarifa": precio unitario o tarifa, solo el número,
+"total": importe total pagado, solo el número.
+Si un dato no aparece o no se lee con claridad, usa null. No inventes datos.`;
+  const r = await env.AI.run(MODELO_VISION, {
+    messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],
+    image: imagen,
+    max_tokens: 300,
+    temperature: 0
+  });
+  const texto = String((r && (r.response ?? r.result?.response)) || "");
+  const m = texto.match(/\{[\s\S]*\}/);
+  if (!m) { console.log("ticket sin json", texto.slice(0, 200)); return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
+  let d;
+  try { d = JSON.parse(m[0]); } catch { return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
+  const valor = v => (v === null || v === undefined || String(v).trim() === "" || /^null$/i.test(String(v).trim())) ? "" : String(v).trim();
+  const datos = {
+    folio_ticket: valor(d.folio).replace(/^(folio|no\.?|n[uú]m(ero)?)[:\s#]*/i, "").slice(0, 40),
+    placas: limpiarPlacas(valor(d.placas)),
+    descripcion: valor(d.descripcion).replace(/\s+/g, " ").slice(0, 120),
+    tarifa: normalizarImporte(valor(d.tarifa)) || "",
+    importe: normalizarImporte(valor(d.total)) || ""
+  };
+  // Solo se llenan campos vacíos, salvo que se pida leer de nuevo desde el panel
+  const final = {};
+  for (const k of Object.keys(datos)) final[k] = forzar ? (datos[k] || fila[k] || "") : (fila[k] || datos[k] || "");
+  await env.DB.prepare("UPDATE solicitudes SET folio_ticket=?, placas=?, descripcion=?, tarifa=?, importe=?, ticket_leido=1 WHERE id=?")
+    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, id).run();
+  return { datos: final };
 }
 
 function aBase64(bytes) {
