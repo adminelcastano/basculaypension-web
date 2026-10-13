@@ -7,7 +7,8 @@
 <meta name="description" content="Envía tu Constancia de Situación Fiscal o tus datos fiscales y la foto de tu ticket para recibir tu factura de báscula o pensión en El Castaño, Tapachula.">
 <link rel="canonical" href="https://basculaypension.com/factura/">
 <meta name="theme-color" content="#5a2a17">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:title" content="Solicitar factura · Báscula y Pensión El Castaño">
 <meta property="og:description" content="Sube tu constancia o tus datos fiscales y la foto de tu ticket.">
@@ -40,6 +41,7 @@ h1, h2 { font-family: var(--font-display); line-height: 1.05; margin: 0; text-wr
 a { color: inherit; text-underline-offset: .2em; }
 .top { background: var(--brand); color: var(--brand-ink); padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
 .top a { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.top .logo { height: 44px; width: auto; display: block; }
 .top b { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; }
 .top small { display: block; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
 .wrap { max-width: 40rem; margin-inline: auto; padding-inline: 16px; }
@@ -103,7 +105,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 <header class="top">
   <div class="wrap">
     <a href="/" aria-label="Báscula y Pensión El Castaño, inicio">
-      <svg viewBox="0 0 40 40" width="32" height="32" aria-hidden="true"><path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="#fff7f1"/><path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="#5a2a17" stroke-width="2.2"/><path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="#5a2a17" stroke-width="2" stroke-linecap="round"/></svg>
+      <picture><source type="image/webp" srcset="/img/logo.webp"><img class="logo" src="/img/logo.png" alt="" width="167" height="229"></picture>
       <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
     </a>
   </div>

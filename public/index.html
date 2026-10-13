@@ -7,7 +7,7 @@
 <meta name="description" content="Báscula camionera pública digital certificada y pensión de trailers en Tapachula, Chiapas. Abierto 24 horas, los 365 días. Carretera Costera km 287.">
 <link rel="canonical" href="https://basculaypension.com/">
 <meta name="theme-color" content="#5a2a17">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:type" content="website">
@@ -31,6 +31,7 @@
   "description": "Báscula camionera pública digital, calibrada y verificada periódicamente ante PROFECO conforme a la NOM aplicable, y pensión para tractocamiones y remolques.",
   "url": "https://basculaypension.com/",
   "image": "https://basculaypension.com/og-image.jpg",
+  "logo": "https://basculaypension.com/img/logo.png",
   "telephone": "+52 962 564 2170",
   "email": "administracion@basculaypension.com",
   "address": {
@@ -123,7 +124,8 @@ p { margin: 0; }
 }
 .top .wrap { display: flex; align-items: center; gap: 16px; padding-block: 10px; }
 .mark { display: flex; align-items: center; gap: 10px; text-decoration: none; margin-right: auto; min-width: 0; }
-.mark svg { width: 34px; height: 34px; flex: none; }
+.mark .logo { width: auto; height: 46px; flex: none; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
+footer .mark .logo { height: 56px; }
 .mark b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; line-height: 1; }
 .mark small { display: block; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.85; }
 .nav { display: flex; gap: 22px; font-weight: 500; }
@@ -290,11 +292,7 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
 <header class="top">
   <div class="wrap">
     <a class="mark" href="#inicio" aria-label="Báscula y Pensión El Castaño, inicio">
-      <svg viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="var(--brand-ink)"/>
-        <path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="var(--brand)" stroke-width="2.2"/>
-        <path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <picture><source type="image/webp" srcset="/img/logo.webp"><img class="logo" src="/img/logo.png" alt="" width="167" height="229"></picture>
       <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
     </a>
     <nav class="nav" aria-label="Secciones">
@@ -490,11 +488,7 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
 <footer>
   <div class="wrap">
     <a class="mark" href="#inicio" aria-label="Volver al inicio">
-      <svg viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="var(--brand-ink)"/>
-        <path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="var(--brand)" stroke-width="2.2"/>
-        <path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <picture><source type="image/webp" srcset="/img/logo.webp"><img class="logo" src="/img/logo.png" alt="" width="167" height="229"></picture>
       <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
     </a>
     <p>Carretera Costera km 287, Col. Campestre, Tapachula, Chiapas · basculaypension.com</p>
