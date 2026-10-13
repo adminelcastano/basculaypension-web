@@ -146,6 +146,8 @@ p { margin: 0; }
 .btn-amber { background: var(--amber); color: var(--amber-ink); }
 .btn-line { background: transparent; color: var(--fg); border-color: currentColor; }
 .top .btn-line { color: var(--brand-ink); min-height: 40px; padding: 0 14px; font-size: 1rem; }
+.top .top-factura { min-height: 40px; padding: 0 14px; font-size: 1rem; }
+@media (max-width: 760px) { .top .top-llamar { display: none; } }
 .btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
 /* Marcador de dato pendiente */
@@ -269,13 +271,13 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
 .dock { display: none; }
 @media (max-width: 760px) {
   .dock {
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
     background: var(--surface); border-top: 1px solid var(--line);
     box-shadow: 0 -8px 20px -14px rgba(0,0,0,.4);
   }
-  .dock .btn { min-height: 52px; padding: 0 8px; font-size: 1rem; flex-direction: column; gap: 2px; }
+  .dock .btn { min-height: 54px; padding: 0 4px; font-size: .95rem; flex-direction: column; gap: 2px; }
   .dock .btn svg { width: 22px; height: 22px; }
   footer { padding-bottom: 110px; }
 }
@@ -300,7 +302,11 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
       <a href="#llegar">Cómo llegar</a>
       <a href="#facturacion">Facturación</a>
     </nav>
-    <a class="btn btn-line" data-link="tel" href="tel:+529625642170">
+    <a class="btn btn-amber top-factura" href="/factura/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg>
+      Factura
+    </a>
+    <a class="btn btn-line top-llamar" data-link="tel" href="tel:+529625642170">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
       Llamar
     </a>
@@ -321,6 +327,10 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
           <a class="btn btn-amber" data-link="maps" href="https://www.google.com/maps/dir/?api=1&amp;destination=14.904438%2C-92.296688" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
             Cómo llegar
+          </a>
+          <a class="btn btn-line" href="/factura/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg>
+            Solicitar factura
           </a>
         </div>
       </div>
@@ -503,6 +513,10 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
   <a class="btn btn-amber" data-link="maps" href="https://www.google.com/maps/dir/?api=1&amp;destination=14.904438%2C-92.296688" target="_blank" rel="noopener">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
     Llegar
+  </a>
+  <a class="btn btn-line" href="/factura/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg>
+    Factura
   </a>
 </nav>
 
