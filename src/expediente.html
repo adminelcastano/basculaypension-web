@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Mi expediente laboral · El Castaño</title>
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<style>
+/* Formulario de una columna para celular, mismo estilo que /factura. */
+:root {
+  --bg: #000000; --surface: #161617; --fg: #f5f5f7; --muted: #a1a1a6; --line: #333336;
+  --amber: #ffcc00; --amber-ink: #111111; --bad: #ff6961; --bad-soft: #3a1714; --ok-soft: #12301d; --ok: #30d158;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.47; letter-spacing: -0.012em; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--amber); color: var(--amber-ink); }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+h1, h2 { font-family: var(--font-display); line-height: 1.07; margin: 0; text-wrap: balance; letter-spacing: -0.025em; font-weight: 700; }
+a { color: inherit; text-underline-offset: .2em; }
+.top { position: sticky; top: 0; z-index: 10; background: rgba(22,22,23,.8); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid rgba(255,255,255,.07); padding: 10px 0; padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
+.top .wrap { display: flex; align-items: center; gap: 10px; }
+.top img { height: 36px; width: auto; display: block; }
+.top b { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; display: block; line-height: 1.1; }
+.top small { display: block; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.wrap { max-width: 40rem; margin-inline: auto; padding-inline: 16px; }
+main { padding-block: 28px 64px; }
+.intro { display: grid; gap: 10px; margin-bottom: 22px; }
+.intro .kicker { color: var(--amber); font-weight: 700; font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; }
+.intro h1 { font-size: clamp(2.2rem, 8vw, 3.2rem); }
+.intro p { color: var(--muted); margin: 0; }
+.docs { background: var(--surface); border-radius: 22px; padding: 18px 18px 20px; display: grid; gap: 12px; margin-bottom: 22px; }
+.docs h2 { font-size: 1.35rem; }
+.barra { height: 8px; background: #2a2a2d; border-radius: 999px; overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width .4s; }
+.docs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.docs li { display: flex; gap: 10px; align-items: center; }
+.docs li .m { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; border: 2px solid #48484a; color: transparent; }
+.docs li.ok .m { background: var(--ok); border-color: var(--ok); color: #04210f; }
+.docs li.ok span { color: var(--muted); }
+.docs .note { color: var(--muted); font-size: .95rem; margin: 0; }
+.docs .note b { color: var(--fg); }
+form { display: grid; gap: 22px; }
+fieldset { margin: 0; border: 0; border-radius: 22px; padding: 18px 18px 20px; background: var(--surface); display: grid; gap: 14px; min-width: 0; }
+legend { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; font-size: 1.35rem; padding: 0 6px; margin-left: -6px; }
+legend .paso { color: var(--muted); font-weight: 700; font-size: 1rem; margin-right: 6px; }
+.sub { font-weight: 700; font-size: 1.02rem; margin: 6px 0 -4px; color: var(--muted); }
+label.f { display: grid; gap: 6px; font-weight: 600; }
+label.f .op { font-weight: 400; color: var(--muted); font-size: .9rem; }
+.hint { font-weight: 400; color: var(--muted); font-size: .92rem; }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 460px) { .dos { grid-template-columns: 1fr; } }
+input[type=text], input[type=email], input[type=tel], input[type=date], select, textarea {
+  width: 100%; min-height: 50px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-size: 1.05rem; color: inherit;
+}
+textarea { min-height: 80px; resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--amber); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 35%, transparent); }
+.err { color: var(--bad); font-size: .92rem; font-weight: 600; }
+.err:empty { display: none; }
+.has-err input, .has-err select { border-color: var(--bad); }
+.check { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-weight: 500; }
+.check input { width: 22px; height: 22px; margin: 3px 0 0; accent-color: var(--amber); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 22px; border-radius: 999px; border: 2px solid transparent; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; transition: transform .15s; }
+.btn:active { transform: scale(.97); }
+.btn[disabled] { opacity: .6; cursor: progress; }
+.btn-amber { background: var(--amber); color: var(--amber-ink); }
+.btn-line { background: var(--surface); color: var(--fg); border-color: var(--line); }
+.enviar { width: 100%; min-height: 58px; font-size: 1.2rem; }
+.alerta { background: var(--bad-soft); border-radius: 10px; padding: 12px 14px; font-weight: 500; }
+.alerta:empty { display: none; }
+.ya { background: var(--ok-soft); color: var(--ok); border-radius: 12px; padding: 12px 14px; font-weight: 600; }
+.hecho { display: grid; gap: 14px; justify-items: start; background: var(--surface); border-radius: 22px; padding: 24px 20px; }
+.hecho h1 { font-size: 2.2rem; }
+.hecho p { color: var(--muted); margin: 0; }
+.cargando { color: var(--muted); padding: 40px 0; }
+footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <img src="/img/logo.png" alt="" width="167" height="229">
+    <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="cargando" id="cargando">Cargando…</p>
+  <div class="alerta" id="fatal" hidden></div>
+
+  <div id="vista" hidden>
+    <div class="intro">
+      <span class="kicker">Expediente laboral</span>
+      <h1 id="hola">Hola.</h1>
+      <p>Llena tus datos para tu expediente. Toma unos 5 minutos. Si después necesitas corregir algo, vuelve a abrir este mismo enlace.</p>
+    </div>
+
+    <section class="docs" aria-labelledby="t-docs">
+      <h2 id="t-docs">Tus documentos</h2>
+      <div class="barra" aria-hidden="true"><i id="barra" style="width:0"></i></div>
+      <p class="note" id="docs-cuenta"></p>
+      <ul id="docs-lista"></ul>
+      <p class="note">Entrega <b>2 copias de cada documento</b> con <b>Josué</b>. Aquí se marcan conforme los vas entregando.</p>
+    </section>
+
+    <p class="ya" id="ya" hidden></p>
+
+    <form id="form" novalidate>
+      <fieldset>
+        <legend><span class="paso">1</span>Datos personales</legend>
+        <label class="f">Nombre completo<input type="text" name="nombre" autocomplete="name" maxlength="120"><span class="err" data-err="nombre"></span></label>
+        <div class="dos">
+          <label class="f">Fecha de nacimiento<input type="date" name="fecha_nacimiento"><span class="err" data-err="fecha_nacimiento"></span></label>
+          <label class="f">Lugar de nacimiento <span class="op">Opcional</span><input type="text" name="lugar_nacimiento" maxlength="80" placeholder="Ej. Tapachula, Chiapas"></label>
+        </div>
+        <label class="f">CURP<input type="text" name="curp" maxlength="18" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="18 letras y números"><span class="err" data-err="curp"></span></label>
+        <label class="f">Estado civil <span class="op">Opcional</span><select name="estado_civil" id="sel-estado_civil"><option value="">Elige…</option></select><span class="err" data-err="estado_civil"></span></label>
+        <div class="dos">
+          <label class="f">Teléfono celular<input type="tel" name="telefono" inputmode="tel" autocomplete="tel-national" maxlength="14" placeholder="10 dígitos"><span class="err" data-err="telefono"></span></label>
+          <label class="f">Correo electrónico <span class="op">Opcional</span><input type="email" name="correo" autocomplete="email" maxlength="120"><span class="err" data-err="correo"></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">2</span>Domicilio</legend>
+        <label class="f">Calle y número<input type="text" name="calle" autocomplete="address-line1" maxlength="120"><span class="err" data-err="calle"></span></label>
+        <label class="f">Colonia<input type="text" name="colonia" maxlength="80"><span class="err" data-err="colonia"></span></label>
+        <div class="dos">
+          <label class="f">Municipio<input type="text" name="municipio" autocomplete="address-level2" maxlength="80" placeholder="Ej. Tapachula"><span class="err" data-err="municipio"></span></label>
+          <label class="f">Código postal <span class="op">Opcional</span><input type="text" name="cp" inputmode="numeric" autocomplete="postal-code" maxlength="5"><span class="err" data-err="cp"></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">3</span>Contacto de emergencia</legend>
+        <p class="hint" style="margin:0">A quién llamamos si te pasa algo en el trabajo.</p>
+        <label class="f">Nombre<input type="text" name="emerg_nombre" maxlength="120"><span class="err" data-err="emerg_nombre"></span></label>
+        <div class="dos">
+          <label class="f">Parentesco<input type="text" name="emerg_parentesco" maxlength="40" placeholder="Ej. Esposa, mamá, hermano"><span class="err" data-err="emerg_parentesco"></span></label>
+          <label class="f">Teléfono<input type="tel" name="emerg_telefono" inputmode="tel" maxlength="14" placeholder="10 dígitos"><span class="err" data-err="emerg_telefono"></span></label>
+        </div>
+        <p class="sub">Segundo contacto <span class="op" style="font-weight:400">· opcional</span></p>
+        <label class="f">Nombre<input type="text" name="emerg2_nombre" maxlength="120"></label>
+        <div class="dos">
+          <label class="f">Parentesco<input type="text" name="emerg2_parentesco" maxlength="40"></label>
+          <label class="f">Teléfono<input type="tel" name="emerg2_telefono" inputmode="tel" maxlength="14" placeholder="10 dígitos"><span class="err" data-err="emerg2_telefono"></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">4</span>Escolaridad</legend>
+        <label class="f">Último grado de estudios<select name="escolaridad" id="sel-escolaridad"><option value="">Elige…</option></select><span class="err" data-err="escolaridad"></span></label>
+        <label class="f">Escuela <span class="op">Opcional</span><input type="text" name="institucion" maxlength="120"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">5</span>Experiencia laboral</legend>
+        <p class="hint" style="margin:0">Tus últimos dos trabajos. Si no has trabajado antes, déjalo en blanco.</p>
+        <p class="sub">Último trabajo</p>
+        <div class="dos">
+          <label class="f">Empresa<input type="text" name="emp1_empresa" maxlength="120"></label>
+          <label class="f">Puesto<input type="text" name="emp1_puesto" maxlength="80"></label>
+        </div>
+        <label class="f">Cuánto tiempo<input type="text" name="emp1_periodo" maxlength="60" placeholder="Ej. 2021 a 2024, o 3 años"></label>
+        <label class="f">Motivo de salida<input type="text" name="emp1_motivo" maxlength="200"></label>
+        <p class="sub">Trabajo anterior</p>
+        <div class="dos">
+          <label class="f">Empresa<input type="text" name="emp2_empresa" maxlength="120"></label>
+          <label class="f">Puesto<input type="text" name="emp2_puesto" maxlength="80"></label>
+        </div>
+        <label class="f">Cuánto tiempo<input type="text" name="emp2_periodo" maxlength="60"></label>
+        <label class="f">Motivo de salida<input type="text" name="emp2_motivo" maxlength="200"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">6</span>Referencias personales</legend>
+        <p class="hint" style="margin:0">Dos personas que te conozcan y no sean familiares directos.</p>
+        <p class="sub">Referencia 1</p>
+        <label class="f">Nombre<input type="text" name="ref1_nombre" maxlength="120"></label>
+        <div class="dos">
+          <label class="f">Relación<input type="text" name="ref1_relacion" maxlength="40" placeholder="Ej. Vecino, amigo"></label>
+          <label class="f">Teléfono<input type="tel" name="ref1_telefono" inputmode="tel" maxlength="14"><span class="err" data-err="ref1_telefono"></span></label>
+        </div>
+        <p class="sub">Referencia 2</p>
+        <label class="f">Nombre<input type="text" name="ref2_nombre" maxlength="120"></label>
+        <div class="dos">
+          <label class="f">Relación<input type="text" name="ref2_relacion" maxlength="40"></label>
+          <label class="f">Teléfono<input type="tel" name="ref2_telefono" inputmode="tel" maxlength="14"><span class="err" data-err="ref2_telefono"></span></label>
+        </div>
+      </fieldset>
+
+      <div>
+        <label class="check"><input type="checkbox" name="acepto"><span>Acepto que Báscula y Pensión El Castaño use estos datos solo para mi expediente laboral, conforme a su <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>.</span></label>
+        <span class="err" data-err="acepto"></span>
+      </div>
+      <div class="alerta" id="alerta" role="alert"></div>
+      <button class="btn btn-amber enviar" id="enviar" type="submit">Enviar mis datos</button>
+    </form>
+  </div>
+
+  <div class="hecho" id="hecho" hidden>
+    <h1>¡Listo!</h1>
+    <p>Recibimos tus datos. Recuerda entregar 2 copias de cada documento con Josué.</p>
+    <button class="btn btn-line" id="revisar" type="button">Revisar mis datos</button>
+  </div>
+</main>
+<footer class="wrap">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas</footer>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const token = location.pathname.split("/")[2] || "";
+  const api = "/api/expediente/" + token;
+  const form = $("#form");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmt = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" });
+
+  function pintarDocs(d) {
+    $("#barra").style.width = (d.total ? d.entregados / d.total * 100 : 0) + "%";
+    $("#docs-cuenta").textContent = d.entregados === d.total ? "Entregaste todos tus documentos. ¡Gracias!" : `Llevas ${d.entregados} de ${d.total} entregados.`;
+    $("#docs-lista").innerHTML = d.lista.map(x => `<li class="${x.recibido ? "ok" : ""}"><span class="m" aria-hidden="true">✓</span><span>${esc(x.nombre)}${x.recibido ? " · entregado" : ""}</span></li>`).join("");
+  }
+
+  async function cargar() {
+    let j;
+    try { j = await (await fetch(api)).json(); } catch { j = { ok: false, error: "No hay conexión. Intenta de nuevo." }; }
+    $("#cargando").hidden = true;
+    if (!j.ok) { $("#fatal").textContent = j.error || "No se pudo abrir el enlace."; $("#fatal").hidden = false; return; }
+    for (const k of ["estado_civil", "escolaridad"]) $("#sel-" + k).insertAdjacentHTML("beforeend", j.listas[k].map(v => `<option>${esc(v)}</option>`).join(""));
+    for (const [k, v] of Object.entries(j.datos || {})) { const el = form.elements[k]; if (el && el.type !== "checkbox") el.value = v; }
+    const primer = (j.datos.nombre || "").split(" ")[0];
+    $("#hola").textContent = primer ? `Hola, ${primer}.` : "Hola.";
+    if (j.llenado_en) { $("#ya").textContent = `Ya enviaste tus datos el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlos y enviarlos de nuevo.`; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; }
+    pintarDocs(j.docs);
+    $("#vista").hidden = false;
+  }
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    form.querySelectorAll("[data-err]").forEach(el => el.textContent = "");
+    form.querySelectorAll(".has-err").forEach(el => el.classList.remove("has-err"));
+    $("#alerta").textContent = "";
+    const cuerpo = {};
+    for (const el of form.elements) if (el.name) cuerpo[el.name] = el.type === "checkbox" ? el.checked : el.value;
+    const btn = $("#enviar"); btn.disabled = true; const txt = btn.textContent; btn.textContent = "Enviando…";
+    let j;
+    try { j = await (await fetch(api, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) })).json(); }
+    catch { j = { ok: false, error: "No hay conexión. Tus datos siguen aquí; intenta de nuevo." }; }
+    btn.disabled = false; btn.textContent = txt;
+    if (!j.ok) {
+      $("#alerta").textContent = j.error || "No se pudo enviar.";
+      let primero = null;
+      for (const [k, m] of Object.entries(j.errores || {})) {
+        const span = form.querySelector(`[data-err="${k}"]`); if (span) span.textContent = m;
+        const el = form.elements[k]; if (el && el.closest) { el.closest("label")?.classList.add("has-err"); primero = primero || el; }
+      }
+      (primero || $("#alerta")).scrollIntoView({ behavior: "smooth", block: "center" });
+      if (primero && primero.focus) primero.focus({ preventScroll: true });
+      return;
+    }
+    $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 });
+  });
+
+  $("#revisar").addEventListener("click", () => { $("#hecho").hidden = true; $("#vista").hidden = false; $("#ya").textContent = "Ya enviaste tus datos. Puedes corregirlos y enviarlos de nuevo."; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; });
+
+  cargar();
+})();
+</script>
+</body>
+</html>

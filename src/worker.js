@@ -1,5 +1,6 @@
 import { REGIMENES, USOS, SERVICIOS } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
+import { expedientePagina, expedienteApi, personalPanel } from "./personal.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -25,6 +26,8 @@ export default {
     try {
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
       if (url.pathname === "/api/revisar-ticket") return await revisarTicketApi(request, env);
+      if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url);
+      if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
       return env.ASSETS.fetch(request);
     } catch (err) {
@@ -408,6 +411,7 @@ async function panel(request, env, url) {
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
+  if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";

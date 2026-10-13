@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Panel de facturas · El Castaño</title>
+<title>Panel · El Castaño</title>
 <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <style>
@@ -197,12 +197,63 @@ section.card { border-radius: 22px; padding: 22px 24px; }
 .pdfview .pdf-pages { position: relative; max-height: min(72vh, 760px); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 6px; overscroll-behavior: contain; }
 .pdfview canvas { width: 100%; height: auto; display: block; background: #fff; border-radius: 2px; }
 .pdfview > .note { padding: 16px; }
+
+/* ---- Secciones del panel: Facturación y Personal ---- */
+.mod { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.modulos { display: flex; gap: 2px; background: #2a2a2d; padding: 3px; border-radius: 10px; }
+.modulos button { border: 0; background: transparent; color: #d2d2d7; font-weight: 600; font-size: 13.5px; letter-spacing: .02em; text-transform: uppercase; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+.modulos button[aria-current="page"] { background: var(--amber); color: var(--amber-ink); }
+header.bar h1 { margin-right: 0; }
+header.bar .modulos { margin-right: auto; margin-left: 8px; }
+@media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
+
+/* Personal */
+.ptabs { display: flex; background: var(--surface); padding: 3px; border-radius: 12px; gap: 2px; }
+.ptab { border: 0; background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 14.5px; font-weight: 500; color: #d2d2d7; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.ptab[aria-selected="true"] { background: #3a3a3c; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.ptab .n { font-variant-numeric: tabular-nums; font-size: .85rem; padding: 0 7px; border-radius: 999px; background: #3a3a3c; color: var(--fg); }
+.ptab[aria-selected="true"] .n { background: var(--amber); color: var(--amber-ink); }
+.pitem { position: relative; display: grid; gap: 4px; width: 100%; text-align: left; background: var(--surface); border: 0; padding: 14px 40px 14px 16px; cursor: pointer; transition: background .2s; }
+.pitem + .pitem { box-shadow: inset 0 1px 0 var(--line); }
+.list > .pitem:first-of-type { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+.list > .pitem:last-of-type { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.pitem:hover { background: #1f1f21; }
+.pitem[aria-current="true"] { background: #2a2a2d; }
+.pitem .t { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pitem .m { color: var(--muted); font-size: .88rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pitem .chev { position: absolute; right: 14px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: #5a5a5e; }
+.mini { display: inline-block; width: 64px; height: 6px; border-radius: 999px; background: #2a2a2d; overflow: hidden; vertical-align: middle; }
+.mini i { display: block; height: 100%; background: var(--amber); }
+.mini.ok i { background: var(--ok); }
+.pill.completo { background: var(--ok-soft); color: var(--ok); }
+.pill.faltan { background: #3a3010; color: #ffd60a; }
+.pill.sinllenar { background: #3a3a3c; color: #e5e5ea; }
+.checklist { display: grid; gap: 0; }
+.chk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.chk:last-child { border-bottom: 0; }
+.chk input { width: 24px; height: 24px; margin: 0; accent-color: var(--ok); cursor: pointer; }
+.chk b { font-weight: 600; font-size: 1.02rem; }
+.chk.ok b { color: var(--muted); text-decoration: line-through; text-decoration-color: #5a5a5e; }
+.chk .note { font-size: .85rem; white-space: nowrap; }
+.barra { height: 8px; background: #2a2a2d; border-radius: 999px; overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width .35s; }
+.barra.ok i { background: var(--ok); }
+.enlace { padding: 10px 12px; border-radius: 10px; background: #0b0b0c; border: 1px solid var(--line); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; overflow-wrap: anywhere; user-select: all; }
+.grid-form textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; min-height: 110px; resize: vertical; }
+.grid-form .sep { grid-column: 1 / -1; color: var(--fg); font-weight: 700; font-size: .95rem; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.grid-form .err { color: var(--bad); font-size: .82rem; }
+.grid-form .err:empty { display: none; }
+@media (max-width: 820px) { #mod-personal .detail, #mod-personal .list { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
 </style>
 </head>
 <body>
 <header class="bar">
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
   <h1>El Castaño</h1>
+  <nav class="modulos" aria-label="Sección">
+    <button type="button" data-mod="facturacion" aria-current="page">Facturación</button>
+    <button type="button" data-mod="personal">Personal</button>
+  </nav>
   <small id="yo"></small>
 </header>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -215,6 +266,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
+<div class="mod" id="mod-facturacion">
 <div class="titlebar">
   <h2 id="titulo">Pendientes.</h2>
   <p id="subtitulo" class="note"></p>
@@ -242,6 +294,26 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   <nav class="list" id="lista" aria-label="Solicitudes"></nav>
   <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
 </main>
+</div>
+<div class="mod" id="mod-personal" hidden>
+<div class="titlebar">
+  <h2 id="p-titulo">Personal.</h2>
+  <p id="p-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Filtro">
+    <button class="ptab" role="tab" data-filtro="todos" aria-selected="true">Todos <span class="n" id="pn-todos">0</span></button>
+    <button class="ptab" role="tab" data-filtro="incompletos" aria-selected="false">Incompletos <span class="n" id="pn-incompletos">0</span></button>
+    <button class="ptab" role="tab" data-filtro="completos" aria-selected="false">Completos <span class="n" id="pn-completos">0</span></button>
+  </div>
+  <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, puesto o teléfono" aria-label="Buscar colaborador">
+  <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
+</div>
+<main class="work" id="p-work">
+  <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
+  <div class="detail" id="p-detalle"><p class="empty">Elige un colaborador o agrega uno nuevo.</p></div>
+</main>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
 
@@ -786,6 +858,235 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   setInterval(() => { if (!document.hidden) cargarLista(); }, 60000);
   api("yo").then(j => { $("#yo").textContent = j.email; }).catch(() => {});
   cargarLista();
+})();
+</script>
+<script>
+// ---- Secciones del panel (Facturación / Personal) y módulo de Personal ----
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmtF = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium" });
+  const fecha = iso => iso ? fmtF.format(new Date(iso.length === 10 ? iso + "T12:00:00-06:00" : iso)) : "";
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
+  async function api(ruta, opciones = {}) {
+    const r = await fetch("/panel/api/" + ruta, { ...opciones, headers: { "X-Panel": "1", ...(opciones.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
+    const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida del servidor." }));
+    if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; throw e; }
+    return j;
+  }
+  const post = (ruta, cuerpo) => api(ruta, { method: "POST", body: JSON.stringify(cuerpo || {}) });
+
+  // ---- Cambio de sección ----
+  let personalCargado = false;
+  function mostrar(mod) {
+    document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    $("#mod-facturacion").hidden = mod !== "facturacion";
+    $("#mod-personal").hidden = mod !== "personal";
+    document.title = (mod === "personal" ? "Personal" : "Facturación") + " · El Castaño";
+    if (history.replaceState) history.replaceState(null, "", mod === "personal" ? "#personal" : location.pathname);
+    if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
+  }
+  document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod); });
+
+  // ---- Personal ----
+  const st = { filtro: "todos", q: "", actual: null, listas: null };
+  const CAMPOS = [
+    ["Datos personales", [["nombre", "Nombre completo", "wide"], ["fecha_nacimiento", "Fecha de nacimiento", "", "date"], ["lugar_nacimiento", "Lugar de nacimiento"], ["curp", "CURP"], ["estado_civil", "Estado civil", "", "lista:estado_civil"], ["telefono", "Teléfono celular", "", "tel"], ["correo", "Correo electrónico", "", "email"]]],
+    ["Domicilio", [["calle", "Calle y número", "wide"], ["colonia", "Colonia"], ["municipio", "Municipio"], ["cp", "Código postal"]]],
+    ["Contacto de emergencia", [["emerg_nombre", "Nombre", "wide"], ["emerg_parentesco", "Parentesco"], ["emerg_telefono", "Teléfono", "", "tel"], ["emerg2_nombre", "Segundo contacto", "wide"], ["emerg2_parentesco", "Parentesco"], ["emerg2_telefono", "Teléfono", "", "tel"]]],
+    ["Escolaridad", [["escolaridad", "Último grado", "", "lista:escolaridad"], ["institucion", "Escuela"]]],
+    ["Experiencia laboral", [["emp1_empresa", "Último trabajo: empresa"], ["emp1_puesto", "Puesto"], ["emp1_periodo", "Tiempo"], ["emp1_motivo", "Motivo de salida"], ["emp2_empresa", "Trabajo anterior: empresa"], ["emp2_puesto", "Puesto"], ["emp2_periodo", "Tiempo"], ["emp2_motivo", "Motivo de salida"]]],
+    ["Referencias personales", [["ref1_nombre", "Referencia 1"], ["ref1_relacion", "Relación"], ["ref1_telefono", "Teléfono", "", "tel"], ["ref2_nombre", "Referencia 2"], ["ref2_relacion", "Relación"], ["ref2_telefono", "Teléfono", "", "tel"]]]
+  ];
+  const enlaceDe = token => `${location.origin}/expediente/${token}`;
+  const estadoPill = c => c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
+
+  async function cargar() {
+    const lista = $("#p-lista");
+    const p = new URLSearchParams({ filtro: st.filtro }); if (st.q) p.set("q", st.q);
+    try {
+      const j = await api("colaboradores?" + p);
+      for (const k of ["todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
+      $("#p-titulo").textContent = { todos: "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
+      $("#p-subtitulo").textContent = `${j.conteos.todos} colaboradores · ${j.conteos.incompletos} con expediente incompleto.`;
+      if (!j.colaboradores.length) {
+        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : "Agrega a tu primer colaborador con el botón «Nuevo colaborador»."}</p>`;
+        return;
+      }
+      lista.innerHTML = j.colaboradores.map(c => `<button class="pitem" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
+        <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+        <span class="t">${esc(c.nombre)}</span>
+        <span class="m">${c.puesto ? `<span>${esc(c.puesto)}</span>` : ""}${c.area ? `<span>${esc(c.area)}</span>` : ""}</span>
+        <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
+      </button>`).join("");
+    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+  }
+
+  function input(k, etiqueta, clase, tipo, valor) {
+    const v = valor ?? "";
+    let ctrl;
+    if (tipo && tipo.startsWith("lista:")) {
+      const ops = st.listas[tipo.slice(6)] || [];
+      ctrl = `<select data-k="${k}"><option value="">—</option>${ops.map(o => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+    } else if (tipo === "area") {
+      ctrl = `<textarea data-k="${k}">${esc(v)}</textarea>`;
+    } else {
+      const t = tipo === "date" ? "date" : tipo === "email" ? "email" : tipo === "tel" ? "tel" : "text";
+      ctrl = `<input type="${t}" data-k="${k}" value="${esc(v)}" ${tipo === "tel" ? 'inputmode="tel" maxlength="14"' : ""} autocomplete="off">`;
+    }
+    return `<label class="${clase || ""}">${etiqueta}${ctrl}<span class="err" data-e="${k}"></span></label>`;
+  }
+  const leer = cont => Object.fromEntries([...cont.querySelectorAll("[data-k]")].map(el => [el.dataset.k, el.value]));
+  function errores(cont, errs) {
+    cont.querySelectorAll("[data-e]").forEach(el => el.textContent = "");
+    for (const [k, m] of Object.entries(errs || {})) { const el = cont.querySelector(`[data-e="${k}"]`); if (el) el.textContent = m; }
+  }
+
+  function pintarDocs(docs) {
+    const n = docs.filter(d => d.recibido).length;
+    $("#p-docs-n").textContent = `${n} de ${docs.length}`;
+    $("#p-barra").style.width = (n / docs.length * 100) + "%";
+    $("#p-barra").parentElement.classList.toggle("ok", n === docs.length);
+  }
+
+  async function abrir(id) {
+    st.actual = id;
+    document.querySelectorAll(".pitem").forEach(b => b.toggleAttribute("aria-current", b.dataset.id === id));
+    $("#p-work").classList.add("ver-detalle");
+    const d = $("#p-detalle");
+    d.innerHTML = `<p class="empty">Cargando…</p>`;
+    let j;
+    try { j = await api("colaboradores/" + id); } catch (e) { d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    const c = j.colaborador; st.listas = j.listas;
+    const tel = c.telefono ? "52" + c.telefono : "";
+    const primer = (c.nombre || "").split(" ")[0];
+    const msg = `Hola ${primer}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(c.token)}\n\nY entrega 2 copias de cada documento con Josué: INE, CURP, solicitud de empleo, acta de nacimiento, comprobante de domicilio y comprobante de último grado de estudios.`;
+    d.innerHTML = `
+      <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>${esc(c.nombre)}</h2>${estadoPill(c)}</div>
+      <div class="cols">
+        <div style="display:grid;gap:24px">
+          <section class="card">
+            <h3>Documentos entregados</h3>
+            <div class="row" style="justify-content:space-between"><span class="note">Palomea cada uno al recibir sus 2 copias.</span><b id="p-docs-n"></b></div>
+            <div class="barra"><i id="p-barra" style="width:0"></i></div>
+            <div class="checklist">${c.docs.map(x => `<label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>`).join("")}</div>
+          </section>
+          <section class="card">
+            <h3>Enlace personal</h3>
+            <p class="note" style="margin:0">${c.llenado_en ? `Llenó sus datos el ${fecha(c.llenado_en)}.` : "Todavía no llena sus datos."} Con este enlace puede llenarlos o corregirlos desde su celular.</p>
+            <div class="enlace" id="p-enlace">${esc(enlaceDe(c.token))}</div>
+            <div class="row">
+              ${tel ? `<a class="btn btn-primary" href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ""}
+              <button class="btn btn-line" id="p-copiar" type="button">Copiar mensaje</button>
+              <button class="btn btn-line" id="p-regenerar" type="button">Cambiar enlace</button>
+            </div>
+            ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}
+          </section>
+          <section class="card" id="p-admin">
+            <h3>Puesto y entrevista</h3>
+            <div class="grid-form">
+              ${input("puesto", "Puesto", "", "", c.admin.puesto)}
+              ${input("area", "Área", "", "lista:areas", c.admin.area)}
+              ${input("fecha_ingreso", "Fecha de ingreso", "", "date", c.admin.fecha_ingreso)}
+              ${input("turno", "Turno u horario", "", "", c.admin.turno)}
+              ${input("fecha_entrevista", "Fecha de entrevista", "", "date", c.admin.fecha_entrevista)}
+              ${input("notas", "Notas de la entrevista", "wide", "area", c.admin.notas)}
+            </div>
+            <div class="row"><button class="btn btn-line" id="p-guardar-admin" type="button">Guardar</button></div>
+          </section>
+        </div>
+        <div style="display:grid;gap:24px">
+          <section class="card" id="p-datos">
+            <h3>Datos del colaborador</h3>
+            <p class="note" style="margin:0">Los llena el colaborador desde su enlace. Aquí puedes corregirlos.</p>
+            <div class="grid-form">${CAMPOS.map(([sec, cs], i) => `${i ? `<span class="sep">${sec}</span>` : `<span class="sep" style="border:0;margin:0;padding:0">${sec}</span>`}${cs.map(([k, et, cl, tp]) => input(k, et, cl, tp, c.datos[k])).join("")}`).join("")}</div>
+            <div class="row"><button class="btn btn-line" id="p-guardar-datos" type="button">Guardar datos</button></div>
+          </section>
+          <section class="card">
+            <h3>Eliminar ficha</h3>
+            <p class="note" style="margin:0">Borra al colaborador y todos sus datos. Su enlace deja de funcionar. No se puede deshacer.</p>
+            <div class="row"><button class="btn btn-bad" id="p-eliminar" type="button">Eliminar ficha</button></div>
+          </section>
+        </div>
+      </div>`;
+    pintarDocs(c.docs);
+
+    d.querySelectorAll("[data-doc]").forEach(cb => cb.addEventListener("change", async () => {
+      cb.disabled = true;
+      try {
+        const r = await post(`colaboradores/${id}/doc`, { clave: cb.dataset.doc, recibido: cb.checked });
+        const x = r.docs.lista.find(y => y.clave === cb.dataset.doc);
+        cb.closest(".chk").classList.toggle("ok", x.recibido);
+        d.querySelector(`[data-docf="${x.clave}"]`).textContent = x.recibido ? "Recibido " + fecha(x.fecha) : "";
+        pintarDocs(r.docs.lista);
+        cargar();
+      } catch (e) { cb.checked = !cb.checked; toast(e.message); }
+      cb.disabled = false;
+    }));
+    $("#p-volver").addEventListener("click", () => { $("#p-work").classList.remove("ver-detalle"); st.actual = null; cargar(); });
+    $("#p-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); } });
+    $("#p-regenerar").addEventListener("click", async e => {
+      const b = e.currentTarget;
+      if (!b.classList.contains("armed")) { b.classList.add("armed", "btn-bad"); b.textContent = "¿Seguro? El enlace anterior dejará de funcionar"; setTimeout(() => { b.classList.remove("armed", "btn-bad"); b.textContent = "Cambiar enlace"; }, 4000); return; }
+      try { await post(`colaboradores/${id}/nuevo-enlace`); toast("Enlace nuevo listo"); abrir(id); } catch (e) { toast(e.message); }
+    });
+    $("#p-guardar-admin").addEventListener("click", async () => {
+      const cont = $("#p-admin");
+      try { await post(`colaboradores/${id}/admin`, leer(cont)); errores(cont); toast("Guardado"); cargar(); } catch (e) { errores(cont, e.errores); toast(e.message); }
+    });
+    $("#p-guardar-datos").addEventListener("click", async () => {
+      const cont = $("#p-datos");
+      try { await post(`colaboradores/${id}/datos`, leer(cont)); errores(cont); toast("Datos guardados"); cargar(); abrir(id); } catch (e) { errores(cont, e.errores); toast(e.message); }
+    });
+    $("#p-eliminar").addEventListener("click", async e => {
+      const b = e.currentTarget;
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar ficha"; }, 4000); return; }
+      try { await post(`colaboradores/${id}/eliminar`); toast("Ficha eliminada"); st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); cargar(); } catch (err) { toast(err.message); }
+    });
+  }
+
+  function nuevo() {
+    st.actual = null;
+    document.querySelectorAll(".pitem").forEach(b => b.removeAttribute("aria-current"));
+    $("#p-work").classList.add("ver-detalle");
+    const d = $("#p-detalle");
+    if (!st.listas) st.listas = { areas: ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"] };
+    d.innerHTML = `
+      <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>Nuevo colaborador</h2></div>
+      <section class="card" id="p-alta" style="max-width:640px">
+        <p class="note" style="margin:0">Con su nombre y WhatsApp se crea su enlace personal. Él llena el resto desde su celular.</p>
+        <div class="grid-form">
+          ${input("nombre", "Nombre completo", "wide")}
+          ${input("telefono", "WhatsApp", "", "tel")}
+          ${input("puesto", "Puesto")}
+          ${input("area", "Área", "", "lista:areas")}
+          ${input("fecha_ingreso", "Fecha de ingreso", "", "date")}
+        </div>
+        <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y obtener enlace</button></div>
+      </section>`;
+    $("#p-volver").addEventListener("click", () => { $("#p-work").classList.remove("ver-detalle"); d.innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; });
+    $("#p-crear").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true;
+      const cont = $("#p-alta");
+      try { const r = await post("colaboradores", leer(cont)); await cargar(); abrir(r.id); }
+      catch (err) { errores(cont, err.errores); toast(err.message); b.disabled = false; }
+    });
+    $("#p-alta [data-k=nombre]").focus();
+  }
+
+  $("#p-lista").addEventListener("click", e => { const it = e.target.closest(".pitem"); if (it) abrir(it.dataset.id); });
+  document.querySelector(".ptabs").addEventListener("click", e => {
+    const t = e.target.closest(".ptab"); if (!t) return;
+    document.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+    st.filtro = t.dataset.filtro; cargar();
+  });
+  let h; $("#p-q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { st.q = e.target.value.trim(); cargar(); }, 300); });
+  $("#p-nuevo").addEventListener("click", nuevo);
+
+  if (location.hash === "#personal") mostrar("personal");
 })();
 </script>
 </body>

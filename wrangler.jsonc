@@ -9,7 +9,7 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/panel", "/panel/*"]
+    "run_worker_first": ["/api/*", "/panel", "/panel/*", "/expediente/*"]
   },
   // Solicitudes de factura (se crea sola al desplegar)
   "d1_databases": [{ "binding": "DB", "database_name": "castano-facturas" }],
