@@ -148,6 +148,19 @@ async function crearSolicitud(request, env, ctx) {
   const ahora = new Date().toISOString();
 
   const ticketBuf = await ticket.arrayBuffer();
+  await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
+
+  // Revisar el ticket con IA antes de guardar: se rechaza el ticket de ENTRADA
+  let lectura = null;
+  if (env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
+    try { lectura = await conLimite(analizarTicketImagen(env, ticketBuf, ticket.type), 15000); }
+    catch (e) { console.error("leer ticket", e && e.message); lectura = null; }
+    if (esTicketDeEntrada(lectura)) {
+      return json({ ok: false, error: "Enviaste el ticket de ENTRADA. Para facturar necesitamos el ticket de SALIDA: el que entregan al salir y trae el TOTAL pagado.",
+        errores: { ticket: "Este es el ticket de entrada. Toma la foto del ticket de salida (el que tiene el total)." } }, 422);
+    }
+  }
+
   await env.FILES.put(`f:${id}:ticket`, ticketBuf, { metadata: { tipo: ticket.type } });
   let csfTipo = null;
   if (modo === "csf" && csf) {
@@ -166,12 +179,16 @@ async function crearSolicitud(request, env, ctx) {
       uso, email, telefono || null, comentario || null, ticket.type, csfTipo)
     .run();
 
-  await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
+  if (lectura && !lectura.error) {
+    try { await guardarLecturaTicket(env, { id, folio_ticket: folioTicket }, lectura.datos, false); }
+    catch (e) { console.error("guardar lectura", e && e.message); }
+  }
 
   if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
     ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", e)));
   }
-  if (ctx && env.AI) {
+  if (ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
+    // Si la lectura falló o tardó, se reintenta en segundo plano
     ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", e && e.message)));
   }
 
@@ -405,7 +422,13 @@ async function panel(request, env, url) {
     if (!fila) return json({ ok: false, error: "No existe esa solicitud." }, 404);
 
     if (partes.length === 2 && request.method === "GET") {
-      return json({ ok: true, solicitud: fila, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS });
+      let duplicados = [];
+      if (fila.folio_ticket) {
+        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE folio_ticket = ? AND id != ? ORDER BY creado DESC LIMIT 5")
+          .bind(fila.folio_ticket, id).all();
+        duplicados = r.results;
+      }
+      return json({ ok: true, solicitud: fila, duplicados, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS });
     }
 
     if (partes[2] === "archivo" && ["ticket", "csf"].includes(partes[3]) && request.method === "GET") {
@@ -616,31 +639,30 @@ async function aceptarLicenciaModelo(env) {
   await env.FILES.put("ai:licencia", "1");
 }
 
-async function leerTicket(env, id, forzar = false) {
-  await asegurarEsquema(env);
-  const fila = await env.DB.prepare("SELECT * FROM solicitudes WHERE id = ?").bind(id).first();
-  if (!fila) return { error: "No existe esa solicitud." };
-  const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:ticket`, { type: "arrayBuffer" });
-  if (!value) return { error: "La foto del ticket ya no está disponible." };
-  const tipo = metadata && metadata.tipo;
+// Analiza la imagen del ticket y devuelve { datos, tipoTicket } o { error }
+async function analizarTicketImagen(env, bytes, tipo) {
   if (!TIPOS_LEGIBLES.includes(tipo)) return { error: "Solo se pueden leer fotos JPG, PNG o WebP. Captura los datos viendo el ticket." };
-  if (value.byteLength > 5 * 1024 * 1024) return { error: "La foto es demasiado grande para leerla automáticamente." };
-
+  if (bytes.byteLength > 5 * 1024 * 1024) return { error: "La foto es demasiado grande para leerla automáticamente." };
   await aceptarLicenciaModelo(env);
-  const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(value))}`;
-  const instrucciones = `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Tiene este formato:
+  const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`;
+  const instrucciones = `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Hay dos tipos:
+- TICKET DE SALIDA (el que sirve para facturar): al final dice "TICKET DE SALIDA" y contiene "FECHA Y HORA DE SALIDA", "TIEMPO COBRADO", "IMPORTE DE ESTACIONAMIENTO" y "TOTAL: $1200.00".
+- TICKET DE ENTRADA: al final dice "TICKET DE ENTRADA", solo trae "HORA ENTRADA" y no tiene TOTAL ni importe.
+Campos del ticket (los valores son solo ejemplos del formato):
 - Arriba a la izquierda: "Folio: 15013"
 - "PLACAS: 49AR1X"
-- "DESCRIPCIÓN AUTO: TRANSPORTES LOZANOS T24" (descripción del vehículo o del cliente)
-- "TARIFA: BB1 SENCILLO $150 T24" (texto completo de la tarifa)
+- "DESCRIPCIÓN AUTO: TRANSPORTES LOZANOS T24"
+- "TARIFA: BB1 SENCILLO $150 T24"
 - "TOTAL: $1200.00"
+Puede haber otro papel encima, como un comprobante de pago con tarjeta (Mercado Pago u otro banco). Ignóralo: lee solo el ticket de la báscula y nunca tomes el total del comprobante de pago.
 Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
+"tipo": "salida", "entrada" o "desconocido",
 "folio": el número que sigue a "Folio",
 "placas": el texto que sigue a "PLACAS",
 "descripcion": el texto que sigue a "DESCRIPCIÓN AUTO",
 "tarifa": el texto completo que sigue a "TARIFA",
-"total": el número que sigue a "TOTAL", sin signo de pesos.
-Copia los datos exactamente como aparecen en esta imagen; los valores de arriba son solo un ejemplo del formato. Si un dato no aparece o no se lee con claridad, usa null. No inventes datos.`;
+"total": el número que sigue a "TOTAL" en el ticket de la báscula, sin signo de pesos.
+Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece, está tapado o no se lee con claridad, usa null. No inventes datos.`;
   const r = await env.AI.run(MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],
     image: imagen,
@@ -660,12 +682,39 @@ Copia los datos exactamente como aparecen en esta imagen; los valores de arriba 
     tarifa: valor(d.tarifa).replace(/^tarifa[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 60),
     importe: normalizarImporte(valor(d.total)) || ""
   };
+  const t = valor(d.tipo).toLowerCase();
+  const tipoTicket = t.startsWith("entrada") ? "entrada" : t.startsWith("salida") ? "salida" : "desconocido";
+  return { datos, tipoTicket };
+}
+
+// Es de entrada solo si el modelo lo dice y además no encontró total (evita rechazar por error)
+function esTicketDeEntrada(a) {
+  return a && !a.error && a.tipoTicket === "entrada" && !a.datos.importe;
+}
+
+async function leerTicket(env, id, forzar = false) {
+  await asegurarEsquema(env);
+  const fila = await env.DB.prepare("SELECT * FROM solicitudes WHERE id = ?").bind(id).first();
+  if (!fila) return { error: "No existe esa solicitud." };
+  const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:ticket`, { type: "arrayBuffer" });
+  if (!value) return { error: "La foto del ticket ya no está disponible." };
+  const a = await analizarTicketImagen(env, value, metadata && metadata.tipo);
+  if (a.error) return a;
+  await guardarLecturaTicket(env, fila, a.datos, forzar);
+  return { datos: a.datos, tipoTicket: a.tipoTicket };
+}
+
+async function guardarLecturaTicket(env, fila, datos, forzar) {
   // Solo se llenan campos vacíos, salvo que se pida leer de nuevo desde el panel
   const final = {};
   for (const k of Object.keys(datos)) final[k] = forzar ? (datos[k] || fila[k] || "") : (fila[k] || datos[k] || "");
   await env.DB.prepare("UPDATE solicitudes SET folio_ticket=?, placas=?, descripcion=?, tarifa=?, importe=?, ticket_leido=1 WHERE id=?")
-    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, id).run();
-  return { datos: final };
+    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, fila.id).run();
+  return final;
+}
+
+function conLimite(promesa, ms) {
+  return Promise.race([promesa, new Promise(res => setTimeout(() => res({ error: "tiempo agotado" }), ms))]);
 }
 
 function aBase64(bytes) {

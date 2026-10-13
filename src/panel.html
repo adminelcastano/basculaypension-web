@@ -346,6 +346,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
               ${campo("Servicio", j.servicios[s.servicio] || s.servicio, false)}
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
+            ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.ticket_leido ? `<p class="note">Datos leídos de la foto del ticket. Verifícalos contra la imagen.</p>` : ""}
             <div class="grid-form">
               <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 15013" autocomplete="off"></label>

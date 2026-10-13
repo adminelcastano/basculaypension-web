@@ -89,6 +89,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .hecho h1 { font-size: 2.2rem; font-weight: 700; }
 .folio { font-family: var(--font-display); font-size: 1.8rem; font-weight: 700; letter-spacing: .02em; background: var(--ok-soft); color: var(--ok); padding: 6px 14px; border-radius: 8px; font-variant-numeric: tabular-nums; }
 .tips { margin: 2px 0 4px; padding-left: 1.1em; color: var(--muted); font-size: .92rem; display: grid; gap: 3px; }
+.tips b { color: var(--fg); font-weight: 600; }
 .revision { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; align-items: start; background: var(--bad-soft); border-radius: 14px; padding: 12px; width: 100%; }
 .revision img { width: 88px; height: 120px; object-fit: cover; border-radius: 8px; opacity: .85; }
 .revision b { display: block; margin-bottom: 4px; }
@@ -132,6 +133,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           <div class="drop">
             <span style="font-weight:600">Foto del ticket</span>
             <ul class="tips">
+              <li><b>Envía el ticket de SALIDA,</b> el que te dan al salir y trae el TOTAL. El ticket de entrada no sirve para facturar.</li>
+              <li>Que se vea el <b>folio</b> de arriba, sin el comprobante de la terminal ni otros papeles encima.</li>
               <li>Pon el ticket sobre una superficie plana, completo y sin doblar.</li>
               <li>Busca buena luz, sin sombras ni reflejos.</li>
               <li>Toca la pantalla sobre el ticket para enfocar y no muevas el teléfono.</li>
@@ -412,7 +415,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (modo() === "csf") datos.append("csf", archivos.csf);
 
     const boton = document.getElementById("enviar");
-    boton.disabled = true; boton.textContent = "Enviando…";
+    boton.disabled = true; boton.textContent = "Enviando y revisando tu ticket…";
     try {
       const r = await fetch("/api/solicitud", { method: "POST", body: datos });
       const j = await r.json().catch(() => ({ ok: false, error: "No pudimos confirmar el envío. Intenta de nuevo." }));
@@ -420,6 +423,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         if (j.errores) for (const [k, v] of Object.entries(j.errores)) error(k, v);
         document.getElementById("alerta").textContent = j.error || "No se pudo enviar. Intenta de nuevo.";
         boton.disabled = false; boton.textContent = "Enviar datos para factura";
+        if (j.errores && j.errores.ticket) {
+          archivos.ticket = null;
+          document.getElementById("prev-ticket").hidden = true;
+          document.getElementById("ticket").value = "";
+          document.getElementById("g-ticket").scrollIntoView({ behavior: "smooth", block: "center" });
+        }
         return;
       }
       document.getElementById("folio").textContent = j.folio;
