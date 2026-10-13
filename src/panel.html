@@ -358,6 +358,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     <label>Fecha límite de entrega<input type="date" id="p-flim"></label>
     <button class="btn btn-line" id="p-recordar-todos" type="button">Recordar a incompletos</button>
     <span class="note" id="p-flim-nota"></span>
+    <button class="btn btn-line" id="p-drive" type="button" style="margin-left:auto">Probar conexión con Drive</button>
+    <span class="note" id="p-drive-nota"></span>
   </div>
 </div>
 <main class="work" id="p-work">
@@ -978,6 +980,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       for (const k of ["colaborador", "externo", "activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
       st.config = j.config || {};
       if (document.activeElement !== $("#p-flim")) $("#p-flim").value = st.config.fecha_limite || "";
+      $("#p-drive-nota").textContent = st.config.drive ? "Drive conectado: los documentos se copian solos a la carpeta." : "Drive sin conectar.";
+      $("#p-drive").textContent = st.config.drive ? "Volver a probar Drive" : "Probar conexión con Drive";
       $("#p-flim-nota").textContent = st.config.fecha_limite ? `Dos días antes se manda solo un correo de recordatorio a los incompletos.` : "Captúrala para que el sistema recuerde solo, dos días antes.";
       const inac = st.estatus === "inactivo";
       const grupo = EXT() ? "externos" : "colaboradores";
@@ -1106,7 +1110,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           <section class="card">
             <h3>${c.tipo === "externo" ? "Registro en PDF" : "Expediente en PDF"}</h3>
             <p class="note" style="margin:0">${c.completo ? "Junta sus datos, los documentos que subió y tus documentos administrativos en un solo PDF." : `Se habilita cuando el expediente esté completo. Falta: ${esc([...(c.falta.datos ? ["llenar sus datos"] : []), ...c.falta.docs].join(", "))}.`}</p>
-            <div class="row"><button class="btn ${c.completo ? "btn-primary" : "btn-line"}" id="p-pdf" type="button" ${c.completo ? "" : "disabled"}>${c.tipo === "externo" ? "Descargar registro PDF" : "Descargar expediente PDF"}</button><span class="note" id="p-pdf-estado"></span></div>
+            <div class="row"><button class="btn btn-line" id="p-drive-sync" type="button" ${j.config && j.config.drive ? "" : "disabled"} title="${j.config && j.config.drive ? "Copia a su carpeta de Drive los documentos que ya están aquí" : "Primero conecta Drive"}">Copiar a Drive</button><button class="btn ${c.completo ? "btn-primary" : "btn-line"}" id="p-pdf" type="button" ${c.completo ? "" : "disabled"}>${c.tipo === "externo" ? "Descargar registro PDF" : "Descargar expediente PDF"}</button><span class="note" id="p-pdf-estado"></span></div>
           </section>
           <section class="card" id="p-adocs">
             <h3>Documentos administrativos</h3>
@@ -1144,6 +1148,12 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       } catch (err) { toast(err.message); b.disabled = false; }
     });
     $("#p-pdf").addEventListener("click", () => generarPdf(c));
+    $("#p-drive-sync").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true; $("#p-pdf-estado").textContent = "Copiando a Drive…";
+      try { const r = await post(`colaboradores/${id}/drive-sync`); $("#p-pdf-estado").textContent = r.copiados ? `Listo: ${r.copiados} archivos en su carpeta de Drive.` : "Carpeta creada en Drive (todavía no hay archivos)."; }
+      catch (err) { $("#p-pdf-estado").textContent = err.message; }
+      b.disabled = false;
+    });
     $("#ad-archivo").addEventListener("change", e => { const f = e.target.files[0]; $("#ad-archivo-n").textContent = f ? f.name.slice(0, 28) : "Elegir PDF"; });
     $("#ad-subir").addEventListener("click", async e => {
       const b = e.currentTarget, f = $("#ad-archivo").files[0], desc = $("#ad-desc").value.trim();
@@ -1155,7 +1165,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         const r = await fetch(`/panel/api/colaboradores/${id}/adoc`, { method: "POST", headers: { "X-Panel": "1", "Content-Type": f.type || "application/pdf", "X-Descripcion": encodeURIComponent(desc), "X-Fecha": $("#ad-fecha").value, "X-Nombre": encodeURIComponent(f.name) }, body: f });
         const j = await r.json().catch(() => ({ ok: false, error: "No se pudo subir." }));
         if (!j.ok) throw new Error(j.error);
-        pintarAdocs(id, j.admin_docs); $("#ad-desc").value = ""; $("#ad-archivo").value = ""; $("#ad-archivo-n").textContent = "Elegir PDF"; $("#ad-estado").textContent = ""; toast("Documento subido");
+        pintarAdocs(id, j.admin_docs); if (j.drive === "error") toast("Subido, pero no se pudo copiar a Drive"); $("#ad-desc").value = ""; $("#ad-archivo").value = ""; $("#ad-archivo-n").textContent = "Elegir PDF"; $("#ad-estado").textContent = ""; toast("Documento subido");
       } catch (err) { $("#ad-estado").textContent = err.message; }
       b.disabled = false;
     });
@@ -1339,6 +1349,12 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     b.disabled = false;
   }
 
+  $("#p-drive").addEventListener("click", async e => {
+    const b = e.currentTarget; b.disabled = true; $("#p-drive-nota").textContent = "Probando…";
+    try { const r = await post("colaboradores/drive-probar"); st.config = r.config; $("#p-drive-nota").textContent = "Drive conectado: desde ahora los documentos se copian solos. Para los que ya estaban, usa «Copiar a Drive» en cada ficha."; }
+    catch (err) { $("#p-drive-nota").textContent = err.message; }
+    b.disabled = false;
+  });
   $("#p-flim").addEventListener("change", async e => {
     try { const r = await post("colaboradores/config", { fecha_limite: e.target.value }); st.config = r.config; toast(r.config.fecha_limite ? "Fecha límite guardada" : "Fecha límite quitada"); cargar(); } catch (err) { toast(err.message); }
   });

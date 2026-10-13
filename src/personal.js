@@ -288,7 +288,7 @@ async function leerDocumento(env, archivo, bytes, tipo, admin) {
 }
 
 // Sube la foto de un documento desde el enlace personal: se guarda y se palomea solo
-async function subirFoto(request, env, fila, archivo) {
+async function subirFoto(request, env, fila, archivo, ctx) {
   const clave = DOC_DE_ARCHIVO[archivo];
   if (!clave || !nombresDocs(null, fila.tipo)[clave]) return json({ ok: false, error: "Documento desconocido." }, 404);
   const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
@@ -299,6 +299,7 @@ async function subirFoto(request, env, fila, archivo) {
   if (bytes.byteLength > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB." }, 413);
   const ahora = new Date().toISOString();
   await env.FILES.put(`x:${fila.id}:${archivo}`, bytes, { metadata: { tipo, subido: ahora } });
+  enSegundoPlano(ctx, aDrive(env, fila, "d:" + archivo, bytes, tipo, NOMBRE_ARCHIVO[archivo] || archivo));
   const docs = parse(fila.docs);
   const d = docs[clave] || {};
   d.fotos = { ...(d.fotos || {}), [archivo]: ahora };
@@ -328,7 +329,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     const conteo = Number(await env.FILES.get(llave) || 0);
     if (conteo >= 40) return json({ ok: false, error: "Demasiados archivos en poco tiempo. Espera una hora e intenta de nuevo." }, 429);
     await env.FILES.put(llave, String(conteo + 1), { expirationTtl: 3700 });
-    const resp = await subirFoto(request, env, fila, resto[1]);
+    const resp = await subirFoto(request, env, fila, resto[1], ctx);
     if (resp.status === 200) await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
     return resp;
   }
@@ -476,6 +477,41 @@ async function revisarCompletoExterno(env, antes, id, enviarA, ctx) {
   const p = avisarEncargado(env, despues, "completo", enviarA);
   if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
 }
+
+// ---------------------------------------------------------------------------
+// Copia en Google Drive (vía el mismo Apps Script de los correos)
+// Carpeta raíz → COLABORADORES / EXTERNOS → "<folio> <nombre>" → documentos
+// Solo se usa cuando la administración activó la conexión desde el panel.
+// ---------------------------------------------------------------------------
+const NOMBRE_ARCHIVO = { ine: "Identificación (frente)", ine2: "Identificación (reverso)", curp: "CURP", solicitud: "Solicitud de empleo (hoja 1)", solicitud2: "Solicitud de empleo (hoja 2)", acta: "Acta de nacimiento", domicilio: "Comprobante de domicilio", estudios: "Comprobante de estudios", foto: "Fotografía" };
+const EXT_DE = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif", "application/pdf": "pdf" };
+
+function carpetaDrive(fila) { return { id: fila.id, tipo: fila.tipo === "externo" ? "externo" : "colaborador", carpeta: `${folioDe(fila)} ${fila.nombre}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 120) }; }
+
+async function llamarDrive(env, datos) {
+  const r = await fetch(env.AVISO_URL.trim(), { method: "POST", redirect: "follow", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), accion: "drive", ...datos }) });
+  const t = (await r.text()).slice(0, 200).trim();
+  if (t !== "ok-drive") throw new Error("drive: " + t.replace(/\s+/g, " ").slice(0, 120));
+}
+function aB64(bytes) { let bin = ""; const u = new Uint8Array(bytes); for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(bin); }
+
+// Sube a Drive un archivo ya guardado en el sitio. slot: "d:<archivo>" (documento) o "a:<docId>" (administrativo)
+async function aDrive(env, fila, slot, bytes, tipo, nombreBase) {
+  const cfg = await leerConfig(env);
+  if (!cfg.drive || !env.AVISO_URL || !env.AVISO_TOKEN) return false;
+  await llamarDrive(env, { op: "subir", ...carpetaDrive(fila), slot, nombre: `${nombreBase}.${EXT_DE[tipo] || "bin"}`, tipoArchivo: tipo, base64: aB64(bytes) });
+  return true;
+}
+async function borrarDeDrive(env, fila, slot) {
+  const cfg = await leerConfig(env);
+  if (!cfg.drive || !env.AVISO_URL || !env.AVISO_TOKEN) return;
+  await llamarDrive(env, { op: "borrar", ...carpetaDrive(fila), slot });
+}
+function enSegundoPlano(ctx, promesa) {
+  const p = promesa.catch(e => console.error("drive", e && e.message));
+  if (ctx && ctx.waitUntil) ctx.waitUntil(p); return p;
+}
+function nombreAdmin(d) { return `${d.fecha} - ${d.descripcion}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 120); }
 
 // Qué le falta a un colaborador para tener su expediente completo
 function faltantes(fila) {
@@ -631,6 +667,15 @@ export async function personalPanel(request, env, url, partes, enviar) {
     return json({ ok: true, id, token, folio: folioDe(filaNueva), correo: correoRes });
   }
 
+  if (partes[1] === "drive-probar" && request.method === "POST") {
+    if (!env.AVISO_URL || !env.AVISO_TOKEN) return json({ ok: false, error: "El script de Google no está configurado." }, 503);
+    try { await llamarDrive(env, { op: "probar", asunto: "Prueba de conexión con Drive · El Castaño", texto: "Si te llegó este correo, el script de Google todavía es la versión anterior. Actualízalo con el código nuevo (incluye la copia en Drive) y vuelve a tocar «Probar conexión con Drive» en el panel." }); }
+    catch (e) { return json({ ok: false, error: /ok/.test(e.message) ? "El script de Google todavía es la versión anterior: actualízalo y vuelve a probar." : "No se pudo conectar con Drive: " + e.message.replace(/^drive: /, "") }, 502); }
+    const cfg = { ...(await leerConfig(env)), drive: true };
+    await env.FILES.put("cfg:personal", JSON.stringify(cfg));
+    return json({ ok: true, config: cfg });
+  }
+
   if (partes[1] === "config") {
     if (request.method === "GET") return json({ ok: true, config: await leerConfig(env) });
     const cuerpo = await request.json().catch(() => ({}));
@@ -705,8 +750,10 @@ export async function personalPanel(request, env, url, partes, enviar) {
     if (lista.length >= 60) return json({ ok: false, error: "Este colaborador ya tiene 60 documentos administrativos." }, 409);
     await env.FILES.put(`xa:${id}:${docId}`, bytes, { metadata: { tipo, nombre: nombreArchivo.slice(0, 120) } });
     lista.push({ id: docId, descripcion, fecha, tipo, nombre: nombreArchivo.slice(0, 120), tamano: bytes.byteLength, subido: new Date().toISOString() });
+    let drive = null;
+    try { drive = await aDrive(env, fila, "a:" + docId, bytes, tipo, nombreAdmin({ fecha, descripcion })); } catch (e) { console.error("drive", e && e.message); drive = "error"; }
     await env.DB.prepare("UPDATE colaboradores SET admin_docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(lista), new Date().toISOString(), id).run();
-    return json({ ok: true, admin_docs: lista });
+    return json({ ok: true, admin_docs: lista, drive });
   }
 
   if (request.method !== "POST" || partes.length !== 3) return json({ ok: false, error: "Ruta no encontrada." }, 404);
@@ -717,6 +764,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const nueva = lista.filter(d => d.id !== cuerpo.doc);
     if (nueva.length === lista.length) return json({ ok: false, error: "No existe ese documento." }, 404);
     await env.FILES.delete(`xa:${id}:${cuerpo.doc}`);
+    try { await borrarDeDrive(env, fila, "a:" + cuerpo.doc); } catch (e) { console.error("drive", e && e.message); }
     await env.DB.prepare("UPDATE colaboradores SET admin_docs = ? WHERE id = ?").bind(JSON.stringify(nueva), id).run();
     return json({ ok: true, admin_docs: nueva });
   }
@@ -794,9 +842,30 @@ export async function personalPanel(request, env, url, partes, enviar) {
     return json({ ok: true, token });
   }
 
+  if (partes[2] === "drive-sync") {
+    const cfg = await leerConfig(env);
+    if (!cfg.drive) return json({ ok: false, error: "Primero activa la conexión con Drive (botón «Probar conexión con Drive»)." }, 409);
+    let n = 0, fallas = 0;
+    const docs = parse(fila.docs);
+    for (const [clave, d] of Object.entries(docs)) for (const a of Object.keys((d && d.fotos) || {})) {
+      const { value, metadata } = await env.FILES.getWithMetadata(`x:${id}:${a}`, { type: "arrayBuffer" });
+      if (!value) continue;
+      try { await aDrive(env, fila, "d:" + a, value, (metadata && metadata.tipo) || "application/octet-stream", NOMBRE_ARCHIVO[a] || a); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
+    }
+    for (const d of JSON.parse(fila.admin_docs || "[]")) {
+      const { value } = await env.FILES.getWithMetadata(`xa:${id}:${d.id}`, { type: "arrayBuffer" });
+      if (!value) continue;
+      try { await aDrive(env, fila, "a:" + d.id, value, d.tipo, nombreAdmin(d)); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
+    }
+    if (!n && !fallas) { try { await llamarDrive(env, { op: "carpeta", ...carpetaDrive(fila) }); } catch (e) { fallas++; } }
+    if (fallas) return json({ ok: false, error: `Se copiaron ${n} archivos y fallaron ${fallas}. Intenta de nuevo.` }, 502);
+    return json({ ok: true, copiados: n });
+  }
+
   if (partes[2] === "eliminar") {
     for (const a of Object.keys(DOC_DE_ARCHIVO)) await env.FILES.delete(`x:${id}:${a}`);
     for (const d of JSON.parse(fila.admin_docs || "[]")) await env.FILES.delete(`xa:${id}:${d.id}`);
+    try { const cfg = await leerConfig(env); if (cfg.drive && env.AVISO_URL) await llamarDrive(env, { op: "borrar-carpeta", ...carpetaDrive(fila) }); } catch (e) { console.error("drive", e && e.message); }
     await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }
