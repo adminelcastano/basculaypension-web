@@ -55,6 +55,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
 .chip span { display: inline-flex; align-items: center; min-height: 48px; padding: 0 18px; border: 1.5px solid var(--line); border-radius: 999px; font-weight: 600; background: var(--bg); }
 .chip input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip span svg { width: 20px; height: 20px; margin-right: 8px; flex: none; }
+.chip .ico-bascula { color: var(--amber); }
+.chip .ico-pension { color: #64d2ff; }
+.chip input:checked + span svg { color: inherit; }
 .chip input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
 .opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 420px) { .opciones { grid-template-columns: 1fr; } }
@@ -123,8 +127,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         <legend><span class="paso">1</span>Tu servicio</legend>
         <div class="f" id="g-servicio">
           <div class="chips" role="radiogroup" aria-label="Servicio">
-            <label class="chip"><input type="radio" name="servicio" value="bascula" required><span>Báscula</span></label>
-            <label class="chip"><input type="radio" name="servicio" value="pension"><span>Pensión</span></label>
+            <label class="chip"><input type="radio" name="servicio" value="bascula" required><span><svg class="ico-bascula" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 7.2a2.6 2.6 0 1 1 5.2 0M7.4 7.2h9.2l2.6 12.2H4.8z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.6 15.6v-4l2.4 2.6 2.4-2.6v4"/></svg>Báscula</span></label>
+            <label class="chip"><input type="radio" name="servicio" value="pension"><span><svg class="ico-pension" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Pensión</span></label>
           </div>
           <span class="err" data-err="servicio"></span>
         </div>
