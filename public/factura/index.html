@@ -88,6 +88,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .hecho { display: grid; gap: 14px; justify-items: start; background: var(--surface); border: 0; border-radius: 22px; padding: 24px 20px; }
 .hecho h1 { font-size: 2.2rem; font-weight: 700; }
 .folio { font-family: var(--font-display); font-size: 1.8rem; font-weight: 700; letter-spacing: .02em; background: var(--ok-soft); color: var(--ok); padding: 6px 14px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.tips { margin: 2px 0 4px; padding-left: 1.1em; color: var(--muted); font-size: .92rem; display: grid; gap: 3px; }
+.revision { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; align-items: start; background: var(--bad-soft); border-radius: 14px; padding: 12px; width: 100%; }
+.revision img { width: 88px; height: 120px; object-fit: cover; border-radius: 8px; opacity: .85; }
+.revision b { display: block; margin-bottom: 4px; }
+.revision .btn { min-height: 44px; padding: 0 18px; font-size: 1rem; white-space: nowrap; }
+.revision ul { margin: 0 0 12px; padding-left: 1.1em; display: grid; gap: 4px; font-size: .95rem; }
+.revision .link { display: block; margin-top: 10px; background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; font: inherit; font-size: .9rem; cursor: pointer; }
+.preview img { object-fit: contain; background: #fff; }
 [hidden] { display: none !important; }
 footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 </style>
@@ -123,13 +131,19 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         <div id="g-ticket">
           <div class="drop">
             <span style="font-weight:600">Foto del ticket</span>
-            <span class="hint">Que se lean bien el folio, la fecha y el importe.</span>
+            <ul class="tips">
+              <li>Pon el ticket sobre una superficie plana, completo y sin doblar.</li>
+              <li>Busca buena luz, sin sombras ni reflejos.</li>
+              <li>Toca la pantalla sobre el ticket para enfocar y no muevas el teléfono.</li>
+            </ul>
+            <span class="hint">Revisamos la foto antes de enviarla y la mejoramos para que se lea mejor.</span>
             <label class="btn btn-line" for="ticket">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
               Tomar o elegir foto
             </label>
             <input type="file" id="ticket" name="ticket" accept="image/*,application/pdf">
             <div class="preview" id="prev-ticket" hidden></div>
+            <div class="revision" id="rev-ticket" hidden></div>
           </div>
           <span class="err" data-err="ticket"></span>
         </div>
@@ -252,6 +266,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 </main>
 <footer class="wrap">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a></footer>
 
+<script src="/factura/foto.js"></script>
 <script>
 (() => {
   const form = document.getElementById("form");
@@ -287,21 +302,68 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     } catch { return file; }
   }
 
+  let intentosBorrosos = 0;
+  function mostrarPrev(prev, file, texto) {
+    prev.hidden = false; prev.textContent = "";
+    if (file.type.startsWith("image/")) { const img = document.createElement("img"); img.alt = ""; img.src = URL.createObjectURL(file); prev.appendChild(img); }
+    const s = document.createElement("span"); s.textContent = texto; prev.appendChild(s);
+  }
+
   async function elegir(input, clave) {
     const f = input.files && input.files[0];
     const prev = document.getElementById("prev-" + clave);
+    const rev = document.getElementById("rev-" + clave);
     error(clave, "");
+    if (rev) { rev.hidden = true; rev.textContent = ""; }
     if (!f) { archivos[clave] = null; prev.hidden = true; return; }
     if (!TIPOS.includes(f.type)) { error(clave, "Usa una foto (JPG o PNG) o un PDF."); input.value = ""; return; }
+
+    // Ticket en foto: revisar enfoque, luz y tamaño; si está bien, mejorarla
+    if (clave === "ticket" && f.type.startsWith("image/") && window.FotoTicket) {
+      archivos.ticket = null;
+      mostrarPrev(prev, f, "Revisando la foto…");
+      let analisis = null;
+      try { analisis = await FotoTicket.analizar(f); } catch { analisis = null; }
+      if (analisis && !analisis.ok) {
+        intentosBorrosos++;
+        prev.hidden = true;
+        rev.hidden = false;
+        rev.innerHTML = "";
+        const img = document.createElement("img"); img.alt = "Foto del ticket rechazada"; img.src = URL.createObjectURL(f);
+        const caja = document.createElement("div");
+        const t = document.createElement("b"); t.textContent = "Esta foto no se lee bien. Toma otra:";
+        const ul = document.createElement("ul"); for (const p of analisis.problemas) { const li = document.createElement("li"); li.textContent = p; ul.appendChild(li); }
+        caja.append(t, ul);
+        const otra = document.createElement("label"); otra.className = "btn btn-amber"; otra.htmlFor = "ticket"; otra.textContent = "Tomar otra foto";
+        caja.appendChild(otra);
+        if (intentosBorrosos >= 2) {
+          const forzar = document.createElement("button"); forzar.type = "button"; forzar.className = "link"; forzar.textContent = "Mi ticket así se ve, enviar esta foto";
+          forzar.addEventListener("click", async () => { rev.hidden = true; await usarTicket(f, prev, "Foto enviada como está"); });
+          caja.appendChild(forzar);
+        }
+        rev.append(img, caja);
+        input.value = "";
+        error("ticket", "Toma una foto más clara del ticket.");
+        return;
+      }
+      intentosBorrosos = 0;
+      await usarTicket(f, prev, analisis ? "Foto revisada y mejorada ✓" : (f.name || "Foto") + " ✓");
+      return;
+    }
+
     const listo = await preparar(f);
     if (listo.size > 10 * 1024 * 1024) { error(clave, "El archivo pesa más de 10 MB. Toma una foto nueva o usa un PDF más ligero."); input.value = ""; return; }
     archivos[clave] = listo;
-    prev.hidden = false;
-    prev.textContent = "";
-    if (listo.type.startsWith("image/")) {
-      const img = document.createElement("img"); img.alt = ""; img.src = URL.createObjectURL(listo); prev.appendChild(img);
-    }
-    const s = document.createElement("span"); s.textContent = (f.name || "Archivo") + " ✓"; prev.appendChild(s);
+    mostrarPrev(prev, listo, (f.name || "Archivo") + " ✓");
+  }
+
+  async function usarTicket(f, prev, texto) {
+    let listo = f;
+    try { listo = await FotoTicket.mejorar(f); } catch { listo = await preparar(f); }
+    if (listo.size > 10 * 1024 * 1024) { error("ticket", "La foto pesa más de 10 MB. Toma una nueva."); return; }
+    error("ticket", "");
+    archivos.ticket = listo;
+    mostrarPrev(prev, listo, texto);
   }
   document.getElementById("ticket").addEventListener("change", e => elegir(e.target, "ticket"));
   document.getElementById("csf").addEventListener("change", e => elegir(e.target, "csf"));

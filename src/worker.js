@@ -247,14 +247,14 @@ async function llamarScript(env, datos) {
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción", "Tarifa", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción auto", "Tarifa", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
-      r.placas || "", r.descripcion || "", r.tarifa ? "$" + Number(r.tarifa).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "",
+      r.placas || "", r.descripcion || "", r.tarifa || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
       r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
   }
@@ -292,7 +292,7 @@ async function exportarXlsx(env, url) {
 function crearXlsx(filas) {
   const col = i => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
   const xml = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-  const anchos = [16, 17, 11, 16, 14, 12, 28, 11, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
+  const anchos = [16, 17, 11, 16, 14, 12, 30, 24, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
   const archivos = {
@@ -482,8 +482,7 @@ async function panel(request, env, url) {
         const folioTicket = "folio_ticket" in cuerpo ? String(cuerpo.folio_ticket || "").trim().slice(0, 40) : (fila.folio_ticket || "");
         const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
-        const tarifa = "tarifa" in cuerpo ? normalizarImporte(cuerpo.tarifa) : (fila.tarifa || "");
-        if (tarifa === null) errores.tarifa = "Tarifa inválida.";
+        const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
         await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=? WHERE id=?")
           .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, id).run();
@@ -629,13 +628,19 @@ async function leerTicket(env, id, forzar = false) {
 
   await aceptarLicenciaModelo(env);
   const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(value))}`;
-  const instrucciones = `Eres un lector de tickets de una báscula camionera y pensión de trailers en México. Lee el ticket de la imagen y responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
-"folio": folio o número del ticket,
-"placas": placas del vehículo,
-"descripcion": concepto o servicio cobrado (por ejemplo pesaje, pensión, báscula),
-"tarifa": precio unitario o tarifa, solo el número,
-"total": importe total pagado, solo el número.
-Si un dato no aparece o no se lee con claridad, usa null. No inventes datos.`;
+  const instrucciones = `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Tiene este formato:
+- Arriba a la izquierda: "Folio: 15013"
+- "PLACAS: 49AR1X"
+- "DESCRIPCIÓN AUTO: TRANSPORTES LOZANOS T24" (descripción del vehículo o del cliente)
+- "TARIFA: BB1 SENCILLO $150 T24" (texto completo de la tarifa)
+- "TOTAL: $1200.00"
+Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
+"folio": el número que sigue a "Folio",
+"placas": el texto que sigue a "PLACAS",
+"descripcion": el texto que sigue a "DESCRIPCIÓN AUTO",
+"tarifa": el texto completo que sigue a "TARIFA",
+"total": el número que sigue a "TOTAL", sin signo de pesos.
+Copia los datos exactamente como aparecen en esta imagen; los valores de arriba son solo un ejemplo del formato. Si un dato no aparece o no se lee con claridad, usa null. No inventes datos.`;
   const r = await env.AI.run(MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],
     image: imagen,
@@ -651,8 +656,8 @@ Si un dato no aparece o no se lee con claridad, usa null. No inventes datos.`;
   const datos = {
     folio_ticket: valor(d.folio).replace(/^(folio|no\.?|n[uú]m(ero)?)[:\s#]*/i, "").slice(0, 40),
     placas: limpiarPlacas(valor(d.placas)),
-    descripcion: valor(d.descripcion).replace(/\s+/g, " ").slice(0, 120),
-    tarifa: normalizarImporte(valor(d.tarifa)) || "",
+    descripcion: valor(d.descripcion).replace(/^descripci[oó]n( auto)?[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 120),
+    tarifa: valor(d.tarifa).replace(/^tarifa[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 60),
     importe: normalizarImporte(valor(d.total)) || ""
   };
   // Solo se llenan campos vacíos, salvo que se pida leer de nuevo desde el panel

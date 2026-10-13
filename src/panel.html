@@ -241,8 +241,9 @@ section.card { border-radius: 22px; padding: 22px 24px; }
 
   const dinero = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   function mensajeCliente(s, servicios) {
-    const concepto = s.descripcion || ({ bascula: "servicio de báscula", pension: "servicio de pensión", ambos: "servicios de báscula y pensión" }[s.servicio] || "servicio");
-    const ticket = (s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket") + (s.placas ? ` de la unidad con placas ${s.placas}` : "");
+    const concepto = { bascula: "servicio de báscula", pension: "servicio de pensión", ambos: "servicios de báscula y pensión" }[s.servicio] || "servicio";
+    const unidad = [s.descripcion, s.placas ? `placas ${s.placas}` : ""].filter(Boolean).join(", ");
+    const ticket = (s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket") + (unidad ? ` (${unidad})` : "");
     const importe = s.importe ? ` por ${dinero(s.importe)}` : "";
     if (s.estado === "facturada") {
       return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. Te la enviamos a tu correo ${s.email}. Gracias por tu preferencia.`;
@@ -347,11 +348,11 @@ section.card { border-radius: 22px; padding: 22px 24px; }
             </div>
             ${s.ticket_leido ? `<p class="note">Datos leídos de la foto del ticket. Verifícalos contra la imagen.</p>` : ""}
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Del ticket en la foto" autocomplete="off"></label>
-              <label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 12AB3C" autocomplete="off" autocapitalize="characters"></label>
-              <label class="wide">Descripción<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. Pesaje tractocamión full" autocomplete="off"></label>
-              <label>Tarifa<input id="t-tarifa" value="${s.tarifa ? esc(Number(s.tarifa).toFixed(2)) : ""}" placeholder="Ej. 150.00" inputmode="decimal" autocomplete="off"></label>
-              <label>Total<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 350.00" inputmode="decimal" autocomplete="off"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 15013" autocomplete="off"></label>
+              <label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
+              <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
+              <label>Tarifa<input id="t-tarifa" value="${esc(s.tarifa)}" placeholder="Ej. BB1 SENCILLO $150 T24" autocomplete="off"></label>
+              <label>Total<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 1200.00" inputmode="decimal" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
             <div class="row"><button class="btn btn-line" id="guardar-ticket" type="button">Guardar</button>${!s.archivos_borrados && /^image\/(jpeg|png|webp)$/.test(s.ticket_tipo || "") ? `<button class="btn btn-line" id="leer-ticket" type="button">${s.ticket_leido ? "Leer ticket otra vez" : "Leer datos del ticket"}</button>` : ""}<span class="note" id="ticket-estado"></span></div>
