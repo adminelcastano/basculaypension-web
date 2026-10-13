@@ -663,6 +663,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
       .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin), tipo).run();
     let correoRes = null;
     const filaNueva = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+    try { if ((await leerConfig(env)).drive && env.AVISO_URL) await llamarDrive(env, { op: "carpeta", ...carpetaDrive(filaNueva) }); } catch (e) { console.error("drive", e && e.message); }
     if (correo || tipo === "externo") correoRes = await enviarEnlacePorCorreo(env, filaNueva, enviar);
     return json({ ok: true, id, token, folio: folioDe(filaNueva), correo: correoRes });
   }
@@ -673,7 +674,11 @@ export async function personalPanel(request, env, url, partes, enviar) {
     catch (e) { return json({ ok: false, error: /ok/.test(e.message) ? "El script de Google todavía es la versión anterior: actualízalo y vuelve a probar." : "No se pudo conectar con Drive: " + e.message.replace(/^drive: /, "") }, 502); }
     const cfg = { ...(await leerConfig(env)), drive: true };
     await env.FILES.put("cfg:personal", JSON.stringify(cfg));
-    return json({ ok: true, config: cfg });
+    // Crea la carpeta de cada persona que ya está registrada
+    const { results } = await env.DB.prepare("SELECT * FROM colaboradores ORDER BY num ASC LIMIT 300").all();
+    let carpetas = 0, fallas = 0;
+    for (const f of results) { try { await llamarDrive(env, { op: "carpeta", ...carpetaDrive(f) }); carpetas++; } catch (e) { fallas++; } }
+    return json({ ok: true, config: cfg, carpetas, fallas });
   }
 
   if (partes[1] === "config") {

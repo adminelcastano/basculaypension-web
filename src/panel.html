@@ -1351,7 +1351,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 
   $("#p-drive").addEventListener("click", async e => {
     const b = e.currentTarget; b.disabled = true; $("#p-drive-nota").textContent = "Probando…";
-    try { const r = await post("colaboradores/drive-probar"); st.config = r.config; $("#p-drive-nota").textContent = "Drive conectado: desde ahora los documentos se copian solos. Para los que ya estaban, usa «Copiar a Drive» en cada ficha."; }
+    try { const r = await post("colaboradores/drive-probar"); st.config = r.config; $("#p-drive-nota").textContent = `Drive conectado: ${r.carpetas} carpeta${r.carpetas === 1 ? "" : "s"} lista${r.carpetas === 1 ? "" : "s"}${r.fallas ? ` (${r.fallas} no se pudieron crear; vuelve a probar)` : ""}. Desde ahora los documentos se copian solos; para los que ya estaban, usa «Copiar a Drive» en cada ficha.`; }
     catch (err) { $("#p-drive-nota").textContent = err.message; }
     b.disabled = false;
   });
