@@ -82,6 +82,8 @@ section.card h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em
 .row input[type=text] { flex: 1 1 220px; }
 .grid-form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
 .grid-form label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.grid-form label.marcado { color: var(--amber); }
+.grid-form label.marcado input { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
 .grid-form .wide { grid-column: 1 / -1; }
 @media (max-width: 520px) { .grid-form { grid-template-columns: 1fr; } }
 .export { position: relative; }
@@ -353,7 +355,8 @@ section.card { border-radius: 22px; padding: 22px 24px; }
               <label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
               <label>Tarifa<input id="t-tarifa" value="${esc(s.tarifa)}" placeholder="Ej. BB1 SENCILLO $150 T24" autocomplete="off"></label>
-              <label>Total<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 1200.00" inputmode="decimal" autocomplete="off"></label>
+              <label>Total impreso<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 1200.00" inputmode="decimal" autocomplete="off"></label>
+              <label class="wide${s.anotacion ? " marcado" : ""}">Anotación a mano en el ticket<input id="t-anot" value="${esc(s.anotacion)}" placeholder="Si alguien escribió otra cantidad, aparece aquí" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
             <div class="row"><button class="btn btn-line" id="guardar-ticket" type="button">Guardar</button>${!s.archivos_borrados && /^image\/(jpeg|png|webp)$/.test(s.ticket_tipo || "") ? `<button class="btn btn-line" id="leer-ticket" type="button">${s.ticket_leido ? "Leer ticket otra vez" : "Leer datos del ticket"}</button>` : ""}<span class="note" id="ticket-estado"></span></div>
@@ -501,7 +504,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   async function guardarDatos(boton, deCsf) {
     const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf,
       folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value,
-      placas: $("#t-placas").value, descripcion: $("#t-desc").value, tarifa: $("#t-tarifa").value };
+      placas: $("#t-placas").value, descripcion: $("#t-desc").value, tarifa: $("#t-tarifa").value, anotacion: $("#t-anot").value };
     boton.disabled = true;
     try {
       await api(`solicitudes/${estadoState.actual}/datos`, { method: "POST", body: JSON.stringify(cuerpo) });

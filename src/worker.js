@@ -71,7 +71,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -264,14 +264,14 @@ async function llamarScript(env, datos) {
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción auto", "Tarifa", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
-      r.placas || "", r.descripcion || "", r.tarifa || "",
+      r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
       r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
   }
@@ -506,9 +506,10 @@ async function panel(request, env, url) {
         const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
         const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
+        const anotacion = "anotacion" in cuerpo ? String(cuerpo.anotacion || "").replace(/\s+/g, " ").trim().slice(0, 80) : (fila.anotacion || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, id).run();
         return json({ ok: true });
       }
     }
@@ -647,13 +648,15 @@ async function analizarTicketImagen(env, bytes, tipo) {
   const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`;
   const instrucciones = `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Hay dos tipos:
 - TICKET DE SALIDA (el que sirve para facturar): al final dice "TICKET DE SALIDA" y contiene "FECHA Y HORA DE SALIDA", "TIEMPO COBRADO", "IMPORTE DE ESTACIONAMIENTO" y "TOTAL: $1200.00".
-- TICKET DE ENTRADA: al final dice "TICKET DE ENTRADA", solo trae "HORA ENTRADA" y no tiene TOTAL ni importe.
+- TICKET DE ENTRADA: al final dice "TICKET DE ENTRADA", solo trae "HORA ENTRADA", tiene código de barras abajo y no tiene TOTAL ni importe. (Aunque mencione "FACTURACIÓN www.basculaypension.com", sigue siendo de entrada.)
+La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
 Campos del ticket (los valores son solo ejemplos del formato):
 - Arriba a la izquierda: "Folio: 15013"
 - "PLACAS: 49AR1X"
 - "DESCRIPCIÓN AUTO: TRANSPORTES LOZANOS T24"
 - "TARIFA: BB1 SENCILLO $150 T24"
 - "TOTAL: $1200.00"
+A veces alguien tacha el TOTAL impreso y escribe otra cantidad a mano (ej. "$150"). En "total" pon SIEMPRE el número IMPRESO, aunque esté tachado, y copia lo escrito a mano en "anotacion".
 Puede haber otro papel encima, como un comprobante de pago con tarjeta (Mercado Pago u otro banco). Ignóralo: lee solo el ticket de la báscula y nunca tomes el total del comprobante de pago.
 Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
 "tipo": "salida", "entrada" o "desconocido",
@@ -661,12 +664,13 @@ Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
 "placas": el texto que sigue a "PLACAS",
 "descripcion": el texto que sigue a "DESCRIPCIÓN AUTO",
 "tarifa": el texto completo que sigue a "TARIFA",
-"total": el número que sigue a "TOTAL" en el ticket de la báscula, sin signo de pesos.
+"total": el número IMPRESO que sigue a "TOTAL" en el ticket de la báscula, sin signo de pesos,
+"anotacion": cualquier texto o cantidad escrita a mano con pluma sobre el ticket, tal cual (ej. "$150"); null si no hay nada escrito a mano.
 Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece, está tapado o no se lee con claridad, usa null. No inventes datos.`;
   const r = await env.AI.run(MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],
     image: imagen,
-    max_tokens: 300,
+    max_tokens: 350,
     temperature: 0
   });
   const texto = String((r && (r.response ?? r.result?.response)) || "");
@@ -680,7 +684,8 @@ Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece,
     placas: limpiarPlacas(valor(d.placas)),
     descripcion: valor(d.descripcion).replace(/^descripci[oó]n( auto)?[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 120),
     tarifa: valor(d.tarifa).replace(/^tarifa[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 60),
-    importe: normalizarImporte(valor(d.total)) || ""
+    importe: normalizarImporte(valor(d.total)) || "",
+    anotacion: valor(d.anotacion).replace(/\s+/g, " ").slice(0, 80)
   };
   const t = valor(d.tipo).toLowerCase();
   const tipoTicket = t.startsWith("entrada") ? "entrada" : t.startsWith("salida") ? "salida" : "desconocido";
@@ -708,8 +713,8 @@ async function guardarLecturaTicket(env, fila, datos, forzar) {
   // Solo se llenan campos vacíos, salvo que se pida leer de nuevo desde el panel
   const final = {};
   for (const k of Object.keys(datos)) final[k] = forzar ? (datos[k] || fila[k] || "") : (fila[k] || datos[k] || "");
-  await env.DB.prepare("UPDATE solicitudes SET folio_ticket=?, placas=?, descripcion=?, tarifa=?, importe=?, ticket_leido=1 WHERE id=?")
-    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, fila.id).run();
+  await env.DB.prepare("UPDATE solicitudes SET folio_ticket=?, placas=?, descripcion=?, tarifa=?, importe=?, anotacion=?, ticket_leido=1 WHERE id=?")
+    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, final.anotacion || null, fila.id).run();
   return final;
 }
 
