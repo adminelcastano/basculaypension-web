@@ -24,6 +24,7 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
+      if (url.pathname === "/api/revisar-ticket") return await revisarTicketApi(request, env);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
       return env.ASSETS.fetch(request);
     } catch (err) {
@@ -71,7 +72,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -105,7 +106,7 @@ async function crearSolicitud(request, env, ctx) {
 
   const errores = {};
   const modo = texto(form, "modo") === "csf" ? "csf" : "manual";
-  const servicio = texto(form, "servicio");
+  let servicio = texto(form, "servicio");
   const folioTicket = texto(form, "folio_ticket").slice(0, 40);
   const rfc = texto(form, "rfc").toUpperCase().replace(/[\s-]/g, "");
   const nombre = texto(form, "nombre").replace(/\s+/g, " ").slice(0, 254);
@@ -150,12 +151,26 @@ async function crearSolicitud(request, env, ctx) {
   const ticketBuf = await ticket.arrayBuffer();
   await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
 
-  // Revisar el ticket con IA antes de guardar: se rechaza el ticket de ENTRADA de la pensión
-  let lectura = null;
+  // Revisar el ticket con IA antes de guardar (se reutiliza la revisión hecha al tomar la foto)
+  let lectura = null, avisoTicket = null;
   if (env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
-    try { lectura = await conLimite(analizarTicketImagen(env, ticketBuf, ticket.type, servicio), 15000); }
-    catch (e) { console.error("leer ticket", e && e.message); lectura = null; }
-    if (esTicketDeEntrada(lectura)) {
+    let rev = null;
+    try { rev = await conLimite(revisarTicket(env, ticketBuf, ticket.type, servicio), 20000); }
+    catch (e) { console.error("revisar ticket", e && e.message); rev = null; }
+    if (rev && !rev.error) {
+      if (rev.clase === "otro") {
+        if (texto(form, "forzar_ticket") !== "1") {
+          return json({ ok: false, error: "La foto no parece un ticket de Báscula y Pensión El Castaño.",
+            errores: { ticket: "Esta foto no parece un ticket de El Castaño. Toma la foto de tu ticket." } }, 422);
+        }
+        avisoTicket = "La revisión automática no reconoció un ticket de El Castaño en la foto. Revísala antes de facturar.";
+      } else if (rev.clase && rev.clase !== servicio) {
+        avisoTicket = `El cliente eligió ${SERVICIOS[servicio]}, pero la foto es de un ticket de ${SERVICIOS[rev.clase].toLowerCase()}. Se registró como ${SERVICIOS[rev.clase].toLowerCase()}.`;
+        servicio = rev.clase;
+      }
+      lectura = rev.lectura || null;
+    }
+    if (servicio === "pension" && esTicketDeEntrada(lectura)) {
       return json({ ok: false, error: "Enviaste el ticket de ENTRADA. Para facturar necesitamos el ticket de SALIDA: el que entregan al salir y trae el TOTAL pagado.",
         errores: { ticket: "Este es el ticket de entrada. Toma la foto del ticket de salida (el que tiene el total)." } }, 422);
     }
@@ -170,13 +185,13 @@ async function crearSolicitud(request, env, ctx) {
   }
 
   await env.DB.prepare(`INSERT INTO solicitudes
-    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo)
-    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket)
+    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, folio, ahora, servicio, folioTicket || null, modo,
       rfc || null, modo === "manual" ? nombre : (nombre || null),
       modo === "manual" ? regimen : (REGIMENES[regimen] ? regimen : null),
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
-      uso, email, telefono || null, comentario || null, ticket.type, csfTipo)
+      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket)
     .run();
 
   if (lectura && !lectura.error) {
@@ -641,6 +656,71 @@ async function aceptarLicenciaModelo(env) {
   await env.FILES.put("ai:licencia", "1");
 }
 
+// ¿Qué es la foto? "pension", "bascula" u "otro" (no es un ticket de El Castaño)
+const INSTRUCCIONES_CLASE = `Mira la imagen y di qué es. Opciones:
+- "pension": ticket de la PENSIÓN de El Castaño. Encabezado "BASCULA Y PENSION EL CASTAÑO" sin logo; trae "Folio:", "PLACAS", "DESCRIPCIÓN AUTO", "TARIFA" con códigos como "BB1 SENCILLO $150 T24", y al final "TICKET DE SALIDA" o "TICKET DE ENTRADA".
+- "bascula": ticket de PESAJE de la báscula. Encabezado "BASCULA EL CASTAÑO" junto a un logo de escudo; secciones "DATOS DEL CLIENTE", "DATOS DEL VEHICULO" y "PESAJE" con pesos en kg (PESO BRUTO, PESO TARA, PESO NETO); al final "PESAJE DE SALIDA" o "PESAJE DE ENTRADA".
+- "otro": cualquier otra cosa. Por ejemplo personas, animales, paisajes, vehículos, pantallas, capturas de pantalla, papel en blanco, documentos, comprobantes de pago con tarjeta, o tickets y recibos de otros negocios.
+La foto puede estar girada, inclinada, arrugada o un poco borrosa; si se reconoce el formato de uno de los dos tickets, no es "otro".
+Responde SOLO con JSON: {"clase": "pension" | "bascula" | "otro"}`;
+
+async function clasificarTicket(env, bytes, tipo) {
+  const r = await env.AI.run(MODELO_VISION, {
+    messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: INSTRUCCIONES_CLASE }],
+    image: `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`,
+    max_tokens: 30,
+    temperature: 0
+  });
+  const t = String((r && (r.response ?? r.result?.response)) || "").toLowerCase();
+  const m = t.match(/"clase"\s*:\s*"([a-zñáó]+)"/) || t.match(/\b(pension|pensión|bascula|báscula|otro)\b/);
+  if (!m) return null;
+  const c = m[1].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return ["pension", "bascula", "otro"].includes(c) ? c : null;
+}
+
+// Clasifica y lee el ticket. Se guarda 2 horas por huella de la imagen para no repetir la IA al enviar.
+async function revisarTicket(env, bytes, tipo, servicioElegido) {
+  if (!TIPOS_LEGIBLES.includes(tipo) || bytes.byteLength > 5 * 1024 * 1024) return { error: "no legible" };
+  const llave = "rv:" + await sha256Hex(new Uint8Array(bytes));
+  const guardado = await env.FILES.get(llave, { type: "json" });
+  if (guardado) return guardado;
+  await aceptarLicenciaModelo(env);
+  let clase = null;
+  try { clase = await clasificarTicket(env, bytes, tipo); } catch (e) { console.error("clasificar", e && e.message); }
+  let lectura = null;
+  if (clase !== "otro") {
+    const servicio = clase || (servicioElegido === "bascula" ? "bascula" : "pension");
+    try { lectura = await analizarTicketImagen(env, bytes, tipo, servicio); } catch (e) { console.error("leer", e && e.message); }
+    // Si no se pudo clasificar pero la lectura encontró un folio, se toma el servicio con el que se leyó
+    if (!clase && lectura && !lectura.error && lectura.datos.folio_ticket) clase = servicio;
+  }
+  const res = { clase, lectura: lectura && !lectura.error ? lectura : null };
+  if (clase) await env.FILES.put(llave, JSON.stringify(res), { expirationTtl: 7200 });
+  return res;
+}
+
+// Revisión al tomar la foto (no guarda nada de la solicitud)
+async function revisarTicketApi(request, env) {
+  if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
+  const url = new URL(request.url);
+  const origin = request.headers.get("Origin");
+  if (origin && origin !== url.origin) return json({ ok: false, error: "Origen no permitido." }, 403);
+  if (Number(request.headers.get("Content-Length") || 0) > MAX_ARCHIVO + 100000) return json({ ok: false, error: "La foto es demasiado grande." }, 413);
+  if (!env.AI) return json({ ok: true, clase: null });
+  const ip = request.headers.get("CF-Connecting-IP") || "0";
+  const llaveLimite = "rr:" + (await sha256Hex(ip)).slice(0, 24) + ":" + new Date().toISOString().slice(0, 13);
+  const conteo = Number(await env.FILES.get(llaveLimite) || 0);
+  if (conteo >= 25) return json({ ok: true, clase: null }); // sin revisión previa; se revisa al enviar
+  await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
+  let form;
+  try { form = await request.formData(); } catch { return json({ ok: false, error: "No se pudo leer la foto." }, 400); }
+  const ticket = archivo(form, "ticket");
+  if (!ticket || !TIPOS_LEGIBLES.includes(ticket.type)) return json({ ok: true, clase: null });
+  const rev = await conLimite(revisarTicket(env, await ticket.arrayBuffer(), ticket.type, texto(form, "servicio")), 20000).catch(() => null);
+  if (!rev || rev.error) return json({ ok: true, clase: null });
+  return json({ ok: true, clase: rev.clase, entrada: rev.clase === "pension" && esTicketDeEntrada(rev.lectura) });
+}
+
 // Ticket de la BÁSCULA: folio, cliente y tarifa (la tarifa es lo cobrado por el pesaje)
 const INSTRUCCIONES_BASCULA = `Lee el ticket de la imagen. Es un ticket de pesaje impreso de "BASCULA EL CASTAÑO", con logo arriba.
 Campos del ticket (los valores son solo ejemplos del formato):
@@ -787,7 +867,7 @@ function b64urlBytes(s) {
 }
 function b64urlTexto(s) { return new TextDecoder().decode(b64urlBytes(s)); }
 async function sha256Hex(s) {
-  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  const h = await crypto.subtle.digest("SHA-256", typeof s === "string" ? new TextEncoder().encode(s) : s);
   return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 function escaparHtml(s) {

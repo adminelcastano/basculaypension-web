@@ -59,6 +59,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .chip .ico-bascula { color: var(--amber); }
 .chip .ico-pension { color: #64d2ff; }
 .chip input:checked + span svg { color: inherit; }
+.aviso-servicio { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #3a3010; color: #ffd60a; font-size: .95rem; }
 .chip input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
 .opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 420px) { .opciones { grid-template-columns: 1fr; } }
@@ -131,6 +132,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
             <label class="chip"><input type="radio" name="servicio" value="pension"><span><svg class="ico-pension" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Pensión</span></label>
           </div>
           <span class="err" data-err="servicio"></span>
+          <p class="aviso-servicio" id="aviso-servicio" role="status" hidden></p>
         </div>
         <div id="g-ticket">
           <div class="drop">
@@ -342,24 +344,9 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       try { analisis = await FotoTicket.analizar(f); } catch { analisis = null; }
       if (analisis && !analisis.ok) {
         intentosBorrosos++;
-        prev.hidden = true;
-        rev.hidden = false;
-        rev.innerHTML = "";
-        const img = document.createElement("img"); img.alt = "Foto del ticket rechazada"; img.src = URL.createObjectURL(f);
-        const caja = document.createElement("div");
-        const t = document.createElement("b"); t.textContent = "Esta foto no se lee bien. Toma otra:";
-        const ul = document.createElement("ul"); for (const p of analisis.problemas) { const li = document.createElement("li"); li.textContent = p; ul.appendChild(li); }
-        caja.append(t, ul);
-        const otra = document.createElement("label"); otra.className = "btn btn-amber"; otra.htmlFor = "ticket"; otra.textContent = "Tomar otra foto";
-        caja.appendChild(otra);
-        if (intentosBorrosos >= 2) {
-          const forzar = document.createElement("button"); forzar.type = "button"; forzar.className = "link"; forzar.textContent = "Mi ticket así se ve, enviar esta foto";
-          forzar.addEventListener("click", async () => { rev.hidden = true; await usarTicket(f, prev, "Foto enviada como está"); });
-          caja.appendChild(forzar);
-        }
-        rev.append(img, caja);
-        input.value = "";
-        error("ticket", "Toma una foto más clara del ticket.");
+        rechazarFoto(f, "Esta foto no se lee bien. Toma otra:", analisis.problemas,
+          intentosBorrosos >= 2 ? ["Mi ticket así se ve, enviar esta foto", () => usarTicket(f, prev, "Foto enviada como está")] : null,
+          "Toma una foto más clara del ticket.");
         return;
       }
       intentosBorrosos = 0;
@@ -373,13 +360,77 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     mostrarPrev(prev, listo, (f.name || "Archivo") + " ✓");
   }
 
-  async function usarTicket(f, prev, texto) {
+  // Caja de foto rechazada con motivo, botón para tomar otra y, a veces, opción de enviarla así
+  function rechazarFoto(f, titulo, problemas, forzar, mensaje) {
+    const prev = document.getElementById("prev-ticket"), rev = document.getElementById("rev-ticket");
+    archivos.ticket = null;
+    prev.hidden = true; rev.hidden = false; rev.innerHTML = "";
+    const img = document.createElement("img"); img.alt = "Foto rechazada"; img.src = URL.createObjectURL(f);
+    const caja = document.createElement("div");
+    const t = document.createElement("b"); t.textContent = titulo;
+    caja.appendChild(t);
+    if (problemas && problemas.length) { const ul = document.createElement("ul"); for (const p of problemas) { const li = document.createElement("li"); li.textContent = p; ul.appendChild(li); } caja.appendChild(ul); }
+    const otra = document.createElement("label"); otra.className = "btn btn-amber"; otra.htmlFor = "ticket"; otra.textContent = "Tomar otra foto";
+    caja.appendChild(otra);
+    if (forzar) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "link"; b.textContent = forzar[0];
+      b.addEventListener("click", async () => { rev.hidden = true; await forzar[1](); });
+      caja.appendChild(b);
+    }
+    rev.append(img, caja);
+    document.getElementById("ticket").value = "";
+    error("ticket", mensaje);
+  }
+
+  const NOMBRE_SERVICIO = { bascula: "báscula", pension: "pensión" };
+  let intentosNoTicket = 0, forzarTicket = false, revisandoTicket = null;
+  function avisoServicio(msg) { const a = document.getElementById("aviso-servicio"); a.textContent = msg || ""; a.hidden = !msg; }
+
+  // Pregunta al servidor qué ticket es (pensión, báscula o no es ticket)
+  async function revisarTicketServidor(listo) {
+    try {
+      const d = new FormData(); d.append("ticket", listo); d.append("servicio", form.servicio.value);
+      const r = await fetch("/api/revisar-ticket", { method: "POST", body: d });
+      const j = await r.json();
+      return j && j.ok ? j : null;
+    } catch { return null; }
+  }
+
+  async function usarTicket(f, prev, texto, sinRevision = false) {
     let listo = f;
     try { listo = await FotoTicket.mejorar(f); } catch { listo = await preparar(f); }
     if (listo.size > 10 * 1024 * 1024) { error("ticket", "La foto pesa más de 10 MB. Toma una nueva."); return; }
-    error("ticket", "");
+    error("ticket", ""); avisoServicio("");
+    forzarTicket = sinRevision;
+    let detectado = null;
+    if (!sinRevision) {
+      mostrarPrev(prev, listo, "Revisando tu ticket…");
+      revisandoTicket = revisarTicketServidor(listo);
+      const j = await revisandoTicket; revisandoTicket = null;
+      if (j && j.clase === "otro") {
+        intentosNoTicket++;
+        rechazarFoto(f, "Esta foto no parece un ticket de Báscula y Pensión El Castaño.", ["Toma la foto del ticket que te entregaron en la báscula o en la pensión."],
+          intentosNoTicket >= 2 ? ["Sí es mi ticket, enviar esta foto", () => usarTicket(f, prev, "Foto enviada como está", true)] : null,
+          "Esta foto no parece un ticket. Toma la foto de tu ticket.");
+        return;
+      }
+      intentosNoTicket = 0;
+      if (j && j.entrada) {
+        rechazarFoto(f, "Este es el ticket de ENTRADA de la pensión.", ["Para facturar necesitamos el ticket de SALIDA: el que te dan al salir y trae el TOTAL."], null,
+          "Toma la foto del ticket de salida (el que tiene el total).");
+        return;
+      }
+      if (j && NOMBRE_SERVICIO[j.clase]) detectado = j.clase;
+      if (detectado && form.servicio.value !== detectado) {
+        const antes = form.servicio.value;
+        form.querySelector(`input[name="servicio"][value="${j.clase}"]`).checked = true;
+        mostrarServicio(); error("servicio", "");
+        avisoServicio(antes ? `Tu ticket es de ${NOMBRE_SERVICIO[j.clase]}: cambiamos el servicio a ${NOMBRE_SERVICIO[j.clase][0].toUpperCase() + NOMBRE_SERVICIO[j.clase].slice(1)}.` : `Detectamos un ticket de ${NOMBRE_SERVICIO[j.clase]}.`);
+      }
+    }
     archivos.ticket = listo;
-    mostrarPrev(prev, listo, texto);
+    const cl = detectado ? ` · Ticket de ${NOMBRE_SERVICIO[detectado]}` : "";
+    mostrarPrev(prev, listo, texto + cl);
   }
   document.getElementById("ticket").addEventListener("change", e => elegir(e.target, "ticket"));
   document.getElementById("csf").addEventListener("change", e => elegir(e.target, "csf"));
@@ -413,6 +464,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   form.addEventListener("submit", async ev => {
     ev.preventDefault();
     limpiar();
+    if (revisandoTicket) { document.getElementById("alerta").textContent = "Espera un momento, estamos revisando tu ticket…"; await revisandoTicket; await new Promise(r => setTimeout(r, 50)); document.getElementById("alerta").textContent = ""; }
     const errores = validar();
     if (Object.keys(errores).length) {
       for (const [k, v] of Object.entries(errores)) error(k, v);
@@ -425,6 +477,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
+    if (forzarTicket) datos.append("forzar_ticket", "1");
     if (modo() === "csf") datos.append("csf", archivos.csf);
 
     const boton = document.getElementById("enviar");
