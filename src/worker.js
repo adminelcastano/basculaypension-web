@@ -71,7 +71,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -116,7 +116,7 @@ async function crearSolicitud(request, env, ctx) {
   const telefono = texto(form, "telefono").replace(/\D/g, "").slice(-10);
   const comentario = texto(form, "comentario").slice(0, 500);
 
-  if (!SERVICIOS[servicio]) errores.servicio = "Elige el servicio.";
+  if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
   if (telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
@@ -150,10 +150,10 @@ async function crearSolicitud(request, env, ctx) {
   const ticketBuf = await ticket.arrayBuffer();
   await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
 
-  // Revisar el ticket con IA antes de guardar: se rechaza el ticket de ENTRADA
+  // Revisar el ticket con IA antes de guardar: se rechaza el ticket de ENTRADA de la pensión
   let lectura = null;
   if (env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
-    try { lectura = await conLimite(analizarTicketImagen(env, ticketBuf, ticket.type), 15000); }
+    try { lectura = await conLimite(analizarTicketImagen(env, ticketBuf, ticket.type, servicio), 15000); }
     catch (e) { console.error("leer ticket", e && e.message); lectura = null; }
     if (esTicketDeEntrada(lectura)) {
       return json({ ok: false, error: "Enviaste el ticket de ENTRADA. Para facturar necesitamos el ticket de SALIDA: el que entregan al salir y trae el TOTAL pagado.",
@@ -264,13 +264,13 @@ async function llamarScript(env, datos) {
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
-    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
+    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
       r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
       r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
@@ -424,8 +424,8 @@ async function panel(request, env, url) {
     if (partes.length === 2 && request.method === "GET") {
       let duplicados = [];
       if (fila.folio_ticket) {
-        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE folio_ticket = ? AND id != ? ORDER BY creado DESC LIMIT 5")
-          .bind(fila.folio_ticket, id).all();
+        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE folio_ticket = ? AND id != ? AND (servicio = ? OR servicio = 'ambos' OR ? = 'ambos') ORDER BY creado DESC LIMIT 5")
+          .bind(fila.folio_ticket, id, fila.servicio, fila.servicio).all();
         duplicados = r.results;
       }
       return json({ ok: true, solicitud: fila, duplicados, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS });
@@ -506,10 +506,11 @@ async function panel(request, env, url) {
         const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
         const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
+        const cliente = "cliente" in cuerpo ? String(cuerpo.cliente || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.cliente || "");
         const anotacion = "anotacion" in cuerpo ? String(cuerpo.anotacion || "").replace(/\s+/g, " ").trim().slice(0, 80) : (fila.anotacion || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, id).run();
         return json({ ok: true });
       }
     }
@@ -640,13 +641,30 @@ async function aceptarLicenciaModelo(env) {
   await env.FILES.put("ai:licencia", "1");
 }
 
+// Ticket de la BÁSCULA: folio, cliente y tarifa (la tarifa es lo cobrado por el pesaje)
+const INSTRUCCIONES_BASCULA = `Lee el ticket de la imagen. Es un ticket de pesaje impreso de "BASCULA EL CASTAÑO", con logo arriba.
+Campos del ticket (los valores son solo ejemplos del formato):
+- "FOLIO: 17372"
+- En la sección "DATOS DEL CLIENTE": "CLIENTE: LESVIA RAVELES" y "TARIFA: $130.00"
+- Al final dice "PESAJE DE SALIDA".
+La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
+No confundas el CLIENTE con el CONDUCTOR ni la TARIFA con los pesos en kg.
+Si alguien tachó la tarifa impresa y escribió otra cantidad a mano, en "tarifa" pon SIEMPRE la cantidad IMPRESA y copia lo escrito a mano en "anotacion".
+Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
+"folio": el número que sigue a "FOLIO",
+"cliente": el texto que sigue a "CLIENTE",
+"tarifa": el número IMPRESO que sigue a "TARIFA", sin signo de pesos,
+"anotacion": cualquier texto o cantidad escrita a mano con pluma sobre el ticket, tal cual; null si no hay nada escrito a mano.
+Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece, está tapado o no se lee con claridad, usa null. No inventes datos.`;
+
 // Analiza la imagen del ticket y devuelve { datos, tipoTicket } o { error }
-async function analizarTicketImagen(env, bytes, tipo) {
+async function analizarTicketImagen(env, bytes, tipo, servicio) {
   if (!TIPOS_LEGIBLES.includes(tipo)) return { error: "Solo se pueden leer fotos JPG, PNG o WebP. Captura los datos viendo el ticket." };
   if (bytes.byteLength > 5 * 1024 * 1024) return { error: "La foto es demasiado grande para leerla automáticamente." };
   await aceptarLicenciaModelo(env);
   const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`;
-  const instrucciones = `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Hay dos tipos:
+  const bascula = servicio === "bascula";
+  const instrucciones = bascula ? INSTRUCCIONES_BASCULA : `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Hay dos tipos:
 - TICKET DE SALIDA (el que sirve para facturar): al final dice "TICKET DE SALIDA" y contiene "FECHA Y HORA DE SALIDA", "TIEMPO COBRADO", "IMPORTE DE ESTACIONAMIENTO" y "TOTAL: $1200.00".
 - TICKET DE ENTRADA: al final dice "TICKET DE ENTRADA", solo trae "HORA ENTRADA", tiene código de barras abajo y no tiene TOTAL ni importe. (Aunque mencione "FACTURACIÓN www.basculaypension.com", sigue siendo de entrada.)
 La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
@@ -679,13 +697,26 @@ Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece,
   let d;
   try { d = JSON.parse(m[0]); } catch { return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
   const valor = v => (v === null || v === undefined || String(v).trim() === "" || /^null$/i.test(String(v).trim())) ? "" : String(v).trim();
+  const folioLeido = valor(d.folio).replace(/^(folio|no\.?|n[uú]m(ero)?)[:\s#]*/i, "").slice(0, 40);
+  const anotacion = valor(d.anotacion).replace(/\s+/g, " ").slice(0, 80);
+  if (bascula) {
+    return {
+      datos: {
+        folio_ticket: folioLeido,
+        cliente: valor(d.cliente).replace(/^cliente[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 120),
+        importe: normalizarImporte(valor(d.tarifa)) || "",
+        anotacion
+      },
+      tipoTicket: "bascula"
+    };
+  }
   const datos = {
-    folio_ticket: valor(d.folio).replace(/^(folio|no\.?|n[uú]m(ero)?)[:\s#]*/i, "").slice(0, 40),
+    folio_ticket: folioLeido,
     placas: limpiarPlacas(valor(d.placas)),
     descripcion: valor(d.descripcion).replace(/^descripci[oó]n( auto)?[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 120),
     tarifa: valor(d.tarifa).replace(/^tarifa[:\s]*/i, "").replace(/\s+/g, " ").slice(0, 60),
     importe: normalizarImporte(valor(d.total)) || "",
-    anotacion: valor(d.anotacion).replace(/\s+/g, " ").slice(0, 80)
+    anotacion
   };
   const t = valor(d.tipo).toLowerCase();
   const tipoTicket = t.startsWith("entrada") ? "entrada" : t.startsWith("salida") ? "salida" : "desconocido";
@@ -703,18 +734,20 @@ async function leerTicket(env, id, forzar = false) {
   if (!fila) return { error: "No existe esa solicitud." };
   const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:ticket`, { type: "arrayBuffer" });
   if (!value) return { error: "La foto del ticket ya no está disponible." };
-  const a = await analizarTicketImagen(env, value, metadata && metadata.tipo);
+  const a = await analizarTicketImagen(env, value, metadata && metadata.tipo, fila.servicio);
   if (a.error) return a;
   await guardarLecturaTicket(env, fila, a.datos, forzar);
   return { datos: a.datos, tipoTicket: a.tipoTicket };
 }
 
+const CAMPOS_TICKET = ["folio_ticket", "cliente", "placas", "descripcion", "tarifa", "importe", "anotacion"];
 async function guardarLecturaTicket(env, fila, datos, forzar) {
   // Solo se llenan campos vacíos, salvo que se pida leer de nuevo desde el panel
   const final = {};
-  for (const k of Object.keys(datos)) final[k] = forzar ? (datos[k] || fila[k] || "") : (fila[k] || datos[k] || "");
-  await env.DB.prepare("UPDATE solicitudes SET folio_ticket=?, placas=?, descripcion=?, tarifa=?, importe=?, anotacion=?, ticket_leido=1 WHERE id=?")
-    .bind(final.folio_ticket || null, final.placas || null, final.descripcion || null, final.tarifa || null, final.importe || null, final.anotacion || null, fila.id).run();
+  const columnas = Object.keys(datos).filter(k => CAMPOS_TICKET.includes(k));
+  for (const k of columnas) final[k] = forzar ? (datos[k] || fila[k] || "") : (fila[k] || datos[k] || "");
+  await env.DB.prepare(`UPDATE solicitudes SET ${columnas.map(k => k + "=?").join(", ")}${columnas.length ? ", " : ""}ticket_leido=1 WHERE id=?`)
+    .bind(...columnas.map(k => final[k] || null), fila.id).run();
   return final;
 }
 

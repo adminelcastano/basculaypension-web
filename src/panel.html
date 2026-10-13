@@ -130,6 +130,16 @@ main.work { border-top: 1px solid var(--line); }
 .item[aria-current="true"] { background: #2a2a2d; box-shadow: none; }
 .item .chev { position: absolute; right: 14px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: #5a5a5e; }
 .item .t { font-size: 16px; }
+.item { padding-left: 62px; }
+.svc { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; flex: none; }
+.svc svg { width: 21px; height: 21px; }
+.svc.bascula { background: #3a3010; color: var(--amber); }
+.svc.pension { background: #102a3a; color: #64d2ff; }
+.svc.ambos { background: #26262a; color: #c7c7cc; }
+.item > .svc { position: absolute; left: 14px; top: 14px; }
+.svc-tag { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.svc-tag .svc { width: 28px; height: 28px; border-radius: 8px; }
+.svc-tag .svc svg { width: 18px; height: 18px; }
 .list > .note { padding: 4px 6px 12px !important; border: 0 !important; }
 .detail { padding-top: 16px; }
 .detail-head h2 { font-size: clamp(28px, 3.4vw, 40px); letter-spacing: -0.03em; }
@@ -201,6 +211,8 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
   <symbol id="i-arch" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="4.4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M5 8.8v9.4a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V8.8M10 12.6h4"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.6 6.6h14.8M9.6 6.4V4.8a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.6M6.6 6.6l.9 12.2a1.6 1.6 0 0 0 1.6 1.5h5.8a1.6 1.6 0 0 0 1.6-1.5l.9-12.2M10.2 10.6v5.8M13.8 10.6v5.8"/></symbol>
+  <symbol id="i-bascula" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 7.2a2.6 2.6 0 1 1 5.2 0M7.4 7.2h9.2l2.6 12.2H4.8z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.6 15.6v-4l2.4 2.6 2.4-2.6v4"/></symbol>
+  <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <div class="titlebar">
@@ -241,6 +253,11 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   const fecha = iso => iso ? fmt.format(new Date(iso)) : "";
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  const SERVICIO_ICONO = { bascula: ["i-bascula", "Báscula"], pension: ["i-pension", "Pensión"], ambos: ["i-bascula", "Báscula y pensión"] };
+  const iconoServicio = servicio => {
+    const [ico, nombre] = SERVICIO_ICONO[servicio] || ["i-inbox", servicio || "Servicio"];
+    return `<span class="svc ${esc(servicio || "")}" title="${esc(nombre)}" role="img" aria-label="${esc(nombre)}"><svg aria-hidden="true"><use href="#${ico}"/></svg></span>`;
+  };
   const dinero = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   function mensajeCliente(s, servicios) {
     const concepto = { bascula: "servicio de báscula", pension: "servicio de pensión", ambos: "servicios de báscula y pensión" }[s.servicio] || "servicio";
@@ -288,6 +305,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
       lista.innerHTML = aviso + j.solicitudes.filter(s => !borrandoIds.has(s.id)).map(s => `${deslizable ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+          ${iconoServicio(s.servicio)}
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
           <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${estadoState.estado === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
@@ -319,11 +337,13 @@ section.card { border-radius: 22px; padding: 22px 24px; }
       return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
     };
     const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
+    const esBascula = s.servicio === "bascula";
 
     d.innerHTML = `
       <button class="btn btn-line back" id="volver" type="button">← Volver a la lista</button>
       <div class="detail-head">
         <h2>${esc(s.nombre || "Solicitud " + s.folio)}</h2>
+        <span class="svc-tag">${iconoServicio(s.servicio)}${esc(j.servicios[s.servicio] || s.servicio || "")}</span>
         <span class="pill ${s.estado}">${{ pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" }[s.estado]}</span>
         <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
       </div>
@@ -345,17 +365,17 @@ section.card { border-radius: 22px; padding: 22px 24px; }
           <section class="card">
             <h3>Ticket y contacto</h3>
             <div class="fields">
-              ${campo("Servicio", j.servicios[s.servicio] || s.servicio, false)}
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
             ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.ticket_leido ? `<p class="note">Datos leídos de la foto del ticket. Verifícalos contra la imagen.</p>` : ""}
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 15013" autocomplete="off"></label>
-              <label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="${esBascula ? "Ej. 17372" : "Ej. 15013"}" autocomplete="off"></label>
+              ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
+              ${esBascula ? "" : `<label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
-              <label>Tarifa<input id="t-tarifa" value="${esc(s.tarifa)}" placeholder="Ej. BB1 SENCILLO $150 T24" autocomplete="off"></label>
-              <label>Total impreso<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 1200.00" inputmode="decimal" autocomplete="off"></label>
+              <label>Tarifa<input id="t-tarifa" value="${esc(s.tarifa)}" placeholder="Ej. BB1 SENCILLO $150 T24" autocomplete="off"></label>`}
+              <label>${esBascula ? "Tarifa" : "Total impreso"}<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="${esBascula ? "Ej. 60.00" : "Ej. 1200.00"}" inputmode="decimal" autocomplete="off"></label>
               <label class="wide${s.anotacion ? " marcado" : ""}">Anotación a mano en el ticket<input id="t-anot" value="${esc(s.anotacion)}" placeholder="Si alguien escribió otra cantidad, aparece aquí" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
@@ -503,8 +523,8 @@ section.card { border-radius: 22px; padding: 22px 24px; }
 
   async function guardarDatos(boton, deCsf) {
     const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf,
-      folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value,
-      placas: $("#t-placas").value, descripcion: $("#t-desc").value, tarifa: $("#t-tarifa").value, anotacion: $("#t-anot").value };
+      folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value, anotacion: $("#t-anot").value };
+    for (const [clave, sel] of [["placas", "#t-placas"], ["descripcion", "#t-desc"], ["tarifa", "#t-tarifa"], ["cliente", "#t-cliente"]]) if ($(sel)) cuerpo[clave] = $(sel).value;
     boton.disabled = true;
     try {
       await api(`solicitudes/${estadoState.actual}/datos`, { method: "POST", body: JSON.stringify(cuerpo) });

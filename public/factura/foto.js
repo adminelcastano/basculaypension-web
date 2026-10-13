@@ -29,9 +29,12 @@
     const ctx = c.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(fuente, 0, 0, w, h);
     const d = ctx.getImageData(0, 0, w, h).data;
-    const g = new Float32Array(w * h);
-    for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    return { g, w, h };
+    const g = new Float32Array(w * h), sat = new Uint8Array(w * h);
+    for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+      g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      sat[j] = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+    }
+    return { g, sat, w, h };
   }
 
   function percentiles(g, bajo, alto) {
@@ -46,42 +49,57 @@
 
   // Recuadro del papel: el ticket es la zona clara más grande sobre un fondo más oscuro.
   // Devuelve {x0,y0,x1,y1} en proporción (0-1) o null si no se distingue con seguridad.
-  function recuadro(g, w, h) {
+  // sat: diferencia entre canales de color; el papel térmico es blanco neutro (sin color)
+  function recuadro(g, w, h, sat) {
     const [, p98] = percentiles(g, 0.02, 0.98);
     const umbral = p98 * 0.72;
-    const filas = new Float32Array(h), cols = new Float32Array(w);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (g[y * w + x] > umbral) { filas[y]++; cols[x]++; }
-    const rango = (arr, n) => {
-      let max = 0; for (let i = 0; i < n; i++) if (arr[i] > max) max = arr[i];
-      if (!max) return null;
-      const lim = max * 0.3;
-      // tramo continuo más largo por encima del límite (tolera huecos cortos)
-      let mejor = null, ini = -1, hueco = 0;
-      const tol = Math.round(n * 0.03);
-      for (let i = 0; i <= n; i++) {
-        const dentro = i < n && arr[i] >= lim;
-        if (dentro) { if (ini < 0) ini = i; hueco = 0; }
-        else if (ini >= 0) {
-          hueco++;
-          if (hueco > tol || i === n) {
-            const fin = i - hueco;
-            if (!mejor || fin - ini > mejor[1] - mejor[0]) mejor = [ini, fin];
-            ini = -1; hueco = 0;
-          }
+    // Rejilla reducida (~300 px) con las zonas claras
+    const s = Math.max(1, Math.ceil(Math.max(w, h) / 300));
+    const gw = Math.floor(w / s), gh = Math.floor(h / s);
+    const m = new Uint8Array(gw * gh);
+    for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+      let t = 0, c = 0;
+      for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) { const i = (gy * s + dy) * w + gx * s + dx; t += g[i]; if (sat) c += sat[i]; }
+      m[gy * gw + gx] = t / (s * s) > umbral && c / (s * s) < 38 ? 1 : 0;
+    }
+    // Manchas claras conectadas
+    const etiqueta = new Int32Array(gw * gh), manchas = [], pila = [];
+    for (let i = 0; i < m.length; i++) {
+      if (!m[i] || etiqueta[i]) continue;
+      const k = { n: 0, x0: gw, y0: gh, x1: 0, y1: 0 }; manchas.push(k);
+      etiqueta[i] = manchas.length; pila.push(i);
+      while (pila.length) {
+        const j = pila.pop(), x = j % gw, y = (j / gw) | 0;
+        k.n++; if (x < k.x0) k.x0 = x; if (x > k.x1) k.x1 = x; if (y < k.y0) k.y0 = y; if (y > k.y1) k.y1 = y;
+        for (const v of [x > 0 ? j - 1 : -1, x < gw - 1 ? j + 1 : -1, y > 0 ? j - gw : -1, y < gh - 1 ? j + gw : -1])
+          if (v >= 0 && m[v] && !etiqueta[v]) { etiqueta[v] = manchas.length; pila.push(v); }
+      }
+    }
+    if (!manchas.length) return null;
+    // El ticket es la mancha grande que no ocupa todo un costado de la foto (paredes, mesas claras)
+    const peso = k => k.n * (((k.x0 === 0) + (k.y0 === 0) + (k.x1 === gw - 1) + (k.y1 === gh - 1)) >= 3 ? 0.05 : 1);
+    let r = manchas.reduce((a, k) => peso(k) > peso(a) ? k : a);
+    r = { ...r };
+    // Unir pedazos del mismo papel (pliegues o sombras que lo cortan)
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      const mx = gw * 0.03, my = gh * 0.03;
+      for (const k of manchas) {
+        if (k.n < r.n * 0.02) continue;
+        if (k.x1 < r.x0 - mx || k.x0 > r.x1 + mx || k.y1 < r.y0 - my || k.y0 > r.y1 + my) continue;
+        if (k.x0 < r.x0 || k.y0 < r.y0 || k.x1 > r.x1 || k.y1 > r.y1) {
+          if (peso(k) < k.n) continue; // no unir con paredes
+          r.x0 = Math.min(r.x0, k.x0); r.y0 = Math.min(r.y0, k.y0); r.x1 = Math.max(r.x1, k.x1); r.y1 = Math.max(r.y1, k.y1);
         }
       }
-      return mejor;
-    };
-    const fy = rango(filas, h), fx = rango(cols, w);
-    if (!fx || !fy) return null;
+    }
     const pad = 0.025;
-    const r = {
-      x0: Math.max(0, fx[0] / w - pad), x1: Math.min(1, (fx[1] + 1) / w + pad),
-      y0: Math.max(0, fy[0] / h - pad), y1: Math.min(1, (fy[1] + 1) / h + pad)
+    const out = {
+      x0: Math.max(0, r.x0 / gw - pad), x1: Math.min(1, (r.x1 + 1) / gw + pad),
+      y0: Math.max(0, r.y0 / gh - pad), y1: Math.min(1, (r.y1 + 1) / gh + pad)
     };
-    const area = (r.x1 - r.x0) * (r.y1 - r.y0);
-    if (area < 0.04 || area > 0.85) return null; // nada claro, o ya ocupa casi toda la foto
-    return r;
+    const area = (out.x1 - out.x0) * (out.y1 - out.y0);
+    if (area < 0.03 || area > 0.85) return null; // nada claro, o ya ocupa casi toda la foto
+    return out;
   }
 
   // ¿Dónde está la parte de arriba del ticket? Todos los tickets traen un margen en blanco
@@ -150,11 +168,11 @@
   async function analizar(file) {
     const bmp = await cargar(file);
     const corto = Math.min(bmp.width, bmp.height);
-    const { g, w, h } = grises(bmp, 1000);
+    const { g, sat, w, h } = grises(bmp, 1000);
     let suma = 0; for (let i = 0; i < g.length; i++) suma += g[i];
     const brillo = suma / g.length;
     const [p5, p95] = percentiles(g, 0.05, 0.95);
-    const rc = recuadro(g, w, h);
+    const rc = recuadro(g, w, h, sat);
     const res = { nitidez: nitidez(g, w, h, rc), brillo, contraste: p95 - p5, corto, recuadro: rc, problemas: [] };
     if (corto < LADO_MIN) res.problemas.push("La foto es muy pequeña. Tómala de cerca, que el ticket ocupe casi toda la pantalla.");
     if (brillo < BRILLO_MIN) res.problemas.push("La foto está muy oscura. Tómala con más luz o activa el flash.");
@@ -169,7 +187,7 @@
     const bmp = await cargar(file);
     // Recortar al papel del ticket para que el texto quede más grande
     const p = grises(bmp, 1000);
-    const rc = recuadro(p.g, p.w, p.h) || { x0: 0, y0: 0, x1: 1, y1: 1 };
+    const rc = recuadro(p.g, p.w, p.h, p.sat) || { x0: 0, y0: 0, x1: 1, y1: 1 };
     const sx = Math.round(rc.x0 * bmp.width), sy = Math.round(rc.y0 * bmp.height);
     const sw = Math.round((rc.x1 - rc.x0) * bmp.width), sh = Math.round((rc.y1 - rc.y0) * bmp.height);
     const k = Math.min(1, 2000 / Math.max(sw, sh));
