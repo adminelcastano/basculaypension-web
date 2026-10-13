@@ -487,7 +487,7 @@ async function revisarCompletoExterno(env, antes, id, enviarA, ctx) {
 const NOMBRE_ARCHIVO = { ine: "Identificación (frente)", ine2: "Identificación (reverso)", curp: "CURP", solicitud: "Solicitud de empleo (hoja 1)", solicitud2: "Solicitud de empleo (hoja 2)", acta: "Acta de nacimiento", domicilio: "Comprobante de domicilio", estudios: "Comprobante de estudios", foto: "Fotografía" };
 const EXT_DE = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif", "application/pdf": "pdf" };
 
-function carpetaDrive(fila) { return { id: fila.id, tipo: fila.tipo === "externo" ? "externo" : "colaborador", carpeta: `${folioDe(fila)} ${fila.nombre}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 120) }; }
+function carpetaDrive(fila) { return { id: fila.id, num: String(fila.num || 0).padStart(3, "0"), tipo: fila.tipo === "externo" ? "externo" : "colaborador", carpeta: `${folioDe(fila)} ${fila.nombre}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 120) }; }
 
 async function llamarDrive(env, datos) {
   const r = await fetch(env.AVISO_URL.trim(), { method: "POST", redirect: "follow", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), accion: "drive", ...datos }) });
@@ -514,6 +514,7 @@ function enSegundoPlano(ctx, promesa) {
 }
 // Si cambió el folio (nombre o fecha de ingreso), renombra su carpeta de Drive
 async function renombrarSiCambio(env, antes, id, ctx) {
+  return; // Las carpetas de Drive las administra la oficina: el sitio no las renombra
   const despues = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
   if (!despues || carpetaDrive(despues).carpeta === carpetaDrive(antes).carpeta) return;
   const cfg = await leerConfig(env);
@@ -672,7 +673,6 @@ export async function personalPanel(request, env, url, partes, enviar) {
       .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin), tipo).run();
     let correoRes = null;
     const filaNueva = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
-    try { if ((await leerConfig(env)).drive && env.AVISO_URL) await llamarDrive(env, { op: "carpeta", ...carpetaDrive(filaNueva) }); } catch (e) { console.error("drive", e && e.message); }
     if (correo || tipo === "externo") correoRes = await enviarEnlacePorCorreo(env, filaNueva, enviar);
     return json({ ok: true, id, token, folio: folioDe(filaNueva), correo: correoRes });
   }
@@ -683,11 +683,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     catch (e) { return json({ ok: false, error: /ok/.test(e.message) ? "El script de Google todavía es la versión anterior: actualízalo y vuelve a probar." : "No se pudo conectar con Drive: " + e.message.replace(/^drive: /, "") }, 502); }
     const cfg = { ...(await leerConfig(env)), drive: true };
     await env.FILES.put("cfg:personal", JSON.stringify(cfg));
-    // Crea la carpeta de cada persona que ya está registrada
-    const { results } = await env.DB.prepare("SELECT * FROM colaboradores ORDER BY num ASC LIMIT 300").all();
-    let carpetas = 0, fallas = 0;
-    for (const f of results) { try { await llamarDrive(env, { op: "carpeta", ...carpetaDrive(f) }); carpetas++; } catch (e) { fallas++; } }
-    return json({ ok: true, config: cfg, carpetas, fallas });
+    return json({ ok: true, config: cfg });
   }
 
   if (partes[1] === "config") {
@@ -873,7 +869,6 @@ export async function personalPanel(request, env, url, partes, enviar) {
       if (!value) continue;
       try { await aDrive(env, fila, "a:" + d.id, value, d.tipo, nombreAdmin(d)); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
     }
-    if (!n && !fallas) { try { await llamarDrive(env, { op: "carpeta", ...carpetaDrive(fila) }); } catch (e) { fallas++; } }
     if (fallas) return json({ ok: false, error: `Se copiaron ${n} archivos y fallaron ${fallas}. Intenta de nuevo.` }, 502);
     return json({ ok: true, copiados: n });
   }
@@ -881,7 +876,6 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes[2] === "eliminar") {
     for (const a of Object.keys(DOC_DE_ARCHIVO)) await env.FILES.delete(`x:${id}:${a}`);
     for (const d of JSON.parse(fila.admin_docs || "[]")) await env.FILES.delete(`xa:${id}:${d.id}`);
-    try { const cfg = await leerConfig(env); if (cfg.drive && env.AVISO_URL) await llamarDrive(env, { op: "borrar-carpeta", ...carpetaDrive(fila) }); } catch (e) { console.error("drive", e && e.message); }
     await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }

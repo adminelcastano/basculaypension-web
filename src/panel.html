@@ -1131,7 +1131,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           </section>
           <section class="card">
             <h3>Eliminar ficha</h3>
-            <p class="note" style="margin:0">Borra al colaborador, sus datos y las fotos de sus documentos. Su enlace deja de funcionar. No se puede deshacer. Si solo dejó de trabajar, mejor márcalo como inactivo.</p>
+            <p class="note" style="margin:0">Borra al colaborador, sus datos y las fotos de sus documentos en el panel (su carpeta de Drive se conserva). Su enlace deja de funcionar. No se puede deshacer. Si solo dejó de trabajar, mejor márcalo como inactivo.</p>
             <div class="row"><button class="btn btn-bad" id="p-eliminar" type="button">Eliminar ficha</button></div>
           </section>
         </div>
@@ -1150,7 +1150,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     $("#p-pdf").addEventListener("click", () => generarPdf(c));
     $("#p-drive-sync").addEventListener("click", async e => {
       const b = e.currentTarget; b.disabled = true; $("#p-pdf-estado").textContent = "Copiando a Drive…";
-      try { const r = await post(`colaboradores/${id}/drive-sync`); $("#p-pdf-estado").textContent = r.copiados ? `Listo: ${r.copiados} archivos en su carpeta de Drive.` : "Carpeta creada en Drive (todavía no hay archivos)."; }
+      try { const r = await post(`colaboradores/${id}/drive-sync`); $("#p-pdf-estado").textContent = r.copiados ? `Listo: ${r.copiados} archivos en su carpeta de Drive.` : "Todavía no tiene documentos para copiar."; }
       catch (err) { $("#p-pdf-estado").textContent = err.message; }
       b.disabled = false;
     });
@@ -1351,7 +1351,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 
   $("#p-drive").addEventListener("click", async e => {
     const b = e.currentTarget; b.disabled = true; $("#p-drive-nota").textContent = "Probando…";
-    try { const r = await post("colaboradores/drive-probar"); st.config = r.config; $("#p-drive-nota").textContent = `Drive conectado: ${r.carpetas} carpeta${r.carpetas === 1 ? "" : "s"} lista${r.carpetas === 1 ? "" : "s"}${r.fallas ? ` (${r.fallas} no se pudieron crear; vuelve a probar)` : ""}. Desde ahora los documentos se copian solos; para los que ya estaban, usa «Copiar a Drive» en cada ficha.`; }
+    try { const r = await post("colaboradores/drive-probar"); st.config = r.config; $("#p-drive-nota").textContent = "Drive conectado: los documentos se copian solos a la carpeta de cada persona. Para los que ya estaban, usa «Copiar a Drive» en cada ficha."; }
     catch (err) { $("#p-drive-nota").textContent = err.message; }
     b.disabled = false;
   });
