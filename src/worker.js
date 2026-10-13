@@ -658,10 +658,11 @@ async function aceptarLicenciaModelo(env) {
 
 // ¿Qué es la foto? "pension", "bascula" u "otro" (no es un ticket de El Castaño)
 const INSTRUCCIONES_CLASE = `Mira la imagen y di qué es. Opciones:
-- "pension": ticket de la PENSIÓN de El Castaño. Encabezado "BASCULA Y PENSION EL CASTAÑO" sin logo; trae "Folio:", "PLACAS", "DESCRIPCIÓN AUTO", "TARIFA" con códigos como "BB1 SENCILLO $150 T24", y al final "TICKET DE SALIDA" o "TICKET DE ENTRADA".
+- "pension": ticket de la PENSIÓN de El Castaño. Encabezado "BASCULA Y PENSION EL CASTAÑO" sin logo; trae "Folio:", "PLACAS", "DESCRIPCIÓN AUTO", "TARIFA" con un código de tarifa, y al final "TICKET DE SALIDA" o "TICKET DE ENTRADA".
 - "bascula": ticket de PESAJE de la báscula. Encabezado "BASCULA EL CASTAÑO" junto a un logo de escudo; secciones "DATOS DEL CLIENTE", "DATOS DEL VEHICULO" y "PESAJE" con pesos en kg (PESO BRUTO, PESO TARA, PESO NETO); al final "PESAJE DE SALIDA" o "PESAJE DE ENTRADA".
 - "otro": cualquier otra cosa. Por ejemplo personas, animales, paisajes, vehículos, pantallas, capturas de pantalla, papel en blanco, documentos, comprobantes de pago con tarjeta, o tickets y recibos de otros negocios.
-La foto puede estar girada, inclinada, arrugada o un poco borrosa; si se reconoce el formato de uno de los dos tickets, no es "otro".
+Para que sea "pension" o "bascula" tienes que LEER en la imagen texto impreso de ese ticket (el encabezado, "Folio" o los campos). Si no hay texto impreso legible (telas, mallas, texturas, objetos, fotos oscuras o sin letras), es "otro". No adivines.
+La foto puede estar girada, inclinada o arrugada; si lees el texto de uno de los dos tickets, no es "otro".
 Responde SOLO con JSON: {"clase": "pension" | "bascula" | "otro"}`;
 
 async function clasificarTicket(env, bytes, tipo) {
@@ -685,15 +686,19 @@ async function revisarTicket(env, bytes, tipo, servicioElegido) {
   const guardado = await env.FILES.get(llave, { type: "json" });
   if (guardado) return guardado;
   await aceptarLicenciaModelo(env);
-  let clase = null;
-  try { clase = await clasificarTicket(env, bytes, tipo); } catch (e) { console.error("clasificar", e && e.message); }
+  let clase = null, fallo = false;
+  try { clase = await clasificarTicket(env, bytes, tipo); } catch (e) { fallo = true; console.error("clasificar", e && e.message); }
   let lectura = null;
   if (clase !== "otro") {
     const servicio = clase || (servicioElegido === "bascula" ? "bascula" : "pension");
-    try { lectura = await analizarTicketImagen(env, bytes, tipo, servicio); } catch (e) { console.error("leer", e && e.message); }
-    // Si no se pudo clasificar pero la lectura encontró un folio, se toma el servicio con el que se leyó
-    if (!clase && lectura && !lectura.error && lectura.datos.folio_ticket) clase = servicio;
+    try { lectura = await analizarTicketImagen(env, bytes, tipo, servicio); } catch (e) { fallo = true; console.error("leer", e && e.message); }
+    // Solo es ticket si la IA leyó datos reales del ticket (folio o importe). Sin eso, no se acepta.
+    const d = lectura && !lectura.error ? lectura.datos : null;
+    const conDatos = !!(d && (/\d{3,}/.test(d.folio_ticket || "") || d.importe));
+    if (conDatos) clase = clase || servicio;
+    else if (!fallo) clase = "otro";
   }
+  console.log("revision ticket", JSON.stringify({ clase, fallo, folio: lectura && lectura.datos && lectura.datos.folio_ticket || null }));
   const res = { clase, lectura: lectura && !lectura.error ? lectura : null };
   if (clase) await env.FILES.put(llave, JSON.stringify(res), { expirationTtl: 7200 });
   return res;
@@ -723,9 +728,9 @@ async function revisarTicketApi(request, env) {
 
 // Ticket de la BÁSCULA: folio, cliente y tarifa (la tarifa es lo cobrado por el pesaje)
 const INSTRUCCIONES_BASCULA = `Lee el ticket de la imagen. Es un ticket de pesaje impreso de "BASCULA EL CASTAÑO", con logo arriba.
-Campos del ticket (los valores son solo ejemplos del formato):
-- "FOLIO: 17372"
-- En la sección "DATOS DEL CLIENTE": "CLIENTE: LESVIA RAVELES" y "TARIFA: $130.00"
+Campos del ticket:
+- "FOLIO:" seguido de un número
+- En la sección "DATOS DEL CLIENTE": "CLIENTE:" seguido de un nombre, y "TARIFA:" seguido de una cantidad en pesos
 - Al final dice "PESAJE DE SALIDA" o "PESAJE DE ENTRADA". Los dos tipos sirven; lee los mismos datos en cualquiera.
 La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
 No confundas el CLIENTE con el CONDUCTOR ni la TARIFA con los pesos en kg.
@@ -745,16 +750,16 @@ async function analizarTicketImagen(env, bytes, tipo, servicio) {
   const imagen = `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`;
   const bascula = servicio === "bascula";
   const instrucciones = bascula ? INSTRUCCIONES_BASCULA : `Lee el ticket de la imagen. Es un ticket impreso de "BASCULA Y PENSION EL CASTAÑO". Hay dos tipos:
-- TICKET DE SALIDA (el que sirve para facturar): al final dice "TICKET DE SALIDA" y contiene "FECHA Y HORA DE SALIDA", "TIEMPO COBRADO", "IMPORTE DE ESTACIONAMIENTO" y "TOTAL: $1200.00".
+- TICKET DE SALIDA (el que sirve para facturar): al final dice "TICKET DE SALIDA" y contiene "FECHA Y HORA DE SALIDA", "TIEMPO COBRADO", "IMPORTE DE ESTACIONAMIENTO" y "TOTAL:" con una cantidad en pesos.
 - TICKET DE ENTRADA: al final dice "TICKET DE ENTRADA", solo trae "HORA ENTRADA", tiene código de barras abajo y no tiene TOTAL ni importe. (Aunque mencione "FACTURACIÓN www.basculaypension.com", sigue siendo de entrada.)
 La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
-Campos del ticket (los valores son solo ejemplos del formato):
-- Arriba a la izquierda: "Folio: 15013"
-- "PLACAS: 49AR1X"
-- "DESCRIPCIÓN AUTO: TRANSPORTES LOZANOS T24"
-- "TARIFA: BB1 SENCILLO $150 T24"
-- "TOTAL: $1200.00"
-A veces alguien tacha el TOTAL impreso y escribe otra cantidad a mano (ej. "$150"). En "total" pon SIEMPRE el número IMPRESO, aunque esté tachado, y copia lo escrito a mano en "anotacion".
+Campos del ticket:
+- Arriba a la izquierda: "Folio:" seguido de un número
+- "PLACAS:" seguido de la matrícula
+- "DESCRIPCIÓN AUTO:" seguido de una descripción del vehículo
+- "TARIFA:" seguida de un código de tarifa y un precio
+- "TOTAL:" seguido de una cantidad en pesos
+A veces alguien tacha el TOTAL impreso y escribe otra cantidad a mano. En "total" pon SIEMPRE el número IMPRESO, aunque esté tachado, y copia lo escrito a mano en "anotacion".
 Puede haber otro papel encima, como un comprobante de pago con tarjeta (Mercado Pago u otro banco). Ignóralo: lee solo el ticket de la báscula y nunca tomes el total del comprobante de pago.
 Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
 "tipo": "salida", "entrada" o "desconocido",
@@ -763,7 +768,7 @@ Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
 "descripcion": el texto que sigue a "DESCRIPCIÓN AUTO",
 "tarifa": el texto completo que sigue a "TARIFA",
 "total": el número IMPRESO que sigue a "TOTAL" en el ticket de la báscula, sin signo de pesos,
-"anotacion": cualquier texto o cantidad escrita a mano con pluma sobre el ticket, tal cual (ej. "$150"); null si no hay nada escrito a mano.
+"anotacion": cualquier texto o cantidad escrita a mano con pluma sobre el ticket, tal cual; null si no hay nada escrito a mano.
 Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece, está tapado o no se lee con claridad, usa null. No inventes datos.`;
   const r = await env.AI.run(MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],

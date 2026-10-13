@@ -50,7 +50,7 @@
   // Recuadro del papel: el ticket es la zona clara más grande sobre un fondo más oscuro.
   // Devuelve {x0,y0,x1,y1} en proporción (0-1) o null si no se distingue con seguridad.
   // sat: diferencia entre canales de color; el papel térmico es blanco neutro (sin color)
-  function recuadro(g, w, h, sat) {
+  function recuadro(g, w, h, sat, info) {
     const [, p98] = percentiles(g, 0.02, 0.98);
     const umbral = p98 * 0.72;
     // Rejilla reducida (~300 px) con las zonas claras
@@ -75,10 +75,16 @@
           if (v >= 0 && m[v] && !etiqueta[v]) { etiqueta[v] = manchas.length; pila.push(v); }
       }
     }
-    if (!manchas.length) return null;
+    if (!manchas.length) { if (info) info.papel = false; return null; }
     // El ticket es la mancha grande que no ocupa todo un costado de la foto (paredes, mesas claras)
     const peso = k => k.n * (((k.x0 === 0) + (k.y0 === 0) + (k.x1 === gw - 1) + (k.y1 === gh - 1)) >= 3 ? 0.05 : 1);
     let r = manchas.reduce((a, k) => peso(k) > peso(a) ? k : a);
+    if (info) {
+      // ¿Hay papel? Una mancha blanca de buen tamaño; si cubre casi toda la foto debe ser sólida
+      // (un ticket muy de cerca), no una textura con huecos como tela o malla.
+      const caja = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+      info.papel = r.n >= gw * gh * 0.03 && !(caja > gw * gh * 0.8 && r.n / caja < 0.65);
+    }
     r = { ...r };
     // Unir pedazos del mismo papel (pliegues o sombras que lo cortan)
     for (let vuelta = 0; vuelta < 3; vuelta++) {
@@ -172,12 +178,14 @@
     let suma = 0; for (let i = 0; i < g.length; i++) suma += g[i];
     const brillo = suma / g.length;
     const [p5, p95] = percentiles(g, 0.05, 0.95);
-    const rc = recuadro(g, w, h, sat);
+    const info = {};
+    const rc = recuadro(g, w, h, sat, info);
     const res = { nitidez: nitidez(g, w, h, rc), brillo, contraste: p95 - p5, corto, recuadro: rc, problemas: [] };
     if (corto < LADO_MIN) res.problemas.push("La foto es muy pequeña. Tómala de cerca, que el ticket ocupe casi toda la pantalla.");
     if (brillo < BRILLO_MIN) res.problemas.push("La foto está muy oscura. Tómala con más luz o activa el flash.");
     else if (res.contraste < CONTRASTE_MIN) res.problemas.push("No se distingue el texto. Busca mejor luz y evita reflejos sobre el ticket.");
-    if (res.nitidez < NITIDEZ_MIN) res.problemas.push("La foto está borrosa o desenfocada. Toca la pantalla sobre el ticket para enfocar y mantén el teléfono quieto.");
+    if (info.papel === false) res.problemas.push("No encontramos un ticket en la foto. Pon el ticket blanco completo sobre una superficie oscura y tómale la foto.");
+    else if (res.nitidez < NITIDEZ_MIN) res.problemas.push("La foto está borrosa o desenfocada. Toca la pantalla sobre el ticket para enfocar y mantén el teléfono quieto.");
     res.ok = res.problemas.length === 0;
     return res;
   }
