@@ -207,13 +207,17 @@ async function enviarAviso(env, origen, d) {
 <tr><td style="padding:4px 12px 4px 0;color:#666">Correo</td><td>${escaparHtml(d.email)}</td></tr>
 </table>
 <p><a href="${panel}" style="display:inline-block;background:#f0a00a;color:#241a10;padding:10px 18px;border-radius:8px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">Abrir panel de facturas</a></p>`;
-  const r = await fetch(env.AVISO_URL, {
+  // Apps Script ejecuta doPost y luego redirige a una URL que entrega la respuesta;
+  // se sigue la redirección para leer "ok", "no autorizado" o una página de error.
+  const r = await fetch(env.AVISO_URL.trim(), {
     method: "POST",
-    redirect: "manual",
+    redirect: "follow",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: env.AVISO_TOKEN, asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html })
+    body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html })
   });
-  if (r.status >= 400) throw new Error("aviso respondió " + r.status);
+  const cuerpo = (await r.text()).slice(0, 300);
+  if (cuerpo.trim() !== "ok") throw new Error(`aviso no confirmado: HTTP ${r.status} ${r.url.slice(0, 80)} · ${cuerpo.replace(/\s+/g, " ").slice(0, 200)}`);
+  console.log("aviso enviado", d.folio);
 }
 
 // ---------------------------------------------------------------------------
