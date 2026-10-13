@@ -441,7 +441,7 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
     <div class="wrap">
       <div class="section-head">
         <h2>Facturación</h2>
-        <p>Si necesitas factura de tu pesaje o de la pensión, mándanos tu ticket y tus datos fiscales.</p>
+        <p>Llena el formulario con tu Constancia de Situación Fiscal o tus datos, y la foto de tu ticket. Te enviamos la factura a tu correo.</p>
       </div>
       <ol class="steps">
         <li>
@@ -449,8 +449,8 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
           <p>Pide y conserva el ticket de tu servicio. Lo necesitamos para hacer la factura.</p>
         </li>
         <li>
-          <h3>Envía ticket y datos</h3>
-          <p>Mándanos una foto del ticket con tu Constancia de Situación Fiscal, o estos datos:</p>
+          <h3>Llena el formulario</h3>
+          <p>Sube tu Constancia de Situación Fiscal en PDF o escribe estos datos, y agrega la foto del ticket:</p>
           <ul>
             <li>RFC</li>
             <li>Nombre o razón social</li>
@@ -466,15 +466,13 @@ footer p { opacity: 0.88; font-size: 0.95rem; }
         </li>
       </ol>
       <div class="invoice-actions">
-        <a class="btn btn-wa" data-link="wa" data-msg="Hola, quiero facturar mi ticket. Les envío la foto del ticket y mis datos fiscales." href="https://wa.me/529625642170?text=Hola%2C%20quiero%20facturar%20mi%20ticket.%20Les%20env%C3%ADo%20la%20foto%20del%20ticket%20y%20mis%20datos%20fiscales." target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>
-          Pedir factura por WhatsApp
+        <a class="btn btn-amber" href="/factura/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/></svg>
+          Enviar mis datos para factura
         </a>
-        <span class="copyline">o por correo: <span data-field="correoTexto">administracion@basculaypension.com</span>
-          <button class="copybtn" id="copy-correo" type="button">Copiar correo</button>
-        </span>
+        <span class="copyline">o por WhatsApp al 962 564 2170</span>
       </div>
-      <p class="note">Las facturas son CFDI 4.0 emitidas por el negocio. Revisa que tus datos coincidan con tu Constancia de Situación Fiscal para evitar rechazos.</p>
+      <p class="note">Las facturas son CFDI 4.0 emitidas por el negocio. Revisa que tus datos coincidan con tu Constancia de Situación Fiscal para evitar rechazos. Consulta nuestro <a href="/aviso-de-privacidad/">aviso de privacidad</a>.</p>
     </div>
   </section>
 </main>
@@ -568,7 +566,7 @@ const NEGOCIO = {
   });
 
   const copy = document.getElementById("copy-correo");
-  if (NEGOCIO.correoFacturas) {
+  if (copy && NEGOCIO.correoFacturas) {
     copy.hidden = false;
     copy.addEventListener("click", () => {
       const done = () => { copy.textContent = "Copiado"; setTimeout(() => { copy.textContent = "Copiar correo"; }, 1800); };

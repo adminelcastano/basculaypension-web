@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel de facturas · El Castaño</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("/fonts/Barlow-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/fonts/Barlow-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 700; font-display: swap; src: url("/fonts/BarlowSemiCondensed-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 800; font-display: swap; src: url("/fonts/BarlowSemiCondensed-ExtraBold.woff2") format("woff2"); }
+/* Panel de trabajo: barra superior, pestañas por estado, lista a la izquierda y detalle a la derecha (en celular, el detalle cubre la lista). */
+:root {
+  --bg: #f5f3f1; --surface: #ffffff; --fg: #211b18; --muted: #5e5450; --line: #e2dcd7;
+  --brand: #5a2a17; --brand-ink: #fff7f1; --amber: #f0a00a; --amber-ink: #241a10;
+  --ok: #17703f; --ok-soft: #e3f3e9; --warn-soft: #fdf1d8; --bad: #a3271d; --bad-soft: #fbe6e4; --sel: #f3ebe5;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #161210; --surface: #201a17; --fg: #f4ede8; --muted: #b9ada5; --line: #3a312c;
+  --brand: #7a3d23; --sel: #2d231e; --ok: #5fcf8f; --ok-soft: #173525; --warn-soft: #3a2c10; --bad: #ff8a7d; --bad-soft: #3d1c18;
+  color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; display: flex; flex-direction: column; }
+::selection { background: var(--amber); color: var(--amber-ink); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; line-height: 1.1; }
+
+header.bar { background: var(--brand); color: var(--brand-ink); padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 16px; }
+header.bar h1 { font-size: 1.3rem; font-weight: 800; margin-right: auto; }
+header.bar small { opacity: .85; font-size: .85rem; }
+.tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { border: 1.5px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 14px; font-weight: 600; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tab .n { font-variant-numeric: tabular-nums; font-size: .85rem; padding: 0 7px; border-radius: 999px; background: var(--amber); color: var(--amber-ink); }
+.tab[aria-selected="true"] .n { background: var(--bg); color: var(--fg); }
+.search { flex: 1 1 220px; min-width: 0; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1.5px solid transparent; font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; cursor: pointer; text-decoration: none; }
+.btn-primary { background: var(--amber); color: var(--amber-ink); }
+.btn-ok { background: var(--ok); color: #fff; }
+.btn-line { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn-bad { background: transparent; color: var(--bad); border-color: currentColor; }
+.btn:disabled { opacity: .5; cursor: progress; }
+
+main.work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); }
+.list { overflow-y: auto; border-right: 1px solid var(--line); background: var(--surface); }
+.item { display: grid; gap: 2px; width: 100%; text-align: left; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; }
+.item:hover { background: var(--sel); }
+.item[aria-current="true"] { background: var(--sel); box-shadow: inset 4px 0 0 var(--amber); }
+.item .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .m { color: var(--muted); font-size: .88rem; display: flex; gap: 10px; flex-wrap: wrap; }
+.empty { padding: 32px 20px; color: var(--muted); }
+.detail { overflow-y: auto; padding: 20px clamp(16px, 3vw, 32px) 48px; min-width: 0; }
+.detail-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: baseline; margin-bottom: 18px; }
+.detail-head h2 { font-size: 1.7rem; font-weight: 800; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; }
+.pill.pendiente { background: var(--warn-soft); }
+.pill.facturada { background: var(--ok-soft); color: var(--ok); }
+.pill.rechazada { background: var(--bad-soft); color: var(--bad); }
+.back { display: none; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+section.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+section.card h3 { font-size: 1.15rem; font-weight: 700; }
+.fields { display: grid; gap: 0; }
+.field { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.field:last-child { border-bottom: 0; }
+.field .k { color: var(--muted); font-size: .9rem; font-weight: 600; }
+.field .v { font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
+.field .v.vacio { color: var(--bad); font-weight: 600; font-size: .95rem; }
+.copy { border: 1.5px solid var(--line); background: var(--bg); border-radius: 6px; padding: 4px 10px; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.copy.hecho { border-color: var(--ok); color: var(--ok); }
+@media (max-width: 520px) { .field { grid-template-columns: 1fr auto; } .field .k { grid-column: 1 / -1; } }
+.note { color: var(--muted); font-size: .92rem; }
+.warn { background: var(--warn-soft); border-radius: 8px; padding: 10px 12px; font-size: .95rem; }
+.doc img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block; background: var(--bg); }
+.doc iframe { width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row input[type=text], .grid-form input, .grid-form select { padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0; }
+.row input[type=text] { flex: 1 1 220px; }
+.grid-form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.grid-form label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.grid-form .wide { grid-column: 1 / -1; }
+@media (max-width: 520px) { .grid-form { grid-template-columns: 1fr; } }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 8px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; }
+.toast.on { opacity: 1; }
+
+@media (max-width: 820px) {
+  main.work { grid-template-columns: 1fr; }
+  .list { border-right: 0; }
+  .detail { display: none; }
+  main.work.ver-detalle .list { display: none; }
+  main.work.ver-detalle .detail { display: block; }
+  .back { display: inline-flex; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>Facturas · El Castaño</h1>
+  <small id="yo"></small>
+</header>
+<div class="tools">
+  <div class="tabs" role="tablist" aria-label="Estado">
+    <button class="tab" role="tab" data-estado="pendiente" aria-selected="true">Pendientes <span class="n" id="n-pendiente">0</span></button>
+    <button class="tab" role="tab" data-estado="facturada" aria-selected="false">Facturadas <span class="n" id="n-facturada">0</span></button>
+    <button class="tab" role="tab" data-estado="rechazada" aria-selected="false">Rechazadas <span class="n" id="n-rechazada">0</span></button>
+  </div>
+  <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
+  <button class="btn btn-line" id="recargar" type="button">Actualizar</button>
+</div>
+<main class="work" id="work">
+  <nav class="list" id="lista" aria-label="Solicitudes"></nav>
+  <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const estadoState = { estado: "pendiente", q: "", actual: null, cat: null };
+  const fmt = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" });
+  const fecha = iso => iso ? fmt.format(new Date(iso)) : "";
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
+
+  async function api(ruta, opciones = {}) {
+    const r = await fetch("/panel/api/" + ruta, { ...opciones, headers: { "X-Panel": "1", ...(opciones.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401 || r.status === 403) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
+    const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida del servidor." }));
+    if (!j.ok) throw new Error(j.error || "Error");
+    return j;
+  }
+
+  async function cargarLista() {
+    const p = new URLSearchParams({ estado: estadoState.estado });
+    if (estadoState.q) p.set("q", estadoState.q);
+    const lista = $("#lista");
+    try {
+      const j = await api("solicitudes?" + p);
+      for (const e of ["pendiente", "facturada", "rechazada"]) $("#n-" + e).textContent = j.conteos[e] || 0;
+      if (!j.solicitudes.length) {
+        lista.innerHTML = `<p class="empty">${estadoState.q ? "Sin resultados para esa búsqueda." : estadoState.estado === "pendiente" ? "No hay solicitudes pendientes. Las nuevas aparecen aquí." : "Todavía no hay solicitudes en esta lista."}</p>`;
+        return;
+      }
+      lista.innerHTML = j.solicitudes.map(s => `
+        <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
+          <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
+          <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
+          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}</span>
+        </button>`).join("");
+    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
+  }
+
+  function campo(etiqueta, valor, copiable = true) {
+    const vacio = !valor;
+    return `<div class="field"><span class="k">${etiqueta}</span><span class="v ${vacio ? "vacio" : ""}">${vacio ? "Falta" : esc(valor)}</span>${copiable && !vacio ? `<button class="copy" data-copy="${esc(valor)}" type="button">Copiar</button>` : "<span></span>"}</div>`;
+  }
+
+  async function abrir(id) {
+    estadoState.actual = id;
+    document.querySelectorAll(".item").forEach(b => b.toggleAttribute("aria-current", b.dataset.id === id));
+    $("#work").classList.add("ver-detalle");
+    const d = $("#detalle");
+    d.innerHTML = `<p class="empty">Cargando…</p>`;
+    let j;
+    try { j = await api("solicitudes/" + id); } catch (e) { d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    const s = j.solicitud; estadoState.cat = j;
+    const reg = s.regimen ? `${s.regimen} · ${j.regimenes[s.regimen] || ""}` : "";
+    const uso = s.uso ? `${s.uso} · ${j.usos[s.uso] || ""}` : "";
+    const tel = s.telefono ? `52${s.telefono}` : "";
+    const archivo = tipo => `/panel/api/solicitudes/${s.id}/archivo/${tipo}`;
+    const docHtml = (tipo, mime, titulo) => {
+      if (s.archivos_borrados) return `<p class="note">El archivo se borró automáticamente ${90} días después de resolver la solicitud.</p>`;
+      if (mime === "application/pdf") return `<iframe src="${archivo(tipo)}" title="${titulo}"></iframe><a class="btn btn-line" href="${archivo(tipo)}" target="_blank" rel="noopener">Abrir en otra pestaña</a>`;
+      return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
+    };
+    const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
+
+    d.innerHTML = `
+      <button class="btn btn-line back" id="volver" type="button">← Volver a la lista</button>
+      <div class="detail-head">
+        <h2>${esc(s.nombre || "Solicitud " + s.folio)}</h2>
+        <span class="pill ${s.estado}">${{ pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" }[s.estado]}</span>
+        <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
+      </div>
+      <div class="cols">
+        <div style="display:grid;gap:20px;min-width:0">
+          <section class="card">
+            <h3>Datos para Facturador</h3>
+            ${s.modo === "csf" && !s.datos_de_csf && faltan ? `<p class="warn">El cliente envió su Constancia. Usa “Leer datos de la constancia” o captúralos abajo.</p>` : ""}
+            ${s.datos_de_csf ? `<p class="note">Datos tomados de la constancia. Verifícalos contra el documento.</p>` : ""}
+            <div class="fields">
+              ${campo("RFC", s.rfc)}
+              ${campo("Nombre o razón social", s.nombre)}
+              ${campo("Código postal", s.cp)}
+              ${campo("Régimen fiscal", reg)}
+              ${campo("Uso del CFDI", uso)}
+              ${campo("Correo", s.email)}
+            </div>
+          </section>
+          <section class="card">
+            <h3>Servicio</h3>
+            <div class="fields">
+              ${campo("Servicio", j.servicios[s.servicio] || s.servicio, false)}
+              ${campo("Folio del ticket", s.folio_ticket || "", true).replace('class="v vacio">Falta', 'class="v" style="color:var(--muted);font-weight:400">No lo indicó')}
+              ${s.telefono ? campo("WhatsApp", s.telefono) : ""}
+              ${s.comentario ? campo("Comentario", s.comentario, false) : ""}
+            </div>
+          </section>
+          <section class="card">
+            ${s.estado === "pendiente" ? `
+              <h3>Marcar como facturada</h3>
+              <div class="row">
+                <input type="text" id="folio-factura" placeholder="Folio o UUID de la factura" aria-label="Folio de la factura">
+                <button class="btn btn-ok" id="facturar" type="button">Marcar facturada</button>
+              </div>
+              <details><summary class="note" style="cursor:pointer">Rechazar solicitud</summary>
+                <div class="row" style="margin-top:10px">
+                  <input type="text" id="motivo" placeholder="Motivo (ej. ticket ilegible, datos no coinciden)" aria-label="Motivo">
+                  <button class="btn btn-bad" id="rechazar" type="button">Rechazar</button>
+                </div>
+              </details>` : `
+              <h3>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
+              <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              ${s.archivos_borrados ? "" : `<div class="row"><button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button></div>`}`}
+            ${tel ? `<div class="row"><a class="btn btn-line" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(s.estado === "facturada" ? `Hola, te enviamos tu factura del folio ${s.folio} al correo ${s.email}. Gracias por tu preferencia. Báscula y Pensión El Castaño` : `Hola, te escribimos de Báscula y Pensión El Castaño sobre tu solicitud de factura ${s.folio}.`)}">Escribir por WhatsApp</a></div>` : ""}
+          </section>
+        </div>
+        <div style="display:grid;gap:20px;min-width:0">
+          <section class="card doc">
+            <h3>Ticket</h3>
+            ${docHtml("ticket", s.ticket_tipo, "Foto del ticket")}
+          </section>
+          ${s.modo === "csf" ? `
+          <section class="card doc">
+            <h3>Constancia de Situación Fiscal</h3>
+            ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
+            ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-primary" id="leer-csf" type="button">Leer datos de la constancia</button></div>` : ""}
+          </section>` : ""}
+          <section class="card">
+            <h3>Corregir datos fiscales</h3>
+            <div class="grid-form" id="form-datos">
+              <label>RFC<input id="d-rfc" value="${esc(s.rfc)}" autocomplete="off"></label>
+              <label>Código postal<input id="d-cp" value="${esc(s.cp)}" inputmode="numeric" maxlength="5"></label>
+              <label class="wide">Nombre o razón social<input id="d-nombre" value="${esc(s.nombre)}"></label>
+              <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
+            </div>
+            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
+          </section>
+        </div>
+      </div>`;
+
+    $("#volver")?.addEventListener("click", () => $("#work").classList.remove("ver-detalle"));
+    $("#facturar")?.addEventListener("click", async e => {
+      const folio = $("#folio-factura").value.trim();
+      if (!folio) { toast("Escribe el folio de la factura"); $("#folio-factura").focus(); return; }
+      if (faltan && !confirmarEnPagina(e.target)) return;
+      await accion(e.target, "facturar", { folio_factura: folio }, "Marcada como facturada");
+    });
+    $("#rechazar")?.addEventListener("click", e => {
+      const motivo = $("#motivo").value.trim();
+      if (!motivo) { toast("Escribe el motivo"); $("#motivo").focus(); return; }
+      accion(e.target, "rechazar", { motivo }, "Solicitud rechazada");
+    });
+    $("#reabrir")?.addEventListener("click", e => accion(e.target, "reabrir", {}, "Regresó a pendientes"));
+    $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
+    $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes));
+  }
+
+  function confirmarEnPagina(boton) {
+    if (boton.dataset.confirmado === "1") return true;
+    boton.dataset.confirmado = "1";
+    boton.textContent = "Faltan datos. ¿Marcar de todos modos?";
+    return false;
+  }
+
+  async function accion(boton, que, cuerpo, ok) {
+    boton.disabled = true;
+    try {
+      await api(`solicitudes/${estadoState.actual}/${que}`, { method: "POST", body: JSON.stringify(cuerpo) });
+      toast(ok);
+      await cargarLista();
+      await abrir(estadoState.actual);
+    } catch (e) { if (e.message !== "sesion") toast(e.message); boton.disabled = false; }
+  }
+
+  async function guardarDatos(boton, deCsf) {
+    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf };
+    boton.disabled = true;
+    try {
+      await api(`solicitudes/${estadoState.actual}/datos`, { method: "POST", body: JSON.stringify(cuerpo) });
+      toast("Datos guardados");
+      await cargarLista();
+      await abrir(estadoState.actual);
+    } catch (e) { if (e.message !== "sesion") toast(e.message); boton.disabled = false; }
+  }
+
+  // Lectura de la Constancia de Situación Fiscal (PDF del SAT) en el navegador
+  let pdfjsListo = null;
+  function cargarPdfjs() {
+    if (pdfjsListo) return pdfjsListo;
+    pdfjsListo = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; res(window.pdfjsLib); };
+      s.onerror = () => rej(new Error("No se pudo cargar el lector de PDF"));
+      document.head.appendChild(s);
+    });
+    return pdfjsListo;
+  }
+
+  async function leerCsf(boton, s, regimenes) {
+    const estado = $("#csf-estado");
+    boton.disabled = true; estado.textContent = "Leyendo la constancia…";
+    try {
+      const pdfjs = await cargarPdfjs();
+      const buf = await (await fetch(`/panel/api/solicitudes/${s.id}/archivo/csf`)).arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      let textoPdf = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+        const c = await (await pdf.getPage(i)).getTextContent();
+        textoPdf += " " + c.items.map(it => it.str).join(" ");
+      }
+      const d = extraerCsf(textoPdf.replace(/\s+/g, " "), regimenes);
+      if (!d.rfc && !d.nombre) { estado.textContent = "No se encontró texto legible. Captura los datos viendo el documento."; boton.disabled = false; return; }
+      if (d.rfc) $("#d-rfc").value = d.rfc;
+      if (d.nombre) $("#d-nombre").value = d.nombre;
+      if (d.cp) $("#d-cp").value = d.cp;
+      if (d.regimen) $("#d-regimen").value = d.regimen;
+      estado.textContent = d.regimenes > 1 ? "Leído. La constancia tiene varios regímenes: confirma con el cliente cuál usar." : "Leído. Verifica contra el documento y guarda.";
+      $("#guardar-datos").onclick = e => guardarDatos(e.target, true);
+    } catch (e) { estado.textContent = "No se pudo leer: " + e.message; }
+    boton.disabled = false;
+  }
+
+  function extraerCsf(t, regimenes) {
+    const etiquetas = ["RFC:", "CURP:", "Nombre \\(s\\):", "Nombre\\(s\\):", "Primer Apellido:", "Segundo Apellido:", "Fecha inicio de operaciones:", "Estatus en el padrón:", "Fecha de último cambio de estado:", "Nombre Comercial:", "Denominación/Razón Social:", "Régimen Capital:", "Datos del domicilio registrado", "Código Postal:", "Tipo de Vialidad:", "Nombre de Vialidad:", "Número Exterior:", "idCIF:", "Lugar y Fecha de Emisión"];
+    const valor = etq => {
+      const m = t.match(new RegExp(etq + "\\s*(.*?)\\s*(?=" + etiquetas.join("|") + "|$)"));
+      return m ? m[1].trim() : "";
+    };
+    let rfc = (valor("RFC:").match(/[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}/) || t.match(/\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b/) || [""])[0];
+    const razon = valor("Denominación/Razón Social:");
+    let nombre = razon;
+    if (!nombre) nombre = [valor("Nombre \\(s\\):") || valor("Nombre\\(s\\):"), valor("Primer Apellido:"), valor("Segundo Apellido:")].filter(Boolean).join(" ");
+    const cp = (valor("Código Postal:").match(/\d{5}/) || [""])[0];
+    const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const tn = norm(t);
+    const encontrados = Object.entries(regimenes).filter(([, v]) => tn.includes(norm(v)));
+    // Si un nombre de régimen contiene a otro, prefiere el más largo
+    encontrados.sort((a, b) => b[1].length - a[1].length);
+    return { rfc, nombre: nombre.toUpperCase(), cp, regimen: encontrados[0]?.[0] || "", regimenes: encontrados.length };
+  }
+
+  // Eventos generales
+  document.addEventListener("click", async e => {
+    const c = e.target.closest(".copy");
+    if (c) {
+      const v = c.dataset.copy;
+      try { await navigator.clipboard.writeText(v); } catch { const r = document.createRange(); r.selectNodeContents(c.previousElementSibling); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      c.textContent = "Copiado"; c.classList.add("hecho");
+      setTimeout(() => { c.textContent = "Copiar"; c.classList.remove("hecho"); }, 1500);
+      return;
+    }
+    const it = e.target.closest(".item");
+    if (it) abrir(it.dataset.id);
+    const tab = e.target.closest(".tab");
+    if (tab) {
+      document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === tab ? "true" : "false"));
+      estadoState.estado = tab.dataset.estado; estadoState.actual = null;
+      $("#detalle").innerHTML = `<p class="empty">Elige una solicitud de la lista.</p>`;
+      $("#work").classList.remove("ver-detalle");
+      cargarLista();
+    }
+  });
+  let h; $("#q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { estadoState.q = e.target.value.trim(); cargarLista(); }, 300); });
+  $("#recargar").addEventListener("click", cargarLista);
+  setInterval(() => { if (!document.hidden) cargarLista(); }, 60000);
+  api("yo").then(j => { $("#yo").textContent = j.email; }).catch(() => {});
+  cargarLista();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solicitar factura | Báscula y Pensión El Castaño</title>
+<meta name="description" content="Envía tu Constancia de Situación Fiscal o tus datos fiscales y la foto de tu ticket para recibir tu factura de báscula o pensión en El Castaño, Tapachula.">
+<link rel="canonical" href="https://basculaypension.com/factura/">
+<meta name="theme-color" content="#5a2a17">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:title" content="Solicitar factura · Báscula y Pensión El Castaño">
+<meta property="og:description" content="Sube tu constancia o tus datos fiscales y la foto de tu ticket.">
+<meta property="og:image" content="https://basculaypension.com/og-image.jpg">
+<link rel="preload" href="/fonts/Barlow-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("/fonts/Barlow-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url("/fonts/Barlow-Medium.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/fonts/Barlow-SemiBold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 700; font-display: swap; src: url("/fonts/BarlowSemiCondensed-Bold.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 800; font-display: swap; src: url("/fonts/BarlowSemiCondensed-ExtraBold.woff2") format("woff2"); }
+/* Formulario de una columna pensado para celular: pasos numerados porque el orden importa. */
+:root {
+  --bg: #f5f3f1; --surface: #ffffff; --fg: #211b18; --muted: #5e5450; --line: #e2dcd7;
+  --brand: #5a2a17; --brand-ink: #fff7f1; --amber: #f0a00a; --amber-ink: #241a10;
+  --wa: #157a45; --bad: #a3271d; --bad-soft: #fbe6e4; --ok-soft: #e3f3e9; --ok: #17703f;
+  --font-display: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #161210; --surface: #201a17; --fg: #f4ede8; --muted: #b9ada5; --line: #3a312c;
+  --brand: #7a3d23; --amber: #f4ac24; --amber-ink: #1d140a; --wa: #177a46; --bad: #ff8a7d; --bad-soft: #3d1c18; --ok-soft: #173525; --ok: #5fcf8f;
+  color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 1.0625rem; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--amber); color: var(--amber-ink); }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+h1, h2 { font-family: var(--font-display); line-height: 1.05; margin: 0; text-wrap: balance; }
+a { color: inherit; text-underline-offset: .2em; }
+.top { background: var(--brand); color: var(--brand-ink); padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+.top a { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.top b { font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; }
+.top small { display: block; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.wrap { max-width: 40rem; margin-inline: auto; padding-inline: 16px; }
+main { padding-block: 28px 64px; }
+.intro { display: grid; gap: 10px; margin-bottom: 26px; }
+.intro h1 { font-size: clamp(2.1rem, 7vw, 2.8rem); font-weight: 800; }
+.intro p { color: var(--muted); }
+form { display: grid; gap: 22px; }
+fieldset { margin: 0; border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 20px; background: var(--surface); display: grid; gap: 14px; min-width: 0; }
+legend { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; padding: 0 6px; margin-left: -6px; }
+legend .paso { color: var(--muted); font-weight: 700; font-size: 1rem; margin-right: 6px; }
+label.f { display: grid; gap: 6px; font-weight: 600; }
+.hint { font-weight: 400; color: var(--muted); font-size: .92rem; }
+input[type=text], input[type=email], input[type=tel], select, textarea {
+  width: 100%; min-height: 50px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-size: 1.05rem;
+}
+textarea { min-height: 80px; resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--amber); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 35%, transparent); }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.chip span { display: inline-flex; align-items: center; min-height: 48px; padding: 0 18px; border: 1.5px solid var(--line); border-radius: 999px; font-weight: 600; background: var(--bg); }
+.chip input:checked + span { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
+.opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .opciones { grid-template-columns: 1fr; } }
+.opcion { position: relative; }
+.opcion input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.opcion span { display: grid; gap: 2px; height: 100%; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); }
+.opcion b { font-family: var(--font-display); font-size: 1.15rem; }
+.opcion small { color: var(--muted); }
+.opcion input:checked + span { border-color: var(--amber); box-shadow: inset 0 0 0 1.5px var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--bg)); }
+.opcion input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
+.drop { display: grid; gap: 8px; justify-items: start; padding: 16px; border: 2px dashed var(--line); border-radius: 12px; background: var(--bg); }
+.drop .btn { cursor: pointer; }
+.drop input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.preview { display: flex; align-items: center; gap: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 20px; border-radius: 10px; border: 2px solid transparent; font-family: var(--font-display); font-weight: 700; font-size: 1.12rem; text-decoration: none; cursor: pointer; }
+.btn svg { width: 22px; height: 22px; flex: none; }
+.btn-amber { background: var(--amber); color: var(--amber-ink); }
+.btn-line { background: var(--surface); color: var(--fg); border-color: var(--line); }
+.btn-wa { background: var(--wa); color: #fff; }
+.btn[disabled] { opacity: .6; cursor: progress; }
+.enviar { width: 100%; min-height: 58px; font-size: 1.25rem; }
+.check { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-weight: 500; }
+.check input { width: 22px; height: 22px; margin: 3px 0 0; accent-color: var(--brand); }
+.err { color: var(--bad); font-size: .92rem; font-weight: 600; }
+.err:empty { display: none; }
+.has-err input, .has-err select, .has-err .drop { border-color: var(--bad); }
+.alerta { background: var(--bad-soft); color: var(--fg); border-radius: 10px; padding: 12px 14px; font-weight: 500; }
+.alerta:empty { display: none; }
+.hecho { display: grid; gap: 14px; justify-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px 20px; }
+.hecho h1 { font-size: 2.2rem; font-weight: 800; }
+.folio { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: .02em; background: var(--ok-soft); color: var(--ok); padding: 6px 14px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a href="/" aria-label="Báscula y Pensión El Castaño, inicio">
+      <svg viewBox="0 0 40 40" width="32" height="32" aria-hidden="true"><path d="M20 5c7.8 5.2 13 11.5 13 18.5C33 30 27.6 35 20 35S7 30 7 23.5C7 16.5 12.2 10.2 20 5Z" fill="#fff7f1"/><path d="M7.6 26.5C11 25 15.4 24.2 20 24.2s9 .8 12.4 2.3" fill="none" stroke="#5a2a17" stroke-width="2.2"/><path d="M20 5c-1.6 3.6-2.2 8.2-1.6 13" fill="none" stroke="#5a2a17" stroke-width="2" stroke-linecap="round"/></svg>
+      <span><b>El Castaño</b><small>Báscula y Pensión</small></span>
+    </a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="vista-form">
+    <div class="intro">
+      <h1>Solicita tu factura</h1>
+      <p>Toma 2 minutos. Sube tu Constancia de Situación Fiscal o escribe tus datos, y agrega la foto de tu ticket. Te enviamos la factura a tu correo.</p>
+    </div>
+
+    <form id="form" novalidate>
+      <fieldset>
+        <legend><span class="paso">1</span>Tu servicio</legend>
+        <div class="f" id="g-servicio">
+          <div class="chips" role="radiogroup" aria-label="Servicio">
+            <label class="chip"><input type="radio" name="servicio" value="bascula" required><span>Báscula</span></label>
+            <label class="chip"><input type="radio" name="servicio" value="pension"><span>Pensión</span></label>
+            <label class="chip"><input type="radio" name="servicio" value="ambos"><span>Los dos</span></label>
+          </div>
+          <span class="err" data-err="servicio"></span>
+        </div>
+        <div id="g-ticket">
+          <div class="drop">
+            <span style="font-weight:600">Foto del ticket</span>
+            <span class="hint">Que se lean bien el folio, la fecha y el importe.</span>
+            <label class="btn btn-line" for="ticket">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+              Tomar o elegir foto
+            </label>
+            <input type="file" id="ticket" name="ticket" accept="image/*,application/pdf">
+            <div class="preview" id="prev-ticket" hidden></div>
+          </div>
+          <span class="err" data-err="ticket"></span>
+        </div>
+        <label class="f">Folio o número del ticket <span class="hint">Opcional</span>
+          <input type="text" name="folio_ticket" maxlength="40" autocomplete="off">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">2</span>Tus datos fiscales</legend>
+        <div class="opciones" role="radiogroup" aria-label="Cómo enviar tus datos">
+          <label class="opcion"><input type="radio" name="modo" value="csf" checked><span><b>Subir mi constancia</b><small>PDF del SAT o foto. Lo más rápido.</small></span></label>
+          <label class="opcion"><input type="radio" name="modo" value="manual"><span><b>Escribir mis datos</b><small>Si no tienes la constancia a la mano.</small></span></label>
+        </div>
+
+        <div id="bloque-csf">
+          <div id="g-csf">
+            <div class="drop">
+              <span style="font-weight:600">Constancia de Situación Fiscal</span>
+              <span class="hint">La descargas en sat.gob.mx o en la app SAT Móvil.</span>
+              <label class="btn btn-line" for="csf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6M9 14l3-3 3 3"/></svg>
+                Adjuntar constancia
+              </label>
+              <input type="file" id="csf" name="csf" accept="application/pdf,image/*">
+              <div class="preview" id="prev-csf" hidden></div>
+            </div>
+            <span class="err" data-err="csf"></span>
+          </div>
+        </div>
+
+        <div id="bloque-manual" hidden style="display:grid;gap:14px">
+          <label class="f" id="g-rfc">RFC
+            <input type="text" name="rfc" maxlength="13" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <span class="err" data-err="rfc"></span>
+          </label>
+          <label class="f" id="g-nombre">Nombre o razón social <span class="hint">Igual que en tu constancia. Para empresas, sin "S.A. de C.V."</span>
+            <input type="text" name="nombre" maxlength="254" autocomplete="organization">
+            <span class="err" data-err="nombre"></span>
+          </label>
+          <label class="f" id="g-cp">Código postal fiscal
+            <input type="text" name="cp" inputmode="numeric" maxlength="5" autocomplete="postal-code">
+            <span class="err" data-err="cp"></span>
+          </label>
+          <label class="f" id="g-regimen">Régimen fiscal
+            <select name="regimen">
+              <option value="">Elige tu régimen</option>
+              <option value="626">626 · Régimen Simplificado de Confianza</option>
+              <option value="612">612 · Personas Físicas con Actividades Empresariales y Profesionales</option>
+              <option value="601">601 · General de Ley Personas Morales</option>
+              <option value="624">624 · Coordinados</option>
+              <option value="603">603 · Personas Morales con Fines no Lucrativos</option>
+              <option value="605">605 · Sueldos y Salarios e Ingresos Asimilados a Salarios</option>
+              <option value="606">606 · Arrendamiento</option>
+              <option value="607">607 · Régimen de Enajenación o Adquisición de Bienes</option>
+              <option value="608">608 · Demás ingresos</option>
+              <option value="610">610 · Residentes en el Extranjero sin Establecimiento Permanente en México</option>
+              <option value="611">611 · Ingresos por Dividendos (socios y accionistas)</option>
+              <option value="614">614 · Ingresos por intereses</option>
+              <option value="615">615 · Régimen de los ingresos por obtención de premios</option>
+              <option value="616">616 · Sin obligaciones fiscales</option>
+              <option value="620">620 · Sociedades Cooperativas de Producción que optan por diferir sus ingresos</option>
+              <option value="621">621 · Incorporación Fiscal</option>
+              <option value="622">622 · Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras</option>
+              <option value="623">623 · Opcional para Grupos de Sociedades</option>
+              <option value="625">625 · Actividades Empresariales con ingresos a través de Plataformas Tecnológicas</option>
+            </select>
+            <span class="err" data-err="regimen"></span>
+          </label>
+        </div>
+
+        <label class="f" id="g-uso">Uso del CFDI
+          <select name="uso">
+            <option value="G03" selected>G03 · Gastos en general</option>
+            <option value="G01">G01 · Adquisición de mercancías</option>
+            <option value="S01">S01 · Sin efectos fiscales</option>
+          </select>
+          <span class="hint">Si no sabes cuál, deja "Gastos en general".</span>
+          <span class="err" data-err="uso"></span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="paso">3</span>¿A dónde te la enviamos?</legend>
+        <label class="f" id="g-email">Correo para recibir la factura
+          <input type="email" name="email" maxlength="254" autocomplete="email" inputmode="email" spellcheck="false">
+          <span class="err" data-err="email"></span>
+        </label>
+        <label class="f" id="g-telefono">WhatsApp <span class="hint">Opcional, para avisarte o resolver dudas. 10 dígitos.</span>
+          <input type="tel" name="telefono" maxlength="14" autocomplete="tel" inputmode="tel">
+          <span class="err" data-err="telefono"></span>
+        </label>
+        <label class="f">Comentarios <span class="hint">Opcional</span>
+          <textarea name="comentario" maxlength="500"></textarea>
+        </label>
+        <div id="g-aviso">
+          <label class="check"><input type="checkbox" name="aviso" value="si"><span>Acepto el <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>. Mis datos se usan solo para emitir mi factura.</span></label>
+          <span class="err" data-err="aviso"></span>
+        </div>
+        <input type="text" name="sitio" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
+      </fieldset>
+
+      <div class="alerta" id="alerta" role="alert"></div>
+      <button class="btn btn-amber enviar" id="enviar" type="submit">Enviar datos para factura</button>
+    </form>
+  </div>
+
+  <div id="vista-hecho" hidden>
+    <div class="hecho" tabindex="-1" id="hecho">
+      <h1>¡Listo, recibimos tus datos!</h1>
+      <p>Tu folio de solicitud es:</p>
+      <span class="folio" id="folio"></span>
+      <p>Guárdalo. Te enviaremos la factura a <b id="hecho-email"></b>. Si tienes dudas, escríbenos por WhatsApp con este folio.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <a class="btn btn-wa" id="hecho-wa" href="https://wa.me/529625642170" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+        <a class="btn btn-line" href="/">Volver al inicio</a>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="wrap">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a></footer>
+
+<script>
+(() => {
+  const form = document.getElementById("form");
+  const $ = s => form.querySelector(s);
+  const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+  const TIPOS = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+  const archivos = { ticket: null, csf: null };
+
+  function modo() { return form.modo.value; }
+  function mostrarModo() {
+    const m = modo();
+    document.getElementById("bloque-csf").hidden = m !== "csf";
+    document.getElementById("bloque-manual").hidden = m !== "manual";
+  }
+  form.addEventListener("change", e => { if (e.target.name === "modo") mostrarModo(); });
+  mostrarModo();
+
+  form.rfc.addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[\s-]/g, ""); });
+  form.cp.addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5); });
+
+  // Reduce fotos grandes antes de enviarlas (menos datos móviles y envío más rápido)
+  async function preparar(file) {
+    if (!file.type.startsWith("image/") || file.size < 1.2 * 1024 * 1024) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const escala = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * escala); c.height = Math.round(bmp.height * escala);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+      if (!blob || blob.size >= file.size) return file;
+      return new File([blob], (file.name || "foto").replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+    } catch { return file; }
+  }
+
+  async function elegir(input, clave) {
+    const f = input.files && input.files[0];
+    const prev = document.getElementById("prev-" + clave);
+    error(clave, "");
+    if (!f) { archivos[clave] = null; prev.hidden = true; return; }
+    if (!TIPOS.includes(f.type)) { error(clave, "Usa una foto (JPG o PNG) o un PDF."); input.value = ""; return; }
+    const listo = await preparar(f);
+    if (listo.size > 10 * 1024 * 1024) { error(clave, "El archivo pesa más de 10 MB. Toma una foto nueva o usa un PDF más ligero."); input.value = ""; return; }
+    archivos[clave] = listo;
+    prev.hidden = false;
+    prev.textContent = "";
+    if (listo.type.startsWith("image/")) {
+      const img = document.createElement("img"); img.alt = ""; img.src = URL.createObjectURL(listo); prev.appendChild(img);
+    }
+    const s = document.createElement("span"); s.textContent = (f.name || "Archivo") + " ✓"; prev.appendChild(s);
+  }
+  document.getElementById("ticket").addEventListener("change", e => elegir(e.target, "ticket"));
+  document.getElementById("csf").addEventListener("change", e => elegir(e.target, "csf"));
+
+  function error(campo, msg) {
+    const el = form.querySelector(`[data-err="${campo}"]`);
+    if (el) el.textContent = msg || "";
+    const g = document.getElementById("g-" + campo);
+    if (g) g.classList.toggle("has-err", !!msg);
+  }
+  function limpiar() { form.querySelectorAll("[data-err]").forEach(e => error(e.dataset.err, "")); document.getElementById("alerta").textContent = ""; }
+
+  function validar() {
+    const e = {};
+    if (!form.servicio.value) e.servicio = "Elige el servicio.";
+    if (!archivos.ticket) e.ticket = "Agrega la foto del ticket.";
+    if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia, o elige \"Escribir mis datos\".";
+    if (modo() === "manual") {
+      if (!RE_RFC.test(form.rfc.value)) e.rfc = "Revisa el RFC: son 12 caracteres para empresas y 13 para personas.";
+      if (form.nombre.value.trim().length < 3) e.nombre = "Escribe tu nombre o razón social.";
+      if (!/^\d{5}$/.test(form.cp.value)) e.cp = "El código postal tiene 5 dígitos.";
+      if (!form.regimen.value) e.regimen = "Elige tu régimen fiscal.";
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo válido.";
+    const tel = form.telefono.value.replace(/\D/g, "");
+    if (tel && tel.slice(-10).length !== 10) e.telefono = "Escribe 10 dígitos.";
+    if (!form.aviso.checked) e.aviso = "Acepta el aviso de privacidad para continuar.";
+    return e;
+  }
+
+  form.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    limpiar();
+    const errores = validar();
+    if (Object.keys(errores).length) {
+      for (const [k, v] of Object.entries(errores)) error(k, v);
+      const primero = document.getElementById("g-" + Object.keys(errores)[0]);
+      primero && primero.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const datos = new FormData();
+    for (const n of ["servicio", "folio_ticket", "modo", "uso", "email", "telefono", "comentario", "sitio"]) datos.append(n, form[n].value);
+    if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
+    datos.append("aviso", form.aviso.checked ? "si" : "");
+    datos.append("ticket", archivos.ticket);
+    if (modo() === "csf") datos.append("csf", archivos.csf);
+
+    const boton = document.getElementById("enviar");
+    boton.disabled = true; boton.textContent = "Enviando…";
+    try {
+      const r = await fetch("/api/solicitud", { method: "POST", body: datos });
+      const j = await r.json().catch(() => ({ ok: false, error: "No pudimos confirmar el envío. Intenta de nuevo." }));
+      if (!j.ok) {
+        if (j.errores) for (const [k, v] of Object.entries(j.errores)) error(k, v);
+        document.getElementById("alerta").textContent = j.error || "No se pudo enviar. Intenta de nuevo.";
+        boton.disabled = false; boton.textContent = "Enviar datos para factura";
+        return;
+      }
+      document.getElementById("folio").textContent = j.folio;
+      document.getElementById("hecho-email").textContent = form.email.value.trim();
+      document.getElementById("hecho-wa").href = "https://wa.me/529625642170?text=" + encodeURIComponent("Hola, envié mis datos para factura con el folio " + j.folio + ".");
+      document.getElementById("vista-form").hidden = true;
+      document.getElementById("vista-hecho").hidden = false;
+      window.scrollTo(0, 0);
+      document.getElementById("hecho").focus();
+    } catch {
+      document.getElementById("alerta").textContent = "Sin conexión o la señal es débil. Revisa tu internet e intenta de nuevo; tus datos siguen aquí.";
+      boton.disabled = false; boton.textContent = "Enviar datos para factura";
+    }
+  });
+})();
+</script>
+</body>
+</html>
