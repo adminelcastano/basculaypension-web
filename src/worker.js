@@ -22,7 +22,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     try {
-      if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env);
+      if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
       return env.ASSETS.fetch(request);
     } catch (err) {
@@ -73,7 +73,7 @@ async function asegurarEsquema(env) {
 // ---------------------------------------------------------------------------
 // Formulario público: crear solicitud
 // ---------------------------------------------------------------------------
-async function crearSolicitud(request, env) {
+async function crearSolicitud(request, env, ctx) {
   if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
 
   const url = new URL(request.url);
@@ -161,6 +161,10 @@ async function crearSolicitud(request, env) {
 
   await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
 
+  if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
+    ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", e)));
+  }
+
   return json({ ok: true, folio });
 }
 
@@ -185,6 +189,124 @@ function crearFolio() {
   let s = "";
   for (const b of rnd) s += letras[b % letras.length];
   return `EC-${fecha}-${s}`;
+}
+
+// ---------------------------------------------------------------------------
+// Aviso por correo de nueva solicitud (vía Google Apps Script del propio negocio)
+// ---------------------------------------------------------------------------
+async function enviarAviso(env, origen, d) {
+  const quien = d.nombre || (d.modo === "csf" ? "Constancia por revisar" : "Sin nombre");
+  const servicio = SERVICIOS[d.servicio] || d.servicio;
+  const panel = origen + "/panel";
+  const texto = `Nueva solicitud de factura ${d.folio}\n\nCliente: ${quien}\nRFC: ${d.rfc || "por revisar en la constancia"}\nServicio: ${servicio}\nCorreo del cliente: ${d.email}\n\nRevísala en el panel: ${panel}`;
+  const html = `<p style="font-family:Arial,sans-serif;font-size:15px">Nueva solicitud de factura <b>${escaparHtml(d.folio)}</b></p>
+<table style="font-family:Arial,sans-serif;font-size:15px;border-collapse:collapse">
+<tr><td style="padding:4px 12px 4px 0;color:#666">Cliente</td><td><b>${escaparHtml(quien)}</b></td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666">RFC</td><td>${escaparHtml(d.rfc || "por revisar en la constancia")}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666">Servicio</td><td>${escaparHtml(servicio)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666">Correo</td><td>${escaparHtml(d.email)}</td></tr>
+</table>
+<p><a href="${panel}" style="display:inline-block;background:#f0a00a;color:#241a10;padding:10px 18px;border-radius:8px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">Abrir panel de facturas</a></p>`;
+  const r = await fetch(env.AVISO_URL, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: env.AVISO_TOKEN, asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html })
+  });
+  if (r.status >= 400) throw new Error("aviso respondió " + r.status);
+}
+
+// ---------------------------------------------------------------------------
+// Exportar a Excel (.xlsx mínimo, sin librerías)
+// ---------------------------------------------------------------------------
+async function exportarXlsx(env, url) {
+  const estado = url.searchParams.get("estado") || "facturada";
+  const mes = /^\d{4}-\d{2}$/.test(url.searchParams.get("mes") || "") ? url.searchParams.get("mes") : null;
+  let sql = "SELECT * FROM solicitudes WHERE 1=1";
+  const args = [];
+  if (["pendiente", "facturada", "rechazada"].includes(estado)) { sql += " AND estado = ?"; args.push(estado); }
+  if (mes) {
+    // Mes en hora de Tapachula (UTC-6): de día 1 a las 06:00 UTC al día 1 del mes siguiente
+    const [a, m] = mes.split("-").map(Number);
+    const desde = new Date(Date.UTC(a, m - 1, 1, 6)).toISOString();
+    const hasta = new Date(Date.UTC(a, m, 1, 6)).toISOString();
+    const campo = estado === "facturada" || estado === "rechazada" ? "resuelta_en" : "creado";
+    sql += ` AND ${campo} >= ? AND ${campo} < ?`; args.push(desde, hasta);
+  }
+  sql += " ORDER BY creado ASC LIMIT 5000";
+  const { results } = await env.DB.prepare(sql).bind(...args).all();
+  const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
+  const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
+  const filas = [["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Folio factura", "Fecha resolución", "Motivo rechazo"]];
+  for (const r of results) {
+    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
+      r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
+  }
+  const nombre = `facturas-${estado}${mes ? "-" + mes : ""}.xlsx`;
+  return new Response(crearXlsx(filas), {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${nombre}"`,
+      ...cabecerasPanel()
+    }
+  });
+}
+
+function crearXlsx(filas) {
+  const col = i => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const xml = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  const anchos = [16, 17, 11, 16, 14, 16, 36, 13, 40, 26, 30, 13, 22, 17, 30];
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
+  const archivos = {
+    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Facturas" sheetId="1" r:id="rId1"/></sheets>${filas.length > 1 ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Facturas!$A$1:$${col(filas[0].length - 1)}$${filas.length}</definedName></definedNames>` : ""}</workbook>`,
+    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3EBE5"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
+    "xl/worksheets/sheet1.xml": sheet
+  };
+  return zipSinCompresion(archivos);
+}
+
+function zipSinCompresion(archivos) {
+  const enc = new TextEncoder();
+  const tabla = crc32Tabla();
+  const partes = [], central = [];
+  let desplazamiento = 0;
+  for (const [nombre, contenido] of Object.entries(archivos)) {
+    const n = enc.encode(nombre), datos = enc.encode(contenido);
+    let crc = 0xffffffff;
+    for (const b of datos) crc = tabla[(crc ^ b) & 0xff] ^ (crc >>> 8);
+    crc = (crc ^ 0xffffffff) >>> 0;
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+    local.setUint16(8, 0, true); local.setUint32(14, crc, true); local.setUint32(18, datos.length, true);
+    local.setUint32(22, datos.length, true); local.setUint16(26, n.length, true);
+    partes.push(new Uint8Array(local.buffer), n, datos);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint32(16, crc, true); c.setUint32(20, datos.length, true); c.setUint32(24, datos.length, true);
+    c.setUint16(28, n.length, true); c.setUint32(42, desplazamiento, true);
+    central.push(new Uint8Array(c.buffer), n);
+    desplazamiento += 30 + n.length + datos.length;
+  }
+  const tamCentral = central.reduce((s, p) => s + p.length, 0);
+  const fin = new DataView(new ArrayBuffer(22));
+  fin.setUint32(0, 0x06054b50, true); fin.setUint16(8, Object.keys(archivos).length, true);
+  fin.setUint16(10, Object.keys(archivos).length, true); fin.setUint32(12, tamCentral, true); fin.setUint32(16, desplazamiento, true);
+  const todo = [...partes, ...central, new Uint8Array(fin.buffer)];
+  const out = new Uint8Array(todo.reduce((s, p) => s + p.length, 0));
+  let o = 0; for (const p of todo) { out.set(p, o); o += p.length; }
+  return out;
+}
+let _crcTabla;
+function crc32Tabla() {
+  if (_crcTabla) return _crcTabla;
+  _crcTabla = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; _crcTabla[i] = c >>> 0; }
+  return _crcTabla;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +339,7 @@ async function panel(request, env, url) {
   const partes = ruta.split("/").slice(3); // tras /panel/api/
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
+  if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
