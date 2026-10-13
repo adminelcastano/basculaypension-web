@@ -365,6 +365,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
   await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
     .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id).run();
   await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
+  await renombrarSiCambio(env, fila, fila.id, ctx);
   if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
     const desde = primeraVez ? "" : (fila.llenado_aviso || fila.llenado_en || "");
     const subidos = docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista.filter(x => x.fotos.some(f => f.fecha > desde)).map(x => x.nombre);
@@ -510,6 +511,14 @@ async function borrarDeDrive(env, fila, slot) {
 function enSegundoPlano(ctx, promesa) {
   const p = promesa.catch(e => console.error("drive", e && e.message));
   if (ctx && ctx.waitUntil) ctx.waitUntil(p); return p;
+}
+// Si cambió el folio (nombre o fecha de ingreso), renombra su carpeta de Drive
+async function renombrarSiCambio(env, antes, id, ctx) {
+  const despues = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+  if (!despues || carpetaDrive(despues).carpeta === carpetaDrive(antes).carpeta) return;
+  const cfg = await leerConfig(env);
+  if (!cfg.drive || !env.AVISO_URL || !env.AVISO_TOKEN) return;
+  await enSegundoPlano(ctx, llamarDrive(env, { op: "carpeta", ...carpetaDrive(despues) }));
 }
 function nombreAdmin(d) { return `${d.fecha} - ${d.descripcion}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 120); }
 
@@ -799,6 +808,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     if (fila.tipo === "externo") delete admin.puesto; else delete admin.actividad;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     await env.DB.prepare("UPDATE colaboradores SET admin = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(admin), ahora, id).run();
+    await renombrarSiCambio(env, fila, id);
     return json({ ok: true });
   }
 
@@ -807,6 +817,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, actualizado = ? WHERE id = ?")
       .bind(JSON.stringify(datos), datos.nombre, datos.telefono || null, ahora, id).run();
+    await renombrarSiCambio(env, fila, id);
     return json({ ok: true });
   }
 
