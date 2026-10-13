@@ -222,6 +222,21 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .pitem .t { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pitem .m { color: var(--muted); font-size: .88rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .pitem .chev { position: absolute; right: 14px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: #5a5a5e; }
+.est { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; flex: none; }
+.est svg { width: 21px; height: 21px; }
+.est.activo { background: var(--ok-soft); color: var(--ok); }
+.est.inactivo { background: #3a3a3c; color: #aeaeb2; }
+.est.sm { width: 24px; height: 24px; border-radius: 7px; }
+.est.sm svg { width: 16px; height: 16px; }
+.pitem { padding-left: 62px; }
+.pitem > .est { position: absolute; left: 14px; top: 14px; }
+.pitem.baja .t { color: var(--muted); }
+#p-detalle .detail-head { align-items: center; }
+.pill.inactivo { background: #2a2a2d; color: #c7c7cc; }
+.estatus-box { display: flex; align-items: center; gap: 12px; }
+.estatus-box .est { width: 44px; height: 44px; border-radius: 12px; }
+.estatus-box .est svg { width: 26px; height: 26px; }
+.estatus-box b { font-size: 1.15rem; display: block; }
 .mini { display: inline-block; width: 64px; height: 6px; border-radius: 999px; background: #2a2a2d; overflow: hidden; vertical-align: middle; }
 .mini i { display: block; height: 100%; background: var(--amber); }
 .mini.ok i { background: var(--ok); }
@@ -264,6 +279,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.6 6.6h14.8M9.6 6.4V4.8a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.6M6.6 6.6l.9 12.2a1.6 1.6 0 0 0 1.6 1.5h5.8a1.6 1.6 0 0 0 1.6-1.5l.9-12.2M10.2 10.6v5.8M13.8 10.6v5.8"/></symbol>
   <symbol id="i-bascula" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 7.2a2.6 2.6 0 1 1 5.2 0M7.4 7.2h9.2l2.6 12.2H4.8z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.6 15.6v-4l2.4 2.6 2.4-2.6v4"/></symbol>
   <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-activo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M15 17.4l2.2 2.2 4-4.2"/></symbol>
+  <symbol id="i-inactivo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M15.4 17.6h5.4"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <div class="mod" id="mod-facturacion">
@@ -301,7 +318,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <p id="p-subtitulo" class="note"></p>
 </div>
 <div class="tools">
-  <div class="ptabs" role="tablist" aria-label="Filtro">
+  <div class="ptabs pest" role="tablist" aria-label="Estatus">
+    <button class="ptab" role="tab" data-estatus="activo" aria-selected="true"><span class="est activo sm"><svg aria-hidden="true"><use href="#i-activo"/></svg></span>Activos <span class="n" id="pn-activo">0</span></button>
+    <button class="ptab" role="tab" data-estatus="inactivo" aria-selected="false"><span class="est inactivo sm"><svg aria-hidden="true"><use href="#i-inactivo"/></svg></span>Inactivos <span class="n" id="pn-inactivo">0</span></button>
+  </div>
+  <div class="ptabs pfil" role="tablist" aria-label="Expediente">
     <button class="ptab" role="tab" data-filtro="todos" aria-selected="true">Todos <span class="n" id="pn-todos">0</span></button>
     <button class="ptab" role="tab" data-filtro="incompletos" aria-selected="false">Incompletos <span class="n" id="pn-incompletos">0</span></button>
     <button class="ptab" role="tab" data-filtro="completos" aria-selected="false">Completos <span class="n" id="pn-completos">0</span></button>
@@ -890,7 +911,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod); });
 
   // ---- Personal ----
-  const st = { filtro: "todos", q: "", actual: null, listas: null };
+  const st = { estatus: "activo", filtro: "todos", q: "", actual: null, listas: null };
+  const iconoEst = (e, cl = "") => `<span class="est ${e} ${cl}" title="${e === "inactivo" ? "Inactivo" : "Activo"}" role="img" aria-label="${e === "inactivo" ? "Inactivo" : "Activo"}"><svg aria-hidden="true"><use href="#i-${e}"/></svg></span>`;
   const CAMPOS = [
     ["Datos personales", [["nombre", "Nombre completo", "wide"], ["fecha_nacimiento", "Fecha de nacimiento", "", "date"], ["lugar_nacimiento", "Lugar de nacimiento"], ["curp", "CURP"], ["estado_civil", "Estado civil", "", "lista:estado_civil"], ["telefono", "Teléfono celular", "", "tel"], ["correo", "Correo electrónico", "", "email"]]],
     ["Domicilio", [["calle", "Calle y número", "wide"], ["colonia", "Colonia"], ["municipio", "Municipio"], ["cp", "Código postal"]]],
@@ -900,22 +922,24 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     ["Referencias personales", [["ref1_nombre", "Referencia 1"], ["ref1_relacion", "Relación"], ["ref1_telefono", "Teléfono", "", "tel"], ["ref2_nombre", "Referencia 2"], ["ref2_relacion", "Relación"], ["ref2_telefono", "Teléfono", "", "tel"]]]
   ];
   const enlaceDe = token => `${location.origin}/expediente/${token}`;
-  const estadoPill = c => c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
+  const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
   async function cargar() {
     const lista = $("#p-lista");
-    const p = new URLSearchParams({ filtro: st.filtro }); if (st.q) p.set("q", st.q);
+    const p = new URLSearchParams({ estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q);
     try {
       const j = await api("colaboradores?" + p);
-      for (const k of ["todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
-      $("#p-titulo").textContent = { todos: "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
-      $("#p-subtitulo").textContent = `${j.conteos.todos} colaboradores · ${j.conteos.incompletos} con expediente incompleto.`;
+      for (const k of ["activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
+      const inac = st.estatus === "inactivo";
+      $("#p-titulo").textContent = { todos: inac ? "Inactivos." : "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
+      $("#p-subtitulo").textContent = inac ? `${j.conteos.todos} colaboradores dados de baja. Sus enlaces ya no funcionan.` : `${j.conteos.todos} colaboradores activos · ${j.conteos.incompletos} con expediente incompleto.`;
       if (!j.colaboradores.length) {
-        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : "Agrega a tu primer colaborador con el botón «Nuevo colaborador»."}</p>`;
+        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.estatus === "inactivo" && st.filtro === "todos" ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : "Agrega a tu primer colaborador con el botón «Nuevo colaborador»."}</p>`;
         return;
       }
-      lista.innerHTML = j.colaboradores.map(c => `<button class="pitem" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
+      lista.innerHTML = j.colaboradores.map(c => `<button class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+        ${iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
         <span class="m">${c.puesto ? `<span>${esc(c.puesto)}</span>` : ""}${c.area ? `<span>${esc(c.area)}</span>` : ""}</span>
         <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
@@ -964,9 +988,20 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const msg = `Hola ${primer}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(c.token)}\n\nY entrega 2 copias de cada documento con Josué: INE, CURP, solicitud de empleo, acta de nacimiento, comprobante de domicilio y comprobante de último grado de estudios.`;
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head"><h2>${esc(c.nombre)}</h2>${estadoPill(c)}</div>
+      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}</div>
       <div class="cols">
         <div style="display:grid;gap:24px">
+          <section class="card" id="p-estatus">
+            <div class="estatus-box">${iconoEst(c.estatus)}<div><b>${c.estatus === "inactivo" ? "Inactivo" : "Activo"}</b><span class="note">${c.estatus === "inactivo" ? `Baja el ${fecha(c.fecha_baja)}${c.motivo_baja ? " · " + esc(c.motivo_baja) : ""}. Su enlace no funciona.` : "Trabaja actualmente en El Castaño."}</span></div></div>
+            ${c.estatus === "inactivo"
+              ? `<div class="row"><button class="btn btn-line" id="p-reactivar" type="button">${iconoEst("activo", "sm")} Reactivar</button></div>`
+              : `<div class="row"><button class="btn btn-line" id="p-baja-abrir" type="button">${iconoEst("inactivo", "sm")} Marcar como inactivo</button></div>
+                 <div class="grid-form" id="p-baja" hidden>
+                   ${input("fecha_baja", "Fecha de baja", "", "date", new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10))}
+                   ${input("motivo_baja", "Motivo (opcional)", "")}
+                   <div class="row wide"><button class="btn btn-bad" id="p-baja-ok" type="button">Confirmar baja</button></div>
+                 </div>`}
+          </section>
           <section class="card">
             <h3>Documentos entregados</h3>
             <div class="row" style="justify-content:space-between"><span class="note">Palomea cada uno al recibir sus 2 copias.</span><b id="p-docs-n"></b></div>
@@ -1012,6 +1047,12 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         </div>
       </div>`;
     pintarDocs(c.docs);
+    const cambiarEstatus = async cuerpo => { try { await post(`colaboradores/${id}/estatus`, cuerpo); toast(cuerpo.estatus === "inactivo" ? "Marcado como inactivo" : "Reactivado"); await cargar(); abrir(id); } catch (e) { toast(e.message); } };
+    if ($("#p-reactivar")) $("#p-reactivar").addEventListener("click", () => cambiarEstatus({ estatus: "activo" }));
+    if ($("#p-baja-abrir")) {
+      $("#p-baja-abrir").addEventListener("click", () => { $("#p-baja").hidden = false; $("#p-baja-abrir").hidden = true; });
+      $("#p-baja-ok").addEventListener("click", () => cambiarEstatus({ estatus: "inactivo", ...leer($("#p-baja")) }));
+    }
 
     d.querySelectorAll("[data-doc]").forEach(cb => cb.addEventListener("change", async () => {
       cb.disabled = true;
@@ -1079,11 +1120,13 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   }
 
   $("#p-lista").addEventListener("click", e => { const it = e.target.closest(".pitem"); if (it) abrir(it.dataset.id); });
-  document.querySelector(".ptabs").addEventListener("click", e => {
+  document.querySelectorAll(".ptabs").forEach(g => g.addEventListener("click", e => {
     const t = e.target.closest(".ptab"); if (!t) return;
-    document.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", x === t ? "true" : "false"));
-    st.filtro = t.dataset.filtro; cargar();
-  });
+    g.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", x === t ? "true" : "false"));
+    if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
+    else st.filtro = t.dataset.filtro;
+    cargar();
+  }));
   let h; $("#p-q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { st.q = e.target.value.trim(); cargar(); }, 300); });
   $("#p-nuevo").addEventListener("click", nuevo);
 

@@ -61,6 +61,12 @@ export async function asegurarEsquemaPersonal(env) {
     docs TEXT NOT NULL DEFAULT '{}',
     llenado_en TEXT
   )`).run();
+  // Columnas agregadas después de la primera versión
+  const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
+  const existentes = new Set(cols.map(c => c.name));
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"]]) {
+    if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
+  }
   esquemaListo = true;
 }
 
@@ -144,6 +150,7 @@ export async function expedienteApi(request, env, url) {
   await asegurarEsquemaPersonal(env);
   const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE token = ?").bind(token).first();
   if (!fila) return json({ ok: false, error: "Este enlace ya no es válido. Pide uno nuevo a la administración." }, 404);
+  if (fila.estatus === "inactivo") return json({ ok: false, error: "Este enlace ya no está activo. Si crees que es un error, comunícate con la administración." }, 403);
 
   if (request.method === "GET") {
     const datos = parse(fila.datos);
@@ -184,6 +191,7 @@ function resumenFila(f) {
   return {
     id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", area: admin.area || "",
     llenado_en: f.llenado_en, creado: f.creado, actualizado: f.actualizado,
+    estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
     entregados: docs.entregados, total: docs.total,
     completo: !!f.llenado_en && docs.entregados === docs.total
   };
@@ -196,8 +204,13 @@ export async function personalPanel(request, env, url, partes) {
     const filtro = url.searchParams.get("filtro") || "todos";
     const q = (url.searchParams.get("q") || "").trim().toLowerCase().slice(0, 60);
     const { results } = await env.DB.prepare("SELECT * FROM colaboradores ORDER BY nombre COLLATE NOCASE ASC LIMIT 500").all();
-    const todos = results.map(resumenFila);
-    const conteos = { todos: todos.length, incompletos: todos.filter(c => !c.completo).length, completos: todos.filter(c => c.completo).length };
+    const estatus = ["activo", "inactivo"].includes(url.searchParams.get("estatus")) ? url.searchParams.get("estatus") : "activo";
+    const filas = results.map(resumenFila);
+    const todos = filas.filter(c => c.estatus === estatus);
+    const conteos = {
+      activo: filas.filter(c => c.estatus === "activo").length, inactivo: filas.filter(c => c.estatus === "inactivo").length,
+      todos: todos.length, incompletos: todos.filter(c => !c.completo).length, completos: todos.filter(c => c.completo).length
+    };
     let lista = filtro === "incompletos" ? todos.filter(c => !c.completo) : filtro === "completos" ? todos.filter(c => c.completo) : todos;
     if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto, c.area].join(" ").toLowerCase().includes(q));
     return json({ ok: true, colaboradores: lista, conteos });
@@ -259,6 +272,17 @@ export async function personalPanel(request, env, url, partes) {
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, actualizado = ? WHERE id = ?")
       .bind(JSON.stringify(datos), datos.nombre, datos.telefono || null, ahora, id).run();
+    return json({ ok: true });
+  }
+
+  if (partes[2] === "estatus") {
+    const estatus = cuerpo.estatus === "inactivo" ? "inactivo" : "activo";
+    let fechaBaja = null, motivo = null;
+    if (estatus === "inactivo") {
+      fechaBaja = /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha_baja || "") ? cuerpo.fecha_baja : ahora.slice(0, 10);
+      motivo = limpiar(cuerpo.motivo_baja, 300) || null;
+    }
+    await env.DB.prepare("UPDATE colaboradores SET estatus = ?, fecha_baja = ?, motivo_baja = ?, actualizado = ? WHERE id = ?").bind(estatus, fechaBaja, motivo, ahora, id).run();
     return json({ ok: true });
   }
 
