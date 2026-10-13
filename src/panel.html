@@ -119,6 +119,7 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
     <button class="tab" role="tab" data-estado="pendiente" aria-selected="true">Pendientes <span class="n" id="n-pendiente">0</span></button>
     <button class="tab" role="tab" data-estado="facturada" aria-selected="false">Facturadas <span class="n" id="n-facturada">0</span></button>
     <button class="tab" role="tab" data-estado="rechazada" aria-selected="false">Rechazadas <span class="n" id="n-rechazada">0</span></button>
+    <button class="tab" role="tab" data-estado="historico" aria-selected="false">Histórico <span class="n" id="n-historico">0</span></button>
   </div>
   <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
   <button class="btn btn-line" id="recargar" type="button">Actualizar</button>
@@ -126,9 +127,9 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
     <summary class="btn btn-line">Exportar a Excel</summary>
     <div class="export-box">
       <label>Mes<input type="month" id="exp-mes"></label>
-      <label>Estado<select id="exp-estado"><option value="facturada">Facturadas</option><option value="pendiente">Pendientes</option><option value="rechazada">Rechazadas</option><option value="todas">Todas</option></select></label>
+      <label>Estado<select id="exp-estado"><option value="facturada">Facturadas</option><option value="pendiente">Pendientes</option><option value="rechazada">Rechazadas</option><option value="historico">Histórico</option><option value="todas">Todas</option></select></label>
       <a class="btn btn-primary" id="exp-ir" href="#">Descargar</a>
-      <span class="note">Facturadas y rechazadas se filtran por la fecha en que las resolviste; pendientes, por la fecha de llegada.</span>
+      <span class="note">Facturadas, rechazadas e histórico se filtran por la fecha en que las resolviste; pendientes, por la fecha de llegada.</span>
     </div>
   </details>
 </div>
@@ -176,16 +177,19 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
     const lista = $("#lista");
     try {
       const j = await api("solicitudes?" + p);
-      for (const e of ["pendiente", "facturada", "rechazada"]) $("#n-" + e).textContent = j.conteos[e] || 0;
+      for (const e of ["pendiente", "facturada", "rechazada", "historico"]) $("#n-" + e).textContent = j.conteos[e] || 0;
+      const dias = j.dias_retencion || 90;
       if (!j.solicitudes.length) {
-        lista.innerHTML = `<p class="empty">${estadoState.q ? "Sin resultados para esa búsqueda." : estadoState.estado === "pendiente" ? "No hay solicitudes pendientes. Las nuevas aparecen aquí." : "Todavía no hay solicitudes en esta lista."}</p>`;
+        lista.innerHTML = `<p class="empty">${estadoState.q ? "Sin resultados para esa búsqueda." : { pendiente: "No hay solicitudes pendientes. Las nuevas aparecen aquí.", facturada: "Las facturadas de los últimos 7 días aparecen aquí; las anteriores pasan a Histórico.", rechazada: "Las rechazadas de los últimos 7 días aparecen aquí; las anteriores pasan a Histórico.", historico: "Todavía no hay solicitudes en el histórico." }[estadoState.estado]}</p>`;
         return;
       }
-      lista.innerHTML = j.solicitudes.map(s => `
+      const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
+      const aviso = estadoState.estado === "historico" ? `<p class="note" style="padding:10px 16px;margin:0;border-bottom:1px solid var(--line)">Se eliminan ${dias} días después de facturar o rechazar. Antes te llega un respaldo en Excel a tu correo.</p>` : "";
+      lista.innerHTML = aviso + j.solicitudes.map(s => `
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
-          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}</span>
+          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${estadoState.estado === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
         </button>`).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
   }

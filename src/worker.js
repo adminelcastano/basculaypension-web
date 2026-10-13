@@ -7,7 +7,8 @@ import PANEL_HTML from "./panel.html";
 const MAX_ARCHIVO = 10 * 1024 * 1024;          // 10 MB por archivo
 const MAX_PETICION = 22 * 1024 * 1024;         // 22 MB por envío
 const LIMITE_POR_HORA = 8;                     // envíos por IP por hora
-const DIAS_RETENCION = 90;                     // días tras facturar o rechazar
+const DIAS_RETENCION = 90;                     // días tras facturar o rechazar: se borra el registro completo
+const DIAS_A_HISTORICO = 7;                    // días tras facturar o rechazar: pasa a Histórico
 const TIPOS_IMAGEN = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const TIPO_PDF = "application/pdf";
 
@@ -223,46 +224,57 @@ async function enviarAviso(env, origen, d) {
 <tr><td style="padding:4px 12px 4px 0;color:#666">Correo</td><td>${escaparHtml(d.email)}</td></tr>
 </table>
 <p><a href="${panel}" style="display:inline-block;background:#f0a00a;color:#241a10;padding:10px 18px;border-radius:8px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">Abrir panel de facturas</a></p>`;
-  // Apps Script ejecuta doPost y luego redirige a una URL que entrega la respuesta;
-  // se sigue la redirección para leer "ok", "no autorizado" o una página de error.
+  await llamarScript(env, { asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html });
+  console.log("aviso enviado", d.folio);
+}
+
+// Apps Script ejecuta doPost y luego redirige a una URL que entrega la respuesta;
+// se sigue la redirección para leer "ok", "no autorizado" o una página de error.
+async function llamarScript(env, datos) {
   const r = await fetch(env.AVISO_URL.trim(), {
     method: "POST",
     redirect: "follow",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html })
+    body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), ...datos })
   });
   const cuerpo = (await r.text()).slice(0, 300);
-  if (cuerpo.trim() !== "ok") throw new Error(`aviso no confirmado: HTTP ${r.status} ${r.url.slice(0, 80)} · ${cuerpo.replace(/\s+/g, " ").slice(0, 200)}`);
-  console.log("aviso enviado", d.folio);
+  if (cuerpo.trim() !== "ok") throw new Error(`script no confirmó: HTTP ${r.status} ${r.url.slice(0, 80)} · ${cuerpo.replace(/\s+/g, " ").slice(0, 200)}`);
 }
 
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+function filasExcel(results) {
+  const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
+  const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
+  const filas = [ENCABEZADOS];
+  for (const r of results) {
+    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
+      r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
+  }
+  return filas;
+}
+
 async function exportarXlsx(env, url) {
   const estado = url.searchParams.get("estado") || "facturada";
   const mes = /^\d{4}-\d{2}$/.test(url.searchParams.get("mes") || "") ? url.searchParams.get("mes") : null;
   let sql = "SELECT * FROM solicitudes WHERE 1=1";
   const args = [];
   if (["pendiente", "facturada", "rechazada"].includes(estado)) { sql += " AND estado = ?"; args.push(estado); }
+  if (estado === "historico") { sql += " AND estado IN ('facturada','rechazada') AND resuelta_en < ?"; args.push(limiteHistorico()); }
   if (mes) {
     // Mes en hora de Tapachula (UTC-6): de día 1 a las 06:00 UTC al día 1 del mes siguiente
     const [a, m] = mes.split("-").map(Number);
     const desde = new Date(Date.UTC(a, m - 1, 1, 6)).toISOString();
     const hasta = new Date(Date.UTC(a, m, 1, 6)).toISOString();
-    const campo = estado === "facturada" || estado === "rechazada" ? "resuelta_en" : "creado";
+    const campo = ["facturada", "rechazada", "historico"].includes(estado) ? "resuelta_en" : "creado";
     sql += ` AND ${campo} >= ? AND ${campo} < ?`; args.push(desde, hasta);
   }
   sql += " ORDER BY creado ASC LIMIT 5000";
   const { results } = await env.DB.prepare(sql).bind(...args).all();
-  const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
-  const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
-  const filas = [["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"]];
-  for (const r of results) {
-    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
-      r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
-  }
+  const filas = filasExcel(results);
   const nombre = `facturas-${estado}${mes ? "-" + mes : ""}.xlsx`;
   return new Response(crearXlsx(filas), {
     headers: {
@@ -362,10 +374,14 @@ async function panel(request, env, url) {
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
-    const estado = ["pendiente", "facturada", "rechazada"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
+    const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
     const q = (url.searchParams.get("q") || "").trim().slice(0, 60);
-    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en FROM solicitudes WHERE estado = ?";
-    const args = [estado];
+    const lim = limiteHistorico();
+    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en FROM solicitudes WHERE ";
+    const args = [];
+    if (estado === "pendiente") sql += "estado = 'pendiente'";
+    else if (estado === "historico") { sql += "estado IN ('facturada','rechazada') AND resuelta_en < ?"; args.push(lim); }
+    else { sql += "estado = ? AND resuelta_en >= ?"; args.push(estado, lim); }
     if (q) {
       sql += " AND (rfc LIKE ? OR nombre LIKE ? OR folio LIKE ? OR email LIKE ? OR folio_ticket LIKE ? OR folio_factura LIKE ?)";
       const like = "%" + q.replace(/[%_]/g, "") + "%";
@@ -373,8 +389,10 @@ async function panel(request, env, url) {
     }
     sql += estado === "pendiente" ? " ORDER BY creado ASC LIMIT 300" : " ORDER BY resuelta_en DESC LIMIT 300";
     const { results } = await env.DB.prepare(sql).bind(...args).all();
-    const conteos = await env.DB.prepare("SELECT estado, COUNT(*) AS n FROM solicitudes GROUP BY estado").all();
-    return json({ ok: true, solicitudes: results, conteos: Object.fromEntries(conteos.results.map(r => [r.estado, r.n])) });
+    const conteos = await env.DB.prepare(
+      "SELECT CASE WHEN estado != 'pendiente' AND resuelta_en < ? THEN 'historico' ELSE estado END AS grupo, COUNT(*) AS n FROM solicitudes GROUP BY grupo"
+    ).bind(lim).all();
+    return json({ ok: true, solicitudes: results, conteos: Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])), dias_retencion: DIAS_RETENCION });
   }
 
   const id = partes[1];
@@ -517,20 +535,48 @@ async function obtenerCerts(equipo) {
 }
 
 // ---------------------------------------------------------------------------
-// Limpieza diaria: borra ticket y CSF 90 días después de facturar o rechazar
+// Limpieza diaria: 90 días después de facturar o rechazar se envía un respaldo
+// en Excel al correo del negocio y, solo si el envío se confirma, se borra el
+// registro completo (datos, ticket y constancia).
 // ---------------------------------------------------------------------------
+function limiteHistorico() { return new Date(Date.now() - DIAS_A_HISTORICO * 86400e3).toISOString(); }
+
 async function limpiarArchivos(env) {
   await asegurarEsquema(env);
-  const limite = new Date(Date.now() - DIAS_RETENCION * 86400 * 1000).toISOString();
+  const limite = new Date(Date.now() - DIAS_RETENCION * 86400e3).toISOString();
   const { results } = await env.DB.prepare(
-    "SELECT id FROM solicitudes WHERE estado IN ('facturada','rechazada') AND resuelta_en < ? AND archivos_borrados = 0 LIMIT 200"
+    "SELECT * FROM solicitudes WHERE estado IN ('facturada','rechazada') AND resuelta_en < ? ORDER BY resuelta_en ASC LIMIT 500"
   ).bind(limite).all();
-  for (const { id } of results) {
-    await env.FILES.delete(`f:${id}:ticket`);
-    await env.FILES.delete(`f:${id}:csf`);
-    await env.DB.prepare("UPDATE solicitudes SET archivos_borrados = 1 WHERE id = ?").bind(id).run();
+  if (!results.length) { console.log("limpieza: nada que borrar"); return { borradas: 0 }; }
+  if (!env.AVISO_URL || !env.AVISO_TOKEN) { console.error("limpieza: sin script de correo configurado; no se borra nada sin respaldo"); return { borradas: 0, error: "sin respaldo" }; }
+
+  const hoy = new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10);
+  const xlsx = crearXlsx(filasExcel(results));
+  const nombre = `respaldo-facturas-${hoy}.xlsx`;
+  try {
+    await llamarScript(env, {
+      asunto: `Respaldo: ${results.length} solicitud(es) de factura eliminadas el ${hoy}`,
+      texto: `Se adjunta el respaldo en Excel de ${results.length} solicitud(es) facturadas o rechazadas hace más de ${DIAS_RETENCION} días. Estos registros, sus tickets y constancias se eliminan hoy del panel.`,
+      html: `<p style="font-family:Arial,sans-serif;font-size:15px">Se adjunta el respaldo en Excel de <b>${results.length}</b> solicitud(es) facturadas o rechazadas hace más de ${DIAS_RETENCION} días.</p><p style="font-family:Arial,sans-serif;font-size:15px">Estos registros, sus tickets y constancias se eliminan hoy del panel. Guarda este correo como respaldo.</p>`,
+      adjunto: { nombre, tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: aBase64(xlsx) }
+    });
+  } catch (e) {
+    console.error("limpieza: respaldo no confirmado, no se borra nada", e && e.message);
+    return { borradas: 0, error: "respaldo no confirmado" };
   }
-  console.log("limpieza", results.length);
+  for (const r of results) {
+    await env.FILES.delete(`f:${r.id}:ticket`);
+    await env.FILES.delete(`f:${r.id}:csf`);
+    await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(r.id).run();
+  }
+  console.log("limpieza: borradas", results.length);
+  return { borradas: results.length };
+}
+
+function aBase64(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 // ---------------------------------------------------------------------------
