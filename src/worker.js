@@ -646,7 +646,7 @@ const INSTRUCCIONES_BASCULA = `Lee el ticket de la imagen. Es un ticket de pesaj
 Campos del ticket (los valores son solo ejemplos del formato):
 - "FOLIO: 17372"
 - En la sección "DATOS DEL CLIENTE": "CLIENTE: LESVIA RAVELES" y "TARIFA: $130.00"
-- Al final dice "PESAJE DE SALIDA".
+- Al final dice "PESAJE DE SALIDA" o "PESAJE DE ENTRADA". Los dos tipos sirven; lee los mismos datos en cualquiera.
 La foto puede estar girada, de lado o inclinada: lee el texto en la orientación que tenga.
 No confundas el CLIENTE con el CONDUCTOR ni la TARIFA con los pesos en kg.
 Si alguien tachó la tarifa impresa y escribió otra cantidad a mano, en "tarifa" pon SIEMPRE la cantidad IMPRESA y copia lo escrito a mano en "anotacion".
