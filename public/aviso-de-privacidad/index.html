@@ -9,22 +9,18 @@
 <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <style>
-@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("/fonts/Barlow-Regular.woff2") format("woff2"); }
-@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/fonts/Barlow-SemiBold.woff2") format("woff2"); }
-@font-face { font-family: "Barlow Semi Condensed"; font-weight: 800; font-display: swap; src: url("/fonts/BarlowSemiCondensed-ExtraBold.woff2") format("woff2"); }
 /* Página de lectura: una columna de texto a 68 caracteres. */
-:root { --bg: #f5f3f1; --fg: #211b18; --muted: #5e5450; --line: #e2dcd7; --brand: #5a2a17; --brand-ink: #fff7f1; color-scheme: light; }
-@media (prefers-color-scheme: dark) { :root { --bg: #161210; --fg: #f4ede8; --muted: #b9ada5; --line: #3a312c; --brand: #7a3d23; color-scheme: dark; } }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: "Barlow", system-ui, sans-serif; font-size: 1.0625rem; line-height: 1.6; }
-.top { background: var(--brand); color: var(--brand-ink); padding: 14px 16px; }
-.top a { color: inherit; text-decoration: none; font-family: "Barlow Semi Condensed", sans-serif; font-weight: 800; font-size: 1.25rem; }
+:root { --bg: #000000; --fg: #f5f5f7; --muted: #a1a1a6; --line: #333336; --brand: #161617; --brand-ink: #f5f5f7; color-scheme: dark; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-size: 1.0625rem; line-height: 1.6; }
+.top { background: rgba(22,22,23,.85); border-bottom: 1px solid rgba(255,255,255,.07); color: var(--fg); padding: 10px 16px; }
+.top a { color: inherit; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; font-size: 1.25rem; }
 main { max-width: 42rem; margin-inline: auto; padding: 32px 16px 64px; }
-h1 { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 800; font-size: clamp(2rem, 6vw, 2.6rem); line-height: 1.05; margin: 0 0 8px; }
-h2 { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 800; font-size: 1.35rem; margin: 32px 0 8px; }
+h1 { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; font-size: clamp(2rem, 6vw, 2.6rem); line-height: 1.05; margin: 0 0 8px; }
+h2 { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; font-size: 1.35rem; margin: 32px 0 8px; }
 p, li { max-width: 68ch; }
 ul { padding-left: 1.2em; }
 .meta { color: var(--muted); }
-a { color: inherit; text-underline-offset: .2em; }
+a { color: #ffd60a; text-underline-offset: .2em; }
 </style>
 </head>
 <body>

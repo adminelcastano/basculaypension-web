@@ -8,15 +8,12 @@
 <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <style>
-@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("/fonts/Barlow-Regular.woff2") format("woff2"); }
-@font-face { font-family: "Barlow Semi Condensed"; font-weight: 800; font-display: swap; src: url("/fonts/BarlowSemiCondensed-ExtraBold.woff2") format("woff2"); }
-:root { --bg: #f5f3f1; --fg: #211b18; --muted: #5e5450; --brand: #5a2a17; --brand-ink: #fff7f1; color-scheme: light; }
-@media (prefers-color-scheme: dark) { :root { --bg: #161210; --fg: #f4ede8; --muted: #b9ada5; --brand: #7a3d23; color-scheme: dark; } }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font-family: "Barlow", system-ui, sans-serif; font-size: 1.1rem; padding: 24px; box-sizing: border-box; }
+:root { --bg: #000000; --fg: #f5f5f7; --muted: #a1a1a6; --line: #333336; --brand: #161617; --brand-ink: #f5f5f7; color-scheme: dark; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-size: 1.1rem; padding: 24px; box-sizing: border-box; }
 main { max-width: 32rem; display: grid; gap: 16px; }
-h1 { font-family: "Barlow Semi Condensed", "Arial Narrow", sans-serif; font-weight: 800; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
+h1 { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.05; margin: 0; }
 p { margin: 0; color: var(--muted); }
-a { justify-self: start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 20px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); font-family: "Barlow Semi Condensed", sans-serif; font-weight: 800; font-size: 1.1rem; text-decoration: none; }
+a { justify-self: start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #ffcc00; color: #111; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; font-size: 1.1rem; text-decoration: none; }
 a:focus-visible { outline: 3px solid #f0a00a; outline-offset: 3px; }
 </style>
 </head>
