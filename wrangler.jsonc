@@ -19,8 +19,8 @@
   "triggers": { "crons": ["17 9 * * *"] },
   "vars": {
     "ADMIN_EMAILS": "administracion@basculaypension.com",
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
+    "ACCESS_AUD": "a0dcf0e931c7b6a7b64cae835ae329cb05fc3bdbdc972c1af99c4619ee3fba1d"
   },
   "observability": { "enabled": true }
 }
