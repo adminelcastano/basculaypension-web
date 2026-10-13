@@ -18,6 +18,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.45; letter-spacing: -0.01em; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
 ::selection { background: var(--amber); color: var(--amber-ink); }
@@ -158,6 +159,24 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   .detail, .list { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
   .tools { padding-top: 8px; }
 }
+
+/* Deslizar para eliminar */
+.swipe { position: relative; overflow: hidden; background: #ff3b30; transition: height .3s cubic-bezier(.16,1,.3,1); }
+.swipe + .swipe .item, .swipe + .swipe { box-shadow: none; }
+.swipe + .swipe { border-top: 1px solid var(--line); }
+.list > .swipe:first-of-type { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+.list > .swipe:last-of-type { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.swipe .item { border-radius: 0 !important; touch-action: pan-y; user-select: none; -webkit-user-select: none; will-change: transform; position: relative; z-index: 1; }
+.swipe-bg { position: absolute; inset: 0; display: flex; align-items: center; gap: 7px; padding-left: 18px; color: #fff; font-weight: 600; font-size: 15px; }
+.swipe-bg .ti { width: 22px; height: 22px; transition: transform .2s; }
+.swipe.listo .swipe-bg .ti { transform: scale(1.25); }
+.swipe-del { position: absolute; left: 0; top: 0; bottom: 0; width: 116px; z-index: 0; border: 0; background: transparent; color: transparent; cursor: pointer; }
+.swipe.abierto .swipe-del { z-index: 2; }
+.swipe.colapsa { border-top-color: transparent; }
+.undo { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; align-items: center; gap: 18px; padding: 10px 10px 10px 20px; border-radius: 999px; background: rgba(44,44,46,.96); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 12px 30px -10px rgba(0,0,0,.7); font-weight: 500; max-width: calc(100vw - 32px); }
+.undo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo button { border: 0; background: var(--amber); color: var(--amber-ink); font-weight: 700; border-radius: 999px; padding: 8px 16px; cursor: pointer; flex: none; }
+@media (max-width: 820px) { .undo { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); } }
 </style>
 </head>
 <body>
@@ -171,6 +190,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.2 12.3l2.6 2.6 5-5.2"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
   <symbol id="i-arch" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="4.4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M5 8.8v9.4a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V8.8M10 12.6h4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.6 6.6h14.8M9.6 6.4V4.8a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.6M6.6 6.6l.9 12.2a1.6 1.6 0 0 0 1.6 1.5h5.8a1.6 1.6 0 0 0 1.6-1.5l.9-12.2M10.2 10.6v5.8M13.8 10.6v5.8"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <div class="titlebar">
@@ -201,6 +221,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
 
 <script>
 (() => {
@@ -240,10 +261,10 @@ section.card { border-radius: 22px; padding: 22px 24px; }
     const lista = $("#lista");
     try {
       const j = await api("solicitudes?" + p);
-      for (const e of ["pendiente", "facturada", "rechazada", "historico"]) $("#n-" + e).textContent = j.conteos[e] || 0;
+      for (const e of ["pendiente", "facturada", "rechazada", "historico"]) { const n = j.conteos[e] || 0; $("#n-" + e).textContent = n; $("#n-" + e).hidden = !n; }
       const dias = j.dias_retencion || 90;
       const nombres = { pendiente: "Pendientes.", facturada: "Facturadas.", rechazada: "Rechazadas.", historico: "Histórico." };
-      const subt = { pendiente: "Por facturar, de la más antigua a la más reciente.", facturada: "Resueltas en los últimos 7 días.", rechazada: "Rechazadas en los últimos 7 días. Puedes cambiar su estatus o eliminarlas.", historico: `Se eliminan ${dias} días después de resolverse, con respaldo a tu correo.` };
+      const subt = { pendiente: "Por facturar, de la más antigua a la más reciente.", facturada: "Resueltas en los últimos 7 días.", rechazada: "Rechazadas en los últimos 7 días. Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de resolverse, con respaldo a tu correo.` };
       $("#titulo").textContent = nombres[estadoState.estado];
       $("#subtitulo").textContent = `${j.conteos[estadoState.estado] || 0} · ${subt[estadoState.estado]}`;
       if (!j.solicitudes.length) {
@@ -252,13 +273,14 @@ section.card { border-radius: 22px; padding: 22px 24px; }
       }
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
       const aviso = estadoState.estado === "historico" ? `<p class="note" style="padding:10px 16px;margin:0;border-bottom:1px solid var(--line)">Se eliminan ${dias} días después de facturar o rechazar. Antes te llega un respaldo en Excel a tu correo.</p>` : "";
-      lista.innerHTML = aviso + j.solicitudes.map(s => `
+      const deslizable = estadoState.estado === "rechazada";
+      lista.innerHTML = aviso + j.solicitudes.filter(s => !borrandoIds.has(s.id)).map(s => `${deslizable ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
           <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${estadoState.estado === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
-        </button>`).join("");
+        </button>${deslizable ? "</div>" : ""}`).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
   }
 
@@ -519,6 +541,98 @@ section.card { border-radius: 22px; padding: 22px 24px; }
     return { rfc, nombre: nombre.toUpperCase(), cp, regimen: encontrados[0]?.[0] || "", regimenes: encontrados.length };
   }
 
+  // ---- Deslizar a la derecha para eliminar (solo en Rechazadas), como en Correo ----
+  const borrandoIds = new Set();
+  let pendiente = null; // { id, timer, sw }
+  const ANCHO_BOTON = 116;
+  let gesto = null;
+
+  function cerrarSwipe(sw) {
+    const it = sw.querySelector(".item");
+    it.style.transition = "transform .35s cubic-bezier(.16,1,.3,1)";
+    it.style.transform = "";
+    sw.classList.remove("abierto");
+  }
+  function ejecutarBorrado(p) {
+    return api(`solicitudes/${p.id}/eliminar`, { method: "POST", body: "{}" })
+      .then(() => { borrandoIds.delete(p.id); cargarLista(); })
+      .catch(err => { borrandoIds.delete(p.id); if (err.message !== "sesion") toast(err.message); cargarLista(); });
+  }
+  function confirmarPendiente() {
+    if (!pendiente) return;
+    const p = pendiente; pendiente = null; clearTimeout(p.timer);
+    $("#undo").hidden = true;
+    return ejecutarBorrado(p);
+  }
+  function eliminarDeslizando(sw) {
+    if (!sw) return;
+    confirmarPendiente(); // si había otro esperando, se confirma ya
+    const id = sw.dataset.id, it = sw.querySelector(".item");
+    borrandoIds.add(id);
+    it.style.transition = "transform .3s cubic-bezier(.16,1,.3,1)";
+    it.style.transform = `translateX(${sw.offsetWidth}px)`;
+    sw.style.height = sw.offsetHeight + "px";
+    requestAnimationFrame(() => { sw.classList.add("colapsa"); sw.style.height = "0px"; });
+    if (estadoState.actual === id) { estadoState.actual = null; $("#detalle").innerHTML = `<p class="empty">Elige una solicitud de la lista.</p>`; $("#work").classList.remove("ver-detalle"); }
+    const nombre = it.querySelector(".t")?.textContent || "Solicitud";
+    $("#undo-txt").textContent = `${nombre} eliminada`;
+    $("#undo").hidden = false;
+    pendiente = { id, sw, timer: setTimeout(confirmarPendiente, 5000) };
+  }
+  $("#undo-btn").addEventListener("click", () => {
+    if (!pendiente) return;
+    clearTimeout(pendiente.timer); borrandoIds.delete(pendiente.id); pendiente = null;
+    $("#undo").hidden = true; toast("Se recuperó la solicitud"); cargarLista();
+  });
+  // Si se cierra la página con un borrado esperando, se envía de inmediato
+  addEventListener("pagehide", () => {
+    if (!pendiente) return;
+    fetch(`/panel/api/solicitudes/${pendiente.id}/eliminar`, { method: "POST", body: "{}", keepalive: true, headers: { "X-Panel": "1", "Content-Type": "application/json" } });
+    pendiente = null;
+  });
+
+  const lista = $("#lista");
+  lista.addEventListener("pointerdown", e => {
+    const it = e.target.closest(".swipe .item");
+    if (!it || (e.pointerType === "mouse" && e.button !== 0)) return;
+    document.querySelectorAll(".swipe.abierto").forEach(sw => { if (!sw.contains(it)) cerrarSwipe(sw); });
+    const sw = it.closest(".swipe");
+    gesto = { it, sw, x0: e.clientX, y0: e.clientY, base: sw.classList.contains("abierto") ? ANCHO_BOTON : 0, dx: 0, activo: false, id: e.pointerId };
+  });
+  lista.addEventListener("pointermove", e => {
+    if (!gesto || e.pointerId !== gesto.id) return;
+    const dx = e.clientX - gesto.x0, dy = e.clientY - gesto.y0;
+    if (!gesto.activo) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { gesto = null; return; } // es scroll vertical
+      if (Math.abs(dx) < 10) return;
+      gesto.activo = true;
+      try { gesto.it.setPointerCapture(e.pointerId); } catch {}
+      gesto.it.style.transition = "none";
+    }
+    const ancho = gesto.sw.offsetWidth;
+    let x = Math.max(0, gesto.base + dx);
+    if (x > ancho * 0.6) x = ancho * 0.6 + (x - ancho * 0.6) * 0.5; // resistencia al final
+    gesto.dx = x;
+    gesto.it.style.transform = `translateX(${x}px)`;
+    gesto.sw.classList.toggle("listo", x > ancho * 0.45);
+    e.preventDefault();
+  });
+  const soltar = e => {
+    if (!gesto || e.pointerId !== gesto.id) return;
+    const g = gesto; gesto = null;
+    if (!g.activo) return;
+    g.it.dataset.deslizado = "1";
+    setTimeout(() => { g.it.dataset.deslizado = ""; }, 400);
+    const ancho = g.sw.offsetWidth;
+    g.sw.classList.remove("listo");
+    if (g.dx > ancho * 0.45) { eliminarDeslizando(g.sw); return; }
+    g.it.style.transition = "transform .35s cubic-bezier(.16,1,.3,1)";
+    if (g.dx > ANCHO_BOTON * 0.6) { g.it.style.transform = `translateX(${ANCHO_BOTON}px)`; g.sw.classList.add("abierto"); }
+    else cerrarSwipe(g.sw);
+  };
+  lista.addEventListener("pointerup", soltar);
+  lista.addEventListener("pointercancel", soltar);
+
   // Eventos generales
   document.addEventListener("click", async e => {
     const c = e.target.closest(".copy");
@@ -529,8 +643,14 @@ section.card { border-radius: 22px; padding: 22px 24px; }
       setTimeout(() => { c.textContent = "Copiar"; c.classList.remove("hecho"); }, 1500);
       return;
     }
+    const del = e.target.closest(".swipe-del");
+    if (del) { const sw = del.closest(".swipe"); eliminarDeslizando(sw); return; }
     const it = e.target.closest(".item");
-    if (it) abrir(it.dataset.id);
+    if (it) {
+      if (it.dataset.deslizado === "1") { it.dataset.deslizado = ""; return; }
+      const sw = it.closest(".swipe.abierto"); if (sw) { cerrarSwipe(sw); return; }
+      abrir(it.dataset.id);
+    }
     const tab = e.target.closest(".tab");
     if (tab) {
       document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === tab ? "true" : "false"));
