@@ -480,8 +480,8 @@ function cabecerasPanel() {
 
 function paginaBloqueada(mensaje) {
   return `<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Panel de facturas</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#f5f3f1;color:#211b18;padding:24px;box-sizing:border-box}main{max-width:30rem}h1{font-size:1.6rem;margin:0 0 8px}p{color:#5e5450;line-height:1.5}</style></head>
-<body><main><h1>Acceso restringido</h1><p>${escaparHtml(mensaje)}</p></main></body></html>`;
+<meta name="color-scheme" content="dark"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;background:#000;color:#f5f5f7;padding:24px;box-sizing:border-box;-webkit-font-smoothing:antialiased}main{max-width:30rem;text-align:center}img{height:72px;width:auto;margin:0 auto 18px;display:block}h1{font-size:1.8rem;letter-spacing:-0.025em;margin:0 0 8px}p{color:#a1a1a6;line-height:1.5}</style></head>
+<body><main><img src="/img/logo.png" alt=""><h1>Acceso restringido</h1><p>${escaparHtml(mensaje)}</p></main></body></html>`;
 }
 
 // ---------------------------------------------------------------------------
