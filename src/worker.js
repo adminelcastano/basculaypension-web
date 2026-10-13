@@ -26,7 +26,7 @@ export default {
     try {
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
       if (url.pathname === "/api/revisar-ticket") return await revisarTicketApi(request, env);
-      if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript);
+      if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
       if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
       return env.ASSETS.fetch(request);

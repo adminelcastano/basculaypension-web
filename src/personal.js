@@ -19,6 +19,23 @@ export const DOCUMENTOS = {
 export const DOCUMENTOS_EXTERNO = { ine: "INE", curp: "CURP", domicilio: "Comprobante de domicilio", foto: "Fotografía" };
 export const ACTIVIDADES = ["Lavado de trailers", "Venta de ropa", "Venta de comida", "Otra"];
 const TIPOS = ["colaborador", "externo"];
+// Los externos se registran con el encargado de turno: a él le llegan el enlace y los cambios de estatus
+export const ENCARGADO_CORREO = "entrada@basculaypension.com";
+export const ENCARGADO_WA = "9622165453";
+
+// Folio: 001_JPL_010224 (colaboradores, con su fecha de ingreso) o 001_RM (externos)
+const PARTICULAS = new Set(["de", "del", "la", "las", "los", "y", "e", "da", "van", "von"]);
+function iniciales(nombre) {
+  return String(nombre || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[\s-]+/)
+    .filter(w => w && !PARTICULAS.has(w.toLowerCase())).map(w => w[0].toUpperCase()).filter(c => /[A-Z]/.test(c)).join("") || "X";
+}
+export function folioDe(f) {
+  const admin = parse(f.admin);
+  const base = `${String(f.num || 0).padStart(3, "0")}_${iniciales(f.nombre)}`;
+  if (f.tipo === "externo") return base;
+  const m = String(admin.fecha_ingreso || "").match(/^\d{2}(\d{2})-(\d{2})-(\d{2})$/);
+  return m ? `${base}_${m[3]}${m[2]}${m[1]}` : base;
+}
 export const ESCOLARIDAD = ["Primaria", "Secundaria", "Preparatoria o bachillerato", "Carrera técnica", "Licenciatura", "Posgrado", "Sin estudios"];
 export const ESTADO_CIVIL = ["Soltero(a)", "Casado(a)", "Unión libre", "Divorciado(a)", "Viudo(a)"];
 export const NACIONALIDAD = ["Nacional", "Naturalizado"];
@@ -71,8 +88,15 @@ export async function asegurarEsquemaPersonal(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"], ["recordado", "TEXT"], ["admin_docs", "TEXT NOT NULL DEFAULT '[]'"], ["tipo", "TEXT NOT NULL DEFAULT 'colaborador'"]]) {
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"], ["recordado", "TEXT"], ["admin_docs", "TEXT NOT NULL DEFAULT '[]'"], ["tipo", "TEXT NOT NULL DEFAULT 'colaborador'"], ["num", "INTEGER"], ["estatus_avisado", "TEXT"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+  // Número único consecutivo para el folio (se asigna a los registros que no lo tienen, por antigüedad)
+  const { results: sinNum } = await env.DB.prepare("SELECT id FROM colaboradores WHERE num IS NULL ORDER BY creado ASC").all();
+  if (sinNum.length) {
+    const r = await env.DB.prepare("SELECT COALESCE(MAX(num), 0) AS m FROM colaboradores").first();
+    let n = r ? r.m : 0;
+    for (const f of sinNum) await env.DB.prepare("UPDATE colaboradores SET num = ? WHERE id = ?").bind(++n, f.id).run();
   }
   esquemaListo = true;
 }
@@ -286,7 +310,7 @@ async function subirFoto(request, env, fila, archivo) {
   return json({ ok: true, docs: docsResumen(docs, parse(fila.admin), fila.tipo), leidos });
 }
 
-export async function expedienteApi(request, env, url, ctx, avisar) {
+export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
   const token = url.pathname.split("/")[3] || "";
   if (!RE_TOKEN.test(token)) return json({ ok: false, error: "Enlace no válido." }, 404);
   await asegurarEsquemaPersonal(env);
@@ -304,7 +328,9 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
     const conteo = Number(await env.FILES.get(llave) || 0);
     if (conteo >= 40) return json({ ok: false, error: "Demasiados archivos en poco tiempo. Espera una hora e intenta de nuevo." }, 429);
     await env.FILES.put(llave, String(conteo + 1), { expirationTtl: 3700 });
-    return await subirFoto(request, env, fila, resto[1]);
+    const resp = await subirFoto(request, env, fila, resto[1]);
+    if (resp.status === 200) await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
+    return resp;
   }
 
   if (request.method === "GET") {
@@ -327,7 +353,7 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
 
   const cuerpo = await request.json().catch(() => null);
   if (!cuerpo || typeof cuerpo !== "object") return json({ ok: false, error: "No pudimos leer tus datos." }, 400);
-  const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, fila.tipo === "externo" ? REQUERIDOS.filter(k => k !== "correo") : REQUERIDOS);
+  const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, fila.tipo === "externo" ? REQUERIDOS.filter(k => k !== "correo" && k !== "telefono") : REQUERIDOS);
   if (!cuerpo.acepto) errores.acepto = "Marca esta casilla para continuar.";
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
@@ -337,6 +363,7 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
   const cambios = CAMPOS_COLABORADOR.map(([k]) => [k, previos[k] || "", datos[k] || ""]).filter(([, a, b]) => a !== b);
   await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
     .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id).run();
+  await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
   if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
     const desde = primeraVez ? "" : (fila.llenado_aviso || fila.llenado_en || "");
     const subidos = docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista.filter(x => x.fotos.some(f => f.fecha > desde)).map(x => x.nombre);
@@ -374,6 +401,80 @@ function correoEnlace(nombre, token, admin, tipoPersona) {
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
 </div>`;
   return { asunto, texto, html };
+}
+
+// Correos al encargado de turno sobre los externos (todos llevan el enlace del registro)
+function marcoCorreo(etiqueta, titulo, cuerpoHtml) {
+  return `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
+<div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
+<img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${escH(etiqueta)}</p>
+<h1 style="margin:0 0 14px;font-size:24px;line-height:1.2;color:#f5f5f7">${escH(titulo)}</h1>
+${cuerpoHtml}
+</div>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Panel de personal</p>
+</div>`;
+}
+const boton = (url, t) => `<p style="margin:0 0 18px"><a href="${url}" style="display:inline-block;background:#ffcc00;color:#111;padding:13px 22px;border-radius:999px;text-decoration:none;font-weight:700;font-size:15px">${escH(t)}</a></p>`;
+const parrafo = t => `<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#a1a1a6">${t}</p>`;
+
+function correoEncargadoAlta(fila) {
+  const enlace = `${SITIO}/expediente/${fila.token}`;
+  const admin = parse(fila.admin);
+  const docs = Object.values(nombresDocs(admin, "externo"));
+  const folio = folioDe(fila);
+  const asunto = `Registrar externo: ${fila.nombre} · ${folio}`;
+  const texto = `Nuevo externo por registrar: ${fila.nombre} (folio ${folio})${admin.actividad ? "\nActividad: " + admin.actividad : ""}\n\nCuando se presente, ábrele su registro y con la persona presente sube la foto de: ${docs.join(", ")}, y llena sus datos:\n${enlace}\n\nNo compartas este enlace con nadie más.`;
+  const html = marcoCorreo("Registro de externos", `Registrar a ${fila.nombre}`,
+    parrafo(`Folio <b style="color:#f5f5f7">${escH(folio)}</b>${admin.actividad ? ` · ${escH(admin.actividad)}` : ""}.`) +
+    parrafo(`Cuando se presente, abre su registro y, con la persona presente, sube la foto de: ${escH(docs.join(", "))}. Luego revisa y envía sus datos.`) +
+    boton(enlace, "Abrir registro") + parrafo(`No compartas este enlace. Si el botón no abre: <span style="word-break:break-all">${enlace}</span>`));
+  return { asunto, texto, html };
+}
+
+const ESTADOS_EXTERNO = {
+  completo: ["Registro completo", "ya puede trabajar dentro de El Castaño", "Su registro está completo: datos e identificación verificados."],
+  incompleto: ["Registro pendiente", "todavía no completa su registro", "Le falta información para completar su registro."],
+  inactivo: ["Baja", "ya NO tiene permitido trabajar dentro de El Castaño", "Se dio de baja."],
+  activo: ["Reactivado", "de nuevo puede trabajar dentro de El Castaño", "Se reactivó su registro."]
+};
+function correoEncargadoEstatus(fila, estado) {
+  const enlace = `${SITIO}/expediente/${fila.token}`;
+  const [etiqueta, frase, detalle] = ESTADOS_EXTERNO[estado];
+  const folio = folioDe(fila);
+  const falta = faltantes(fila);
+  const pend = [...(falta.datos ? ["llenar sus datos"] : []), ...falta.docs];
+  const admin = parse(fila.admin);
+  const extra = estado === "inactivo" && fila.motivo_baja ? ` Motivo: ${fila.motivo_baja}.` : "";
+  const asunto = `${etiqueta}: ${fila.nombre} · ${folio}`;
+  const texto = `${fila.nombre} (folio ${folio}) ${frase}.\n${detalle}${extra}${estado === "incompleto" && pend.length ? "\nFalta: " + pend.join(", ") : ""}\n\nRegistro: ${enlace}`;
+  const html = marcoCorreo(`Estatus de externo · ${etiqueta}`, `${fila.nombre} ${frase}.`,
+    parrafo(`Folio <b style="color:#f5f5f7">${escH(folio)}</b>${admin.actividad ? ` · ${escH(admin.actividad)}` : ""}. ${escH(detalle + extra)}`) +
+    (estado === "incompleto" && pend.length ? parrafo(`Falta: <b style="color:#f5f5f7">${escH(pend.join(", "))}</b>.`) : "") +
+    (estado === "inactivo" ? parrafo(`Registro: <span style="word-break:break-all">${enlace}</span>`) : boton(enlace, estado === "incompleto" ? "Completar registro" : "Ver registro")));
+  return { asunto, texto, html };
+}
+
+async function avisarEncargado(env, fila, estado, enviarA) {
+  if (fila.tipo !== "externo" || !enviarA || !env.AVISO_URL || !env.AVISO_TOKEN) return { error: "El envío de correos no está configurado." };
+  try { await enviarA(env, { para: ENCARGADO_CORREO, ...(estado === "alta" ? correoEncargadoAlta(fila) : correoEncargadoEstatus(fila, estado)) }); }
+  catch (e) { console.error("aviso encargado", e && e.message); return { error: e.desactualizado ? "Falta actualizar el script de correo en Google. El correo no se envió." : "No se pudo enviar el correo al encargado." }; }
+  const ahora = new Date().toISOString();
+  await env.DB.prepare("UPDATE colaboradores SET estatus_avisado = ? WHERE id = ?").bind(`${estado}|${ahora}`, fila.id).run();
+  return { enviado: ahora };
+}
+
+function estaCompleto(fila) {
+  const d = docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo);
+  return !!fila.llenado_en && d.entregados === d.total;
+}
+// Si un externo acaba de completar su registro, se avisa al encargado (una sola vez por cambio)
+async function revisarCompletoExterno(env, antes, id, enviarA, ctx) {
+  if (antes.tipo !== "externo" || estaCompleto(antes)) return;
+  const despues = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+  if (!despues || !estaCompleto(despues) || despues.estatus === "inactivo") return;
+  const p = avisarEncargado(env, despues, "completo", enviarA);
+  if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
 }
 
 // Qué le falta a un colaborador para tener su expediente completo
@@ -417,6 +518,11 @@ function correoRecordatorio(fila, falta, fechaLimite) {
 async function recordarUno(env, fila, enviar, cfg) {
   const falta = faltantes(fila);
   if (!falta.datos && !falta.docs.length) return { omitido: "completo" };
+  if (fila.tipo === "externo") {
+    const r = await avisarEncargado(env, fila, "incompleto", enviar);
+    if (r.enviado) await env.DB.prepare("UPDATE colaboradores SET recordado = ? WHERE id = ?").bind(r.enviado, fila.id).run();
+    return { ...r, falta };
+  }
   const correo = parse(fila.datos).correo;
   if (!correo) return { omitido: "sin correo", falta };
   if (!env.AVISO_URL || !env.AVISO_TOKEN) return { error: "El envío de correos no está configurado.", falta };
@@ -444,6 +550,11 @@ export async function recordatoriosAutomaticos(env, enviar) {
 }
 
 async function enviarEnlacePorCorreo(env, fila, enviar) {
+  if (fila.tipo === "externo") {
+    const r = await avisarEncargado(env, fila, "alta", enviar);
+    if (r.enviado) await env.DB.prepare("UPDATE colaboradores SET correo_enviado = ? WHERE id = ?").bind(r.enviado, fila.id).run();
+    return r;
+  }
   const datos = parse(fila.datos);
   const para = datos.correo;
   if (!para) return { error: "Este colaborador no tiene correo registrado." };
@@ -466,7 +577,7 @@ function resumenFila(f) {
   const docs = docsResumen(parse(f.docs), parse(f.admin), f.tipo);
   const admin = parse(f.admin);
   return {
-    id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", actividad: admin.actividad || "", tipo: f.tipo === "externo" ? "externo" : "colaborador",
+    id: f.id, folio: folioDe(f), nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", actividad: admin.actividad || "", tipo: f.tipo === "externo" ? "externo" : "colaborador",
     llenado_en: f.llenado_en, creado: f.creado, actualizado: f.actualizado,
     correo: parse(f.datos).correo || "", correo_enviado: f.correo_enviado || "",
     estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
@@ -493,7 +604,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
       todos: todos.length, incompletos: todos.filter(c => !c.completo).length, completos: todos.filter(c => c.completo).length
     };
     let lista = filtro === "incompletos" ? todos.filter(c => !c.completo) : filtro === "completos" ? todos.filter(c => c.completo) : todos;
-    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto, c.actividad].join(" ").toLowerCase().includes(q));
+    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto, c.actividad, c.folio].join(" ").toLowerCase().includes(q));
     return json({ ok: true, colaboradores: lista, conteos, config: await leerConfig(env) });
   }
 
@@ -512,14 +623,12 @@ export async function personalPanel(request, env, url, partes, enviar) {
     if (tipo === "externo") delete admin.puesto; else delete admin.actividad;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     const id = crypto.randomUUID(), token = nuevoToken(), ahora = new Date().toISOString();
-    await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs, tipo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)")
+    await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs, tipo, num) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, (SELECT COALESCE(MAX(num), 0) + 1 FROM colaboradores))")
       .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin), tipo).run();
     let correoRes = null;
-    if (correo) {
-      const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
-      correoRes = await enviarEnlacePorCorreo(env, fila, enviar);
-    }
-    return json({ ok: true, id, token, correo: correoRes });
+    const filaNueva = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+    if (correo || tipo === "externo") correoRes = await enviarEnlacePorCorreo(env, filaNueva, enviar);
+    return json({ ok: true, id, token, folio: folioDe(filaNueva), correo: correoRes });
   }
 
   if (partes[1] === "config") {
@@ -558,6 +667,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
       ok: true,
       colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
       config: await leerConfig(env),
+      encargado: { correo: ENCARGADO_CORREO, wa: ENCARGADO_WA, avisado: fila.estatus_avisado || "" },
       listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD, actividades: ACTIVIDADES }
     });
   }
@@ -627,6 +737,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     else if (previo.fotos) docs[cuerpo.clave] = { fotos: previo.fotos };
     else delete docs[cuerpo.clave];
     await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, id).run();
+    await revisarCompletoExterno(env, fila, id, enviar);
     return json({ ok: true, docs: docsResumen(docs, parse(fila.admin), fila.tipo) });
   }
 
@@ -654,7 +765,20 @@ export async function personalPanel(request, env, url, partes, enviar) {
       motivo = limpiar(cuerpo.motivo_baja, 300) || null;
     }
     await env.DB.prepare("UPDATE colaboradores SET estatus = ?, fecha_baja = ?, motivo_baja = ?, actualizado = ? WHERE id = ?").bind(estatus, fechaBaja, motivo, ahora, id).run();
-    return json({ ok: true });
+    let aviso = null;
+    if (fila.tipo === "externo" && fila.estatus !== estatus) {
+      const nueva = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+      aviso = await avisarEncargado(env, nueva, estatus, enviar);
+    }
+    return json({ ok: true, aviso });
+  }
+
+  if (partes[2] === "avisar-encargado") {
+    if (fila.tipo !== "externo") return json({ ok: false, error: "Solo para externos." }, 409);
+    const estado = fila.estatus === "inactivo" ? "inactivo" : estaCompleto(fila) ? "completo" : "incompleto";
+    const r = await avisarEncargado(env, fila, estado, enviar);
+    if (r.error) return json({ ok: false, error: r.error }, 422);
+    return json({ ok: true, enviado: r.enviado, estado });
   }
 
   if (partes[2] === "enviar-correo") {

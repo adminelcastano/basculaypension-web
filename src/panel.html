@@ -208,6 +208,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
 /* Personal */
+.folio { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; letter-spacing: .02em; color: var(--amber); }
+.folio-tag { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; padding: 3px 10px; border-radius: 8px; background: #2a2a2d; color: var(--amber); border: 0; cursor: pointer; }
 .ptipo .ptab[aria-selected="true"] { background: var(--amber); color: var(--amber-ink); }
 .ptipo .ptab[aria-selected="true"] .n { background: rgba(0,0,0,.18); color: var(--amber-ink); }
 .plim { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -350,7 +352,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     <button class="ptab" role="tab" data-filtro="incompletos" aria-selected="false">Incompletos <span class="n" id="pn-incompletos">0</span></button>
     <button class="ptab" role="tab" data-filtro="completos" aria-selected="false">Completos <span class="n" id="pn-completos">0</span></button>
   </div>
-  <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, puesto o teléfono" aria-label="Buscar colaborador">
+  <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, folio, puesto o teléfono" aria-label="Buscar colaborador">
   <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
   <div class="plim">
     <label>Fecha límite de entrega<input type="date" id="p-flim"></label>
@@ -957,6 +959,14 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const lim = st.config && st.config.fecha_limite ? ` a más tardar el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", weekday: "long", day: "numeric", month: "long" }).format(new Date(st.config.fecha_limite + "T12:00:00-06:00"))}` : "";
     return `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Te recordamos completar ${tipo === "externo" ? "tu registro" : "tu expediente laboral"}${lim}. Te falta: ${lista.join(", ")}.\n\nPuedes hacerlo aquí, con tu enlace personal:\n${enlaceDe(token)}`;
   };
+  const ENCARGADO_WA = "9622165453";
+  const msgEncargadoAlta = (nombre, folio, actividad, token) => `Nuevo externo por registrar: ${nombre} (folio ${folio})${actividad ? " · " + actividad : ""}.\n\nCuando se presente, abre su registro y, con la persona presente, sube la foto de su INE o identificación, CURP, comprobante de domicilio y tómale una foto. Luego revisa y envía sus datos:\n${enlaceDe(token)}`;
+  const msgEncargadoEstatus = c => {
+    const pend = [...(c.falta.datos ? ["llenar sus datos"] : []), ...c.falta.docs];
+    if (c.estatus === "inactivo") return `Baja de externo: ${c.nombre} (folio ${c.folio}) ya NO tiene permitido trabajar dentro de El Castaño.${c.motivo_baja ? " Motivo: " + c.motivo_baja + "." : ""}`;
+    if (c.completo) return `Registro completo: ${c.nombre} (folio ${c.folio})${c.admin.actividad ? " · " + c.admin.actividad : ""} ya puede trabajar dentro de El Castaño.`;
+    return `Registro pendiente: ${c.nombre} (folio ${c.folio}) todavía no completa su registro. Falta: ${pend.join(", ")}.\n\nComplétalo aquí:\n${enlaceDe(c.token)}`;
+  };
   const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
@@ -981,6 +991,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
         ${iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
+        <span class="m"><span class="folio">${esc(c.folio)}</span></span>
         <span class="m">${c.puesto || c.actividad ? `<span>${esc(c.puesto || c.actividad)}</span>` : ""}</span>
         <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
       </button>`).join("");
@@ -1027,7 +1038,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre), c.tipo);
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
+      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="folio-tag" id="p-folio" type="button" title="Copiar folio">Folio ${esc(c.folio)}</button><button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
       <div class="cols">
         <div style="display:grid;gap:24px">
           <section class="card" id="p-estatus">
@@ -1048,7 +1059,16 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             <div class="checklist">${c.docs.map(x => `<div class="chkrow"><label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>${x.fotos.length ? `<div class="fotos">${x.fotos.map(f => `<a class="copy" href="/panel/api/colaboradores/${c.id}/archivo/${f.archivo}" target="_blank" rel="noopener">${f.archivo === "ine" && x.piezas > 1 ? "Ver frente" : f.archivo === "ine2" ? "Ver reverso" : f.archivo === "solicitud" ? "Ver hoja 1" : f.archivo === "solicitud2" ? "Ver hoja 2" : "Ver foto"}</a>`).join("")}</div>` : ""}</div>`).join("")}</div>
           </section>
           <section class="card">
-            <h3>Enlace personal</h3>
+            ${c.tipo === "externo" ? `<h3>Registro con el encargado de turno</h3>
+            <p class="note" style="margin:0">Al externo no se le envía nada: se registra con el encargado de turno (${esc(j.encargado.correo)} · WhatsApp 962 216 5453). ${c.llenado_en ? `Sus datos se capturaron el ${fecha(c.llenado_en)}.` : "Todavía no se capturan sus datos."}</p>
+            <div class="enlace" id="p-enlace">${esc(enlaceDe(c.token))}</div>
+            <div class="row">
+              ${c.estatus !== "inactivo" ? `<a class="btn btn-primary" href="${urlWa(ENCARGADO_WA, msgEncargadoAlta(c.nombre, c.folio, c.admin.actividad, c.token))}" target="_blank" rel="noopener">Enviar al encargado (WhatsApp)</a>
+              <button class="btn btn-line" id="p-correo" type="button">Enviar al encargado (correo)</button>` : ""}
+              <button class="btn btn-line" id="p-estatus-enc" type="button">Enviar estatus al encargado</button>
+              <button class="btn btn-line" id="p-regenerar" type="button">Cambiar enlace</button>
+            </div>
+            <p class="note" style="margin:0" id="p-correo-estado">${j.encargado.avisado ? `Último aviso al encargado: ${({ alta: "registro por hacer", completo: "registro completo", incompleto: "registro pendiente", inactivo: "baja", activo: "reactivado" })[j.encargado.avisado.split("|")[0]] || ""}, ${fecha(j.encargado.avisado.split("|")[1])}.` : "Todavía no se le avisa al encargado."}</p>` : `<h3>Enlace personal</h3>
             <p class="note" style="margin:0">${c.llenado_en ? `Llenó sus datos el ${fecha(c.llenado_en)}.` : "Todavía no llena sus datos."} Con este enlace puede llenarlos o corregirlos desde su celular.</p>
             <div class="enlace" id="p-enlace">${esc(enlaceDe(c.token))}</div>
             <div class="row">
@@ -1060,7 +1080,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             </div>
             ${c.recordado ? `<p class="note" style="margin:0">Último recordatorio por correo: ${fecha(c.recordado)}.</p>` : ""}
             <p class="note" style="margin:0" id="p-correo-estado">${c.correo ? (c.correo_enviado ? `Correo enviado a ${esc(c.correo)} el ${fecha(c.correo_enviado)}.` : `Correo: ${esc(c.correo)} · aún no se le envía.`) : "Sin correo registrado: agrégalo en sus datos para enviarle el enlace por correo."}</p>
-            ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}
+            ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}`}
           </section>
           <section class="card" id="p-admin">
             ${c.tipo === "externo" ? `<h3>Actividad</h3>
@@ -1139,7 +1159,20 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       } catch (err) { $("#ad-estado").textContent = err.message; }
       b.disabled = false;
     });
-    const cambiarEstatus = async cuerpo => { try { await post(`colaboradores/${id}/estatus`, cuerpo); toast(cuerpo.estatus === "inactivo" ? "Marcado como inactivo" : "Reactivado"); await cargar(); abrir(id); } catch (e) { toast(e.message); } };
+    const cambiarEstatus = async cuerpo => {
+      if (c.tipo === "externo") {
+        const msg = cuerpo.estatus === "inactivo"
+          ? `Baja de externo: ${c.nombre} (folio ${c.folio}) ya NO tiene permitido trabajar dentro de El Castaño.${cuerpo.motivo_baja ? " Motivo: " + cuerpo.motivo_baja + "." : ""}`
+          : `Reactivado: ${c.nombre} (folio ${c.folio}) de nuevo puede trabajar dentro de El Castaño.`;
+        window.open(urlWa(ENCARGADO_WA, msg), "_blank");
+      }
+      try {
+        const r = await post(`colaboradores/${id}/estatus`, cuerpo);
+        const base = cuerpo.estatus === "inactivo" ? "Marcado como inactivo" : "Reactivado";
+        toast(c.tipo === "externo" ? (r.aviso && r.aviso.enviado ? base + " y avisado al encargado" : base + ". " + ((r.aviso && r.aviso.error) || "")) : base);
+        await cargar(); abrir(id);
+      } catch (e) { toast(e.message); }
+    };
     if ($("#p-reactivar")) $("#p-reactivar").addEventListener("click", () => cambiarEstatus({ estatus: "activo" }));
     if ($("#p-baja-abrir")) {
       $("#p-baja-abrir").addEventListener("click", () => { $("#p-baja").hidden = false; $("#p-baja-abrir").hidden = true; });
@@ -1163,7 +1196,13 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       const b = e.currentTarget; b.disabled = true;
       try { await post(`colaboradores/${id}/enviar-correo`); toast("Correo enviado"); abrir(id); } catch (err) { toast(err.message); $("#p-correo-estado").textContent = err.message; b.disabled = false; }
     });
-    $("#p-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); } });
+    $("#p-folio").addEventListener("click", async () => { try { await navigator.clipboard.writeText(c.folio); toast("Folio copiado"); } catch {} });
+    if ($("#p-estatus-enc")) $("#p-estatus-enc").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true;
+      window.open(urlWa(ENCARGADO_WA, msgEncargadoEstatus(c)), "_blank");
+      try { await post(`colaboradores/${id}/avisar-encargado`); toast("Estatus enviado al encargado"); abrir(id); } catch (err) { toast("WhatsApp listo. " + err.message); b.disabled = false; }
+    });
+    if ($("#p-copiar")) $("#p-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); } });
     $("#p-regenerar").addEventListener("click", async e => {
       const b = e.currentTarget;
       if (!b.classList.contains("armed")) { b.classList.add("armed", "btn-bad"); b.textContent = "¿Seguro? El enlace anterior dejará de funcionar"; setTimeout(() => { b.classList.remove("armed", "btn-bad"); b.textContent = "Cambiar enlace"; }, 4000); return; }
@@ -1238,7 +1277,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       y = H - M - 6; texto("BÁSCULA Y PENSIÓN EL CASTAÑO", { size: 9, bold: true, color: rgb(0.45, 0.45, 0.45), x: M + 56 });
       const ext = c.tipo === "externo";
       texto(ext ? "Registro de externo" : "Expediente laboral", { size: 22, bold: true, x: M + 56 });
-      texto(c.nombre, { size: 14, x: M + 56 });
+      texto(`${c.nombre} · Folio ${c.folio}`, { size: 14, x: M + 56 });
       y = Math.min(y, H - M - 72) - 10;
       const seccion = t => { y -= 8; if (y < M + 60) nueva(); texto(t.toUpperCase(), { size: 9.5, bold: true, color: rgb(0.55, 0.42, 0) }); pg.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.6, color: rgb(0.8, 0.8, 0.8) }); y -= 4; };
       const fila = (k, v) => {
@@ -1293,7 +1332,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       }
       const out = await pdf.save();
       const url = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
-      const link = document.createElement("a"); link.href = url; link.download = `${ext ? "Registro-externo" : "Expediente"}-${c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w]+/g, "-")}.pdf`;
+      const link = document.createElement("a"); link.href = url; link.download = `${c.folio}-${ext ? "Registro-externo" : "Expediente"}-${c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w]+/g, "-")}.pdf`;
       document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
       estado.textContent = `Listo: ${pdf.getPageCount()} páginas.`;
     } catch (e) { estado.textContent = e.message || "No se pudo generar el PDF."; }
@@ -1326,17 +1365,17 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head"><h2>${ext ? "Nuevo externo" : "Nuevo colaborador"}</h2></div>
       <section class="card" id="p-alta" style="max-width:640px">
-        <p class="note" style="margin:0">Al crearlo se genera su enlace personal: le llega por correo si escribes su correo, y se abre tu WhatsApp con el mensaje listo para enviárselo. Él llena el resto desde su celular.</p>
+        <p class="note" style="margin:0">${ext ? "Al crearlo se le asigna su folio y su registro se envía al encargado de turno (correo entrada@basculaypension.com y WhatsApp 962 216 5453), que lo completa con la persona presente. Al externo no se le envía nada." : "Al crearlo se genera su enlace personal: le llega por correo si escribes su correo, y se abre tu WhatsApp con el mensaje listo para enviárselo. Él llena el resto desde su celular."}</p>
         <div class="grid-form">
           ${input("nombre", "Nombre completo", "wide")}
-          ${input("telefono", "WhatsApp", "", "tel")}
-          ${input("correo", ext ? "Correo electrónico (opcional)" : "Correo electrónico", "", "email")}
+          ${input("telefono", ext ? "Teléfono del externo (opcional)" : "WhatsApp", "", "tel")}
+          ${ext ? "" : input("correo", "Correo electrónico", "", "email")}
           ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", "Nacional")}
           <p class="note wide" style="margin:-4px 0 0;font-size:.85rem">Nacional: se le pide INE. Naturalizado: se le pide pasaporte o tarjeta de residente.</p>
           ${ext ? input("actividad", "Actividad", "", "lista:actividades") : input("puesto", "Puesto", "", "lista:puestos")}
           ${input("fecha_ingreso", ext ? "Fecha de inicio" : "Fecha de ingreso", "", "date")}
         </div>
-        <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y enviar enlace</button></div>
+        <div class="row"><button class="btn btn-primary" id="p-crear" type="button">${ext ? "Crear y enviar al encargado" : "Crear y enviar enlace"}</button></div>
       </section>`;
     $("#p-volver").addEventListener("click", () => { $("#p-work").classList.remove("ver-detalle"); d.innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; });
     $("#p-crear").addEventListener("click", async e => {
@@ -1345,10 +1384,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       const valores = { ...leer(cont), tipo: st.tipo };
       const tel = (valores.telefono || "").replace(/\D/g, "").slice(-10);
       // La ventana de WhatsApp se abre en el mismo toque (si no, el navegador la bloquea) y se llena al tener el enlace
-      const ventana = tel.length === 10 ? window.open("", "_blank") : null;
+      const ventana = valores.tipo === "externo" ? window.open("", "_blank") : tel.length === 10 ? window.open("", "_blank") : null;
       try {
         const r = await post("colaboradores", valores);
-        if (ventana) {
+        if (ventana && valores.tipo === "externo") ventana.location.href = urlWa(ENCARGADO_WA, msgEncargadoAlta(valores.nombre, r.folio, valores.actividad, r.token));
+        else if (ventana) {
           const nat = valores.nacionalidad === "Naturalizado";
           const idDoc = nat ? "identificación oficial (pasaporte o tarjeta de residente)" : "INE";
           const docs = valores.tipo === "externo" ? [idDoc, "CURP", "comprobante de domicilio", "una foto tuya"] : [idDoc, "CURP", "solicitud de empleo", "acta de nacimiento", "comprobante de domicilio", "comprobante de último grado de estudios"];
@@ -1356,7 +1396,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         }
         await cargar(); await abrir(r.id);
         if (r.correo && r.correo.error) { toast("Creado. " + r.correo.error); $("#p-correo-estado").textContent = r.correo.error; }
-        else if (r.correo && r.correo.enviado) toast("Creado y enviado por correo");
+        else if (r.correo && r.correo.enviado) toast(valores.tipo === "externo" ? "Externo creado y enviado al encargado" : "Creado y enviado por correo");
         else toast(valores.tipo === "externo" ? "Externo registrado" : "Colaborador creado");
       } catch (err) { if (ventana) ventana.close(); errores(cont, err.errores); toast(err.message); b.disabled = false; }
     });
@@ -1370,7 +1410,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     if (t.dataset.tipo) {
       st.tipo = t.dataset.tipo; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige ${EXT() ? "a una persona externa" : "un colaborador"} o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle");
       $("#p-nuevo").textContent = EXT() ? "+ Nuevo externo" : "+ Nuevo colaborador";
-      $("#p-q").placeholder = EXT() ? "Buscar por nombre, actividad o teléfono" : "Buscar por nombre, puesto o teléfono";
+      $("#p-q").placeholder = EXT() ? "Buscar por nombre, folio, actividad o teléfono" : "Buscar por nombre, folio, puesto o teléfono";
     }
     else if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
     else st.filtro = t.dataset.filtro;

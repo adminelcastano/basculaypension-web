@@ -281,13 +281,17 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       esExterno = true;
       document.title = "Mi registro · El Castaño";
       $("#kicker").textContent = "Registro de externos";
-      $("#intro-p").textContent = "Para trabajar dentro de El Castaño necesitamos identificarte. Sube la foto de tus documentos, una foto tuya y revisa tus datos. Si después necesitas corregir algo, vuelve a abrir este mismo enlace.";
+      $("#intro-p").textContent = "Encargado de turno: con la persona presente, sube la foto de su identificación, CURP y comprobante de domicilio, tómale una foto y revisa sus datos. Al terminar, toca «Enviar registro».";
       $("#nota-josue").hidden = true; $("#correo-op").hidden = false; $("#fs-escolaridad").hidden = true;
-      $("#para-que").textContent = "mi registro como externo";
+      $("#para-que").textContent = "su registro como externo";
+      const acepta = form.querySelector("[name=acepto] + span");
+      if (acepta) acepta.firstChild.textContent = "La persona registrada acepta que Báscula y Pensión El Castaño use estos datos y documentos solo para ";
+      $("#t-docs").lastChild.textContent = "Sus documentos";
+      $("#enviar").textContent = j.llenado_en ? "Guardar cambios" : "Enviar registro";
     }
     const primer = (j.datos.nombre || "").split(" ")[0];
-    $("#hola").textContent = primer ? `Hola, ${primer}.` : "Hola.";
-    if (j.llenado_en) { $("#ya").textContent = `Ya enviaste tus datos el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlos, subir documentos que te falten y enviarlos de nuevo.`; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; }
+    $("#hola").textContent = esExterno ? `Registro de ${j.datos.nombre || "externo"}` : primer ? `Hola, ${primer}.` : "Hola.";
+    if (j.llenado_en) { $("#ya").textContent = esExterno ? `Este registro ya se envió el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlo o subir documentos que falten y enviarlo de nuevo.` : `Ya enviaste tus datos el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlos, subir documentos que te falten y enviarlos de nuevo.`; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; }
     pintarDocs(j.docs);
     $("#vista").hidden = false;
   }
@@ -319,6 +323,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     }
     const faltan = docsActual ? docsActual.total - docsActual.entregados : 0;
     const josue = esExterno ? "" : " Recuerda entregar 2 copias de cada documento con Josué.";
+    if (esExterno) { $("#hecho h1").textContent = "Registro enviado"; $("#hecho p").textContent = faltan ? `Se guardó el registro. Faltan ${faltan} ${faltan === 1 ? "documento" : "documentos"}; puedes subirlos después con este mismo enlace. Cuando esté completo, te llega el aviso de que ya puede trabajar.` : "Registro completo. En unos momentos te llega el aviso de que ya puede trabajar dentro de El Castaño."; $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 }); return; }
     $("#hecho p").textContent = (faltan ? `Recibimos tus datos. Te ${faltan === 1 ? "falta 1 documento" : `faltan ${faltan} documentos`}: puedes subirlos después con este mismo enlace.` : "Recibimos tus datos y tus documentos.") + josue;
     $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 });
   });
