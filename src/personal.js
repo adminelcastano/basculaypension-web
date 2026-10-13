@@ -15,6 +15,10 @@ export const DOCUMENTOS = {
   estudios: "Comprobante de último grado de estudios"
 };
 
+// Externos: personas que trabajan dentro de El Castaño sin ser colaboradores (lavado de trailers, venta de ropa o comida)
+export const DOCUMENTOS_EXTERNO = { ine: "INE", curp: "CURP", domicilio: "Comprobante de domicilio", foto: "Fotografía" };
+export const ACTIVIDADES = ["Lavado de trailers", "Venta de ropa", "Venta de comida", "Otra"];
+const TIPOS = ["colaborador", "externo"];
 export const ESCOLARIDAD = ["Primaria", "Secundaria", "Preparatoria o bachillerato", "Carrera técnica", "Licenciatura", "Posgrado", "Sin estudios"];
 export const ESTADO_CIVIL = ["Soltero(a)", "Casado(a)", "Unión libre", "Divorciado(a)", "Viudo(a)"];
 export const NACIONALIDAD = ["Nacional", "Naturalizado"];
@@ -39,11 +43,11 @@ export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "co
 
 // Campos que solo llena el administrador en el panel
 export const CAMPOS_ADMIN = [
-  ["nacionalidad", 20, "lista:nacionalidad"], ["puesto", 40, "lista:puestos"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
+  ["nacionalidad", 20, "lista:nacionalidad"], ["puesto", 40, "lista:puestos"], ["actividad", 40, "lista:actividades"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
   ["fecha_entrevista", 10, "fecha"], ["notas", 2000]
 ];
 
-const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD };
+const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD, actividades: ACTIVIDADES };
 const RE_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d$/;
 const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 const RE_TOKEN = /^[0-9a-f]{32}$/;
@@ -67,7 +71,7 @@ export async function asegurarEsquemaPersonal(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"], ["recordado", "TEXT"], ["admin_docs", "TEXT NOT NULL DEFAULT '[]'"]]) {
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"], ["recordado", "TEXT"], ["admin_docs", "TEXT NOT NULL DEFAULT '[]'"], ["tipo", "TEXT NOT NULL DEFAULT 'colaborador'"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -111,7 +115,7 @@ function leerCampos(cuerpo, campos, requeridos = []) {
 }
 
 // Fotos que se pueden subir por documento (la INE o identificación lleva frente y reverso)
-const ARCHIVOS = { ine: ["ine", "ine2"], curp: ["curp"], solicitud: ["solicitud", "solicitud2"], acta: ["acta"], domicilio: ["domicilio"], estudios: ["estudios"] };
+const ARCHIVOS = { ine: ["ine", "ine2"], curp: ["curp"], solicitud: ["solicitud", "solicitud2"], acta: ["acta"], domicilio: ["domicilio"], estudios: ["estudios"], foto: ["foto"] };
 const DOC_DE_ARCHIVO = Object.fromEntries(Object.entries(ARCHIVOS).flatMap(([d, as]) => as.map(a => [a, d])));
 const MAX_FOTO = 10 * 1024 * 1024;
 const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
@@ -119,13 +123,13 @@ const TIPOS_LEGIBLES = ["image/jpeg", "image/png", "image/webp"];
 const MODELO_VISION = "@cf/meta/llama-3.2-11b-vision-instruct";
 
 // Nombres de los documentos según la nacionalidad elegida en el alta
-function nombresDocs(admin) {
-  const n = { ...DOCUMENTOS };
+function nombresDocs(admin, tipo) {
+  const n = { ...(tipo === "externo" ? DOCUMENTOS_EXTERNO : DOCUMENTOS) };
   if (admin && admin.nacionalidad === "Naturalizado") n.ine = ID_NATURALIZADO;
   return n;
 }
-function docsResumen(docs, admin) {
-  const lista = Object.entries(nombresDocs(admin)).map(([k, nombre]) => ({
+function docsResumen(docs, admin, tipo) {
+  const lista = Object.entries(nombresDocs(admin, tipo)).map(([k, nombre]) => ({
     clave: k, nombre, recibido: !!(docs[k] && docs[k].recibido), fecha: docs[k] && docs[k].fecha || null,
     fotos: ARCHIVOS[k].filter(a => docs[k] && docs[k].fotos && docs[k].fotos[a]).map(a => ({ archivo: a, fecha: docs[k].fotos[a] })),
     piezas: ARCHIVOS[k].length
@@ -166,8 +170,9 @@ export async function expedientePagina(request, env, url) {
 }
 
 // Aviso a la administración cada vez que un colaborador envía el formulario
-function avisoAdmin(nombre, primeraVez, cambios, docs, subidos = []) {
-  const tipo = primeraVez ? "Expediente nuevo" : "Actualización de expediente";
+function avisoAdmin(nombre, primeraVez, cambios, docs, subidos = [], tipoPersona = "colaborador") {
+  const ext = tipoPersona === "externo";
+  const tipo = (primeraVez ? (ext ? "Registro nuevo de externo" : "Expediente nuevo") : (ext ? "Actualización de externo" : "Actualización de expediente"));
   const panel = `${SITIO}/panel#personal`;
   const lista = primeraVez ? [] : cambios.map(([k, antes, ahora]) => `${ETIQUETAS[k] || k}: ${antes || "(vacío)"} → ${ahora || "(vacío)"}`);
   const resumenDocs = `${docs.entregados} de ${docs.total} documentos entregados${subidos.length ? ". Subió foto de: " + subidos.join(", ") : ""}`;
@@ -216,7 +221,7 @@ function titulo(v) { return String(v || "").toLowerCase().replace(/(^|[\s-])([a-
 async function leerDocumento(env, archivo, bytes, tipo, admin) {
   if (!env.AI || !TIPOS_LEGIBLES.includes(tipo) || bytes.byteLength > 5 * 1024 * 1024) return {};
   let clave = DOC_DE_ARCHIVO[archivo];
-  if (archivo === "ine2" || clave === "solicitud") return {};
+  if (archivo === "ine2" || clave === "solicitud" || clave === "foto") return {};
   if (clave === "ine" && admin && admin.nacionalidad === "Naturalizado") clave = "ine_ext";
   const instr = INSTRUCCIONES_DOC[clave];
   if (!instr) return {};
@@ -261,7 +266,7 @@ async function leerDocumento(env, archivo, bytes, tipo, admin) {
 // Sube la foto de un documento desde el enlace personal: se guarda y se palomea solo
 async function subirFoto(request, env, fila, archivo) {
   const clave = DOC_DE_ARCHIVO[archivo];
-  if (!clave) return json({ ok: false, error: "Documento desconocido." }, 404);
+  if (!clave || !nombresDocs(null, fila.tipo)[clave]) return json({ ok: false, error: "Documento desconocido." }, 404);
   const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
   if (!TIPOS_FOTO.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG o HEIC) o un PDF." }, 415);
   if (Number(request.headers.get("Content-Length") || 0) > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB. Toma la foto de nuevo o envía uno más ligero." }, 413);
@@ -278,7 +283,7 @@ async function subirFoto(request, env, fila, archivo) {
   docs[clave] = d;
   await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, fila.id).run();
   const leidos = await leerDocumento(env, archivo, bytes, tipo, parse(fila.admin));
-  return json({ ok: true, docs: docsResumen(docs, parse(fila.admin)), leidos });
+  return json({ ok: true, docs: docsResumen(docs, parse(fila.admin), fila.tipo), leidos });
 }
 
 export async function expedienteApi(request, env, url, ctx, avisar) {
@@ -306,7 +311,7 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
     const datos = parse(fila.datos);
     if (!datos.nombre) datos.nombre = fila.nombre;
     if (!datos.telefono && fila.telefono) datos.telefono = fila.telefono;
-    return json({ ok: true, datos, llenado_en: fila.llenado_en, docs: docsResumen(parse(fila.docs), parse(fila.admin)), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
+    return json({ ok: true, tipo: fila.tipo || "colaborador", datos, llenado_en: fila.llenado_en, docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
   }
 
   if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
@@ -322,7 +327,7 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
 
   const cuerpo = await request.json().catch(() => null);
   if (!cuerpo || typeof cuerpo !== "object") return json({ ok: false, error: "No pudimos leer tus datos." }, 400);
-  const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, REQUERIDOS);
+  const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, fila.tipo === "externo" ? REQUERIDOS.filter(k => k !== "correo") : REQUERIDOS);
   if (!cuerpo.acepto) errores.acepto = "Marca esta casilla para continuar.";
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
@@ -334,8 +339,8 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
     .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id).run();
   if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
     const desde = primeraVez ? "" : (fila.llenado_aviso || fila.llenado_en || "");
-    const subidos = docsResumen(parse(fila.docs), parse(fila.admin)).lista.filter(x => x.fotos.some(f => f.fecha > desde)).map(x => x.nombre);
-    const aviso = avisoAdmin(datos.nombre, primeraVez, cambios, docsResumen(parse(fila.docs), parse(fila.admin)), subidos);
+    const subidos = docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista.filter(x => x.fotos.some(f => f.fecha > desde)).map(x => x.nombre);
+    const aviso = avisoAdmin(datos.nombre, primeraVez, cambios, docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo), subidos, fila.tipo);
     const p = avisar(env, aviso).catch(e => console.error("aviso expediente", e && e.message));
     if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
   }
@@ -347,20 +352,22 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
 // ---------------------------------------------------------------------------
 export const SITIO = "https://basculaypension.com";
 function escH(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function correoEnlace(nombre, token, admin) {
+function correoEnlace(nombre, token, admin, tipoPersona) {
   const enlace = `${SITIO}/expediente/${token}`;
   const primer = String(nombre || "").split(" ")[0];
-  const docs = Object.values(nombresDocs(admin));
-  const asunto = "Tu expediente laboral · Báscula y Pensión El Castaño";
-  const texto = `Hola ${primer}:\n\nPara actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nTambién entrega 2 copias de cada documento con Josué:\n${docs.map(d => "- " + d).join("\n")}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const ext = tipoPersona === "externo";
+  const docs = Object.values(nombresDocs(admin, tipoPersona));
+  const que = ext ? "tu registro para trabajar dentro de El Castaño" : "tu expediente laboral";
+  const asunto = ext ? "Tu registro · Báscula y Pensión El Castaño" : "Tu expediente laboral · Báscula y Pensión El Castaño";
+  const texto = `Hola ${primer}:\n\nPara ${ext ? "completar" : "actualizar"} ${que}, sube la foto de tus documentos y llena tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\n${ext ? "Documentos que necesitamos" : "También entrega 2 copias de cada documento con Josué"}:\n${docs.map(d => "- " + d).join("\n")}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
   const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
 <div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
 <img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
-<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Expediente laboral</p>
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${ext ? "Registro de externos" : "Expediente laboral"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
-<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para actualizar tu expediente laboral, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para ${ext ? "completar" : "actualizar"} ${que}, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.</p>
 <p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
-<p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>Entrega 2 copias de cada documento con Josué:</b></p>
+<p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>${ext ? "Documentos que necesitamos:" : "Entrega 2 copias de cada documento con Josué:"}</b></p>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
 </div>
@@ -371,7 +378,7 @@ function correoEnlace(nombre, token, admin) {
 
 // Qué le falta a un colaborador para tener su expediente completo
 function faltantes(fila) {
-  const f = docsResumen(parse(fila.docs), parse(fila.admin)).lista.filter(d => !d.recibido).map(d => d.nombre);
+  const f = docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista.filter(d => !d.recibido).map(d => d.nombre);
   return { datos: !fila.llenado_en, docs: f };
 }
 
@@ -389,16 +396,17 @@ function correoRecordatorio(fila, falta, fechaLimite) {
   const primer = String(fila.nombre || "").split(" ")[0];
   const lim = fechaLarga(fechaLimite);
   const pendientes = [...(falta.datos ? ["Llenar tus datos"] : []), ...falta.docs];
-  const asunto = `Recordatorio: completa tu expediente laboral${lim ? " antes del " + lim : ""}`;
-  const texto = `Hola ${primer}:\n\nTe recordamos completar tu expediente laboral${lim ? " a más tardar el " + lim : ""}. Te falta:\n${pendientes.map(x => "- " + x).join("\n")}\n\nSube tus documentos y revisa tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const que = fila.tipo === "externo" ? "tu registro" : "tu expediente laboral";
+  const asunto = `Recordatorio: completa ${que}${lim ? " antes del " + lim : ""}`;
+  const texto = `Hola ${primer}:\n\nTe recordamos completar ${que}${lim ? " a más tardar el " + lim : ""}. Te falta:\n${pendientes.map(x => "- " + x).join("\n")}\n\nSube tus documentos y revisa tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
   const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
 <div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
 <img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
 <p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Recordatorio</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
-<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">Te recordamos completar tu expediente laboral${lim ? ` a más tardar el <b style="color:#f5f5f7">${escH(lim)}</b>` : ""}. Te falta:</p>
+<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">Te recordamos completar ${que}${lim ? ` a más tardar el <b style="color:#f5f5f7">${escH(lim)}</b>` : ""}. Te falta:</p>
 <ul style="margin:0 0 22px;padding-left:20px;font-size:15px;line-height:1.6;color:#f5f5f7">${pendientes.map(x => `<li>${escH(x)}</li>`).join("")}</ul>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Completar mi expediente</a></p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${fila.tipo === "externo" ? "Completar mi registro" : "Completar mi expediente"}</a></p>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
@@ -441,7 +449,7 @@ async function enviarEnlacePorCorreo(env, fila, enviar) {
   if (!para) return { error: "Este colaborador no tiene correo registrado." };
   if (!env.AVISO_URL || !env.AVISO_TOKEN) return { error: "El envío de correos no está configurado." };
   try {
-    await enviar(env, { para, ...correoEnlace(fila.nombre, fila.token, parse(fila.admin)) });
+    await enviar(env, { para, ...correoEnlace(fila.nombre, fila.token, parse(fila.admin), fila.tipo) });
   } catch (e) {
     console.error("correo colaborador", e && e.message);
     return { error: e.desactualizado ? "Falta actualizar el script de correo en Google (ver instrucciones). El correo no se envió." : "No se pudo enviar el correo. Intenta de nuevo." };
@@ -455,10 +463,10 @@ async function enviarEnlacePorCorreo(env, fila, enviar) {
 // Panel: /panel/api/colaboradores...
 // ---------------------------------------------------------------------------
 function resumenFila(f) {
-  const docs = docsResumen(parse(f.docs), parse(f.admin));
+  const docs = docsResumen(parse(f.docs), parse(f.admin), f.tipo);
   const admin = parse(f.admin);
   return {
-    id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "",
+    id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", actividad: admin.actividad || "", tipo: f.tipo === "externo" ? "externo" : "colaborador",
     llenado_en: f.llenado_en, creado: f.creado, actualizado: f.actualizado,
     correo: parse(f.datos).correo || "", correo_enviado: f.correo_enviado || "",
     estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
@@ -475,14 +483,17 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const q = (url.searchParams.get("q") || "").trim().toLowerCase().slice(0, 60);
     const { results } = await env.DB.prepare("SELECT * FROM colaboradores ORDER BY nombre COLLATE NOCASE ASC LIMIT 500").all();
     const estatus = ["activo", "inactivo"].includes(url.searchParams.get("estatus")) ? url.searchParams.get("estatus") : "activo";
-    const filas = results.map(resumenFila);
+    const tipo = url.searchParams.get("tipo") === "externo" ? "externo" : "colaborador";
+    const todas = results.map(resumenFila);
+    const filas = todas.filter(c => c.tipo === tipo);
     const todos = filas.filter(c => c.estatus === estatus);
     const conteos = {
+      colaborador: todas.filter(c => c.tipo === "colaborador" && c.estatus === "activo").length, externo: todas.filter(c => c.tipo === "externo" && c.estatus === "activo").length,
       activo: filas.filter(c => c.estatus === "activo").length, inactivo: filas.filter(c => c.estatus === "inactivo").length,
       todos: todos.length, incompletos: todos.filter(c => !c.completo).length, completos: todos.filter(c => c.completo).length
     };
     let lista = filtro === "incompletos" ? todos.filter(c => !c.completo) : filtro === "completos" ? todos.filter(c => c.completo) : todos;
-    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto].join(" ").toLowerCase().includes(q));
+    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto, c.actividad].join(" ").toLowerCase().includes(q));
     return json({ ok: true, colaboradores: lista, conteos, config: await leerConfig(env) });
   }
 
@@ -495,12 +506,14 @@ export async function personalPanel(request, env, url, partes, enviar) {
     if (!nombre) errores.nombre = "Escribe el nombre.";
     if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
     if (correo && !RE_EMAIL.test(correo)) errores.correo = "Correo inválido.";
+    const tipo = TIPOS.includes(cuerpo.tipo) ? cuerpo.tipo : "colaborador";
     const { datos: admin, errores: eAdmin } = leerCampos(cuerpo, CAMPOS_ADMIN);
     Object.assign(errores, eAdmin);
+    if (tipo === "externo") delete admin.puesto; else delete admin.actividad;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     const id = crypto.randomUUID(), token = nuevoToken(), ahora = new Date().toISOString();
-    await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}')")
-      .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin)).run();
+    await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs, tipo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)")
+      .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin), tipo).run();
     let correoRes = null;
     if (correo) {
       const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
@@ -521,7 +534,9 @@ export async function personalPanel(request, env, url, partes, enviar) {
 
   if (partes[1] === "recordar-todos" && request.method === "POST") {
     const cfg = await leerConfig(env);
-    const { results } = await env.DB.prepare("SELECT * FROM colaboradores WHERE estatus != 'inactivo'").all();
+    const cuerpoR = await request.json().catch(() => ({}));
+    const tipoR = cuerpoR.tipo === "externo" ? "externo" : "colaborador";
+    const { results } = await env.DB.prepare("SELECT * FROM colaboradores WHERE estatus != 'inactivo' AND COALESCE(tipo, 'colaborador') = ?").bind(tipoR).all();
     const res = { enviados: 0, sin_correo: [], errores: 0, completos: 0 };
     for (const f of results) {
       const r = await recordarUno(env, f, enviar, cfg);
@@ -541,9 +556,9 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes.length === 2 && request.method === "GET") {
     return json({
       ok: true,
-      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin)).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
+      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
       config: await leerConfig(env),
-      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD }
+      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD, actividades: ACTIVIDADES }
     });
   }
 
@@ -605,18 +620,19 @@ export async function personalPanel(request, env, url, partes, enviar) {
   const ahora = new Date().toISOString();
 
   if (partes[2] === "doc") {
-    if (!DOCUMENTOS[cuerpo.clave]) return json({ ok: false, error: "Documento desconocido." }, 422);
+    if (!nombresDocs(null, fila.tipo)[cuerpo.clave]) return json({ ok: false, error: "Documento desconocido." }, 422);
     const docs = parse(fila.docs);
     const previo = docs[cuerpo.clave] || {};
     if (cuerpo.recibido) docs[cuerpo.clave] = { ...previo, recibido: true, fecha: /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha || "") ? cuerpo.fecha : ahora.slice(0, 10), origen: "panel" };
     else if (previo.fotos) docs[cuerpo.clave] = { fotos: previo.fotos };
     else delete docs[cuerpo.clave];
     await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, id).run();
-    return json({ ok: true, docs: docsResumen(docs, parse(fila.admin)) });
+    return json({ ok: true, docs: docsResumen(docs, parse(fila.admin), fila.tipo) });
   }
 
   if (partes[2] === "admin") {
     const { datos: admin, errores } = leerCampos(cuerpo, CAMPOS_ADMIN);
+    if (fila.tipo === "externo") delete admin.puesto; else delete admin.actividad;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     await env.DB.prepare("UPDATE colaboradores SET admin = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(admin), ahora, id).run();
     return json({ ok: true });

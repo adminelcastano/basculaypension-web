@@ -208,6 +208,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
 /* Personal */
+.ptipo .ptab[aria-selected="true"] { background: var(--amber); color: var(--amber-ink); }
+.ptipo .ptab[aria-selected="true"] .n { background: rgba(0,0,0,.18); color: var(--amber-ink); }
 .plim { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .plim label { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .plim input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; }
@@ -335,6 +337,10 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <p id="p-subtitulo" class="note"></p>
 </div>
 <div class="tools">
+  <div class="ptabs ptipo" role="tablist" aria-label="Grupo">
+    <button class="ptab" role="tab" data-tipo="colaborador" aria-selected="true">Colaboradores <span class="n" id="pn-colaborador">0</span></button>
+    <button class="ptab" role="tab" data-tipo="externo" aria-selected="false">Externos <span class="n" id="pn-externo">0</span></button>
+  </div>
   <div class="ptabs pest" role="tablist" aria-label="Estatus">
     <button class="ptab" role="tab" data-estatus="activo" aria-selected="true"><span class="est activo sm"><svg aria-hidden="true"><use href="#i-activo"/></svg></span>Activos <span class="n" id="pn-activo">0</span></button>
     <button class="ptab" role="tab" data-estatus="inactivo" aria-selected="false"><span class="est inactivo sm"><svg aria-hidden="true"><use href="#i-inactivo"/></svg></span>Inactivos <span class="n" id="pn-inactivo">0</span></button>
@@ -933,7 +939,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod); });
 
   // ---- Personal ----
-  const st = { estatus: "activo", filtro: "todos", q: "", actual: null, listas: null };
+  const st = { tipo: "colaborador", estatus: "activo", filtro: "todos", q: "", actual: null, listas: null };
+  const EXT = () => st.tipo === "externo";
   const iconoEst = (e, cl = "") => `<span class="est ${e} ${cl}" title="${e === "inactivo" ? "Inactivo" : "Activo"}" role="img" aria-label="${e === "inactivo" ? "Inactivo" : "Activo"}"><svg aria-hidden="true"><use href="#i-${e}"/></svg></span>`;
   const CAMPOS = [
     ["Datos personales", [["nombre", "Nombre completo", "wide"], ["fecha_nacimiento", "Fecha de nacimiento", "", "date"], ["lugar_nacimiento", "Lugar de nacimiento"], ["curp", "CURP"], ["estado_civil", "Estado civil", "", "lista:estado_civil"], ["telefono", "Teléfono celular", "", "tel"], ["correo", "Correo electrónico", "", "email"]]],
@@ -942,36 +949,39 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     ["Escolaridad", [["escolaridad", "Último grado", "", "lista:escolaridad"], ["institucion", "Escuela"]]]
   ];
   const enlaceDe = token => `${location.origin}/expediente/${token}`;
-  const mensajeWa = (nombre, token, docs) => `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
-  const mensajeRecordatorio = (nombre, token, falta) => {
+  const mensajeWa = (nombre, token, docs, tipo) => tipo === "externo"
+    ? `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para trabajar dentro de El Castaño necesitamos identificarte. Sube la foto de tus documentos (${docs.join(", ")}) y llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}`
+    : `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
+  const mensajeRecordatorio = (nombre, token, falta, tipo) => {
     const lista = [...(falta.datos ? ["llenar tus datos"] : []), ...falta.docs.map(d => d.toLowerCase())];
     const lim = st.config && st.config.fecha_limite ? ` a más tardar el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", weekday: "long", day: "numeric", month: "long" }).format(new Date(st.config.fecha_limite + "T12:00:00-06:00"))}` : "";
-    return `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Te recordamos completar tu expediente laboral${lim}. Te falta: ${lista.join(", ")}.\n\nPuedes hacerlo aquí, con tu enlace personal:\n${enlaceDe(token)}`;
+    return `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Te recordamos completar ${tipo === "externo" ? "tu registro" : "tu expediente laboral"}${lim}. Te falta: ${lista.join(", ")}.\n\nPuedes hacerlo aquí, con tu enlace personal:\n${enlaceDe(token)}`;
   };
   const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
   async function cargar() {
     const lista = $("#p-lista");
-    const p = new URLSearchParams({ estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q);
+    const p = new URLSearchParams({ tipo: st.tipo, estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q);
     try {
       const j = await api("colaboradores?" + p);
-      for (const k of ["activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
+      for (const k of ["colaborador", "externo", "activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
       st.config = j.config || {};
       if (document.activeElement !== $("#p-flim")) $("#p-flim").value = st.config.fecha_limite || "";
       $("#p-flim-nota").textContent = st.config.fecha_limite ? `Dos días antes se manda solo un correo de recordatorio a los incompletos.` : "Captúrala para que el sistema recuerde solo, dos días antes.";
       const inac = st.estatus === "inactivo";
-      $("#p-titulo").textContent = { todos: inac ? "Inactivos." : "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
-      $("#p-subtitulo").textContent = inac ? `${j.conteos.todos} colaboradores dados de baja. Sus enlaces ya no funcionan.` : `${j.conteos.todos} colaboradores activos · ${j.conteos.incompletos} con expediente incompleto.`;
+      const grupo = EXT() ? "externos" : "colaboradores";
+      $("#p-titulo").textContent = { todos: inac ? "Inactivos." : EXT() ? "Externos." : "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
+      $("#p-subtitulo").textContent = inac ? `${j.conteos.todos} ${grupo} dados de baja. Sus enlaces ya no funcionan.` : EXT() ? `${j.conteos.todos} externos activos (lavado, venta de ropa o comida) · ${j.conteos.incompletos} con registro incompleto.` : `${j.conteos.todos} colaboradores activos · ${j.conteos.incompletos} con expediente incompleto.`;
       if (!j.colaboradores.length) {
-        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.estatus === "inactivo" && st.filtro === "todos" ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : "Agrega a tu primer colaborador con el botón «Nuevo colaborador»."}</p>`;
+        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.estatus === "inactivo" && st.filtro === "todos" ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : (EXT() ? "Agrega a la primera persona externa con el botón «Nuevo externo»." : "Agrega a tu primer colaborador con el botón «Nuevo colaborador».")}</p>`;
         return;
       }
       lista.innerHTML = j.colaboradores.map(c => `<button class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
         ${iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
-        <span class="m">${c.puesto ? `<span>${esc(c.puesto)}</span>` : ""}</span>
+        <span class="m">${c.puesto || c.actividad ? `<span>${esc(c.puesto || c.actividad)}</span>` : ""}</span>
         <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
       </button>`).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
@@ -1014,14 +1024,14 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     try { j = await api("colaboradores/" + id); } catch (e) { d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
     const c = j.colaborador; st.listas = j.listas;
     const tel = c.telefono ? "52" + c.telefono : "";
-    const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre));
+    const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre), c.tipo);
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
       <div class="cols">
         <div style="display:grid;gap:24px">
           <section class="card" id="p-estatus">
-            <div class="estatus-box">${iconoEst(c.estatus)}<div><b>${c.estatus === "inactivo" ? "Inactivo" : "Activo"}</b><span class="note">${c.estatus === "inactivo" ? `Baja el ${fecha(c.fecha_baja)}${c.motivo_baja ? " · " + esc(c.motivo_baja) : ""}. Su enlace no funciona.` : "Trabaja actualmente en El Castaño."}</span></div></div>
+            <div class="estatus-box">${iconoEst(c.estatus)}<div><b>${c.estatus === "inactivo" ? "Inactivo" : "Activo"}</b><span class="note">${c.estatus === "inactivo" ? `Baja el ${fecha(c.fecha_baja)}${c.motivo_baja ? " · " + esc(c.motivo_baja) : ""}. Su enlace no funciona.` : (c.tipo === "externo" ? "Trabaja actualmente dentro de El Castaño." : "Trabaja actualmente en El Castaño.")}</span></div></div>
             ${c.estatus === "inactivo"
               ? `<div class="row"><button class="btn btn-line" id="p-reactivar" type="button">${iconoEst("activo", "sm")} Reactivar</button></div>`
               : `<div class="row"><button class="btn btn-line" id="p-baja-abrir" type="button">${iconoEst("inactivo", "sm")} Marcar como inactivo</button></div>
@@ -1033,7 +1043,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           </section>
           <section class="card">
             <h3>Documentos entregados</h3>
-            <div class="row" style="justify-content:space-between"><span class="note">Se palomean solos cuando el colaborador sube la foto. También puedes palomearlos tú al recibir sus copias.</span><b id="p-docs-n"></b></div>
+            <div class="row" style="justify-content:space-between"><span class="note">${c.tipo === "externo" ? "Se palomean solos cuando sube la foto. También puedes palomearlos tú." : "Se palomean solos cuando el colaborador sube la foto. También puedes palomearlos tú al recibir sus copias."}</span><b id="p-docs-n"></b></div>
             <div class="barra"><i id="p-barra" style="width:0"></i></div>
             <div class="checklist">${c.docs.map(x => `<div class="chkrow"><label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>${x.fotos.length ? `<div class="fotos">${x.fotos.map(f => `<a class="copy" href="/panel/api/colaboradores/${c.id}/archivo/${f.archivo}" target="_blank" rel="noopener">${f.archivo === "ine" && x.piezas > 1 ? "Ver frente" : f.archivo === "ine2" ? "Ver reverso" : f.archivo === "solicitud" ? "Ver hoja 1" : f.archivo === "solicitud2" ? "Ver hoja 2" : "Ver foto"}</a>`).join("")}</div>` : ""}</div>`).join("")}</div>
           </section>
@@ -1053,7 +1063,14 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}
           </section>
           <section class="card" id="p-admin">
-            <h3>Puesto y entrevista</h3>
+            ${c.tipo === "externo" ? `<h3>Actividad</h3>
+            <div class="grid-form">
+              ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", c.admin.nacionalidad || "Nacional")}
+              ${input("actividad", "Actividad", "", "lista:actividades", c.admin.actividad)}
+              ${input("fecha_ingreso", "Fecha de inicio", "", "date", c.admin.fecha_ingreso)}
+              ${input("turno", "Días u horario", "", "", c.admin.turno)}
+              ${input("notas", "Notas (qué vende, lugar asignado, acuerdos)", "wide", "area", c.admin.notas)}
+            </div>` : `<h3>Puesto y entrevista</h3>
             <div class="grid-form">
               ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", c.admin.nacionalidad || "Nacional")}
               ${input("puesto", "Puesto", "", "lista:puestos", c.admin.puesto)}
@@ -1061,15 +1078,15 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
               ${input("turno", "Turno u horario", "", "", c.admin.turno)}
               ${input("fecha_entrevista", "Fecha de entrevista", "", "date", c.admin.fecha_entrevista)}
               ${input("notas", "Notas de la entrevista", "wide", "area", c.admin.notas)}
-            </div>
+            </div>`}
             <div class="row"><button class="btn btn-line" id="p-guardar-admin" type="button">Guardar</button></div>
           </section>
         </div>
         <div style="display:grid;gap:24px">
           <section class="card">
-            <h3>Expediente en PDF</h3>
+            <h3>${c.tipo === "externo" ? "Registro en PDF" : "Expediente en PDF"}</h3>
             <p class="note" style="margin:0">${c.completo ? "Junta sus datos, los documentos que subió y tus documentos administrativos en un solo PDF." : `Se habilita cuando el expediente esté completo. Falta: ${esc([...(c.falta.datos ? ["llenar sus datos"] : []), ...c.falta.docs].join(", "))}.`}</p>
-            <div class="row"><button class="btn ${c.completo ? "btn-primary" : "btn-line"}" id="p-pdf" type="button" ${c.completo ? "" : "disabled"}>Descargar expediente PDF</button><span class="note" id="p-pdf-estado"></span></div>
+            <div class="row"><button class="btn ${c.completo ? "btn-primary" : "btn-line"}" id="p-pdf" type="button" ${c.completo ? "" : "disabled"}>${c.tipo === "externo" ? "Descargar registro PDF" : "Descargar expediente PDF"}</button><span class="note" id="p-pdf-estado"></span></div>
           </section>
           <section class="card" id="p-adocs">
             <h3>Documentos administrativos</h3>
@@ -1085,7 +1102,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           <section class="card" id="p-datos">
             <h3>Datos del colaborador</h3>
             <p class="note" style="margin:0">Los llena el colaborador desde su enlace. Aquí puedes corregirlos.</p>
-            <div class="grid-form">${CAMPOS.map(([sec, cs], i) => `${i ? `<span class="sep">${sec}</span>` : `<span class="sep" style="border:0;margin:0;padding:0">${sec}</span>`}${cs.map(([k, et, cl, tp]) => input(k, et, cl, tp, c.datos[k])).join("")}`).join("")}</div>
+            <div class="grid-form">${CAMPOS.filter(([sec]) => !(c.tipo === "externo" && sec === "Escolaridad")).map(([sec, cs], i) => `${i ? `<span class="sep">${sec}</span>` : `<span class="sep" style="border:0;margin:0;padding:0">${sec}</span>`}${cs.map(([k, et, cl, tp]) => input(k, et, cl, tp, c.datos[k])).join("")}`).join("")}</div>
             <div class="row"><button class="btn btn-line" id="p-guardar-datos" type="button">Guardar datos</button></div>
           </section>
           <section class="card">
@@ -1099,7 +1116,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     pintarAdocs(id, c.admin_docs);
     if ($("#p-recordar")) $("#p-recordar").addEventListener("click", async e => {
       const b = e.currentTarget; b.disabled = true;
-      if (c.telefono) window.open(urlWa(c.telefono, mensajeRecordatorio(c.nombre, c.token, c.falta)), "_blank");
+      if (c.telefono) window.open(urlWa(c.telefono, mensajeRecordatorio(c.nombre, c.token, c.falta, c.tipo)), "_blank");
       try {
         const r = await post(`colaboradores/${id}/recordar`);
         toast(r.enviado ? "Recordatorio enviado por correo" + (c.telefono ? " y WhatsApp listo" : "") : (c.telefono ? "WhatsApp listo. " : "") + (r.error_correo || ""));
@@ -1203,7 +1220,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     try {
       const { PDFDocument, StandardFonts, rgb } = await cargarPdfLib();
       const pdf = await PDFDocument.create();
-      pdf.setTitle(`Expediente laboral · ${c.nombre}`); pdf.setAuthor("Báscula y Pensión El Castaño");
+      pdf.setTitle(`${c.tipo === "externo" ? "Registro de externo" : "Expediente laboral"} · ${c.nombre}`); pdf.setAuthor("Báscula y Pensión El Castaño");
       const f = await pdf.embedFont(StandardFonts.Helvetica), fb = await pdf.embedFont(StandardFonts.HelveticaBold);
       const W = 612, H = 792, M = 48;
       const limpio = t => String(t ?? "").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "");
@@ -1219,7 +1236,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       // Logo y encabezado
       try { const logo = await pdf.embedPng(await (await fetch("/img/logo.png")).arrayBuffer()); pg.drawImage(logo, { x: M, y: H - M - 58, width: 42, height: 58 }); } catch {}
       y = H - M - 6; texto("BÁSCULA Y PENSIÓN EL CASTAÑO", { size: 9, bold: true, color: rgb(0.45, 0.45, 0.45), x: M + 56 });
-      texto("Expediente laboral", { size: 22, bold: true, x: M + 56 });
+      const ext = c.tipo === "externo";
+      texto(ext ? "Registro de externo" : "Expediente laboral", { size: 22, bold: true, x: M + 56 });
       texto(c.nombre, { size: 14, x: M + 56 });
       y = Math.min(y, H - M - 72) - 10;
       const seccion = t => { y -= 8; if (y < M + 60) nueva(); texto(t.toUpperCase(), { size: 9.5, bold: true, color: rgb(0.55, 0.42, 0) }); pg.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.6, color: rgb(0.8, 0.8, 0.8) }); y -= 4; };
@@ -1230,21 +1248,22 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         const y0 = y; texto(v || "-", { x: M + 150 }); if (y > y0 - 15) y = y0 - 15;
       };
       const d = c.datos, a = c.admin;
-      seccion("Datos laborales");
+      seccion(ext ? "Actividad dentro de El Castaño" : "Datos laborales");
       fila("Estatus", c.estatus === "inactivo" ? `Inactivo desde ${fecha(c.fecha_baja)}${c.motivo_baja ? " · " + c.motivo_baja : ""}` : "Activo");
-      fila("Puesto", a.puesto); fila("Nacionalidad", a.nacionalidad || "Nacional"); fila("Fecha de ingreso", fecha(a.fecha_ingreso)); fila("Turno u horario", a.turno); fila("Fecha de entrevista", fecha(a.fecha_entrevista));
+      if (ext) { fila("Actividad", a.actividad); fila("Nacionalidad", a.nacionalidad || "Nacional"); fila("Fecha de inicio", fecha(a.fecha_ingreso)); fila("Días u horario", a.turno); }
+      else { fila("Puesto", a.puesto); fila("Nacionalidad", a.nacionalidad || "Nacional"); fila("Fecha de ingreso", fecha(a.fecha_ingreso)); fila("Turno u horario", a.turno); fila("Fecha de entrevista", fecha(a.fecha_entrevista)); }
       seccion("Datos personales");
       fila("Nombre completo", d.nombre); fila("Fecha de nacimiento", fecha(d.fecha_nacimiento)); fila("Lugar de nacimiento", d.lugar_nacimiento); fila("CURP", d.curp); fila("Estado civil", d.estado_civil); fila("Teléfono", d.telefono); fila("Correo electrónico", d.correo);
       seccion("Domicilio");
       fila("Calle y número", d.calle); fila("Colonia", d.colonia); fila("Municipio", d.municipio); fila("Código postal", d.cp);
       seccion("Contacto de emergencia");
       fila("Nombre", d.emerg_nombre); fila("Parentesco", d.emerg_parentesco); fila("Teléfono", d.emerg_telefono);
-      seccion("Escolaridad");
-      fila("Último grado", d.escolaridad); fila("Escuela", d.institucion);
+      if (!ext) seccion("Escolaridad");
+      if (!ext) { fila("Último grado", d.escolaridad); fila("Escuela", d.institucion); }
       seccion("Documentos");
       for (const x of c.docs) fila(x.nombre, x.recibido ? `Entregado ${fecha(x.fecha)}${x.fotos.length ? " · foto anexa" : " · en físico"}` : "Pendiente");
       if (c.admin_docs.length) { seccion("Documentos administrativos"); for (const x of c.admin_docs) fila(fecha(x.fecha), x.descripcion); }
-      if (a.notas) { seccion("Notas de la entrevista"); texto(a.notas); }
+      if (a.notas) { seccion(ext ? "Notas" : "Notas de la entrevista"); texto(a.notas); }
       y -= 10; texto(`Generado el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long", timeStyle: "short" }).format(new Date())} · Datos tratados conforme al aviso de privacidad para colaboradores.`, { size: 8, color: rgb(0.5, 0.5, 0.5) });
 
       // Anexos: fotos y PDFs
@@ -1274,7 +1293,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       }
       const out = await pdf.save();
       const url = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
-      const link = document.createElement("a"); link.href = url; link.download = `Expediente-${c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w]+/g, "-")}.pdf`;
+      const link = document.createElement("a"); link.href = url; link.download = `${ext ? "Registro-externo" : "Expediente"}-${c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w]+/g, "-")}.pdf`;
       document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
       estado.textContent = `Listo: ${pdf.getPageCount()} páginas.`;
     } catch (e) { estado.textContent = e.message || "No se pudo generar el PDF."; }
@@ -1289,7 +1308,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "¿Enviar correo a todos los incompletos?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Recordar a incompletos"; }, 4000); return; }
     b.classList.remove("armed"); b.disabled = true; b.textContent = "Enviando…";
     try {
-      const r = await post("colaboradores/recordar-todos");
+      const r = await post("colaboradores/recordar-todos", { tipo: st.tipo });
       toast(`${r.enviados} recordatorio${r.enviados === 1 ? "" : "s"} enviado${r.enviados === 1 ? "" : "s"}`);
       $("#p-flim-nota").textContent = [r.enviados ? `Enviados: ${r.enviados}.` : "", r.sin_correo.length ? `Sin correo (mándales WhatsApp desde su ficha): ${r.sin_correo.join(", ")}.` : "", r.errores ? r.error : ""].filter(Boolean).join(" ") || "Nadie tiene pendientes.";
     } catch (err) { toast(err.message); }
@@ -1301,20 +1320,21 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     document.querySelectorAll(".pitem").forEach(b => b.removeAttribute("aria-current"));
     $("#p-work").classList.add("ver-detalle");
     const d = $("#p-detalle");
-    st.listas = { ...(st.listas || {}), puestos: ["Báscula y Pensión", "Administración", "Mantenimiento"], nacionalidad: ["Nacional", "Naturalizado"] };
+    st.listas = { ...(st.listas || {}), puestos: ["Báscula y Pensión", "Administración", "Mantenimiento"], nacionalidad: ["Nacional", "Naturalizado"], actividades: ["Lavado de trailers", "Venta de ropa", "Venta de comida", "Otra"] };
+    const ext = EXT();
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head"><h2>Nuevo colaborador</h2></div>
+      <div class="detail-head"><h2>${ext ? "Nuevo externo" : "Nuevo colaborador"}</h2></div>
       <section class="card" id="p-alta" style="max-width:640px">
         <p class="note" style="margin:0">Al crearlo se genera su enlace personal: le llega por correo si escribes su correo, y se abre tu WhatsApp con el mensaje listo para enviárselo. Él llena el resto desde su celular.</p>
         <div class="grid-form">
           ${input("nombre", "Nombre completo", "wide")}
           ${input("telefono", "WhatsApp", "", "tel")}
-          ${input("correo", "Correo electrónico", "", "email")}
+          ${input("correo", ext ? "Correo electrónico (opcional)" : "Correo electrónico", "", "email")}
           ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", "Nacional")}
           <p class="note wide" style="margin:-4px 0 0;font-size:.85rem">Nacional: se le pide INE. Naturalizado: se le pide pasaporte o tarjeta de residente.</p>
-          ${input("puesto", "Puesto", "", "lista:puestos")}
-          ${input("fecha_ingreso", "Fecha de ingreso", "", "date")}
+          ${ext ? input("actividad", "Actividad", "", "lista:actividades") : input("puesto", "Puesto", "", "lista:puestos")}
+          ${input("fecha_ingreso", ext ? "Fecha de inicio" : "Fecha de ingreso", "", "date")}
         </div>
         <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y enviar enlace</button></div>
       </section>`;
@@ -1322,7 +1342,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     $("#p-crear").addEventListener("click", async e => {
       const b = e.currentTarget; b.disabled = true;
       const cont = $("#p-alta");
-      const valores = leer(cont);
+      const valores = { ...leer(cont), tipo: st.tipo };
       const tel = (valores.telefono || "").replace(/\D/g, "").slice(-10);
       // La ventana de WhatsApp se abre en el mismo toque (si no, el navegador la bloquea) y se llena al tener el enlace
       const ventana = tel.length === 10 ? window.open("", "_blank") : null;
@@ -1330,13 +1350,14 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         const r = await post("colaboradores", valores);
         if (ventana) {
           const nat = valores.nacionalidad === "Naturalizado";
-          const docs = [nat ? "identificación oficial (pasaporte o tarjeta de residente)" : "INE", "CURP", "solicitud de empleo", "acta de nacimiento", "comprobante de domicilio", "comprobante de último grado de estudios"];
-          ventana.location.href = urlWa(tel, mensajeWa(valores.nombre, r.token, docs));
+          const idDoc = nat ? "identificación oficial (pasaporte o tarjeta de residente)" : "INE";
+          const docs = valores.tipo === "externo" ? [idDoc, "CURP", "comprobante de domicilio", "una foto tuya"] : [idDoc, "CURP", "solicitud de empleo", "acta de nacimiento", "comprobante de domicilio", "comprobante de último grado de estudios"];
+          ventana.location.href = urlWa(tel, mensajeWa(valores.nombre, r.token, docs, valores.tipo));
         }
         await cargar(); await abrir(r.id);
         if (r.correo && r.correo.error) { toast("Creado. " + r.correo.error); $("#p-correo-estado").textContent = r.correo.error; }
         else if (r.correo && r.correo.enviado) toast("Creado y enviado por correo");
-        else toast("Colaborador creado");
+        else toast(valores.tipo === "externo" ? "Externo registrado" : "Colaborador creado");
       } catch (err) { if (ventana) ventana.close(); errores(cont, err.errores); toast(err.message); b.disabled = false; }
     });
     $("#p-alta [data-k=nombre]").focus();
@@ -1346,7 +1367,12 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   document.querySelectorAll(".ptabs").forEach(g => g.addEventListener("click", e => {
     const t = e.target.closest(".ptab"); if (!t) return;
     g.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", x === t ? "true" : "false"));
-    if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
+    if (t.dataset.tipo) {
+      st.tipo = t.dataset.tipo; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige ${EXT() ? "a una persona externa" : "un colaborador"} o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle");
+      $("#p-nuevo").textContent = EXT() ? "+ Nuevo externo" : "+ Nuevo colaborador";
+      $("#p-q").placeholder = EXT() ? "Buscar por nombre, actividad o teléfono" : "Buscar por nombre, puesto o teléfono";
+    }
+    else if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
     else st.filtro = t.dataset.filtro;
     cargar();
   }));

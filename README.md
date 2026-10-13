@@ -29,3 +29,5 @@ Cloudflare publica automáticamente cada cambio en la rama `main` (comando de de
 
 
 En cada ficha: botón "Recordar lo que falta" (correo + WhatsApp listo) y, en la lista, "Recordar a incompletos" (solo correo). La fecha límite se guarda en KV (`cfg:personal`); el cron de las 14:47 UTC (8:47 en Tapachula) manda el recordatorio automático dos días antes, una sola vez. Con el expediente completo se habilita "Descargar expediente PDF" (se arma en el navegador con pdf-lib de cdnjs, con fotos y PDFs anexos). "Documentos administrativos": PDFs o imágenes que sube la administración, con descripción libre y fecha (KV `xa:<id>:<doc>`, lista en la columna `admin_docs`).
+
+Externos (lavado de trailers, venta de ropa o comida): mismo módulo con el selector Colaboradores / Externos (columna `tipo`). Se les pide INE/identificación, CURP, comprobante de domicilio y fotografía (cámara frontal), y una actividad en lugar de puesto; el correo es opcional y no se les pide escolaridad.
