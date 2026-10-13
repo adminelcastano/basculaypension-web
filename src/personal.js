@@ -32,7 +32,7 @@ export const CAMPOS_COLABORADOR = [
   ["ref1_nombre", 120], ["ref1_relacion", 40], ["ref1_telefono", 10, "tel"],
   ["ref2_nombre", 120], ["ref2_relacion", 40], ["ref2_telefono", 10, "tel"]
 ];
-export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "calle", "colonia", "municipio", "emerg_nombre", "emerg_parentesco", "emerg_telefono"];
+export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "correo", "calle", "colonia", "municipio", "emerg_nombre", "emerg_parentesco", "emerg_telefono"];
 
 // Campos que solo llena el administrador en el panel
 export const CAMPOS_ADMIN = [
@@ -207,15 +207,17 @@ export async function personalPanel(request, env, url, partes) {
     const cuerpo = await request.json().catch(() => ({}));
     const nombre = limpiar(cuerpo.nombre, 120);
     const telefono = limpiar(cuerpo.telefono, 10, "tel");
+    const correo = limpiar(cuerpo.correo, 120, "email");
     const errores = {};
     if (!nombre) errores.nombre = "Escribe el nombre.";
     if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
+    if (correo && !RE_EMAIL.test(correo)) errores.correo = "Correo inválido.";
     const { datos: admin, errores: eAdmin } = leerCampos(cuerpo, CAMPOS_ADMIN);
     Object.assign(errores, eAdmin);
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
     const id = crypto.randomUUID(), token = nuevoToken(), ahora = new Date().toISOString();
     await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}')")
-      .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}) }), JSON.stringify(admin)).run();
+      .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin)).run();
     return json({ ok: true, id });
   }
 

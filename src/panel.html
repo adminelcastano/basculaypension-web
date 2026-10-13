@@ -1057,10 +1057,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head"><h2>Nuevo colaborador</h2></div>
       <section class="card" id="p-alta" style="max-width:640px">
-        <p class="note" style="margin:0">Con su nombre y WhatsApp se crea su enlace personal. Él llena el resto desde su celular.</p>
+        <p class="note" style="margin:0">Con su nombre y WhatsApp se crea su enlace personal. Él llena el resto desde su celular; lo que escribas aquí ya le aparece llenado.</p>
         <div class="grid-form">
           ${input("nombre", "Nombre completo", "wide")}
           ${input("telefono", "WhatsApp", "", "tel")}
+          ${input("correo", "Correo electrónico", "", "email")}
           ${input("puesto", "Puesto")}
           ${input("area", "Área", "", "lista:areas")}
           ${input("fecha_ingreso", "Fecha de ingreso", "", "date")}
