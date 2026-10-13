@@ -34,6 +34,17 @@ export const CAMPOS_COLABORADOR = [
   ["ref1_nombre", 120], ["ref1_relacion", 40], ["ref1_telefono", 10, "tel"],
   ["ref2_nombre", 120], ["ref2_relacion", 40], ["ref2_telefono", 10, "tel"]
 ];
+const ETIQUETAS = {
+  nombre: "Nombre", fecha_nacimiento: "Fecha de nacimiento", lugar_nacimiento: "Lugar de nacimiento", curp: "CURP", estado_civil: "Estado civil",
+  telefono: "Teléfono", correo: "Correo", calle: "Calle y número", colonia: "Colonia", municipio: "Municipio", cp: "Código postal",
+  emerg_nombre: "Contacto de emergencia", emerg_parentesco: "Parentesco (emergencia)", emerg_telefono: "Teléfono de emergencia",
+  emerg2_nombre: "Segundo contacto", emerg2_parentesco: "Parentesco (segundo contacto)", emerg2_telefono: "Teléfono del segundo contacto",
+  escolaridad: "Escolaridad", institucion: "Escuela",
+  emp1_empresa: "Último trabajo: empresa", emp1_puesto: "Último trabajo: puesto", emp1_periodo: "Último trabajo: tiempo", emp1_motivo: "Último trabajo: motivo de salida",
+  emp2_empresa: "Trabajo anterior: empresa", emp2_puesto: "Trabajo anterior: puesto", emp2_periodo: "Trabajo anterior: tiempo", emp2_motivo: "Trabajo anterior: motivo de salida",
+  ref1_nombre: "Referencia 1", ref1_relacion: "Referencia 1: relación", ref1_telefono: "Referencia 1: teléfono",
+  ref2_nombre: "Referencia 2", ref2_relacion: "Referencia 2: relación", ref2_telefono: "Referencia 2: teléfono"
+};
 export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "correo", "calle", "colonia", "municipio", "emerg_nombre", "emerg_parentesco", "emerg_telefono"];
 
 // Campos que solo llena el administrador en el panel
@@ -152,7 +163,22 @@ export async function expedientePagina(request, env, url) {
   return new Response(EXPEDIENTE_HTML, { headers: cabecerasPrivadas({ "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": csp }) });
 }
 
-export async function expedienteApi(request, env, url) {
+// Aviso a la administración cada vez que un colaborador envía el formulario
+function avisoAdmin(nombre, primeraVez, cambios, docs) {
+  const tipo = primeraVez ? "Expediente nuevo" : "Actualización de expediente";
+  const panel = `${SITIO}/panel#personal`;
+  const lista = primeraVez ? [] : cambios.map(([k, antes, ahora]) => `${ETIQUETAS[k] || k}: ${antes || "(vacío)"} → ${ahora || "(vacío)"}`);
+  const resumenDocs = `${docs.entregados} de ${docs.total} documentos entregados`;
+  const texto = `${tipo}: ${nombre}\n\n${primeraVez ? "Llenó sus datos por primera vez." : lista.length ? "Cambió:\n" + lista.map(l => "- " + l).join("\n") : "Volvió a enviar sus datos sin cambios."}\n\n${resumenDocs}.\n\nRevísalo en el panel: ${panel}`;
+  const html = `<p style="font-family:Arial,sans-serif;font-size:15px"><b>${escH(tipo)}</b>: ${escH(nombre)}</p>
+<p style="font-family:Arial,sans-serif;font-size:15px">${primeraVez ? "Llenó sus datos por primera vez (proceso inicial)." : lista.length ? "Cambió:" : "Volvió a enviar sus datos sin cambios."}</p>
+${lista.length ? `<ul style="font-family:Arial,sans-serif;font-size:14px">${lista.map(l => `<li>${escH(l)}</li>`).join("")}</ul>` : ""}
+<p style="font-family:Arial,sans-serif;font-size:15px;color:#555">${escH(resumenDocs)}.</p>
+<p><a href="${panel}" style="display:inline-block;background:#ffcc00;color:#111;padding:10px 18px;border-radius:8px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">Abrir Personal en el panel</a></p>`;
+  return { asunto: `${tipo} · ${nombre}`, texto, html };
+}
+
+export async function expedienteApi(request, env, url, ctx, avisar) {
   const token = url.pathname.split("/")[3] || "";
   if (!RE_TOKEN.test(token)) return json({ ok: false, error: "Enlace no válido." }, 404);
   await asegurarEsquemaPersonal(env);
@@ -185,8 +211,16 @@ export async function expedienteApi(request, env, url) {
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
   const ahora = new Date().toISOString();
+  const previos = parse(fila.datos);
+  const primeraVez = !fila.llenado_en;
+  const cambios = CAMPOS_COLABORADOR.map(([k]) => [k, previos[k] || "", datos[k] || ""]).filter(([, a, b]) => a !== b);
   await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, actualizado = ? WHERE id = ?")
-    .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, ahora, ahora, fila.id).run();
+    .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, fila.id).run();
+  if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
+    const aviso = avisoAdmin(datos.nombre, primeraVez, cambios, docsResumen(parse(fila.docs), parse(fila.admin)));
+    const p = avisar(env, aviso).catch(e => console.error("aviso expediente", e && e.message));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
+  }
   return json({ ok: true });
 }
 
