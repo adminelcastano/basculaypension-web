@@ -1,6 +1,6 @@
 import { REGIMENES, USOS, SERVICIOS } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
-import { expedientePagina, expedienteApi, personalPanel } from "./personal.js";
+import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -37,6 +37,8 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
+    if (event.cron === "47 14 * * *") { ctx.waitUntil(recordatoriosAutomaticos(env, enviarCorreoA)); return; }
     ctx.waitUntil(limpiarArchivos(env));
   }
 };

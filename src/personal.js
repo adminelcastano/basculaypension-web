@@ -67,7 +67,7 @@ export async function asegurarEsquemaPersonal(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"]]) {
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"], ["recordado", "TEXT"], ["admin_docs", "TEXT NOT NULL DEFAULT '[]'"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -369,6 +369,72 @@ function correoEnlace(nombre, token, admin) {
   return { asunto, texto, html };
 }
 
+// Qué le falta a un colaborador para tener su expediente completo
+function faltantes(fila) {
+  const f = docsResumen(parse(fila.docs), parse(fila.admin)).lista.filter(d => !d.recibido).map(d => d.nombre);
+  return { datos: !fila.llenado_en, docs: f };
+}
+
+async function leerConfig(env) {
+  try { return JSON.parse(await env.FILES.get("cfg:personal") || "{}") || {}; } catch { return {}; }
+}
+
+function fechaLarga(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || "")) return "";
+  return new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", weekday: "long", day: "numeric", month: "long" }).format(new Date(iso + "T12:00:00-06:00"));
+}
+
+function correoRecordatorio(fila, falta, fechaLimite) {
+  const enlace = `${SITIO}/expediente/${fila.token}`;
+  const primer = String(fila.nombre || "").split(" ")[0];
+  const lim = fechaLarga(fechaLimite);
+  const pendientes = [...(falta.datos ? ["Llenar tus datos"] : []), ...falta.docs];
+  const asunto = `Recordatorio: completa tu expediente laboral${lim ? " antes del " + lim : ""}`;
+  const texto = `Hola ${primer}:\n\nTe recordamos completar tu expediente laboral${lim ? " a más tardar el " + lim : ""}. Te falta:\n${pendientes.map(x => "- " + x).join("\n")}\n\nSube tus documentos y revisa tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
+<div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
+<img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Recordatorio</p>
+<h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
+<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">Te recordamos completar tu expediente laboral${lim ? ` a más tardar el <b style="color:#f5f5f7">${escH(lim)}</b>` : ""}. Te falta:</p>
+<ul style="margin:0 0 22px;padding-left:20px;font-size:15px;line-height:1.6;color:#f5f5f7">${pendientes.map(x => `<li>${escH(x)}</li>`).join("")}</ul>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Completar mi expediente</a></p>
+<p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
+</div>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
+</div>`;
+  return { asunto, texto, html };
+}
+
+async function recordarUno(env, fila, enviar, cfg) {
+  const falta = faltantes(fila);
+  if (!falta.datos && !falta.docs.length) return { omitido: "completo" };
+  const correo = parse(fila.datos).correo;
+  if (!correo) return { omitido: "sin correo", falta };
+  if (!env.AVISO_URL || !env.AVISO_TOKEN) return { error: "El envío de correos no está configurado.", falta };
+  try { await enviar(env, { para: correo, ...correoRecordatorio(fila, falta, cfg.fecha_limite) }); }
+  catch (e) { console.error("recordatorio", e && e.message); return { error: e.desactualizado ? "Falta actualizar el script de correo en Google. El correo no se envió." : "No se pudo enviar el correo.", falta }; }
+  const ahora = new Date().toISOString();
+  await env.DB.prepare("UPDATE colaboradores SET recordado = ? WHERE id = ?").bind(ahora, fila.id).run();
+  return { enviado: ahora, falta };
+}
+
+// Se ejecuta a diario: dos días antes de la fecha límite, recuerda por correo a los activos incompletos
+export async function recordatoriosAutomaticos(env, enviar) {
+  await asegurarEsquemaPersonal(env);
+  const cfg = await leerConfig(env);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cfg.fecha_limite || "")) return;
+  const hoy = new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10);
+  const objetivo = new Date(new Date(cfg.fecha_limite + "T12:00:00Z").getTime() - 2 * 86400e3).toISOString().slice(0, 10);
+  if (hoy !== objetivo) return;
+  if (await env.FILES.get(`rec:${cfg.fecha_limite}`)) return;
+  await env.FILES.put(`rec:${cfg.fecha_limite}`, "1", { expirationTtl: 30 * 86400 });
+  const { results } = await env.DB.prepare("SELECT * FROM colaboradores WHERE estatus != 'inactivo'").all();
+  let n = 0;
+  for (const f of results) { const r = await recordarUno(env, f, enviar, cfg); if (r.enviado) n++; }
+  console.log("recordatorios automáticos", n);
+}
+
 async function enviarEnlacePorCorreo(env, fila, enviar) {
   const datos = parse(fila.datos);
   const para = datos.correo;
@@ -417,7 +483,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     };
     let lista = filtro === "incompletos" ? todos.filter(c => !c.completo) : filtro === "completos" ? todos.filter(c => c.completo) : todos;
     if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto].join(" ").toLowerCase().includes(q));
-    return json({ ok: true, colaboradores: lista, conteos });
+    return json({ ok: true, colaboradores: lista, conteos, config: await leerConfig(env) });
   }
 
   if (partes.length === 1 && request.method === "POST") {
@@ -443,6 +509,30 @@ export async function personalPanel(request, env, url, partes, enviar) {
     return json({ ok: true, id, token, correo: correoRes });
   }
 
+  if (partes[1] === "config") {
+    if (request.method === "GET") return json({ ok: true, config: await leerConfig(env) });
+    const cuerpo = await request.json().catch(() => ({}));
+    const fl = String(cuerpo.fecha_limite || "");
+    if (fl && !/^\d{4}-\d{2}-\d{2}$/.test(fl)) return json({ ok: false, error: "Fecha inválida." }, 422);
+    const cfg = { ...(await leerConfig(env)), fecha_limite: fl || null };
+    await env.FILES.put("cfg:personal", JSON.stringify(cfg));
+    return json({ ok: true, config: cfg });
+  }
+
+  if (partes[1] === "recordar-todos" && request.method === "POST") {
+    const cfg = await leerConfig(env);
+    const { results } = await env.DB.prepare("SELECT * FROM colaboradores WHERE estatus != 'inactivo'").all();
+    const res = { enviados: 0, sin_correo: [], errores: 0, completos: 0 };
+    for (const f of results) {
+      const r = await recordarUno(env, f, enviar, cfg);
+      if (r.enviado) res.enviados++;
+      else if (r.omitido === "completo") res.completos++;
+      else if (r.omitido === "sin correo") res.sin_correo.push(f.nombre);
+      else { res.errores++; res.error = r.error; }
+    }
+    return json({ ok: true, ...res });
+  }
+
   const id = partes[1];
   if (!id || !/^[0-9a-f-]{36}$/.test(id)) return json({ ok: false, error: "Ruta no encontrada." }, 404);
   const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
@@ -451,7 +541,8 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes.length === 2 && request.method === "GET") {
     return json({
       ok: true,
-      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin)).lista },
+      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin)).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
+      config: await leerConfig(env),
       listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD }
     });
   }
@@ -465,8 +556,52 @@ export async function personalPanel(request, env, url, partes, enviar) {
     return new Response(value, { headers: cabecerasPrivadas({ "Content-Type": tipo, "Content-Disposition": `inline; filename="${nombre}-${partes[3]}.${ext}"`, "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN" }) });
   }
 
+  if (partes[2] === "archivo-admin" && /^[0-9a-f]{16}$/.test(partes[3] || "") && request.method === "GET") {
+    const { value, metadata } = await env.FILES.getWithMetadata(`xa:${id}:${partes[3]}`, { type: "arrayBuffer" });
+    if (!value) return new Response("Archivo no disponible.", { status: 404, headers: cabecerasPrivadas() });
+    const tipo = metadata && TIPOS_FOTO.includes(metadata.tipo) ? metadata.tipo : "application/octet-stream";
+    const nombre = String((metadata && metadata.nombre) || "documento").replace(/[^\w.\- ]/g, "").slice(0, 80) || "documento";
+    return new Response(value, { headers: cabecerasPrivadas({ "Content-Type": tipo, "Content-Disposition": `inline; filename="${nombre}"`, "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN" }) });
+  }
+
+  if (partes[2] === "adoc" && request.method === "POST") {
+    const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+    if (!TIPOS_FOTO.includes(tipo)) return json({ ok: false, error: "Sube un PDF o una imagen." }, 415);
+    if (Number(request.headers.get("Content-Length") || 0) > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB." }, 413);
+    let descripcion = "", nombreArchivo = "";
+    try { descripcion = decodeURIComponent(request.headers.get("X-Descripcion") || ""); nombreArchivo = decodeURIComponent(request.headers.get("X-Nombre") || ""); } catch {}
+    descripcion = descripcion.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (!descripcion) return json({ ok: false, error: "Escribe la descripción del documento." }, 422);
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(request.headers.get("X-Fecha") || "") ? request.headers.get("X-Fecha") : new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10);
+    const bytes = await request.arrayBuffer();
+    if (!bytes.byteLength || bytes.byteLength > MAX_FOTO) return json({ ok: false, error: "Archivo vacío o de más de 10 MB." }, 413);
+    const docId = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, "0")).join("");
+    const lista = JSON.parse(fila.admin_docs || "[]");
+    if (lista.length >= 60) return json({ ok: false, error: "Este colaborador ya tiene 60 documentos administrativos." }, 409);
+    await env.FILES.put(`xa:${id}:${docId}`, bytes, { metadata: { tipo, nombre: nombreArchivo.slice(0, 120) } });
+    lista.push({ id: docId, descripcion, fecha, tipo, nombre: nombreArchivo.slice(0, 120), tamano: bytes.byteLength, subido: new Date().toISOString() });
+    await env.DB.prepare("UPDATE colaboradores SET admin_docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(lista), new Date().toISOString(), id).run();
+    return json({ ok: true, admin_docs: lista });
+  }
+
   if (request.method !== "POST" || partes.length !== 3) return json({ ok: false, error: "Ruta no encontrada." }, 404);
   const cuerpo = await request.json().catch(() => ({}));
+
+  if (partes[2] === "adoc-eliminar") {
+    const lista = JSON.parse(fila.admin_docs || "[]");
+    const nueva = lista.filter(d => d.id !== cuerpo.doc);
+    if (nueva.length === lista.length) return json({ ok: false, error: "No existe ese documento." }, 404);
+    await env.FILES.delete(`xa:${id}:${cuerpo.doc}`);
+    await env.DB.prepare("UPDATE colaboradores SET admin_docs = ? WHERE id = ?").bind(JSON.stringify(nueva), id).run();
+    return json({ ok: true, admin_docs: nueva });
+  }
+
+  if (partes[2] === "recordar") {
+    if (fila.estatus === "inactivo") return json({ ok: false, error: "El colaborador está inactivo." }, 409);
+    const r = await recordarUno(env, fila, enviar, await leerConfig(env));
+    if (r.omitido === "completo") return json({ ok: false, error: "Su expediente ya está completo." }, 409);
+    return json({ ok: true, enviado: r.enviado || null, error_correo: r.error || (r.omitido === "sin correo" ? "No tiene correo registrado." : null), falta: r.falta });
+  }
   const ahora = new Date().toISOString();
 
   if (partes[2] === "doc") {
@@ -521,6 +656,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
 
   if (partes[2] === "eliminar") {
     for (const a of Object.keys(DOC_DE_ARCHIVO)) await env.FILES.delete(`x:${id}:${a}`);
+    for (const d of JSON.parse(fila.admin_docs || "[]")) await env.FILES.delete(`xa:${id}:${d.id}`);
     await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }

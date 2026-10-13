@@ -208,6 +208,18 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
 /* Personal */
+.plim { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.plim label { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.plim input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; }
+.adocs { display: grid; gap: 0; }
+.adoc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.adoc:last-child { border-bottom: 0; }
+.adoc b { font-weight: 600; overflow-wrap: anywhere; }
+.adoc .note { font-size: .85rem; grid-column: 1; }
+.adoc .acc { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 6px; }
+.adoc .acc a, .adoc .acc button { text-decoration: none; }
+.archivo-sel { position: relative; overflow: hidden; }
+.archivo-sel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .ptabs { display: flex; background: var(--surface); padding: 3px; border-radius: 12px; gap: 2px; }
 .ptab { border: 0; background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 14.5px; font-weight: 500; color: #d2d2d7; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
 .ptab[aria-selected="true"] { background: #3a3a3c; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
@@ -334,6 +346,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   </div>
   <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, puesto o teléfono" aria-label="Buscar colaborador">
   <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
+  <div class="plim">
+    <label>Fecha límite de entrega<input type="date" id="p-flim"></label>
+    <button class="btn btn-line" id="p-recordar-todos" type="button">Recordar a incompletos</button>
+    <span class="note" id="p-flim-nota"></span>
+  </div>
 </div>
 <main class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
@@ -926,6 +943,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   ];
   const enlaceDe = token => `${location.origin}/expediente/${token}`;
   const mensajeWa = (nombre, token, docs) => `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
+  const mensajeRecordatorio = (nombre, token, falta) => {
+    const lista = [...(falta.datos ? ["llenar tus datos"] : []), ...falta.docs.map(d => d.toLowerCase())];
+    const lim = st.config && st.config.fecha_limite ? ` a más tardar el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", weekday: "long", day: "numeric", month: "long" }).format(new Date(st.config.fecha_limite + "T12:00:00-06:00"))}` : "";
+    return `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Te recordamos completar tu expediente laboral${lim}. Te falta: ${lista.join(", ")}.\n\nPuedes hacerlo aquí, con tu enlace personal:\n${enlaceDe(token)}`;
+  };
   const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
@@ -935,6 +957,9 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     try {
       const j = await api("colaboradores?" + p);
       for (const k of ["activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
+      st.config = j.config || {};
+      if (document.activeElement !== $("#p-flim")) $("#p-flim").value = st.config.fecha_limite || "";
+      $("#p-flim-nota").textContent = st.config.fecha_limite ? `Dos días antes se manda solo un correo de recordatorio a los incompletos.` : "Captúrala para que el sistema recuerde solo, dos días antes.";
       const inac = st.estatus === "inactivo";
       $("#p-titulo").textContent = { todos: inac ? "Inactivos." : "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
       $("#p-subtitulo").textContent = inac ? `${j.conteos.todos} colaboradores dados de baja. Sus enlaces ya no funcionan.` : `${j.conteos.todos} colaboradores activos · ${j.conteos.incompletos} con expediente incompleto.`;
@@ -1019,9 +1044,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             <div class="row">
               ${tel ? `<a class="btn btn-primary" href="${urlWa(c.telefono, msg)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ""}
               ${c.correo && c.estatus !== "inactivo" ? `<button class="btn btn-line" id="p-correo" type="button">${c.correo_enviado ? "Reenviar por correo" : "Enviar por correo"}</button>` : ""}
+              ${!c.completo && c.estatus !== "inactivo" ? `<button class="btn btn-primary" id="p-recordar" type="button">Recordar lo que falta</button>` : ""}
               <button class="btn btn-line" id="p-copiar" type="button">Copiar mensaje</button>
               <button class="btn btn-line" id="p-regenerar" type="button">Cambiar enlace</button>
             </div>
+            ${c.recordado ? `<p class="note" style="margin:0">Último recordatorio por correo: ${fecha(c.recordado)}.</p>` : ""}
             <p class="note" style="margin:0" id="p-correo-estado">${c.correo ? (c.correo_enviado ? `Correo enviado a ${esc(c.correo)} el ${fecha(c.correo_enviado)}.` : `Correo: ${esc(c.correo)} · aún no se le envía.`) : "Sin correo registrado: agrégalo en sus datos para enviarle el enlace por correo."}</p>
             ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}
           </section>
@@ -1039,6 +1066,22 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           </section>
         </div>
         <div style="display:grid;gap:24px">
+          <section class="card">
+            <h3>Expediente en PDF</h3>
+            <p class="note" style="margin:0">${c.completo ? "Junta sus datos, los documentos que subió y tus documentos administrativos en un solo PDF." : `Se habilita cuando el expediente esté completo. Falta: ${esc([...(c.falta.datos ? ["llenar sus datos"] : []), ...c.falta.docs].join(", "))}.`}</p>
+            <div class="row"><button class="btn ${c.completo ? "btn-primary" : "btn-line"}" id="p-pdf" type="button" ${c.completo ? "" : "disabled"}>Descargar expediente PDF</button><span class="note" id="p-pdf-estado"></span></div>
+          </section>
+          <section class="card" id="p-adocs">
+            <h3>Documentos administrativos</h3>
+            <p class="note" style="margin:0">Contratos, constancias, actas administrativas u otros documentos que tú agregues. Solo los ves tú.</p>
+            <div class="adocs" id="p-adocs-lista"></div>
+            <div class="grid-form">
+              <label class="wide">Descripción<input type="text" id="ad-desc" maxlength="200" placeholder="Ej. Contrato individual de trabajo" autocomplete="off"></label>
+              <label>Fecha de subida<input type="date" id="ad-fecha" value="${new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10)}"></label>
+              <label>Archivo<span class="btn btn-line archivo-sel"><input type="file" id="ad-archivo" accept="application/pdf,image/*"><span id="ad-archivo-n">Elegir PDF</span></span></label>
+            </div>
+            <div class="row"><button class="btn btn-primary" id="ad-subir" type="button">Subir documento</button><span class="note" id="ad-estado"></span></div>
+          </section>
           <section class="card" id="p-datos">
             <h3>Datos del colaborador</h3>
             <p class="note" style="margin:0">Los llena el colaborador desde su enlace. Aquí puedes corregirlos.</p>
@@ -1053,6 +1096,32 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         </div>
       </div>`;
     pintarDocs(c.docs);
+    pintarAdocs(id, c.admin_docs);
+    if ($("#p-recordar")) $("#p-recordar").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true;
+      if (c.telefono) window.open(urlWa(c.telefono, mensajeRecordatorio(c.nombre, c.token, c.falta)), "_blank");
+      try {
+        const r = await post(`colaboradores/${id}/recordar`);
+        toast(r.enviado ? "Recordatorio enviado por correo" + (c.telefono ? " y WhatsApp listo" : "") : (c.telefono ? "WhatsApp listo. " : "") + (r.error_correo || ""));
+        if (r.enviado) abrir(id); else b.disabled = false;
+      } catch (err) { toast(err.message); b.disabled = false; }
+    });
+    $("#p-pdf").addEventListener("click", () => generarPdf(c));
+    $("#ad-archivo").addEventListener("change", e => { const f = e.target.files[0]; $("#ad-archivo-n").textContent = f ? f.name.slice(0, 28) : "Elegir PDF"; });
+    $("#ad-subir").addEventListener("click", async e => {
+      const b = e.currentTarget, f = $("#ad-archivo").files[0], desc = $("#ad-desc").value.trim();
+      if (!desc) { toast("Escribe la descripción"); $("#ad-desc").focus(); return; }
+      if (!f) { toast("Elige el archivo"); return; }
+      if (f.size > 10 * 1024 * 1024) { toast("El archivo pesa más de 10 MB"); return; }
+      b.disabled = true; $("#ad-estado").textContent = "Subiendo…";
+      try {
+        const r = await fetch(`/panel/api/colaboradores/${id}/adoc`, { method: "POST", headers: { "X-Panel": "1", "Content-Type": f.type || "application/pdf", "X-Descripcion": encodeURIComponent(desc), "X-Fecha": $("#ad-fecha").value, "X-Nombre": encodeURIComponent(f.name) }, body: f });
+        const j = await r.json().catch(() => ({ ok: false, error: "No se pudo subir." }));
+        if (!j.ok) throw new Error(j.error);
+        pintarAdocs(id, j.admin_docs); $("#ad-desc").value = ""; $("#ad-archivo").value = ""; $("#ad-archivo-n").textContent = "Elegir PDF"; $("#ad-estado").textContent = ""; toast("Documento subido");
+      } catch (err) { $("#ad-estado").textContent = err.message; }
+      b.disabled = false;
+    });
     const cambiarEstatus = async cuerpo => { try { await post(`colaboradores/${id}/estatus`, cuerpo); toast(cuerpo.estatus === "inactivo" ? "Marcado como inactivo" : "Reactivado"); await cargar(); abrir(id); } catch (e) { toast(e.message); } };
     if ($("#p-reactivar")) $("#p-reactivar").addEventListener("click", () => cambiarEstatus({ estatus: "activo" }));
     if ($("#p-baja-abrir")) {
@@ -1099,6 +1168,133 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     $("#p-eliminar").addEventListener("click", eliminar);
     $("#p-eliminar-top").addEventListener("click", eliminar);
   }
+
+  function pintarAdocs(id, lista) {
+    const cont = $("#p-adocs-lista");
+    if (!lista.length) { cont.innerHTML = `<p class="note" style="margin:0">Todavía no hay documentos administrativos.</p>`; return; }
+    cont.innerHTML = [...lista].sort((a, b) => (b.fecha + b.subido).localeCompare(a.fecha + a.subido)).map(d => `<div class="adoc">
+      <b>${esc(d.descripcion)}</b>
+      <span class="acc"><a class="copy" href="/panel/api/colaboradores/${id}/archivo-admin/${d.id}" target="_blank" rel="noopener">Ver</a><button class="copy" type="button" data-adel="${d.id}" style="color:var(--bad)">Eliminar</button></span>
+      <span class="note">Subido el ${fecha(d.fecha)}${d.nombre ? " · " + esc(d.nombre) : ""}</span>
+    </div>`).join("");
+    cont.querySelectorAll("[data-adel]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "¿Seguro?"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "Eliminar"; }, 3500); return; }
+      try { const r = await post(`colaboradores/${id}/adoc-eliminar`, { doc: b.dataset.adel }); pintarAdocs(id, r.admin_docs); toast("Documento eliminado"); } catch (e) { toast(e.message); }
+    }));
+  }
+
+  // ---- Expediente en PDF (se arma en el navegador con pdf-lib) ----
+  let pdfLib = null;
+  function cargarPdfLib() {
+    if (pdfLib) return pdfLib;
+    pdfLib = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"; sc.onload = () => res(window.PDFLib); sc.onerror = () => { pdfLib = null; rej(new Error("No se pudo cargar el generador de PDF. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    return pdfLib;
+  }
+  async function aJpeg(blob) {
+    const img = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    const k = Math.min(1, 2000 / Math.max(img.width, img.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+    return new Uint8Array(await (await new Promise(r => cv.toBlob(r, "image/jpeg", 0.85))).arrayBuffer());
+  }
+  async function generarPdf(c) {
+    const estado = $("#p-pdf-estado"), b = $("#p-pdf");
+    b.disabled = true; estado.textContent = "Armando el PDF…";
+    try {
+      const { PDFDocument, StandardFonts, rgb } = await cargarPdfLib();
+      const pdf = await PDFDocument.create();
+      pdf.setTitle(`Expediente laboral · ${c.nombre}`); pdf.setAuthor("Báscula y Pensión El Castaño");
+      const f = await pdf.embedFont(StandardFonts.Helvetica), fb = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const W = 612, H = 792, M = 48;
+      const limpio = t => String(t ?? "").replace(/[^\x20-\x7E\u00A0-\u00FF]/g, "");
+      let pg = pdf.addPage([W, H]), y = H - M;
+      const nueva = () => { pg = pdf.addPage([W, H]); y = H - M; };
+      const texto = (t, { size = 10.5, bold = false, color = rgb(0.1, 0.1, 0.1), x = M } = {}) => {
+        const font = bold ? fb : f, maxW = W - M - x; let linea = "";
+        const salidas = [];
+        for (const palabra of limpio(t).split(" ")) { const prueba = linea ? linea + " " + palabra : palabra; if (font.widthOfTextAtSize(prueba, size) > maxW && linea) { salidas.push(linea); linea = palabra; } else linea = prueba; }
+        salidas.push(linea);
+        for (const l of salidas) { if (y < M + size) nueva(); pg.drawText(l, { x, y: y - size, size, font, color }); y -= size * 1.45; }
+      };
+      // Logo y encabezado
+      try { const logo = await pdf.embedPng(await (await fetch("/img/logo.png")).arrayBuffer()); pg.drawImage(logo, { x: M, y: H - M - 58, width: 42, height: 58 }); } catch {}
+      y = H - M - 6; texto("BÁSCULA Y PENSIÓN EL CASTAÑO", { size: 9, bold: true, color: rgb(0.45, 0.45, 0.45), x: M + 56 });
+      texto("Expediente laboral", { size: 22, bold: true, x: M + 56 });
+      texto(c.nombre, { size: 14, x: M + 56 });
+      y = Math.min(y, H - M - 72) - 10;
+      const seccion = t => { y -= 8; if (y < M + 60) nueva(); texto(t.toUpperCase(), { size: 9.5, bold: true, color: rgb(0.55, 0.42, 0) }); pg.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.6, color: rgb(0.8, 0.8, 0.8) }); y -= 4; };
+      const fila = (k, v) => {
+        if (y < M + 20) nueva();
+        if (f.widthOfTextAtSize(limpio(k), 10) > 140) { texto(k, { size: 10, color: rgb(0.42, 0.42, 0.42) }); y += 4; }
+        else { pg.drawText(limpio(k), { x: M, y: y - 10.5, size: 10, font: f, color: rgb(0.42, 0.42, 0.42) }); }
+        const y0 = y; texto(v || "-", { x: M + 150 }); if (y > y0 - 15) y = y0 - 15;
+      };
+      const d = c.datos, a = c.admin;
+      seccion("Datos laborales");
+      fila("Estatus", c.estatus === "inactivo" ? `Inactivo desde ${fecha(c.fecha_baja)}${c.motivo_baja ? " · " + c.motivo_baja : ""}` : "Activo");
+      fila("Puesto", a.puesto); fila("Nacionalidad", a.nacionalidad || "Nacional"); fila("Fecha de ingreso", fecha(a.fecha_ingreso)); fila("Turno u horario", a.turno); fila("Fecha de entrevista", fecha(a.fecha_entrevista));
+      seccion("Datos personales");
+      fila("Nombre completo", d.nombre); fila("Fecha de nacimiento", fecha(d.fecha_nacimiento)); fila("Lugar de nacimiento", d.lugar_nacimiento); fila("CURP", d.curp); fila("Estado civil", d.estado_civil); fila("Teléfono", d.telefono); fila("Correo electrónico", d.correo);
+      seccion("Domicilio");
+      fila("Calle y número", d.calle); fila("Colonia", d.colonia); fila("Municipio", d.municipio); fila("Código postal", d.cp);
+      seccion("Contacto de emergencia");
+      fila("Nombre", d.emerg_nombre); fila("Parentesco", d.emerg_parentesco); fila("Teléfono", d.emerg_telefono);
+      seccion("Escolaridad");
+      fila("Último grado", d.escolaridad); fila("Escuela", d.institucion);
+      seccion("Documentos");
+      for (const x of c.docs) fila(x.nombre, x.recibido ? `Entregado ${fecha(x.fecha)}${x.fotos.length ? " · foto anexa" : " · en físico"}` : "Pendiente");
+      if (c.admin_docs.length) { seccion("Documentos administrativos"); for (const x of c.admin_docs) fila(fecha(x.fecha), x.descripcion); }
+      if (a.notas) { seccion("Notas de la entrevista"); texto(a.notas); }
+      y -= 10; texto(`Generado el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long", timeStyle: "short" }).format(new Date())} · Datos tratados conforme al aviso de privacidad para colaboradores.`, { size: 8, color: rgb(0.5, 0.5, 0.5) });
+
+      // Anexos: fotos y PDFs
+      const anexos = [];
+      for (const x of c.docs) for (const ft of x.fotos) anexos.push({ titulo: x.nombre + (ft.archivo === "ine2" ? " (reverso)" : ft.archivo === "ine" ? " (frente)" : ft.archivo === "solicitud2" ? " (hoja 2)" : ""), url: `/panel/api/colaboradores/${c.id}/archivo/${ft.archivo}` });
+      for (const x of c.admin_docs) anexos.push({ titulo: `${x.descripcion} (${fecha(x.fecha)})`, url: `/panel/api/colaboradores/${c.id}/archivo-admin/${x.id}` });
+      let n = 0;
+      for (const ax of anexos) {
+        n++; estado.textContent = `Agregando anexos ${n} de ${anexos.length}…`;
+        const r = await fetch(ax.url); if (!r.ok) continue;
+        const tipo = (r.headers.get("Content-Type") || "").split(";")[0];
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if (tipo === "application/pdf") {
+          try {
+            const otro = await PDFDocument.load(bytes, { ignoreEncryption: true });
+            const pags = await pdf.copyPages(otro, otro.getPageIndices());
+            pags.forEach((p, i) => { pdf.addPage(p); if (i === 0) p.drawText(limpio("Anexo: " + ax.titulo), { x: 18, y: p.getHeight() - 16, size: 8, font: fb, color: rgb(0.55, 0.42, 0) }); });
+          } catch { nueva(); texto("Anexo: " + ax.titulo, { bold: true }); texto("No se pudo incluir este PDF (está protegido o dañado). Descárgalo desde el panel."); }
+          continue;
+        }
+        let img;
+        try { img = tipo === "image/jpeg" ? await pdf.embedJpg(bytes) : tipo === "image/png" ? await pdf.embedPng(bytes) : await pdf.embedJpg(await aJpeg(new Blob([bytes], { type: tipo }))); }
+        catch { nueva(); texto("Anexo: " + ax.titulo, { bold: true }); texto("No se pudo incluir esta imagen por su formato. Descárgala desde el panel."); continue; }
+        nueva(); texto("Anexo: " + ax.titulo, { size: 12, bold: true });
+        const maxW = W - 2 * M, maxH = y - M, k = Math.min(maxW / img.width, maxH / img.height);
+        pg.drawImage(img, { x: M + (maxW - img.width * k) / 2, y: y - img.height * k, width: img.width * k, height: img.height * k });
+      }
+      const out = await pdf.save();
+      const url = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
+      const link = document.createElement("a"); link.href = url; link.download = `Expediente-${c.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w]+/g, "-")}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+      estado.textContent = `Listo: ${pdf.getPageCount()} páginas.`;
+    } catch (e) { estado.textContent = e.message || "No se pudo generar el PDF."; }
+    b.disabled = false;
+  }
+
+  $("#p-flim").addEventListener("change", async e => {
+    try { const r = await post("colaboradores/config", { fecha_limite: e.target.value }); st.config = r.config; toast(r.config.fecha_limite ? "Fecha límite guardada" : "Fecha límite quitada"); cargar(); } catch (err) { toast(err.message); }
+  });
+  $("#p-recordar-todos").addEventListener("click", async e => {
+    const b = e.currentTarget;
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "¿Enviar correo a todos los incompletos?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Recordar a incompletos"; }, 4000); return; }
+    b.classList.remove("armed"); b.disabled = true; b.textContent = "Enviando…";
+    try {
+      const r = await post("colaboradores/recordar-todos");
+      toast(`${r.enviados} recordatorio${r.enviados === 1 ? "" : "s"} enviado${r.enviados === 1 ? "" : "s"}`);
+      $("#p-flim-nota").textContent = [r.enviados ? `Enviados: ${r.enviados}.` : "", r.sin_correo.length ? `Sin correo (mándales WhatsApp desde su ficha): ${r.sin_correo.join(", ")}.` : "", r.errores ? r.error : ""].filter(Boolean).join(" ") || "Nadie tiene pendientes.";
+    } catch (err) { toast(err.message); }
+    b.disabled = false; b.textContent = "Recordar a incompletos";
+  });
 
   function nuevo() {
     st.actual = null;
