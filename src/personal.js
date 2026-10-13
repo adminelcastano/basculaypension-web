@@ -27,23 +27,13 @@ export const CAMPOS_COLABORADOR = [
   ["estado_civil", 30, "lista:estado_civil"], ["telefono", 10, "tel"], ["correo", 120, "email"],
   ["calle", 120], ["colonia", 80], ["municipio", 80], ["cp", 5, "cp"],
   ["emerg_nombre", 120], ["emerg_parentesco", 40], ["emerg_telefono", 10, "tel"],
-  ["emerg2_nombre", 120], ["emerg2_parentesco", 40], ["emerg2_telefono", 10, "tel"],
-  ["escolaridad", 40, "lista:escolaridad"], ["institucion", 120],
-  ["emp1_empresa", 120], ["emp1_puesto", 80], ["emp1_periodo", 60], ["emp1_motivo", 200],
-  ["emp2_empresa", 120], ["emp2_puesto", 80], ["emp2_periodo", 60], ["emp2_motivo", 200],
-  ["ref1_nombre", 120], ["ref1_relacion", 40], ["ref1_telefono", 10, "tel"],
-  ["ref2_nombre", 120], ["ref2_relacion", 40], ["ref2_telefono", 10, "tel"]
+  ["escolaridad", 40, "lista:escolaridad"], ["institucion", 120]
 ];
 const ETIQUETAS = {
   nombre: "Nombre", fecha_nacimiento: "Fecha de nacimiento", lugar_nacimiento: "Lugar de nacimiento", curp: "CURP", estado_civil: "Estado civil",
   telefono: "Teléfono", correo: "Correo", calle: "Calle y número", colonia: "Colonia", municipio: "Municipio", cp: "Código postal",
   emerg_nombre: "Contacto de emergencia", emerg_parentesco: "Parentesco (emergencia)", emerg_telefono: "Teléfono de emergencia",
-  emerg2_nombre: "Segundo contacto", emerg2_parentesco: "Parentesco (segundo contacto)", emerg2_telefono: "Teléfono del segundo contacto",
-  escolaridad: "Escolaridad", institucion: "Escuela",
-  emp1_empresa: "Último trabajo: empresa", emp1_puesto: "Último trabajo: puesto", emp1_periodo: "Último trabajo: tiempo", emp1_motivo: "Último trabajo: motivo de salida",
-  emp2_empresa: "Trabajo anterior: empresa", emp2_puesto: "Trabajo anterior: puesto", emp2_periodo: "Trabajo anterior: tiempo", emp2_motivo: "Trabajo anterior: motivo de salida",
-  ref1_nombre: "Referencia 1", ref1_relacion: "Referencia 1: relación", ref1_telefono: "Referencia 1: teléfono",
-  ref2_nombre: "Referencia 2", ref2_relacion: "Referencia 2: relación", ref2_telefono: "Referencia 2: teléfono"
+  escolaridad: "Escolaridad", institucion: "Escuela"
 };
 export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "correo", "calle", "colonia", "municipio", "emerg_nombre", "emerg_parentesco", "emerg_telefono"];
 
@@ -77,7 +67,7 @@ export async function asegurarEsquemaPersonal(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"]]) {
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"], ["llenado_aviso", "TEXT"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -120,6 +110,14 @@ function leerCampos(cuerpo, campos, requeridos = []) {
   return { datos, errores };
 }
 
+// Fotos que se pueden subir por documento (la INE o identificación lleva frente y reverso)
+const ARCHIVOS = { ine: ["ine", "ine2"], curp: ["curp"], solicitud: ["solicitud", "solicitud2"], acta: ["acta"], domicilio: ["domicilio"], estudios: ["estudios"] };
+const DOC_DE_ARCHIVO = Object.fromEntries(Object.entries(ARCHIVOS).flatMap(([d, as]) => as.map(a => [a, d])));
+const MAX_FOTO = 10 * 1024 * 1024;
+const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+const TIPOS_LEGIBLES = ["image/jpeg", "image/png", "image/webp"];
+const MODELO_VISION = "@cf/meta/llama-3.2-11b-vision-instruct";
+
 // Nombres de los documentos según la nacionalidad elegida en el alta
 function nombresDocs(admin) {
   const n = { ...DOCUMENTOS };
@@ -127,7 +125,11 @@ function nombresDocs(admin) {
   return n;
 }
 function docsResumen(docs, admin) {
-  const lista = Object.entries(nombresDocs(admin)).map(([k, nombre]) => ({ clave: k, nombre, recibido: !!(docs[k] && docs[k].recibido), fecha: docs[k] && docs[k].fecha || null }));
+  const lista = Object.entries(nombresDocs(admin)).map(([k, nombre]) => ({
+    clave: k, nombre, recibido: !!(docs[k] && docs[k].recibido), fecha: docs[k] && docs[k].fecha || null,
+    fotos: ARCHIVOS[k].filter(a => docs[k] && docs[k].fotos && docs[k].fotos[a]).map(a => ({ archivo: a, fecha: docs[k].fotos[a] })),
+    piezas: ARCHIVOS[k].length
+  }));
   return { lista, entregados: lista.filter(d => d.recibido).length, total: lista.length };
 }
 
@@ -164,11 +166,11 @@ export async function expedientePagina(request, env, url) {
 }
 
 // Aviso a la administración cada vez que un colaborador envía el formulario
-function avisoAdmin(nombre, primeraVez, cambios, docs) {
+function avisoAdmin(nombre, primeraVez, cambios, docs, subidos = []) {
   const tipo = primeraVez ? "Expediente nuevo" : "Actualización de expediente";
   const panel = `${SITIO}/panel#personal`;
   const lista = primeraVez ? [] : cambios.map(([k, antes, ahora]) => `${ETIQUETAS[k] || k}: ${antes || "(vacío)"} → ${ahora || "(vacío)"}`);
-  const resumenDocs = `${docs.entregados} de ${docs.total} documentos entregados`;
+  const resumenDocs = `${docs.entregados} de ${docs.total} documentos entregados${subidos.length ? ". Subió foto de: " + subidos.join(", ") : ""}`;
   const texto = `${tipo}: ${nombre}\n\n${primeraVez ? "Llenó sus datos por primera vez." : lista.length ? "Cambió:\n" + lista.map(l => "- " + l).join("\n") : "Volvió a enviar sus datos sin cambios."}\n\n${resumenDocs}.\n\nRevísalo en el panel: ${panel}`;
   const html = `<p style="font-family:Arial,sans-serif;font-size:15px"><b>${escH(tipo)}</b>: ${escH(nombre)}</p>
 <p style="font-family:Arial,sans-serif;font-size:15px">${primeraVez ? "Llenó sus datos por primera vez (proceso inicial)." : lista.length ? "Cambió:" : "Volvió a enviar sus datos sin cambios."}</p>
@@ -178,6 +180,107 @@ ${lista.length ? `<ul style="font-family:Arial,sans-serif;font-size:14px">${list
   return { asunto: `${tipo} · ${nombre}`, texto, html };
 }
 
+// ---------------------------------------------------------------------------
+// Lectura de documentos con IA (llena los campos que el colaborador dejó vacíos)
+// ---------------------------------------------------------------------------
+const INSTRUCCIONES_DOC = {
+  ine: `Es una credencial para votar del INE de México (frente). Lee:
+"nombre": el nombre completo en este orden: nombre(s) y luego apellido paterno y materno (en la credencial aparecen primero los apellidos);
+"curp": la CURP de 18 caracteres; "fecha_nacimiento": la fecha de nacimiento como DD/MM/AAAA;
+"calle": calle y número del domicilio; "colonia": la colonia; "cp": el código postal de 5 dígitos; "municipio": el municipio o ciudad.`,
+  ine_ext: `Es un pasaporte o una tarjeta de residente. Lee:
+"nombre": el nombre completo en este orden: nombre(s) y luego apellidos; "fecha_nacimiento": la fecha de nacimiento como DD/MM/AAAA;
+"curp": la CURP de 18 caracteres si aparece.`,
+  curp: `Es una constancia de la CURP de México. Lee:
+"curp": la clave CURP de 18 caracteres; "nombre": el nombre completo (nombre(s) y luego apellidos);
+"fecha_nacimiento": la fecha de nacimiento como DD/MM/AAAA; "lugar_nacimiento": la entidad de nacimiento.`,
+  acta: `Es un acta de nacimiento de México. Lee los datos de la persona registrada (no de los padres):
+"nombre": su nombre completo (nombre(s) y luego apellidos); "fecha_nacimiento": como DD/MM/AAAA;
+"lugar_nacimiento": el lugar de nacimiento (municipio y estado); "curp": su CURP si aparece.`,
+  domicilio: `Es un comprobante de domicilio (recibo de luz, agua, teléfono o similar). Lee el domicilio del servicio:
+"calle": calle y número; "colonia": la colonia; "cp": el código postal de 5 dígitos; "municipio": el municipio o ciudad.`,
+  estudios: `Es un comprobante de estudios (certificado, título o constancia). Lee:
+"nivel": el nivel de estudios, uno de: Primaria, Secundaria, Preparatoria o bachillerato, Carrera técnica, Licenciatura, Posgrado;
+"institucion": el nombre de la escuela.`
+};
+
+function fechaISO(v) {
+  const m = String(v || "").match(/(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{4})/);
+  if (!m) return "";
+  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (d < 1 || d > 31 || mes < 1 || mes > 12 || a < 1930 || a > new Date().getFullYear()) return "";
+  return `${a}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+function titulo(v) { return String(v || "").toLowerCase().replace(/(^|[\s-])([a-záéíóúñü])/g, (x, a, b) => a + b.toUpperCase()); }
+
+async function leerDocumento(env, archivo, bytes, tipo, admin) {
+  if (!env.AI || !TIPOS_LEGIBLES.includes(tipo) || bytes.byteLength > 5 * 1024 * 1024) return {};
+  let clave = DOC_DE_ARCHIVO[archivo];
+  if (archivo === "ine2" || clave === "solicitud") return {};
+  if (clave === "ine" && admin && admin.nacionalidad === "Naturalizado") clave = "ine_ext";
+  const instr = INSTRUCCIONES_DOC[clave];
+  if (!instr) return {};
+  if (!(await env.FILES.get("ai:licencia"))) {
+    try { await env.AI.run(MODELO_VISION, { prompt: "agree" }); } catch {}
+    await env.FILES.put("ai:licencia", "1");
+  }
+  let bin = ""; const u = new Uint8Array(bytes);
+  for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  let r;
+  try {
+    r = await Promise.race([
+      env.AI.run(MODELO_VISION, {
+        messages: [{ role: "system", content: "Respondes únicamente con JSON válido." },
+          { role: "user", content: `${instr}\nLa foto puede estar girada o inclinada. Copia los datos exactamente como aparecen. Si un dato no se lee con claridad, usa null. No inventes datos.\nResponde SOLO con un objeto JSON con esas claves.` }],
+        image: `data:${tipo};base64,${btoa(bin)}`, max_tokens: 300, temperature: 0
+      }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("tiempo")), 25000))
+    ]);
+  } catch (e) { console.log("leer documento", e && e.message); return {}; }
+  const t = String((r && (r.response ?? r.result?.response)) || "");
+  const m = t.match(/\{[\s\S]*\}/);
+  if (!m) return {};
+  let d; try { d = JSON.parse(m[0]); } catch { return {}; }
+  const v = k => { const x = d[k]; return x === null || x === undefined || /^null$/i.test(String(x).trim()) ? "" : String(x).replace(/\s+/g, " ").trim(); };
+  const out = {};
+  const curp = v("curp").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (RE_CURP.test(curp)) out.curp = curp;
+  const nombre = v("nombre"); if (nombre && nombre.length >= 5 && !/\d/.test(nombre)) out.nombre = titulo(nombre).slice(0, 120);
+  const fecha = fechaISO(v("fecha_nacimiento")); if (fecha) out.fecha_nacimiento = fecha;
+  if (v("lugar_nacimiento")) out.lugar_nacimiento = titulo(v("lugar_nacimiento")).slice(0, 80);
+  if (v("calle")) out.calle = titulo(v("calle")).slice(0, 120);
+  if (v("colonia")) out.colonia = titulo(v("colonia").replace(/^col(onia)?\.?\s*/i, "")).slice(0, 80);
+  if (v("municipio")) out.municipio = titulo(v("municipio")).slice(0, 80);
+  const cp = v("cp").replace(/\D/g, ""); if (cp.length === 5) out.cp = cp;
+  const nivel = ESCOLARIDAD.find(n => n.toLowerCase() === v("nivel").toLowerCase()) || ESCOLARIDAD.find(n => v("nivel") && n.toLowerCase().startsWith(v("nivel").toLowerCase().slice(0, 5)));
+  if (nivel) out.escolaridad = nivel;
+  if (v("institucion")) out.institucion = v("institucion").slice(0, 120);
+  return out;
+}
+
+// Sube la foto de un documento desde el enlace personal: se guarda y se palomea solo
+async function subirFoto(request, env, fila, archivo) {
+  const clave = DOC_DE_ARCHIVO[archivo];
+  if (!clave) return json({ ok: false, error: "Documento desconocido." }, 404);
+  const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+  if (!TIPOS_FOTO.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG o HEIC) o un PDF." }, 415);
+  if (Number(request.headers.get("Content-Length") || 0) > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB. Toma la foto de nuevo o envía uno más ligero." }, 413);
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength) return json({ ok: false, error: "El archivo llegó vacío. Intenta de nuevo." }, 400);
+  if (bytes.byteLength > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB." }, 413);
+  const ahora = new Date().toISOString();
+  await env.FILES.put(`x:${fila.id}:${archivo}`, bytes, { metadata: { tipo, subido: ahora } });
+  const docs = parse(fila.docs);
+  const d = docs[clave] || {};
+  d.fotos = { ...(d.fotos || {}), [archivo]: ahora };
+  // Se palomea con la foto principal (en la INE, el frente)
+  if (archivo === ARCHIVOS[clave][0]) { d.recibido = true; d.fecha = ahora.slice(0, 10); d.origen = "foto"; }
+  docs[clave] = d;
+  await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, fila.id).run();
+  const leidos = await leerDocumento(env, archivo, bytes, tipo, parse(fila.admin));
+  return json({ ok: true, docs: docsResumen(docs, parse(fila.admin)), leidos });
+}
+
 export async function expedienteApi(request, env, url, ctx, avisar) {
   const token = url.pathname.split("/")[3] || "";
   if (!RE_TOKEN.test(token)) return json({ ok: false, error: "Enlace no válido." }, 404);
@@ -185,6 +288,19 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
   const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE token = ?").bind(token).first();
   if (!fila) return json({ ok: false, error: "Este enlace ya no es válido. Pide uno nuevo a la administración." }, 404);
   if (fila.estatus === "inactivo") return json({ ok: false, error: "Este enlace ya no está activo. Si crees que es un error, comunícate con la administración." }, 403);
+
+  const resto = url.pathname.split("/").slice(4); // tras /api/expediente/<token>/
+  if (resto[0] === "doc" && resto[1]) {
+    if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
+    const origin = request.headers.get("Origin");
+    if (origin && origin !== url.origin) return json({ ok: false, error: "Origen no permitido." }, 403);
+    const ip = request.headers.get("CF-Connecting-IP") || "0";
+    const llave = "rlf:" + (await sha256Hex(ip)).slice(0, 24) + ":" + new Date().toISOString().slice(0, 13);
+    const conteo = Number(await env.FILES.get(llave) || 0);
+    if (conteo >= 40) return json({ ok: false, error: "Demasiados archivos en poco tiempo. Espera una hora e intenta de nuevo." }, 429);
+    await env.FILES.put(llave, String(conteo + 1), { expirationTtl: 3700 });
+    return await subirFoto(request, env, fila, resto[1]);
+  }
 
   if (request.method === "GET") {
     const datos = parse(fila.datos);
@@ -214,10 +330,12 @@ export async function expedienteApi(request, env, url, ctx, avisar) {
   const previos = parse(fila.datos);
   const primeraVez = !fila.llenado_en;
   const cambios = CAMPOS_COLABORADOR.map(([k]) => [k, previos[k] || "", datos[k] || ""]).filter(([, a, b]) => a !== b);
-  await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, actualizado = ? WHERE id = ?")
-    .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, fila.id).run();
+  await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
+    .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id).run();
   if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
-    const aviso = avisoAdmin(datos.nombre, primeraVez, cambios, docsResumen(parse(fila.docs), parse(fila.admin)));
+    const desde = primeraVez ? "" : (fila.llenado_aviso || fila.llenado_en || "");
+    const subidos = docsResumen(parse(fila.docs), parse(fila.admin)).lista.filter(x => x.fotos.some(f => f.fecha > desde)).map(x => x.nombre);
+    const aviso = avisoAdmin(datos.nombre, primeraVez, cambios, docsResumen(parse(fila.docs), parse(fila.admin)), subidos);
     const p = avisar(env, aviso).catch(e => console.error("aviso expediente", e && e.message));
     if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
   }
@@ -234,14 +352,14 @@ function correoEnlace(nombre, token, admin) {
   const primer = String(nombre || "").split(" ")[0];
   const docs = Object.values(nombresDocs(admin));
   const asunto = "Tu expediente laboral · Báscula y Pensión El Castaño";
-  const texto = `Hola ${primer}:\n\nPara actualizar tu expediente laboral, llena tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nTambién entrega 2 copias de cada documento con Josué:\n${docs.map(d => "- " + d).join("\n")}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const texto = `Hola ${primer}:\n\nPara actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nTambién entrega 2 copias de cada documento con Josué:\n${docs.map(d => "- " + d).join("\n")}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
   const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
 <div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
 <img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
 <p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Expediente laboral</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
-<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para actualizar tu expediente laboral, llena tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.</p>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Llenar mis datos</a></p>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para actualizar tu expediente laboral, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.</p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
 <p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>Entrega 2 copias de cada documento con Josué:</b></p>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
@@ -338,6 +456,15 @@ export async function personalPanel(request, env, url, partes, enviar) {
     });
   }
 
+  if (partes[2] === "archivo" && DOC_DE_ARCHIVO[partes[3]] && request.method === "GET") {
+    const { value, metadata } = await env.FILES.getWithMetadata(`x:${id}:${partes[3]}`, { type: "arrayBuffer" });
+    if (!value) return new Response("Archivo no disponible.", { status: 404, headers: cabecerasPrivadas() });
+    const tipo = metadata && TIPOS_FOTO.includes(metadata.tipo) ? metadata.tipo : "application/octet-stream";
+    const ext = tipo === "application/pdf" ? "pdf" : (tipo.split("/")[1] || "bin");
+    const nombre = String(fila.nombre).normalize("NFD").replace(/[^\w ]/g, "").replace(/\s+/g, "-").slice(0, 40);
+    return new Response(value, { headers: cabecerasPrivadas({ "Content-Type": tipo, "Content-Disposition": `inline; filename="${nombre}-${partes[3]}.${ext}"`, "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'", "X-Frame-Options": "SAMEORIGIN" }) });
+  }
+
   if (request.method !== "POST" || partes.length !== 3) return json({ ok: false, error: "Ruta no encontrada." }, 404);
   const cuerpo = await request.json().catch(() => ({}));
   const ahora = new Date().toISOString();
@@ -345,7 +472,9 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes[2] === "doc") {
     if (!DOCUMENTOS[cuerpo.clave]) return json({ ok: false, error: "Documento desconocido." }, 422);
     const docs = parse(fila.docs);
-    if (cuerpo.recibido) docs[cuerpo.clave] = { recibido: true, fecha: /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha || "") ? cuerpo.fecha : ahora.slice(0, 10) };
+    const previo = docs[cuerpo.clave] || {};
+    if (cuerpo.recibido) docs[cuerpo.clave] = { ...previo, recibido: true, fecha: /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha || "") ? cuerpo.fecha : ahora.slice(0, 10), origen: "panel" };
+    else if (previo.fotos) docs[cuerpo.clave] = { fotos: previo.fotos };
     else delete docs[cuerpo.clave];
     await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, id).run();
     return json({ ok: true, docs: docsResumen(docs, parse(fila.admin)) });
@@ -391,6 +520,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
   }
 
   if (partes[2] === "eliminar") {
+    for (const a of Object.keys(DOC_DE_ARCHIVO)) await env.FILES.delete(`x:${id}:${a}`);
     await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }

@@ -36,8 +36,27 @@ main { padding-block: 28px 64px; }
 .intro .kicker { color: var(--amber); font-weight: 700; font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; }
 .intro h1 { font-size: clamp(2.2rem, 8vw, 3.2rem); }
 .intro p { color: var(--muted); margin: 0; }
-.docs { background: var(--surface); border-radius: 22px; padding: 18px 18px 20px; display: grid; gap: 12px; margin-bottom: 22px; }
-.docs h2 { font-size: 1.35rem; }
+.docs { gap: 12px; }
+.subidas { display: grid; gap: 10px; }
+.sub { display: grid; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--bg); border: 1.5px solid var(--line); }
+.sub.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.sub-h { display: flex; gap: 10px; align-items: center; }
+.sub-h .m { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; border: 2px solid #48484a; color: transparent; }
+.sub.ok .sub-h .m { background: var(--ok); border-color: var(--ok); color: #04210f; }
+.sub-b { display: flex; flex-wrap: wrap; gap: 8px; }
+.subir { position: relative; min-height: 44px; padding: 0 16px; font-size: .98rem; cursor: pointer; overflow: hidden; }
+.subir input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.subir.hecha { color: var(--ok); }
+.estado { font-size: .92rem; color: var(--muted); }
+.estado:empty { display: none; }
+.estado.bien { color: var(--ok); }
+.estado.mal { color: var(--bad); font-weight: 600; }
+label.leido input, label.leido select { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+label.leido::after { content: "Leído de tu documento: revísalo"; font-weight: 500; font-size: .85rem; color: var(--amber); }
+.dos > * { min-width: 0; }
+input[type=date] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; }
+
 .barra { height: 8px; background: #2a2a2d; border-radius: 999px; overflow: hidden; }
 .barra i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width .4s; }
 .docs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -99,22 +118,22 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     <div class="intro">
       <span class="kicker">Expediente laboral</span>
       <h1 id="hola">Hola.</h1>
-      <p>Llena tus datos para tu expediente. Toma unos 5 minutos. Si después necesitas corregir algo, vuelve a abrir este mismo enlace.</p>
+      <p>Sube la foto de tus documentos y revisa tus datos. Los llenamos leyendo tus documentos para que escribas menos. Si después necesitas corregir algo, vuelve a abrir este mismo enlace.</p>
     </div>
-
-    <section class="docs" aria-labelledby="t-docs">
-      <h2 id="t-docs">Tus documentos</h2>
-      <div class="barra" aria-hidden="true"><i id="barra" style="width:0"></i></div>
-      <p class="note" id="docs-cuenta"></p>
-      <ul id="docs-lista"></ul>
-      <p class="note">Entrega <b>2 copias de cada documento</b> con <b>Josué</b>. Aquí se marcan conforme los vas entregando.</p>
-    </section>
 
     <p class="ya" id="ya" hidden></p>
 
     <form id="form" novalidate>
+      <fieldset class="docs" aria-labelledby="t-docs">
+        <legend id="t-docs"><span class="paso">1</span>Tus documentos</legend>
+        <div class="barra" aria-hidden="true"><i id="barra" style="width:0"></i></div>
+        <p class="note" id="docs-cuenta"></p>
+        <div id="docs-lista" class="subidas"></div>
+        <p class="note">Toma la foto de frente, con buena luz y que se lean todas las letras. También puedes subir un PDF. Además, entrega <b>2 copias de cada documento</b> con <b>Josué</b>.</p>
+      </fieldset>
+
       <fieldset>
-        <legend><span class="paso">1</span>Datos personales</legend>
+        <legend><span class="paso">2</span>Datos personales</legend>
         <label class="f">Nombre completo<input type="text" name="nombre" autocomplete="name" maxlength="120"><span class="err" data-err="nombre"></span></label>
         <div class="dos">
           <label class="f">Fecha de nacimiento<input type="date" name="fecha_nacimiento"><span class="err" data-err="fecha_nacimiento"></span></label>
@@ -129,7 +148,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       </fieldset>
 
       <fieldset>
-        <legend><span class="paso">2</span>Domicilio</legend>
+        <legend><span class="paso">3</span>Domicilio</legend>
         <label class="f">Calle y número<input type="text" name="calle" autocomplete="address-line1" maxlength="120"><span class="err" data-err="calle"></span></label>
         <label class="f">Colonia<input type="text" name="colonia" maxlength="80"><span class="err" data-err="colonia"></span></label>
         <div class="dos">
@@ -139,65 +158,23 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       </fieldset>
 
       <fieldset>
-        <legend><span class="paso">3</span>Contacto de emergencia</legend>
+        <legend><span class="paso">4</span>Contacto de emergencia</legend>
         <p class="hint" style="margin:0">A quién llamamos si te pasa algo en el trabajo.</p>
         <label class="f">Nombre<input type="text" name="emerg_nombre" maxlength="120"><span class="err" data-err="emerg_nombre"></span></label>
         <div class="dos">
           <label class="f">Parentesco<input type="text" name="emerg_parentesco" maxlength="40" placeholder="Ej. Esposa, mamá, hermano"><span class="err" data-err="emerg_parentesco"></span></label>
           <label class="f">Teléfono<input type="tel" name="emerg_telefono" inputmode="tel" maxlength="14" placeholder="10 dígitos"><span class="err" data-err="emerg_telefono"></span></label>
         </div>
-        <p class="sub">Segundo contacto <span class="op" style="font-weight:400">· opcional</span></p>
-        <label class="f">Nombre<input type="text" name="emerg2_nombre" maxlength="120"></label>
-        <div class="dos">
-          <label class="f">Parentesco<input type="text" name="emerg2_parentesco" maxlength="40"></label>
-          <label class="f">Teléfono<input type="tel" name="emerg2_telefono" inputmode="tel" maxlength="14" placeholder="10 dígitos"><span class="err" data-err="emerg2_telefono"></span></label>
-        </div>
       </fieldset>
 
       <fieldset>
-        <legend><span class="paso">4</span>Escolaridad</legend>
+        <legend><span class="paso">5</span>Escolaridad</legend>
         <label class="f">Último grado de estudios<select name="escolaridad" id="sel-escolaridad"><option value="">Elige…</option></select><span class="err" data-err="escolaridad"></span></label>
         <label class="f">Escuela <span class="op">Opcional</span><input type="text" name="institucion" maxlength="120"></label>
       </fieldset>
 
-      <fieldset>
-        <legend><span class="paso">5</span>Experiencia laboral</legend>
-        <p class="hint" style="margin:0">Tus últimos dos trabajos. Si no has trabajado antes, déjalo en blanco.</p>
-        <p class="sub">Último trabajo</p>
-        <div class="dos">
-          <label class="f">Empresa<input type="text" name="emp1_empresa" maxlength="120"></label>
-          <label class="f">Puesto<input type="text" name="emp1_puesto" maxlength="80"></label>
-        </div>
-        <label class="f">Cuánto tiempo<input type="text" name="emp1_periodo" maxlength="60" placeholder="Ej. 2021 a 2024, o 3 años"></label>
-        <label class="f">Motivo de salida<input type="text" name="emp1_motivo" maxlength="200"></label>
-        <p class="sub">Trabajo anterior</p>
-        <div class="dos">
-          <label class="f">Empresa<input type="text" name="emp2_empresa" maxlength="120"></label>
-          <label class="f">Puesto<input type="text" name="emp2_puesto" maxlength="80"></label>
-        </div>
-        <label class="f">Cuánto tiempo<input type="text" name="emp2_periodo" maxlength="60"></label>
-        <label class="f">Motivo de salida<input type="text" name="emp2_motivo" maxlength="200"></label>
-      </fieldset>
-
-      <fieldset>
-        <legend><span class="paso">6</span>Referencias personales</legend>
-        <p class="hint" style="margin:0">Dos personas que te conozcan y no sean familiares directos.</p>
-        <p class="sub">Referencia 1</p>
-        <label class="f">Nombre<input type="text" name="ref1_nombre" maxlength="120"></label>
-        <div class="dos">
-          <label class="f">Relación<input type="text" name="ref1_relacion" maxlength="40" placeholder="Ej. Vecino, amigo"></label>
-          <label class="f">Teléfono<input type="tel" name="ref1_telefono" inputmode="tel" maxlength="14"><span class="err" data-err="ref1_telefono"></span></label>
-        </div>
-        <p class="sub">Referencia 2</p>
-        <label class="f">Nombre<input type="text" name="ref2_nombre" maxlength="120"></label>
-        <div class="dos">
-          <label class="f">Relación<input type="text" name="ref2_relacion" maxlength="40"></label>
-          <label class="f">Teléfono<input type="tel" name="ref2_telefono" inputmode="tel" maxlength="14"><span class="err" data-err="ref2_telefono"></span></label>
-        </div>
-      </fieldset>
-
       <div>
-        <label class="check"><input type="checkbox" name="acepto"><span>Acepto que Báscula y Pensión El Castaño use estos datos solo para mi expediente laboral, conforme a su <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>.</span></label>
+        <label class="check"><input type="checkbox" name="acepto"><span>Acepto que Báscula y Pensión El Castaño use estos datos y documentos solo para mi expediente laboral, conforme a su <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>.</span></label>
         <span class="err" data-err="acepto"></span>
       </div>
       <div class="alerta" id="alerta" role="alert"></div>
@@ -212,7 +189,6 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   </div>
 </main>
 <footer class="wrap">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas</footer>
-
 <script>
 (() => {
   const $ = s => document.querySelector(s);
@@ -221,12 +197,78 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   const form = $("#form");
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long" });
+  const ETIQ_PIEZA = { ine2: "Reverso", solicitud2: "Hoja 2" };
+  const ETIQ_PRIMERA = { ine: "Frente", solicitud: "Hoja 1" };
+  let docsActual = null;
 
   function pintarDocs(d) {
+    docsActual = d;
     $("#barra").style.width = (d.total ? d.entregados / d.total * 100 : 0) + "%";
-    $("#docs-cuenta").textContent = d.entregados === d.total ? "Entregaste todos tus documentos. ¡Gracias!" : `Llevas ${d.entregados} de ${d.total} entregados.`;
-    $("#docs-lista").innerHTML = d.lista.map(x => `<li class="${x.recibido ? "ok" : ""}"><span class="m" aria-hidden="true">✓</span><span>${esc(x.nombre)}${x.recibido ? " · entregado" : ""}</span></li>`).join("");
+    $("#docs-cuenta").textContent = d.entregados === d.total ? "Tienes todos tus documentos. ¡Gracias!" : `Llevas ${d.entregados} de ${d.total}.`;
+    $("#docs-lista").innerHTML = d.lista.map(x => {
+      const piezas = x.clave === "ine" ? ["ine", "ine2"] : x.clave === "solicitud" ? ["solicitud", "solicitud2"] : [x.clave];
+      const tiene = a => x.fotos.some(f => f.archivo === a);
+      return `<div class="sub ${x.recibido ? "ok" : ""}" data-doc="${x.clave}">
+        <div class="sub-h"><span class="m" aria-hidden="true">✓</span><b>${esc(x.nombre)}</b></div>
+        <div class="sub-b">${piezas.map((a, i) => `<label class="btn btn-line subir ${tiene(a) ? "hecha" : ""}">
+          <input type="file" accept="image/*,application/pdf" data-archivo="${a}">
+          <span>${tiene(a) ? "✓ " : ""}${piezas.length > 1 ? (i ? ETIQ_PIEZA[a] + (a === "solicitud2" ? " (si tiene)" : "") : ETIQ_PRIMERA[a]) : (tiene(a) ? "Subida" : "Subir foto")}${tiene(a) ? " · cambiar" : ""}</span></label>`).join("")}</div>
+        <span class="estado" data-estado="${x.clave}"></span>
+      </div>`;
+    }).join("");
   }
+
+  // Reduce la foto en el teléfono (las fotos del celular pesan varios MB)
+  async function preparar(file) {
+    if (!file.type.startsWith("image/") || file.size < 1.2e6) return file;
+    try {
+      const img = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const k = Math.min(1, 2200 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const b = await new Promise(r => c.toBlob(r, "image/jpeg", 0.86));
+      return b && b.size < file.size ? b : file;
+    } catch { return file; }
+  }
+
+  function llenar(leidos) {
+    const puestos = [];
+    for (const [k, v] of Object.entries(leidos || {})) {
+      const el = form.elements[k];
+      if (!el) continue;
+      const actual = el.value.trim();
+      // Nunca se sobrescribe lo que ya escribió; solo el nombre se completa si el documento lo contiene
+      const norm = t => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/\s+/).filter(Boolean);
+      if (actual && !(k === "nombre" && norm(v).length > norm(actual).length && norm(actual).every(w => norm(v).includes(w)))) continue;
+      if (el.tagName === "SELECT" && ![...el.options].some(o => o.value === v || o.text === v)) continue;
+      el.value = v; el.closest("label")?.classList.add("leido"); puestos.push(k);
+    }
+    return puestos.length;
+  }
+
+  $("#docs-lista").addEventListener("change", async e => {
+    const inp = e.target.closest("input[type=file]"); if (!inp || !inp.files[0]) return;
+    const archivo = inp.dataset.archivo;
+    const caja = inp.closest(".sub");
+    const estado = caja.querySelector(".estado");
+    form.querySelectorAll("input[type=file]").forEach(x => x.disabled = true);
+    estado.className = "estado"; estado.textContent = "Subiendo…";
+    let j;
+    try {
+      const f = await preparar(inp.files[0]);
+      const tipo = f.type || inp.files[0].type || "application/octet-stream";
+      estado.textContent = "Subiendo y leyendo tu documento…";
+      const r = await fetch(`${api}/doc/${archivo}`, { method: "POST", headers: { "Content-Type": tipo }, body: f });
+      j = await r.json().catch(() => ({ ok: false, error: "No se pudo subir. Intenta de nuevo." }));
+    } catch { j = { ok: false, error: "No hay conexión. Intenta de nuevo." }; }
+    form.querySelectorAll("input[type=file]").forEach(x => x.disabled = false);
+    if (!j.ok) { estado.className = "estado mal"; estado.textContent = j.error || "No se pudo subir."; return; }
+    pintarDocs(j.docs);
+    const n = llenar(j.leidos);
+    const est = document.querySelector(`[data-estado="${caja.dataset.doc}"]`);
+    est.className = "estado bien";
+    est.textContent = n ? `Listo. Llenamos ${n} ${n === 1 ? "dato" : "datos"} con tu documento; revísalos abajo.` : "Listo, documento recibido.";
+  });
 
   async function cargar() {
     let j;
@@ -234,13 +276,15 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     $("#cargando").hidden = true;
     if (!j.ok) { $("#fatal").textContent = j.error || "No se pudo abrir el enlace."; $("#fatal").hidden = false; return; }
     for (const k of ["estado_civil", "escolaridad"]) $("#sel-" + k).insertAdjacentHTML("beforeend", j.listas[k].map(v => `<option>${esc(v)}</option>`).join(""));
-    for (const [k, v] of Object.entries(j.datos || {})) { const el = form.elements[k]; if (el && el.type !== "checkbox") el.value = v; }
+    for (const [k, v] of Object.entries(j.datos || {})) { const el = form.elements[k]; if (el && el.type !== "checkbox" && el.type !== "file") el.value = v; }
     const primer = (j.datos.nombre || "").split(" ")[0];
     $("#hola").textContent = primer ? `Hola, ${primer}.` : "Hola.";
-    if (j.llenado_en) { $("#ya").textContent = `Ya enviaste tus datos el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlos y enviarlos de nuevo.`; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; }
+    if (j.llenado_en) { $("#ya").textContent = `Ya enviaste tus datos el ${fmt.format(new Date(j.llenado_en))}. Puedes corregirlos, subir documentos que te falten y enviarlos de nuevo.`; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; }
     pintarDocs(j.docs);
     $("#vista").hidden = false;
   }
+
+  form.addEventListener("input", e => e.target.closest("label")?.classList.remove("leido"));
 
   form.addEventListener("submit", async e => {
     e.preventDefault();
@@ -265,10 +309,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (primero && primero.focus) primero.focus({ preventScroll: true });
       return;
     }
+    const faltan = docsActual ? docsActual.total - docsActual.entregados : 0;
+    $("#hecho p").textContent = faltan ? `Recibimos tus datos. Te ${faltan === 1 ? "falta 1 documento" : `faltan ${faltan} documentos`}: puedes subirlos después con este mismo enlace. Recuerda entregar 2 copias de cada uno con Josué.` : "Recibimos tus datos y tus documentos. Recuerda entregar 2 copias de cada documento con Josué.";
     $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 });
   });
 
-  $("#revisar").addEventListener("click", () => { $("#hecho").hidden = true; $("#vista").hidden = false; $("#ya").textContent = "Ya enviaste tus datos. Puedes corregirlos y enviarlos de nuevo."; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; });
+  $("#revisar").addEventListener("click", () => { $("#hecho").hidden = true; $("#vista").hidden = false; $("#ya").textContent = "Ya enviaste tus datos. Puedes corregirlos, subir documentos que te falten y enviarlos de nuevo."; $("#ya").hidden = false; $("#enviar").textContent = "Guardar cambios"; });
 
   cargar();
 })();

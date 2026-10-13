@@ -246,6 +246,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .checklist { display: grid; gap: 0; }
 .chk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .chk:last-child { border-bottom: 0; }
+.chkrow { border-bottom: 1px solid var(--line); }
+.chkrow:last-child { border-bottom: 0; }
+.chkrow .chk { border-bottom: 0; }
+.chkrow .fotos { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 11px 42px; margin-top: -4px; }
+.chkrow .fotos a { text-decoration: none; }
 .chk input { width: 24px; height: 24px; margin: 0; accent-color: var(--ok); cursor: pointer; }
 .chk b { font-weight: 600; font-size: 1.02rem; }
 .chk.ok b { color: var(--muted); text-decoration: line-through; text-decoration-color: #5a5a5e; }
@@ -916,13 +921,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   const CAMPOS = [
     ["Datos personales", [["nombre", "Nombre completo", "wide"], ["fecha_nacimiento", "Fecha de nacimiento", "", "date"], ["lugar_nacimiento", "Lugar de nacimiento"], ["curp", "CURP"], ["estado_civil", "Estado civil", "", "lista:estado_civil"], ["telefono", "Teléfono celular", "", "tel"], ["correo", "Correo electrónico", "", "email"]]],
     ["Domicilio", [["calle", "Calle y número", "wide"], ["colonia", "Colonia"], ["municipio", "Municipio"], ["cp", "Código postal"]]],
-    ["Contacto de emergencia", [["emerg_nombre", "Nombre", "wide"], ["emerg_parentesco", "Parentesco"], ["emerg_telefono", "Teléfono", "", "tel"], ["emerg2_nombre", "Segundo contacto", "wide"], ["emerg2_parentesco", "Parentesco"], ["emerg2_telefono", "Teléfono", "", "tel"]]],
-    ["Escolaridad", [["escolaridad", "Último grado", "", "lista:escolaridad"], ["institucion", "Escuela"]]],
-    ["Experiencia laboral", [["emp1_empresa", "Último trabajo: empresa"], ["emp1_puesto", "Puesto"], ["emp1_periodo", "Tiempo"], ["emp1_motivo", "Motivo de salida"], ["emp2_empresa", "Trabajo anterior: empresa"], ["emp2_puesto", "Puesto"], ["emp2_periodo", "Tiempo"], ["emp2_motivo", "Motivo de salida"]]],
-    ["Referencias personales", [["ref1_nombre", "Referencia 1"], ["ref1_relacion", "Relación"], ["ref1_telefono", "Teléfono", "", "tel"], ["ref2_nombre", "Referencia 2"], ["ref2_relacion", "Relación"], ["ref2_telefono", "Teléfono", "", "tel"]]]
+    ["Contacto de emergencia", [["emerg_nombre", "Nombre", "wide"], ["emerg_parentesco", "Parentesco"], ["emerg_telefono", "Teléfono", "", "tel"]]],
+    ["Escolaridad", [["escolaridad", "Último grado", "", "lista:escolaridad"], ["institucion", "Escuela"]]]
   ];
   const enlaceDe = token => `${location.origin}/expediente/${token}`;
-  const mensajeWa = (nombre, token, docs) => `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
+  const mensajeWa = (nombre, token, docs) => `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, sube la foto de tus documentos y llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
   const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
@@ -989,7 +992,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre));
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}</div>
+      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
       <div class="cols">
         <div style="display:grid;gap:24px">
           <section class="card" id="p-estatus">
@@ -1005,9 +1008,9 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           </section>
           <section class="card">
             <h3>Documentos entregados</h3>
-            <div class="row" style="justify-content:space-between"><span class="note">Palomea cada uno al recibir sus 2 copias.</span><b id="p-docs-n"></b></div>
+            <div class="row" style="justify-content:space-between"><span class="note">Se palomean solos cuando el colaborador sube la foto. También puedes palomearlos tú al recibir sus copias.</span><b id="p-docs-n"></b></div>
             <div class="barra"><i id="p-barra" style="width:0"></i></div>
-            <div class="checklist">${c.docs.map(x => `<label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>`).join("")}</div>
+            <div class="checklist">${c.docs.map(x => `<div class="chkrow"><label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>${x.fotos.length ? `<div class="fotos">${x.fotos.map(f => `<a class="copy" href="/panel/api/colaboradores/${c.id}/archivo/${f.archivo}" target="_blank" rel="noopener">${f.archivo === "ine" && x.piezas > 1 ? "Ver frente" : f.archivo === "ine2" ? "Ver reverso" : f.archivo === "solicitud" ? "Ver hoja 1" : f.archivo === "solicitud2" ? "Ver hoja 2" : "Ver foto"}</a>`).join("")}</div>` : ""}</div>`).join("")}</div>
           </section>
           <section class="card">
             <h3>Enlace personal</h3>
@@ -1045,7 +1048,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           </section>
           <section class="card">
             <h3>Eliminar ficha</h3>
-            <p class="note" style="margin:0">Borra al colaborador y todos sus datos. Su enlace deja de funcionar. No se puede deshacer.</p>
+            <p class="note" style="margin:0">Borra al colaborador, sus datos y las fotos de sus documentos. Su enlace deja de funcionar. No se puede deshacer. Si solo dejó de trabajar, mejor márcalo como inactivo.</p>
             <div class="row"><button class="btn btn-bad" id="p-eliminar" type="button">Eliminar ficha</button></div>
           </section>
         </div>
@@ -1089,11 +1092,13 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       const cont = $("#p-datos");
       try { await post(`colaboradores/${id}/datos`, leer(cont)); errores(cont); toast("Datos guardados"); cargar(); abrir(id); } catch (e) { errores(cont, e.errores); toast(e.message); }
     });
-    $("#p-eliminar").addEventListener("click", async e => {
+    const eliminar = async e => {
       const b = e.currentTarget;
-      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar ficha"; }, 4000); return; }
+      if (!b.classList.contains("armed")) { const antes = b.innerHTML; b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.innerHTML = antes; }, 4000); return; }
       try { await post(`colaboradores/${id}/eliminar`); toast("Ficha eliminada"); st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); cargar(); } catch (err) { toast(err.message); }
-    });
+    };
+    $("#p-eliminar").addEventListener("click", eliminar);
+    $("#p-eliminar-top").addEventListener("click", eliminar);
   }
 
   function nuevo() {
