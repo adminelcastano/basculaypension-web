@@ -946,7 +946,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
         ${iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
-        <span class="m">${c.puesto ? `<span>${esc(c.puesto)}</span>` : ""}${c.area ? `<span>${esc(c.area)}</span>` : ""}</span>
+        <span class="m">${c.puesto ? `<span>${esc(c.puesto)}</span>` : ""}</span>
         <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
       </button>`).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
@@ -1029,8 +1029,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             <h3>Puesto y entrevista</h3>
             <div class="grid-form">
               ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", c.admin.nacionalidad || "Nacional")}
-              ${input("puesto", "Puesto", "", "", c.admin.puesto)}
-              ${input("area", "Área", "", "lista:areas", c.admin.area)}
+              ${input("puesto", "Puesto", "", "lista:puestos", c.admin.puesto)}
               ${input("fecha_ingreso", "Fecha de ingreso", "", "date", c.admin.fecha_ingreso)}
               ${input("turno", "Turno u horario", "", "", c.admin.turno)}
               ${input("fecha_entrevista", "Fecha de entrevista", "", "date", c.admin.fecha_entrevista)}
@@ -1106,7 +1105,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     document.querySelectorAll(".pitem").forEach(b => b.removeAttribute("aria-current"));
     $("#p-work").classList.add("ver-detalle");
     const d = $("#p-detalle");
-    st.listas = { ...(st.listas || {}), areas: ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"], nacionalidad: ["Nacional", "Naturalizado"] };
+    st.listas = { ...(st.listas || {}), puestos: ["Báscula y Pensión", "Administración", "Mantenimiento"], nacionalidad: ["Nacional", "Naturalizado"] };
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head"><h2>Nuevo colaborador</h2></div>
@@ -1118,8 +1117,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
           ${input("correo", "Correo electrónico", "", "email")}
           ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", "Nacional")}
           <p class="note wide" style="margin:-4px 0 0;font-size:.85rem">Nacional: se le pide INE. Naturalizado: se le pide pasaporte o tarjeta de residente.</p>
-          ${input("puesto", "Puesto")}
-          ${input("area", "Área", "", "lista:areas")}
+          ${input("puesto", "Puesto", "", "lista:puestos")}
           ${input("fecha_ingreso", "Fecha de ingreso", "", "date")}
         </div>
         <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y enviar enlace</button></div>

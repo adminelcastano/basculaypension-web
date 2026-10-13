@@ -19,7 +19,7 @@ export const ESCOLARIDAD = ["Primaria", "Secundaria", "Preparatoria o bachillera
 export const ESTADO_CIVIL = ["Soltero(a)", "Casado(a)", "Unión libre", "Divorciado(a)", "Viudo(a)"];
 export const NACIONALIDAD = ["Nacional", "Naturalizado"];
 const ID_NATURALIZADO = "Identificación oficial (pasaporte o tarjeta de residente)";
-export const AREAS = ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"];
+export const PUESTOS = ["Báscula y Pensión", "Administración", "Mantenimiento"];
 
 // Campos que llena el colaborador desde su enlace: [clave, largo máximo, tipo]
 export const CAMPOS_COLABORADOR = [
@@ -39,11 +39,11 @@ export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "co
 
 // Campos que solo llena el administrador en el panel
 export const CAMPOS_ADMIN = [
-  ["nacionalidad", 20, "lista:nacionalidad"], ["puesto", 80], ["area", 30, "lista:areas"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
+  ["nacionalidad", 20, "lista:nacionalidad"], ["puesto", 40, "lista:puestos"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
   ["fecha_entrevista", 10, "fecha"], ["notas", 2000]
 ];
 
-const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS, nacionalidad: NACIONALIDAD };
+const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD };
 const RE_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d$/;
 const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 const RE_TOKEN = /^[0-9a-f]{32}$/;
@@ -392,7 +392,7 @@ function resumenFila(f) {
   const docs = docsResumen(parse(f.docs), parse(f.admin));
   const admin = parse(f.admin);
   return {
-    id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", area: admin.area || "",
+    id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "",
     llenado_en: f.llenado_en, creado: f.creado, actualizado: f.actualizado,
     correo: parse(f.datos).correo || "", correo_enviado: f.correo_enviado || "",
     estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
@@ -416,7 +416,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
       todos: todos.length, incompletos: todos.filter(c => !c.completo).length, completos: todos.filter(c => c.completo).length
     };
     let lista = filtro === "incompletos" ? todos.filter(c => !c.completo) : filtro === "completos" ? todos.filter(c => c.completo) : todos;
-    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto, c.area].join(" ").toLowerCase().includes(q));
+    if (q) lista = lista.filter(c => [c.nombre, c.telefono, c.puesto].join(" ").toLowerCase().includes(q));
     return json({ ok: true, colaboradores: lista, conteos });
   }
 
@@ -452,7 +452,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     return json({
       ok: true,
       colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin)).lista },
-      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS, nacionalidad: NACIONALIDAD }
+      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD }
     });
   }
 
