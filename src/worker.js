@@ -409,11 +409,17 @@ async function panel(request, env, url) {
       if (!value) return new Response("Archivo no disponible (pudo haberse borrado por antigüedad).", { status: 404, headers: cabecerasPanel() });
       const tipo = metadata && (TIPOS_IMAGEN.includes(metadata.tipo) || metadata.tipo === TIPO_PDF) ? metadata.tipo : "application/octet-stream";
       const ext = tipo === TIPO_PDF ? "pdf" : (tipo.split("/")[1] || "bin");
+      // Se permite mostrar el archivo dentro del propio panel (mismo sitio), nunca en otros sitios
       return new Response(value, {
         headers: {
           "Content-Type": tipo,
           "Content-Disposition": `inline; filename="${fila.folio}-${partes[3]}.${ext}"`,
-          ...cabecerasPanel()
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+          "X-Robots-Tag": "noindex, nofollow",
+          "Referrer-Policy": "no-referrer",
+          "X-Frame-Options": "SAMEORIGIN",
+          "Content-Security-Policy": "frame-ancestors 'self'"
         }
       });
     }

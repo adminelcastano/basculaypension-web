@@ -177,6 +177,9 @@ section.card { border-radius: 22px; padding: 22px 24px; }
 .undo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .undo button { border: 0; background: var(--amber); color: var(--amber-ink); font-weight: 700; border-radius: 999px; padding: 8px 16px; cursor: pointer; flex: none; }
 @media (max-width: 820px) { .undo { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); } }
+
+.pdfview { display: grid; gap: 10px; }
+.pdfview canvas { width: 100%; height: auto; display: block; border-radius: 10px; background: #fff; box-shadow: 0 6px 18px -10px rgba(0,0,0,.6); }
 </style>
 </head>
 <body>
@@ -304,7 +307,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
     const archivo = tipo => `/panel/api/solicitudes/${s.id}/archivo/${tipo}`;
     const docHtml = (tipo, mime, titulo) => {
       if (s.archivos_borrados) return `<p class="note">El archivo se borró automáticamente ${90} días después de resolver la solicitud.</p>`;
-      if (mime === "application/pdf") return `<iframe src="${archivo(tipo)}" title="${titulo}"></iframe><a class="btn btn-line" href="${archivo(tipo)}" target="_blank" rel="noopener">Abrir en otra pestaña</a>`;
+      if (mime === "application/pdf") return `<div class="pdfview" data-pdf="${tipo}" aria-label="${titulo}"><p class="note">Cargando documento…</p></div><div class="row"><a class="btn btn-line" href="${archivo(tipo)}" target="_blank" rel="noopener">Abrir PDF completo</a></div>`;
       return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
     };
     const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
@@ -320,7 +323,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
         <div style="display:grid;gap:20px;min-width:0">
           <section class="card">
             <h3>Datos para Facturador</h3>
-            ${s.modo === "csf" && !s.datos_de_csf && faltan ? `<p class="warn">El cliente envió su Constancia. Usa “Leer datos de la constancia” o captúralos abajo.</p>` : ""}
+            ${s.modo === "csf" && !s.datos_de_csf && faltan ? `<p class="warn">El cliente envió su constancia. Los datos se leen solos del PDF; si es una foto o un escaneo, captúralos abajo viendo el documento.</p>` : ""}
             ${s.datos_de_csf ? `<p class="note">Datos tomados de la constancia. Verifícalos contra el documento.</p>` : ""}
             <div class="fields">
               ${campo("RFC", s.rfc)}
@@ -393,7 +396,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
           <section class="card doc">
             <h3>Constancia de Situación Fiscal</h3>
             ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
-            ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-primary" id="leer-csf" type="button">Leer datos de la constancia</button></div>` : ""}
+            ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
           </section>` : ""}
           <section class="card">
             <h3>Corregir datos fiscales</h3>
@@ -452,7 +455,12 @@ section.card { border-radius: 22px; padding: 22px 24px; }
       try { await navigator.clipboard.writeText($("#wa-texto").value); toast("Mensaje copiado"); } catch { $("#wa-texto").select(); }
     });
     waLink();
-    $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes));
+    $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes, false));
+    d.querySelectorAll(".pdfview").forEach(c => mostrarPdf(c, archivo(c.dataset.pdf), s.id));
+    // Lectura automática: si llegó constancia en PDF y aún no hay datos tomados de ella
+    if (s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
+      leerCsf($("#leer-csf"), s, j.regimenes, true);
+    }
   }
 
   function confirmarEnPagina(boton, que = "Faltan datos") {
@@ -491,36 +499,88 @@ section.card { border-radius: 22px; padding: 22px 24px; }
     pdfjsListo = new Promise((res, rej) => {
       const s = document.createElement("script");
       s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; res(window.pdfjsLib); };
+      s.onload = async () => {
+        // El worker se carga como blob del mismo sitio para que funcione en todos los navegadores
+        try {
+          const codigo = await (await fetch("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js")).text();
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([codigo], { type: "text/javascript" }));
+        } catch { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }
+        res(window.pdfjsLib);
+      };
       s.onerror = () => rej(new Error("No se pudo cargar el lector de PDF"));
       document.head.appendChild(s);
     });
     return pdfjsListo;
   }
 
-  async function leerCsf(boton, s, regimenes) {
-    const estado = $("#csf-estado");
-    boton.disabled = true; estado.textContent = "Leyendo la constancia…";
-    try {
+
+  // Documentos PDF: se descargan una vez y se dibujan en el panel (funciona en celular y computadora)
+  const cachePdf = new Map();
+  async function obtenerPdf(url) {
+    if (!cachePdf.has(url)) cachePdf.set(url, (async () => {
       const pdfjs = await cargarPdfjs();
-      const buf = await (await fetch(`/panel/api/solicitudes/${s.id}/archivo/csf`)).arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: buf }).promise;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(r.status === 404 ? "El archivo ya no está disponible." : "No se pudo descargar el archivo.");
+      return pdfjs.getDocument({ data: await r.arrayBuffer() }).promise;
+    })());
+    try { return await cachePdf.get(url); } catch (e) { cachePdf.delete(url); throw e; }
+  }
+  async function mostrarPdf(contenedor, url, id) {
+    try {
+      const pdf = await obtenerPdf(url);
+      if (estadoState.actual !== id || !contenedor.isConnected) return;
+      contenedor.innerHTML = "";
+      const paginas = Math.min(pdf.numPages, 3);
+      for (let i = 1; i <= paginas; i++) {
+        const pagina = await pdf.getPage(i);
+        const ancho = Math.max(contenedor.clientWidth, 300);
+        const base = pagina.getViewport({ scale: 1 });
+        const escala = (ancho / base.width) * Math.min(window.devicePixelRatio || 1, 2);
+        const vp = pagina.getViewport({ scale: escala });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+        canvas.setAttribute("aria-label", `Página ${i}`);
+        contenedor.appendChild(canvas);
+        await pagina.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+      }
+      if (pdf.numPages > paginas) contenedor.insertAdjacentHTML("beforeend", `<p class="note">Se muestran ${paginas} de ${pdf.numPages} páginas. Usa "Abrir PDF completo" para ver el resto.</p>`);
+    } catch (e) {
+      if (contenedor.isConnected) contenedor.innerHTML = `<p class="note">No se pudo mostrar el documento: ${esc(e.message)}. Usa "Abrir PDF completo".</p>`;
+    }
+  }
+
+  async function leerCsf(boton, s, regimenes, automatico) {
+    const estado = $("#csf-estado");
+    if (boton) boton.disabled = true;
+    estado.textContent = "Leyendo la constancia…";
+    try {
+      const pdf = await obtenerPdf(`/panel/api/solicitudes/${s.id}/archivo/csf`);
       let textoPdf = "";
       for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
         const c = await (await pdf.getPage(i)).getTextContent();
         textoPdf += " " + c.items.map(it => it.str).join(" ");
       }
+      if (estadoState.actual !== s.id) return;
       const d = extraerCsf(textoPdf.replace(/\s+/g, " "), regimenes);
-      if (!d.rfc && !d.nombre) { estado.textContent = "No se encontró texto legible. Captura los datos viendo el documento."; boton.disabled = false; return; }
+      if (!d.rfc && !d.nombre) { estado.textContent = "La constancia no tiene texto legible (puede ser un escaneo). Captura los datos viendo el documento."; if (boton) boton.disabled = false; return; }
       if (d.rfc) $("#d-rfc").value = d.rfc;
       if (d.nombre) $("#d-nombre").value = d.nombre;
       if (d.cp) $("#d-cp").value = d.cp;
       if (d.regimen) $("#d-regimen").value = d.regimen;
-      estado.textContent = d.regimenes > 1 ? "Leído. La constancia tiene varios regímenes: confirma con el cliente cuál usar." : "Leído. Verifica contra el documento y guarda.";
+      const varios = d.regimenes > 1;
+      if (automatico && !varios && d.rfc && d.nombre && d.cp && d.regimen) {
+        // Datos completos y sin ambigüedad: se guardan solos
+        await guardarDatos($("#guardar-datos"), true);
+        toast("Datos leídos de la constancia");
+        return;
+      }
+      estado.textContent = varios ? "Leído. La constancia tiene varios regímenes: elige el correcto y presiona Guardar datos." : "Leído. Revisa contra el documento y presiona Guardar datos.";
       $("#guardar-datos").onclick = e => guardarDatos(e.target, true);
+      $("#d-regimen").focus();
     } catch (e) { estado.textContent = "No se pudo leer: " + e.message; }
-    boton.disabled = false;
+    if (boton) boton.disabled = false;
   }
+
 
   function extraerCsf(t, regimenes) {
     const etiquetas = ["RFC:", "CURP:", "Nombre \\(s\\):", "Nombre\\(s\\):", "Primer Apellido:", "Segundo Apellido:", "Fecha inicio de operaciones:", "Estatus en el padrón:", "Fecha de último cambio de estado:", "Nombre Comercial:", "Denominación/Razón Social:", "Régimen Capital:", "Datos del domicilio registrado", "Código Postal:", "Tipo de Vialidad:", "Nombre de Vialidad:", "Número Exterior:", "idCIF:", "Lugar y Fecha de Emisión"];
