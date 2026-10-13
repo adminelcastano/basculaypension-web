@@ -146,6 +146,20 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
   const fecha = iso => iso ? fmt.format(new Date(iso)) : "";
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  const dinero = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function mensajeCliente(s, servicios) {
+    const concepto = { bascula: "servicio de báscula", pension: "servicio de pensión", ambos: "servicios de báscula y pensión" }[s.servicio] || "servicio";
+    const ticket = s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket";
+    const importe = s.importe ? ` por ${dinero(s.importe)}` : "";
+    if (s.estado === "facturada") {
+      return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. Te la enviamos a tu correo ${s.email}. Gracias por tu preferencia.`;
+    }
+    if (s.estado === "rechazada") {
+      return `Hola, te saluda Báscula y Pensión El Castaño. No pudimos emitir la factura de tu solicitud ${s.folio}${s.folio_ticket ? ` (ticket ${s.folio_ticket})` : ""}: ${s.motivo || ""}. Puedes enviar tus datos de nuevo aquí:\nhttps://basculaypension.com/factura`;
+    }
+    return `Hola, te saluda Báscula y Pensión El Castaño. Recibimos tu solicitud de factura ${s.folio}${s.folio_ticket ? ` del ticket ${s.folio_ticket}` : ""}${importe} por concepto de ${concepto}. La estamos procesando y te la enviaremos a tu correo ${s.email}.`;
+  }
+
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
 
   async function api(ruta, opciones = {}) {
@@ -224,21 +238,26 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
             </div>
           </section>
           <section class="card">
-            <h3>Servicio</h3>
+            <h3>Ticket y contacto</h3>
             <div class="fields">
               ${campo("Servicio", j.servicios[s.servicio] || s.servicio, false)}
-              ${campo("Folio del ticket", s.folio_ticket || "", true).replace('class="v vacio">Falta', 'class="v" style="color:var(--muted);font-weight:400">No lo indicó')}
-              ${s.telefono ? campo("WhatsApp", s.telefono) : ""}
-              ${s.comentario ? campo("Comentario", s.comentario, false) : ""}
+              ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
+            <div class="grid-form">
+              <label>Número de ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Del ticket en la foto" autocomplete="off"></label>
+              <label>Importe<input id="t-importe" value="${s.importe ? esc(Number(s.importe).toFixed(2)) : ""}" placeholder="Ej. 350.00" inputmode="decimal" autocomplete="off"></label>
+              <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
+            </div>
+            <div class="row"><button class="btn btn-line" id="guardar-ticket" type="button">Guardar</button></div>
           </section>
           <section class="card">
             ${s.estado === "pendiente" ? `
               <h3>Marcar como facturada</h3>
               <div class="row">
-                <input type="text" id="folio-factura" placeholder="Folio o UUID de la factura" aria-label="Folio de la factura">
+                <input type="text" id="folio-factura" placeholder="Número o UUID de la factura" aria-label="Número de la factura">
                 <button class="btn btn-ok" id="facturar" type="button">Marcar facturada</button>
               </div>
+              <p class="note">Se guardan también el número de ticket y el importe de arriba.</p>
               <details><summary class="note" style="cursor:pointer">Rechazar solicitud</summary>
                 <div class="row" style="margin-top:10px">
                   <input type="text" id="motivo" placeholder="Motivo (ej. ticket ilegible, datos no coinciden)" aria-label="Motivo">
@@ -246,9 +265,18 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
                 </div>
               </details>` : `
               <h3>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
-              <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
               ${s.archivos_borrados ? "" : `<div class="row"><button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button></div>`}`}
-            ${tel ? `<div class="row"><a class="btn btn-line" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(s.estado === "facturada" ? `Hola, te enviamos tu factura del folio ${s.folio} al correo ${s.email}. Gracias por tu preferencia. Báscula y Pensión El Castaño` : `Hola, te escribimos de Báscula y Pensión El Castaño sobre tu solicitud de factura ${s.folio}.`)}">Escribir por WhatsApp</a></div>` : ""}
+          </section>
+          <section class="card">
+            <h3>Mensaje al cliente</h3>
+            <p class="note">${{ pendiente: "Confirma que recibiste su solicitud.", facturada: "Confirma el ticket, el importe y la factura emitida.", rechazada: "Explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
+            <textarea id="wa-texto" rows="6" style="width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);resize:vertical">${esc(mensajeCliente(s, j.servicios))}</textarea>
+            <div class="row">
+              <a class="btn btn-ok" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+              <button class="btn btn-line" id="wa-copiar" type="button">Copiar mensaje</button>
+              <span class="note" id="wa-aviso"></span>
+            </div>
           </section>
         </div>
         <div style="display:grid;gap:20px;min-width:0">
@@ -279,8 +307,8 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
     $("#facturar")?.addEventListener("click", async e => {
       const folio = $("#folio-factura").value.trim();
       if (!folio) { toast("Escribe el folio de la factura"); $("#folio-factura").focus(); return; }
-      if (faltan && !confirmarEnPagina(e.target)) return;
-      await accion(e.target, "facturar", { folio_factura: folio }, "Marcada como facturada");
+      if ((faltan || !$("#t-importe").value.trim()) && !confirmarEnPagina(e.target, faltan ? "Faltan datos fiscales" : "Falta el importe")) return;
+      await accion(e.target, "facturar", { folio_factura: folio, folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value }, "Marcada como facturada");
     });
     $("#rechazar")?.addEventListener("click", e => {
       const motivo = $("#motivo").value.trim();
@@ -289,13 +317,28 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
     });
     $("#reabrir")?.addEventListener("click", e => accion(e.target, "reabrir", {}, "Regresó a pendientes"));
     $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
+    $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
+    const waLink = () => {
+      const num = $("#t-tel").value.replace(/\D/g, "").slice(-10);
+      const a = $("#wa-enviar");
+      if (num.length !== 10) { a.setAttribute("aria-disabled", "true"); a.style.opacity = ".5"; a.href = "#"; $("#wa-aviso").textContent = "Escribe el WhatsApp del cliente (10 dígitos) arriba."; return; }
+      a.removeAttribute("aria-disabled"); a.style.opacity = ""; $("#wa-aviso").textContent = "";
+      a.href = `https://wa.me/52${num}?text=${encodeURIComponent($("#wa-texto").value)}`;
+    };
+    $("#t-tel").addEventListener("input", waLink);
+    $("#wa-texto").addEventListener("input", waLink);
+    $("#wa-enviar").addEventListener("click", e => { waLink(); if (e.currentTarget.getAttribute("aria-disabled")) { e.preventDefault(); $("#t-tel").focus(); } });
+    $("#wa-copiar").addEventListener("click", async e => {
+      try { await navigator.clipboard.writeText($("#wa-texto").value); toast("Mensaje copiado"); } catch { $("#wa-texto").select(); }
+    });
+    waLink();
     $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes));
   }
 
-  function confirmarEnPagina(boton) {
+  function confirmarEnPagina(boton, que = "Faltan datos") {
     if (boton.dataset.confirmado === "1") return true;
     boton.dataset.confirmado = "1";
-    boton.textContent = "Faltan datos. ¿Marcar de todos modos?";
+    boton.textContent = `${que}. ¿Marcar de todos modos?`;
     return false;
   }
 
@@ -310,7 +353,8 @@ section.card h3 { font-size: 1.15rem; font-weight: 700; }
   }
 
   async function guardarDatos(boton, deCsf) {
-    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf };
+    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf,
+      folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value };
     boton.disabled = true;
     try {
       await api(`solicitudes/${estadoState.actual}/datos`, { method: "POST", body: JSON.stringify(cuerpo) });

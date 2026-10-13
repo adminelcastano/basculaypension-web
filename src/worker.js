@@ -67,6 +67,12 @@ async function asegurarEsquema(env) {
     archivos_borrados INTEGER NOT NULL DEFAULT 0
   )`).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_estado_creado ON solicitudes (estado, creado)").run();
+  // Columnas agregadas después de la primera versión
+  const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
+  const existentes = new Set(cols.map(c => c.name));
+  for (const [nombre, tipo] of [["importe", "TEXT"]]) {
+    if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
+  }
   esquemaListo = true;
 }
 
@@ -112,7 +118,7 @@ async function crearSolicitud(request, env, ctx) {
   if (!SERVICIOS[servicio]) errores.servicio = "Elige el servicio.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
-  if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
+  if (telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
 
   if (modo === "manual" || rfc) {
@@ -166,6 +172,16 @@ async function crearSolicitud(request, env, ctx) {
   }
 
   return json({ ok: true, folio });
+}
+
+// Acepta "350", "$1,250.50", "1250,5" y devuelve "1250.50"; null si no es válido
+function normalizarImporte(v) {
+  let t = String(v ?? "").trim().replace(/[$\s]|MXN/gi, "");
+  if (!t) return "";
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) t = t.replace(/,/g, "");
+  else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(t)) return null;
+  return Number(t).toFixed(2);
 }
 
 function texto(form, nombre) {
@@ -241,11 +257,11 @@ async function exportarXlsx(env, url) {
   const { results } = await env.DB.prepare(sql).bind(...args).all();
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
-  const filas = [["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Folio factura", "Fecha resolución", "Motivo rechazo"]];
+  const filas = [["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"]];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
   }
   const nombre = `facturas-${estado}${mes ? "-" + mes : ""}.xlsx`;
   return new Response(crearXlsx(filas), {
@@ -260,7 +276,7 @@ async function exportarXlsx(env, url) {
 function crearXlsx(filas) {
   const col = i => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
   const xml = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-  const anchos = [16, 17, 11, 16, 14, 16, 36, 13, 40, 26, 30, 13, 22, 17, 30];
+  const anchos = [16, 17, 11, 16, 14, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
   const archivos = {
@@ -391,7 +407,11 @@ async function panel(request, env, url) {
       if (partes[2] === "facturar") {
         const folioFactura = String(cuerpo.folio_factura || "").trim().slice(0, 60);
         if (!folioFactura) return json({ ok: false, error: "Escribe el folio o UUID de la factura." }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET estado='facturada', folio_factura=?, resuelta_en=?, motivo=NULL WHERE id=?").bind(folioFactura, ahora, id).run();
+        const importe = normalizarImporte(cuerpo.importe);
+        if (importe === null) return json({ ok: false, error: "El importe no es válido. Escríbelo como 350 o 1250.50" }, 422);
+        const folioTicket = String(cuerpo.folio_ticket ?? fila.folio_ticket ?? "").trim().slice(0, 40);
+        await env.DB.prepare("UPDATE solicitudes SET estado='facturada', folio_factura=?, importe=?, folio_ticket=?, resuelta_en=?, motivo=NULL WHERE id=?")
+          .bind(folioFactura, importe || null, folioTicket || null, ahora, id).run();
         return json({ ok: true });
       }
       if (partes[2] === "rechazar") {
@@ -414,9 +434,14 @@ async function panel(request, env, url) {
         if (rfc && !RE_RFC.test(rfc)) errores.rfc = "RFC con formato inválido.";
         if (regimen && !REGIMENES[regimen]) errores.regimen = "Régimen inválido.";
         if (cp && !RE_CP.test(cp)) errores.cp = "Código postal inválido.";
+        const importe = "importe" in cuerpo ? normalizarImporte(cuerpo.importe) : (fila.importe || "");
+        if (importe === null) errores.importe = "Importe inválido.";
+        const telefono = "telefono" in cuerpo ? String(cuerpo.telefono || "").replace(/\D/g, "").slice(-10) : (fila.telefono || "");
+        if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
+        const folioTicket = "folio_ticket" in cuerpo ? String(cuerpo.folio_ticket || "").trim().slice(0, 40) : (fila.folio_ticket || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, id).run();
         return json({ ok: true });
       }
     }

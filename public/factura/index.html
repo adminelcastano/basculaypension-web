@@ -225,7 +225,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           <input type="email" name="email" maxlength="254" autocomplete="email" inputmode="email" spellcheck="false">
           <span class="err" data-err="email"></span>
         </label>
-        <label class="f" id="g-telefono">WhatsApp <span class="hint">Opcional, para avisarte o resolver dudas. 10 dígitos.</span>
+        <label class="f" id="g-telefono">WhatsApp <span class="hint">10 dígitos. Te avisamos por aquí cuando tu factura esté lista.</span>
           <input type="tel" name="telefono" maxlength="14" autocomplete="tel" inputmode="tel">
           <span class="err" data-err="telefono"></span>
         </label>
@@ -334,7 +334,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo válido.";
     const tel = form.telefono.value.replace(/\D/g, "");
-    if (tel && tel.slice(-10).length !== 10) e.telefono = "Escribe 10 dígitos.";
+    if (tel.slice(-10).length !== 10) e.telefono = "Escribe tu WhatsApp a 10 dígitos.";
     if (!form.aviso.checked) e.aviso = "Acepta el aviso de privacidad para continuar.";
     return e;
   }
