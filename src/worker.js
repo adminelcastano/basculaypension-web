@@ -443,6 +443,13 @@ async function panel(request, env, url) {
         await env.DB.prepare("UPDATE solicitudes SET estado='pendiente', resuelta_en=NULL WHERE id=?").bind(id).run();
         return json({ ok: true });
       }
+      if (partes[2] === "eliminar") {
+        if (fila.estado !== "rechazada") return json({ ok: false, error: "Solo se pueden eliminar solicitudes rechazadas." }, 409);
+        await env.FILES.delete(`f:${id}:ticket`);
+        await env.FILES.delete(`f:${id}:csf`);
+        await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(id).run();
+        return json({ ok: true });
+      }
       if (partes[2] === "datos") {
         const rfc = String(cuerpo.rfc || "").toUpperCase().replace(/[\s-]/g, "");
         const nombre = String(cuerpo.nombre || "").replace(/\s+/g, " ").trim().slice(0, 254);
