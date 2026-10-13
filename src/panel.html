@@ -922,6 +922,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     ["Referencias personales", [["ref1_nombre", "Referencia 1"], ["ref1_relacion", "Relación"], ["ref1_telefono", "Teléfono", "", "tel"], ["ref2_nombre", "Referencia 2"], ["ref2_relacion", "Relación"], ["ref2_telefono", "Teléfono", "", "tel"]]]
   ];
   const enlaceDe = token => `${location.origin}/expediente/${token}`;
+  const mensajeWa = (nombre, token, docs) => `Hola ${(nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(token)}\n\nY entrega 2 copias de cada documento con Josué: ${docs.join(", ")}.`;
+  const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
   async function cargar() {
@@ -984,8 +986,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     try { j = await api("colaboradores/" + id); } catch (e) { d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
     const c = j.colaborador; st.listas = j.listas;
     const tel = c.telefono ? "52" + c.telefono : "";
-    const primer = (c.nombre || "").split(" ")[0];
-    const msg = `Hola ${primer}, te saluda Báscula y Pensión El Castaño. Para actualizar tu expediente laboral, llena tus datos en este enlace personal (no lo compartas):\n${enlaceDe(c.token)}\n\nY entrega 2 copias de cada documento con Josué: INE, CURP, solicitud de empleo, acta de nacimiento, comprobante de domicilio y comprobante de último grado de estudios.`;
+    const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre));
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}</div>
@@ -1013,15 +1014,18 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
             <p class="note" style="margin:0">${c.llenado_en ? `Llenó sus datos el ${fecha(c.llenado_en)}.` : "Todavía no llena sus datos."} Con este enlace puede llenarlos o corregirlos desde su celular.</p>
             <div class="enlace" id="p-enlace">${esc(enlaceDe(c.token))}</div>
             <div class="row">
-              ${tel ? `<a class="btn btn-primary" href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ""}
+              ${tel ? `<a class="btn btn-primary" href="${urlWa(c.telefono, msg)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ""}
+              ${c.correo && c.estatus !== "inactivo" ? `<button class="btn btn-line" id="p-correo" type="button">${c.correo_enviado ? "Reenviar por correo" : "Enviar por correo"}</button>` : ""}
               <button class="btn btn-line" id="p-copiar" type="button">Copiar mensaje</button>
               <button class="btn btn-line" id="p-regenerar" type="button">Cambiar enlace</button>
             </div>
+            <p class="note" style="margin:0" id="p-correo-estado">${c.correo ? (c.correo_enviado ? `Correo enviado a ${esc(c.correo)} el ${fecha(c.correo_enviado)}.` : `Correo: ${esc(c.correo)} · aún no se le envía.`) : "Sin correo registrado: agrégalo en sus datos para enviarle el enlace por correo."}</p>
             ${tel ? "" : `<p class="note" style="margin:0">Agrega su teléfono en los datos para enviarlo directo por WhatsApp.</p>`}
           </section>
           <section class="card" id="p-admin">
             <h3>Puesto y entrevista</h3>
             <div class="grid-form">
+              ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", c.admin.nacionalidad || "Nacional")}
               ${input("puesto", "Puesto", "", "", c.admin.puesto)}
               ${input("area", "Área", "", "lista:areas", c.admin.area)}
               ${input("fecha_ingreso", "Fecha de ingreso", "", "date", c.admin.fecha_ingreso)}
@@ -1067,6 +1071,10 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       cb.disabled = false;
     }));
     $("#p-volver").addEventListener("click", () => { $("#p-work").classList.remove("ver-detalle"); st.actual = null; cargar(); });
+    if ($("#p-correo")) $("#p-correo").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true;
+      try { await post(`colaboradores/${id}/enviar-correo`); toast("Correo enviado"); abrir(id); } catch (err) { toast(err.message); $("#p-correo-estado").textContent = err.message; b.disabled = false; }
+    });
     $("#p-copiar").addEventListener("click", async () => { try { await navigator.clipboard.writeText(msg); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); } });
     $("#p-regenerar").addEventListener("click", async e => {
       const b = e.currentTarget;
@@ -1093,28 +1101,44 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     document.querySelectorAll(".pitem").forEach(b => b.removeAttribute("aria-current"));
     $("#p-work").classList.add("ver-detalle");
     const d = $("#p-detalle");
-    if (!st.listas) st.listas = { areas: ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"] };
+    st.listas = { ...(st.listas || {}), areas: ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"], nacionalidad: ["Nacional", "Naturalizado"] };
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
       <div class="detail-head"><h2>Nuevo colaborador</h2></div>
       <section class="card" id="p-alta" style="max-width:640px">
-        <p class="note" style="margin:0">Con su nombre y WhatsApp se crea su enlace personal. Él llena el resto desde su celular; lo que escribas aquí ya le aparece llenado.</p>
+        <p class="note" style="margin:0">Al crearlo se genera su enlace personal: le llega por correo si escribes su correo, y se abre tu WhatsApp con el mensaje listo para enviárselo. Él llena el resto desde su celular.</p>
         <div class="grid-form">
           ${input("nombre", "Nombre completo", "wide")}
           ${input("telefono", "WhatsApp", "", "tel")}
           ${input("correo", "Correo electrónico", "", "email")}
+          ${input("nacionalidad", "Nacionalidad", "", "lista:nacionalidad", "Nacional")}
+          <p class="note wide" style="margin:-4px 0 0;font-size:.85rem">Nacional: se le pide INE. Naturalizado: se le pide pasaporte o tarjeta de residente.</p>
           ${input("puesto", "Puesto")}
           ${input("area", "Área", "", "lista:areas")}
           ${input("fecha_ingreso", "Fecha de ingreso", "", "date")}
         </div>
-        <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y obtener enlace</button></div>
+        <div class="row"><button class="btn btn-primary" id="p-crear" type="button">Crear y enviar enlace</button></div>
       </section>`;
     $("#p-volver").addEventListener("click", () => { $("#p-work").classList.remove("ver-detalle"); d.innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; });
     $("#p-crear").addEventListener("click", async e => {
       const b = e.currentTarget; b.disabled = true;
       const cont = $("#p-alta");
-      try { const r = await post("colaboradores", leer(cont)); await cargar(); abrir(r.id); }
-      catch (err) { errores(cont, err.errores); toast(err.message); b.disabled = false; }
+      const valores = leer(cont);
+      const tel = (valores.telefono || "").replace(/\D/g, "").slice(-10);
+      // La ventana de WhatsApp se abre en el mismo toque (si no, el navegador la bloquea) y se llena al tener el enlace
+      const ventana = tel.length === 10 ? window.open("", "_blank") : null;
+      try {
+        const r = await post("colaboradores", valores);
+        if (ventana) {
+          const nat = valores.nacionalidad === "Naturalizado";
+          const docs = [nat ? "identificación oficial (pasaporte o tarjeta de residente)" : "INE", "CURP", "solicitud de empleo", "acta de nacimiento", "comprobante de domicilio", "comprobante de último grado de estudios"];
+          ventana.location.href = urlWa(tel, mensajeWa(valores.nombre, r.token, docs));
+        }
+        await cargar(); await abrir(r.id);
+        if (r.correo && r.correo.error) { toast("Creado. " + r.correo.error); $("#p-correo-estado").textContent = r.correo.error; }
+        else if (r.correo && r.correo.enviado) toast("Creado y enviado por correo");
+        else toast("Colaborador creado");
+      } catch (err) { if (ventana) ventana.close(); errores(cont, err.errores); toast(err.message); b.disabled = false; }
     });
     $("#p-alta [data-k=nombre]").focus();
   }

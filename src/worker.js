@@ -279,6 +279,23 @@ async function llamarScript(env, datos) {
   if (cuerpo.trim() !== "ok") throw new Error(`script no confirmó: HTTP ${r.status} ${r.url.slice(0, 80)} · ${cuerpo.replace(/\s+/g, " ").slice(0, 200)}`);
 }
 
+// Correo a otra persona (enlace del expediente laboral). El script solo envía a terceros
+// correos que contienen un enlace /expediente/; responde "ok-para" al hacerlo.
+// Si responde "ok" a secas, es la versión anterior del script, que solo envía a la administración.
+async function enviarCorreoA(env, datos) {
+  const r = await fetch(env.AVISO_URL.trim(), {
+    method: "POST",
+    redirect: "follow",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), ...datos })
+  });
+  const cuerpo = (await r.text()).slice(0, 300).trim();
+  if (cuerpo === "ok-para") return;
+  const e = new Error(`script no confirmó envío a tercero: ${cuerpo.replace(/\s+/g, " ").slice(0, 120)}`);
+  if (cuerpo === "ok") e.desactualizado = true;
+  throw e;
+}
+
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
@@ -411,7 +428,7 @@ async function panel(request, env, url) {
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
-  if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes);
+  if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";

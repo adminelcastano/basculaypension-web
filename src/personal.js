@@ -17,6 +17,8 @@ export const DOCUMENTOS = {
 
 export const ESCOLARIDAD = ["Primaria", "Secundaria", "Preparatoria o bachillerato", "Carrera técnica", "Licenciatura", "Posgrado", "Sin estudios"];
 export const ESTADO_CIVIL = ["Soltero(a)", "Casado(a)", "Unión libre", "Divorciado(a)", "Viudo(a)"];
+export const NACIONALIDAD = ["Nacional", "Naturalizado"];
+const ID_NATURALIZADO = "Identificación oficial (pasaporte o tarjeta de residente)";
 export const AREAS = ["Báscula", "Pensión", "Administración", "Mantenimiento", "Vigilancia", "Otra"];
 
 // Campos que llena el colaborador desde su enlace: [clave, largo máximo, tipo]
@@ -36,11 +38,11 @@ export const REQUERIDOS = ["nombre", "fecha_nacimiento", "curp", "telefono", "co
 
 // Campos que solo llena el administrador en el panel
 export const CAMPOS_ADMIN = [
-  ["puesto", 80], ["area", 30, "lista:areas"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
+  ["nacionalidad", 20, "lista:nacionalidad"], ["puesto", 80], ["area", 30, "lista:areas"], ["fecha_ingreso", 10, "fecha"], ["turno", 60],
   ["fecha_entrevista", 10, "fecha"], ["notas", 2000]
 ];
 
-const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS };
+const LISTAS = { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS, nacionalidad: NACIONALIDAD };
 const RE_CURP = /^[A-Z][AEIOUX][A-Z]{2}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d$/;
 const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 const RE_TOKEN = /^[0-9a-f]{32}$/;
@@ -64,7 +66,7 @@ export async function asegurarEsquemaPersonal(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(colaboradores)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"]]) {
+  for (const [nombre, tipo] of [["estatus", "TEXT NOT NULL DEFAULT 'activo'"], ["fecha_baja", "TEXT"], ["motivo_baja", "TEXT"], ["correo_enviado", "TEXT"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE colaboradores ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -107,8 +109,14 @@ function leerCampos(cuerpo, campos, requeridos = []) {
   return { datos, errores };
 }
 
-function docsResumen(docs) {
-  const lista = Object.entries(DOCUMENTOS).map(([k, nombre]) => ({ clave: k, nombre, recibido: !!(docs[k] && docs[k].recibido), fecha: docs[k] && docs[k].fecha || null }));
+// Nombres de los documentos según la nacionalidad elegida en el alta
+function nombresDocs(admin) {
+  const n = { ...DOCUMENTOS };
+  if (admin && admin.nacionalidad === "Naturalizado") n.ine = ID_NATURALIZADO;
+  return n;
+}
+function docsResumen(docs, admin) {
+  const lista = Object.entries(nombresDocs(admin)).map(([k, nombre]) => ({ clave: k, nombre, recibido: !!(docs[k] && docs[k].recibido), fecha: docs[k] && docs[k].fecha || null }));
   return { lista, entregados: lista.filter(d => d.recibido).length, total: lista.length };
 }
 
@@ -156,7 +164,7 @@ export async function expedienteApi(request, env, url) {
     const datos = parse(fila.datos);
     if (!datos.nombre) datos.nombre = fila.nombre;
     if (!datos.telefono && fila.telefono) datos.telefono = fila.telefono;
-    return json({ ok: true, datos, llenado_en: fila.llenado_en, docs: docsResumen(parse(fila.docs)), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
+    return json({ ok: true, datos, llenado_en: fila.llenado_en, docs: docsResumen(parse(fila.docs), parse(fila.admin)), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
   }
 
   if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
@@ -183,21 +191,65 @@ export async function expedienteApi(request, env, url) {
 }
 
 // ---------------------------------------------------------------------------
+// Correo con el enlace personal
+// ---------------------------------------------------------------------------
+export const SITIO = "https://basculaypension.com";
+function escH(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function correoEnlace(nombre, token, admin) {
+  const enlace = `${SITIO}/expediente/${token}`;
+  const primer = String(nombre || "").split(" ")[0];
+  const docs = Object.values(nombresDocs(admin));
+  const asunto = "Tu expediente laboral · Báscula y Pensión El Castaño";
+  const texto = `Hola ${primer}:\n\nPara actualizar tu expediente laboral, llena tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nTambién entrega 2 copias de cada documento con Josué:\n${docs.map(d => "- " + d).join("\n")}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
+<div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
+<img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Expediente laboral</p>
+<h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
+<p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para actualizar tu expediente laboral, llena tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.</p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Llenar mis datos</a></p>
+<p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>Entrega 2 copias de cada documento con Josué:</b></p>
+<ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
+<p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
+</div>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
+</div>`;
+  return { asunto, texto, html };
+}
+
+async function enviarEnlacePorCorreo(env, fila, enviar) {
+  const datos = parse(fila.datos);
+  const para = datos.correo;
+  if (!para) return { error: "Este colaborador no tiene correo registrado." };
+  if (!env.AVISO_URL || !env.AVISO_TOKEN) return { error: "El envío de correos no está configurado." };
+  try {
+    await enviar(env, { para, ...correoEnlace(fila.nombre, fila.token, parse(fila.admin)) });
+  } catch (e) {
+    console.error("correo colaborador", e && e.message);
+    return { error: e.desactualizado ? "Falta actualizar el script de correo en Google (ver instrucciones). El correo no se envió." : "No se pudo enviar el correo. Intenta de nuevo." };
+  }
+  const ahora = new Date().toISOString();
+  await env.DB.prepare("UPDATE colaboradores SET correo_enviado = ? WHERE id = ?").bind(ahora, fila.id).run();
+  return { enviado: ahora };
+}
+
+// ---------------------------------------------------------------------------
 // Panel: /panel/api/colaboradores...
 // ---------------------------------------------------------------------------
 function resumenFila(f) {
-  const docs = docsResumen(parse(f.docs));
+  const docs = docsResumen(parse(f.docs), parse(f.admin));
   const admin = parse(f.admin);
   return {
     id: f.id, nombre: f.nombre, telefono: f.telefono, puesto: admin.puesto || "", area: admin.area || "",
     llenado_en: f.llenado_en, creado: f.creado, actualizado: f.actualizado,
+    correo: parse(f.datos).correo || "", correo_enviado: f.correo_enviado || "",
     estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
     entregados: docs.entregados, total: docs.total,
     completo: !!f.llenado_en && docs.entregados === docs.total
   };
 }
 
-export async function personalPanel(request, env, url, partes) {
+export async function personalPanel(request, env, url, partes, enviar) {
   await asegurarEsquemaPersonal(env);
 
   if (partes.length === 1 && request.method === "GET") {
@@ -231,7 +283,12 @@ export async function personalPanel(request, env, url, partes) {
     const id = crypto.randomUUID(), token = nuevoToken(), ahora = new Date().toISOString();
     await env.DB.prepare("INSERT INTO colaboradores (id, token, creado, actualizado, nombre, telefono, datos, admin, docs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}')")
       .bind(id, token, ahora, ahora, nombre, telefono || null, JSON.stringify({ nombre, ...(telefono ? { telefono } : {}), ...(correo ? { correo } : {}) }), JSON.stringify(admin)).run();
-    return json({ ok: true, id });
+    let correoRes = null;
+    if (correo) {
+      const fila = await env.DB.prepare("SELECT * FROM colaboradores WHERE id = ?").bind(id).first();
+      correoRes = await enviarEnlacePorCorreo(env, fila, enviar);
+    }
+    return json({ ok: true, id, token, correo: correoRes });
   }
 
   const id = partes[1];
@@ -242,8 +299,8 @@ export async function personalPanel(request, env, url, partes) {
   if (partes.length === 2 && request.method === "GET") {
     return json({
       ok: true,
-      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs)).lista },
-      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS }
+      colaborador: { ...resumenFila(fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin)).lista },
+      listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, areas: AREAS, nacionalidad: NACIONALIDAD }
     });
   }
 
@@ -257,7 +314,7 @@ export async function personalPanel(request, env, url, partes) {
     if (cuerpo.recibido) docs[cuerpo.clave] = { recibido: true, fecha: /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha || "") ? cuerpo.fecha : ahora.slice(0, 10) };
     else delete docs[cuerpo.clave];
     await env.DB.prepare("UPDATE colaboradores SET docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(docs), ahora, id).run();
-    return json({ ok: true, docs: docsResumen(docs) });
+    return json({ ok: true, docs: docsResumen(docs, parse(fila.admin)) });
   }
 
   if (partes[2] === "admin") {
@@ -284,6 +341,13 @@ export async function personalPanel(request, env, url, partes) {
     }
     await env.DB.prepare("UPDATE colaboradores SET estatus = ?, fecha_baja = ?, motivo_baja = ?, actualizado = ? WHERE id = ?").bind(estatus, fechaBaja, motivo, ahora, id).run();
     return json({ ok: true });
+  }
+
+  if (partes[2] === "enviar-correo") {
+    if (fila.estatus === "inactivo") return json({ ok: false, error: "El colaborador está inactivo." }, 409);
+    const r = await enviarEnlacePorCorreo(env, fila, enviar);
+    if (r.error) return json({ ok: false, error: r.error }, 422);
+    return json({ ok: true, enviado: r.enviado });
   }
 
   if (partes[2] === "nuevo-enlace") {
