@@ -63,81 +63,156 @@ svg.i { width: 1.25em; height: 1.25em; flex: none; }
 .teclado button:active { background: #33333a; }
 .teclado .sec { background: transparent; font-size: 1rem; color: var(--muted); }
 
-/* ---------- App ---------- */
-#app { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
-header.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); background: rgba(22,22,23,.88); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-bottom: 1px solid rgba(255,255,255,.07); }
-.quien { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
-.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .7rem; letter-spacing: -.02em; flex: none; }
-.quien b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.quien > div { min-width: 0; }
-.quien b { display: block; font-size: 1.05rem; }
-.quien small { color: var(--muted); font-size: .85rem; white-space: nowrap; }
-.cuerpo { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 0; }
-nav.secciones { padding: 14px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; position: sticky; top: 64px; align-self: start; }
-nav.secciones button { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 14px; border: 0; border-radius: 14px; background: transparent; font-weight: 600; text-align: left; cursor: pointer; }
-nav.secciones button[aria-current="true"] { background: var(--surface2); }
-nav.secciones .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
-nav.secciones .n { margin-left: auto; min-width: 26px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--amber); color: var(--amber-ink); font-size: .85rem; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+/* ---------- App (mismo estilo que el panel de administración) ---------- */
+#app { min-height: 100vh; min-height: 100dvh; }
+header.bar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 16px; padding-top: env(safe-area-inset-top); box-sizing: content-box;
+  background: #161617; border-bottom: 1px solid rgba(255,255,255,.07); }
+header.bar img { height: 34px; width: auto; display: block; }
+.modulos { display: flex; gap: 2px; background: #2a2a2d; padding: 3px; border-radius: 12px; margin-right: auto; }
+.modulos button { border: 0; background: transparent; color: #d2d2d7; font-weight: 600; font-size: 14px; letter-spacing: .02em; text-transform: uppercase; padding: 9px 16px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; position: relative; }
+.modulos button[aria-current="page"] { background: var(--amber); color: var(--amber-ink); }
+.modulos .mi { display: none; width: 24px; height: 24px; }
+.modulos .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ff453a; color: #fff; font-size: 11.5px; display: grid; place-items: center; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.modulos button[aria-current="page"] .n { background: var(--amber-ink); color: var(--amber); }
+.yo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .68rem; letter-spacing: -.02em; flex: none; }
+.yo b { display: block; font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.yo small { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.salir { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+
+main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32px) calc(40px + env(safe-area-inset-bottom)); }
+.titlebar { display: grid; gap: 4px; margin-bottom: 18px; }
+.titlebar h2 { font-size: clamp(32px, 4.4vw, 46px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+.titlebar p { color: var(--muted); margin: 0; font-size: 15.5px; }
+.herr { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: -4px 0 18px; }
+
+.card { background: var(--surface); border-radius: 22px; padding: 20px 22px; }
+.card + .card { margin-top: 16px; }
+.card > h3 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.card > h3 .der { margin-left: auto; }
+.card > .note { margin: 0 0 12px; }
+.note { color: var(--muted); font-size: .92rem; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cols > .card + .card { margin-top: 0; }
+@media (max-width: 980px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* Inicio */
+.ini-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.ini-card { background: var(--surface); border-radius: 22px; padding: 20px; min-width: 0; }
+.ini-card.s2 { grid-column: span 2; }
+.ini-card.s4 { grid-column: 1 / -1; }
+.ini-card[data-ir] { cursor: pointer; transition: background .2s, transform .15s; }
+.ini-card[data-ir]:hover { background: #1f1f21; }
+.ini-card[data-ir]:active { transform: scale(.985); }
+.ini-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ini-k { color: #d2d2d7; font-weight: 600; font-size: .95rem; }
+.ibadge { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); flex: none; }
+.ibadge svg { width: 21px; height: 21px; }
+.ini-num { font-size: 2.6rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; display: block; }
+.ini-card .note { display: block; margin-top: 6px; }
+.ini-hero .ini-num { color: var(--amber); }
+.ini-hero .fila { display: flex; gap: 8px 20px; flex-wrap: wrap; color: #d2d2d7; margin-top: 10px; }
+.ini-hero .fila b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.acc-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.accion { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 16px; border: 0; background: #1f1f22; font-weight: 600; text-align: left; cursor: pointer; min-height: 96px; font-size: .98rem; }
+.accion:hover { background: #26262a; }
+.accion:active { transform: scale(.98); }
+@media (max-width: 1000px) { .ini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .acc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .ini-grid { gap: 12px; } .ini-card { padding: 16px; border-radius: 18px; } .ini-card.s2 { grid-column: 1 / -1; } .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-num { font-size: 2.1rem; } }
+
+/* Listas */
+.lista { display: grid; }
+.fila-l { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.fila-l:last-child { border-bottom: 0; }
+.fila-l .tt { font-weight: 600; overflow-wrap: anywhere; }
+.fila-l .mm { grid-column: 2 / -1; color: var(--muted); font-size: .88rem; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.fila-l .det { grid-column: 2 / -1; color: #d6d6da; white-space: pre-wrap; font-size: .95rem; }
+.fila-l .acc { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.fila-l .acc2 { grid-column: 2 / -1; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.fila-l.nuevo .tt::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); margin-right: 8px; vertical-align: middle; }
+.fila-l.hecha .tt { color: var(--muted); }
+.ico { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; align-self: start; }
+.ico svg { width: 21px; height: 21px; }
 .c-aviso { background: #2a2405; color: var(--amber); }
 .c-tarea { background: var(--info-soft); color: #7db8ec; }
 .c-incid { background: var(--bad-soft); color: var(--bad); }
-.c-gasto { background: #2b1630; color: #e08ad0; }
-.c-corte { background: var(--ok-soft); color: var(--ok); }
-main.sec { padding: 20px 20px calc(30px + env(safe-area-inset-bottom)); max-width: 860px; width: 100%; }
-main.sec > h2 { font-size: 1.6rem; margin-bottom: 4px; }
-main.sec > p.sub { color: var(--muted); margin: 0 0 18px; }
-.tarjeta { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
-.tarjeta.nuevo { border-color: var(--amber); }
-.tarjeta h3 { font-size: 1.12rem; margin-bottom: 4px; }
-.tarjeta .det { color: #d6d6da; white-space: pre-wrap; margin: 6px 0 0; }
-.meta { color: var(--muted); font-size: .88rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.fila { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.fila .btn { margin-left: auto; }
-.vacio { text-align: center; color: var(--muted); padding: 34px 12px; border: 1px dashed var(--line); border-radius: 18px; }
-.etq { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; }
+.c-gasto { background: #3a1a17; color: #ff7a70; }
+.c-extra { background: #12301d; color: var(--ok); }
+.c-corte { background: #102b2a; color: #2dd4bf; }
+.c-admin { background: #26262a; color: #d2d2d7; }
+.chk { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #5a5a5e; background: transparent; cursor: pointer; display: grid; place-items: center; color: transparent; padding: 0; align-self: start; }
+.chk svg { width: 18px; height: 18px; }
+.chk:hover { border-color: var(--ok); }
+.chk.on { background: var(--ok); border-color: var(--ok); color: #04210f; }
+.etq { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; background: #26262a; color: #d2d2d7; }
+.etq svg { width: 14px; height: 14px; }
 .g-leve { background: var(--info-soft); color: #7db8ec; }
 .g-media { background: var(--warn-soft); color: var(--warn); }
 .g-grave { background: var(--bad-soft); color: var(--bad); }
 .e-ok { background: var(--ok-soft); color: var(--ok); }
 .e-alta { background: var(--bad-soft); color: var(--bad); }
+.e-parcial { background: var(--warn-soft); color: var(--warn); }
+.nota-admin { grid-column: 2 / -1; background: #1f1f22; border-radius: 12px; padding: 10px 12px; font-size: .93rem; color: #e5e5ea; white-space: pre-wrap; }
+.nota-admin b { display: block; font-size: .78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.mov { display: flex; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.mov:last-child { border-bottom: 0; }
+.mov .m { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mov .x { border: 0; background: transparent; color: var(--muted); width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; flex: none; }
+.mov .x:hover { color: var(--bad); background: var(--bad-soft); }
+.mov .x svg { width: 19px; height: 19px; }
+.total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--line); font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.vacio { color: var(--muted); padding: 18px 0 6px; }
+a.lnk, button.lnk { color: var(--amber); background: none; border: 0; padding: 0; font-weight: 600; cursor: pointer; text-decoration: none; }
+.aviso-ok { display: flex; gap: 12px; align-items: center; background: var(--ok-soft); color: #c9f5d6; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; }
+.aviso-ok svg { color: var(--ok); width: 24px; height: 24px; flex: none; }
+
+/* Formularios */
 label.campo { display: block; margin-bottom: 14px; }
-label.campo > span { display: block; font-weight: 600; margin-bottom: 6px; }
+label.campo > span, .campo > span.lb { display: block; font-weight: 600; margin-bottom: 6px; }
 input.t, textarea.t, select.t { width: 100%; min-height: 52px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: #0d0d0e; }
-textarea.t { min-height: 92px; resize: vertical; }
+textarea.t { min-height: 88px; resize: vertical; }
 input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chips .chip { min-height: 44px; font-size: .95rem; }
 .foto { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.foto img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.foto img { width: 88px; height: 88px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
 .foto input { display: none; }
-.total { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 4px 0; border-top: 1px solid var(--line); margin-top: 6px; font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-.gasto { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.gasto:last-child { border-bottom: 0; }
-.gasto .m { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
-.denom { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
-.denom label { display: flex; align-items: center; gap: 8px; background: #0d0d0e; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; }
-.denom label b { min-width: 58px; font-variant-numeric: tabular-nums; }
-.denom input { width: 100%; min-width: 0; border: 0; background: transparent; min-height: 40px; font-size: 1.1rem; text-align: right; font-variant-numeric: tabular-nums; }
-.aviso-ok { display: flex; gap: 12px; align-items: center; background: var(--ok-soft); color: #c9f5d6; border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; }
-.aviso-ok svg { color: var(--ok); }
-details.calc summary { cursor: pointer; color: var(--amber); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
-dialog { border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--fg); padding: 20px; width: min(92vw, 520px); }
-dialog::backdrop { background: rgba(0,0,0,.65); }
-dialog h3 { font-size: 1.25rem; margin-bottom: 8px; }
-dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
-#toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--fg); color: #000; padding: 12px 20px; border-radius: 14px; font-weight: 600; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 92vw; }
+
+.retiro { display: grid; grid-template-columns: minmax(0, 1fr) 140px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.retiro .x { border: 0; background: transparent; color: var(--muted); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.retiro .x:hover { color: var(--bad); background: var(--bad-soft); }
+.retiro .x svg { width: 19px; height: 19px; }
+.reparto { display: grid; gap: 4px; padding: 12px 14px; border-radius: 14px; background: #1f1f22; color: var(--muted); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+.reparto b { color: var(--fg); }
+.reparto.ok { background: var(--ok-soft); color: #c9f5d6; } .reparto.ok span:last-child { color: var(--ok); font-weight: 700; }
+.reparto.mal { background: var(--warn-soft); color: #f5e3b8; } .reparto.mal span:last-child { color: var(--warn); font-weight: 700; }
+/* Hoja (diálogo) */
+dialog { border: 0; border-radius: 24px; background: var(--surface); color: var(--fg); padding: 22px; width: min(94vw, 600px); max-height: 92dvh; overflow: auto; }
+dialog::backdrop { background: rgba(0,0,0,.7); }
+dialog h3 { font-size: 1.3rem; margin-bottom: 6px; }
+dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; position: sticky; bottom: -22px; background: var(--surface); padding: 12px 0 2px; }
+dialog .acciones .btn { flex: 1 1 160px; }
+@media (max-width: 900px) {
+  dialog { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 24px 24px 0 0; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+}
+#toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(245,245,247,.96); color: #000; padding: 12px 20px; border-radius: 999px; font-weight: 600; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100vw - 32px); }
 #toast.mal { background: var(--bad); color: #fff; }
 
-/* Tablet vertical y teléfono: secciones abajo */
-@media (max-width: 760px) {
-  .cuerpo { grid-template-columns: 1fr; }
-  nav.secciones { position: fixed; bottom: 0; left: 0; right: 0; top: auto; z-index: 6; flex-direction: row; justify-content: space-around; padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); background: rgba(22,22,23,.95); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); gap: 2px; }
-  nav.secciones button { flex: 1; flex-direction: column; gap: 2px; min-height: 60px; padding: 4px 2px; font-size: .74rem; font-weight: 600; position: relative; justify-content: center; text-align: center; }
-  nav.secciones .ic { width: 30px; height: 30px; }
-  nav.secciones .n { position: absolute; top: 2px; right: calc(50% - 26px); min-width: 20px; height: 20px; font-size: .72rem; padding: 0 5px; margin: 0; }
-  main.sec { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
-  .quien small .largo, #terminar .largo { display: none; }
+/* Tablet vertical y teléfono: secciones abajo, como una app */
+@media (max-width: 900px) {
+  header.bar { height: 56px; }
+  .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-radius: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: #161617; border-top: 1px solid rgba(255,255,255,.08); }
+  .modulos button { flex-direction: column; gap: 3px; padding: 6px 2px; font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 500; color: #8e8e93; min-height: 56px; justify-content: center; }
+  .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
+  .modulos .mi { display: block; }
+  .modulos .n { position: absolute; top: 2px; left: calc(50% + 6px); }
+  .modulos button[aria-current="page"] .n { background: #ff453a; color: #fff; }
+  .yo { margin-left: auto; }
+  main.sec { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  #toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 }
+@media (max-width: 520px) { .yo small .largo, .salir span { display: none; } .yo b { max-width: 120px; } }
 </style>
 </head>
 <body>
@@ -174,6 +249,9 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
   <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M5.5 18.5l1.4-1.4M17.1 6.9l1.4-1.4"/></symbol>
   <symbol id="i-tarde" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3 17.4h18M7.4 17.4a4.6 4.6 0 0 1 9.2 0M12 6.4v2.4M5.6 10.2l1.6 1.4M18.4 10.2l-1.6 1.4"/></symbol>
   <symbol id="i-luna" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M19.4 14.6A7.6 7.6 0 0 1 9.4 4.6a7.6 7.6 0 1 0 10 10z"/></symbol>
+  <symbol id="i-casa" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h4.4v-5.6h3.2v5.6H18V9"/></symbol>
+  <symbol id="i-sobre" viewBox="0 0 24 24"><rect x="3.4" y="5.6" width="17.2" height="12.8" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.8 6.4l8.2 6.4 8.2-6.4"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
 </svg>
 
 <!-- ======================= Entrada con PIN ======================= -->
@@ -202,23 +280,19 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
 <!-- ======================= Turno abierto ======================= -->
 <section id="app" hidden>
   <header class="bar">
-    <div class="quien">
-      <div class="avatar" id="avatar"></div>
-      <div><b id="nombre"></b><small id="turno-txt"></small></div>
-    </div>
-    <button class="btn btn-line btn-sm" id="terminar" type="button"><svg class="i"><use href="#i-salir"/></svg><span class="largo">Terminar turno</span><span class="corto">Salir</span></button>
-  </header>
-  <div class="cuerpo">
-    <nav class="secciones" aria-label="Secciones">
-      <button type="button" data-sec="avisos"><span class="ic c-aviso"><svg class="i"><use href="#i-aviso"/></svg></span>Avisos<span class="n" data-n="avisos" hidden></span></button>
-      <button type="button" data-sec="tareas"><span class="ic c-tarea"><svg class="i"><use href="#i-tarea"/></svg></span>Tareas<span class="n" data-n="tareas" hidden></span></button>
-      <button type="button" data-sec="incidencias"><span class="ic c-incid"><svg class="i"><use href="#i-alerta"/></svg></span>Incidencias</button>
-      <button type="button" data-sec="gastos"><span class="ic c-gasto"><svg class="i"><use href="#i-gasto"/></svg></span>Gastos</button>
-      <button type="button" data-sec="corte"><span class="ic c-corte"><svg class="i"><use href="#i-billete"/></svg></span>Corte</button>
+    <img src="/img/logo.png" alt="" width="167" height="229">
+    <nav class="modulos" aria-label="Secciones">
+      <button type="button" data-sec="inicio"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
+      <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos y tareas</span><span class="n" data-n="avisos" hidden></span></button>
+      <button type="button" data-sec="incidencias"><svg class="mi" aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><span class="n" data-n="incidencias" hidden></span></button>
+      <button type="button" data-sec="corte"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Corte</span></button>
     </nav>
-    <main class="sec" id="sec"></main>
-  </div>
+    <div class="yo"><div class="avatar" id="avatar"></div><div><b id="nombre"></b><small id="turno-txt"></small></div></div>
+    <button class="salir" id="terminar" type="button"><svg class="i"><use href="#i-salir"/></svg><span>Salir</span></button>
+  </header>
+  <main class="sec" id="sec"></main>
 </section>
+
 
 <dialog id="dlg"><form method="dialog" id="dlg-form"></form></dialog>
 <div id="toast" role="status" hidden></div>
@@ -297,171 +371,347 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
   });
 
   // ======================= Turno abierto =======================
-  let E = null, seccion = null;
+  const TURNO_TXT = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
+  const RES = { cumplida: ["Cumplida", "e-ok"], parcial: ["En parte", "e-parcial"], no: ["No se pudo", "e-alta"] };
+  const ico = (id, cls = "") => `<span class="ico ${cls}"><svg aria-hidden="true"><use href="#${id}"/></svg></span>`;
+  const svg = id => `<svg class="i" aria-hidden="true"><use href="#${id}"/></svg>`;
+  const fotoLink = k => k ? `<a class="lnk" href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver foto</a>` : "";
+  const nombreDe = clave => clave === "admin" ? "Administración" : ((E.personas.find(p => p.clave === clave) || {}).nombre || clave);
+  const errores = er => er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message;
+  const sumar = l => l.reduce((s, x) => s + Number(x.monto || 0), 0);
+  function paraTxt(p) {
+    const t = [];
+    if (p.admin) t.push("Administración");
+    if (p.todos) t.push("Todos los encargados");
+    for (const x of p.turnos || []) t.push("Turno " + TURNO_TXT[x]);
+    for (const x of p.personas || []) t.push(x === E.persona ? "Ti" : x);
+    return t.join(", ") || "Todos";
+  }
+
+  let E = null, seccion = "inicio";
   async function cargar() { E = await api("estado"); pintarCabecera(); return E; }
   async function abrirApp() {
     await cargar();
     $("#entrada").hidden = true; $("#app").hidden = false;
-    const sinLeer = E.avisos.filter(a => !a.leido).length;
-    ir(sinLeer ? "avisos" : E.tareas.length ? "tareas" : "incidencias");
+    ir("inicio");
   }
+  const sinLeer = () => E.avisos.filter(a => !a.leido).length;
   function pintarCabecera() {
     $("#avatar").textContent = E.persona.slice(0, 4);
     $("#nombre").textContent = E.nombre;
-    $("#turno-txt").innerHTML = `Turno ${esc(E.turno.toLowerCase())}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
-    const n = { avisos: E.avisos.filter(a => !a.leido).length, tareas: E.tareas.length };
+    $("#turno-txt").innerHTML = `Turno de la ${esc(TURNO_TXT[E.turno])}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
+    const n = { avisos: sinLeer() + E.tareas.length, incidencias: E.incidencias.length };
     for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k]; el.hidden = !n[k]; }
   }
-  document.querySelector("nav.secciones").addEventListener("click", e => { const b = e.target.closest("button[data-sec]"); if (b) ir(b.dataset.sec); });
+  document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-sec]"); if (b) ir(b.dataset.sec); });
   function ir(s) {
     seccion = s;
-    document.querySelectorAll("nav.secciones button").forEach(b => b.setAttribute("aria-current", b.dataset.sec === s));
-    ({ avisos: verAvisos, tareas: verTareas, incidencias: verIncidencias, gastos: verGastos, corte: verCorte })[s]();
+    document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.sec === s) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    pintar();
     window.scrollTo({ top: 0 });
   }
+  function pintar() { ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, corte: verCorte })[seccion](); }
   const sec = () => $("#sec");
+  const titulo = (h, p) => `<div class="titlebar"><h2>${h}</h2>${p ? `<p>${p}</p>` : ""}</div>`;
 
-  // ---------- Avisos ----------
-  function verAvisos() {
-    const l = E.avisos;
-    sec().innerHTML = `<h2>Avisos</h2><p class="sub">Mensajes de la administración. Marca "Enterado" cuando lo leas.</p>` +
-      (l.length ? l.map(a => `<article class="tarjeta${a.leido ? "" : " nuevo"}">
-        <div class="meta">${a.prioridad === "alta" ? `<span class="etq e-alta"><svg class="i"><use href="#i-alerta"/></svg>Importante</span>` : ""}<span>${esc(fechaCorta(a.creado))}</span></div>
-        <h3 style="margin-top:6px">${esc(a.titulo)}</h3>${a.detalle ? `<p class="det">${esc(a.detalle)}</p>` : ""}
-        <div class="fila" style="margin-top:12px">${a.leido ? `<span class="etq e-ok"><svg class="i"><use href="#i-check"/></svg>Enterado</span>` : `<button class="btn btn-primary btn-sm" data-enterado="${esc(a.id)}"><svg class="i"><use href="#i-check"/></svg>Enterado</button>`}</div>
-      </article>`).join("") : `<div class="vacio">No hay avisos.</div>`);
-  }
-  // ---------- Tareas ----------
-  function verTareas() {
-    const l = E.tareas;
-    sec().innerHTML = `<h2>Tareas del turno</h2><p class="sub">Lo que la administración pidió hacer en este turno.</p>` +
-      (l.length ? l.map(t => `<article class="tarjeta">
-        <div class="meta">${t.prioridad === "alta" ? `<span class="etq e-alta">Urgente</span>` : ""}${t.fecha ? `<span>${t.fecha < E.hoy ? "Venció " : "Para "}${esc(diaTxt(t.fecha))}${t.hora ? " · " + esc(t.hora) : ""}</span>` : ""}${t.turno ? `<span>Solo turno ${esc(t.turno.toLowerCase())}</span>` : ""}</div>
-        <h3 style="margin-top:6px">${esc(t.titulo)}</h3>${t.detalle ? `<p class="det">${esc(t.detalle)}</p>` : ""}
-        <div class="fila" style="margin-top:12px"><button class="btn btn-ok btn-sm" data-hecho="${esc(t.id)}"><svg class="i"><use href="#i-check"/></svg>Hecho</button></div>
-      </article>`).join("") : `<div class="vacio">No hay tareas pendientes. ¡Bien!</div>`) +
-      (E.hechas.length ? `<h3 style="margin:22px 0 10px;font-size:1rem" class="muted">Terminadas en las últimas 24 horas</h3>` + E.hechas.map(t => `<div class="tarjeta" style="padding:12px 16px"><div class="fila"><span class="etq e-ok"><svg class="i"><use href="#i-check"/></svg>${esc(t.hecho_por || "")}</span><b>${esc(t.titulo)}</b><span class="muted" style="margin-left:auto">${esc(hora(t.cerrado))}</span></div>${t.nota_cierre ? `<p class="det muted">${esc(t.nota_cierre)}</p>` : ""}</div>`).join("") : "");
-  }
-  // ---------- Incidencias ----------
-  let fotoInc = null, gravInc = "media", areaInc = null;
-  function campoFoto(id, txt) {
-    return `<div class="foto"><label class="btn btn-line btn-sm" for="${id}"><svg class="i"><use href="#i-camara"/></svg><span>${txt}</span></label><input type="file" id="${id}" accept="image/*" capture="environment"><img id="${id}-ver" alt="" hidden><button type="button" class="btn btn-bad btn-sm" id="${id}-quitar" hidden>Quitar</button></div>`;
-  }
-  function verIncidencias() {
-    fotoInc = null; gravInc = "media"; areaInc = null;
-    sec().innerHTML = `<h2>Incidencias</h2><p class="sub">Reporta cualquier falla, daño o problema. Si es grave, la administración recibe un correo al momento.</p>
-      <form class="tarjeta" id="f-inc" novalidate>
-        <label class="campo"><span>¿Dónde?</span><div class="chips" id="inc-area">${E.areas.map(a => `<button type="button" class="chip" data-v="${esc(a)}" aria-pressed="false">${esc(a)}</button>`).join("")}</div></label>
-        <label class="campo"><span>¿Qué pasó?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. La pluma no baja" autocomplete="off"></label>
-        <label class="campo"><span>Detalles (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
-        <label class="campo"><span>Gravedad</span><div class="chips" id="inc-grav">${["leve","media","grave"].map(g => `<button type="button" class="chip" data-v="${g}" aria-pressed="${g === gravInc}"><span class="etq g-${g}">${g === "grave" ? `<svg class="i"><use href="#i-alerta"/></svg>` : ""}${GRAV[g]}</span></button>`).join("")}</div></label>
-        <div class="campo">${campoFoto("inc-foto", "Agregar foto (opcional)")}</div>
-        <p class="err" id="err-inc" role="alert"></p>
-        <button class="btn btn-primary" type="submit" style="width:100%">Reportar incidencia</button>
-      </form>
-      <h3 style="margin:22px 0 10px;font-size:1.1rem">Reportadas recientemente</h3>` +
-      (E.incidencias.length ? E.incidencias.map(i => `<article class="tarjeta" style="padding:14px 16px">
-        <div class="meta"><span class="etq g-${esc(i.gravedad)}">${i.gravedad === "grave" ? `<svg class="i"><use href="#i-alerta"/></svg>` : ""}${esc(GRAV[i.gravedad] || i.gravedad)}</span><span class="etq ${i.estado === "resuelta" ? "e-ok" : ""}" style="${i.estado === "resuelta" ? "" : "background:var(--surface2)"}">${esc(EST_INC[i.estado] || i.estado)}</span>${i.area ? `<span>${esc(i.area)}</span>` : ""}<span>${esc(fechaCorta(i.creado))}</span>${i.reporto ? `<span>· ${esc(i.reporto)}</span>` : ""}</div>
-        <h3 style="margin-top:6px;font-size:1.02rem">${esc(i.titulo)}</h3>${i.detalle ? `<p class="det">${esc(i.detalle)}</p>` : ""}
-      </article>`).join("") : `<div class="vacio">Sin incidencias recientes.</div>`);
-    activarFoto("inc-foto", f => { fotoInc = f; });
-    elegirChip("#inc-area", v => { areaInc = v; });
-    elegirChip("#inc-grav", v => { gravInc = v; });
-    $("#f-inc").addEventListener("submit", async e => {
-      e.preventDefault();
-      const f = e.target, b = f.querySelector("[type=submit]");
-      if (gravInc === "grave" && !(await confirmar("¿Es grave?", "Se enviará un correo a la administración en este momento.", "Sí, reportar"))) return;
-      b.disabled = true; $("#err-inc").textContent = "";
-      try {
-        const r = await api("incidencias", { titulo: f.titulo.value, detalle: f.detalle.value, gravedad: gravInc, area: areaInc, foto: fotoInc });
-        toast(r.avisado ? "Reportada. La administración ya recibió el aviso." : "Incidencia reportada.");
-        await cargar(); verIncidencias();
-      } catch (er) { $("#err-inc").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
-    });
-  }
-  // ---------- Gastos ----------
-  let fotoGasto = null;
-  function verGastos() {
-    fotoGasto = null;
-    const total = E.gastos.reduce((s, g) => s + g.monto, 0);
-    const cerrado = !!E.corte;
-    sec().innerHTML = `<h2>Gastos de caja chica</h2><p class="sub">Lo que se pagó con efectivo de la caja en este turno. Siempre con foto del ticket o comprobante.</p>
-      ${cerrado ? `<div class="aviso-ok"><svg class="i"><use href="#i-check"/></svg><div>El corte de este turno ya se entregó. Si falta un gasto, regístralo y vuelve a entregar el corte.</div></div>` : ""}
-      <form class="tarjeta" id="f-gasto" novalidate>
-        <label class="campo"><span>¿En qué se gastó?</span><div class="chips" id="g-conc" style="margin-bottom:8px">${E.conceptos.map(c => `<button type="button" class="chip" data-v="${esc(c)}" aria-pressed="false">${esc(c)}</button>`).join("")}</div><input class="t" name="concepto" maxlength="120" placeholder="Ej. 2 garrafones de agua" autocomplete="off"></label>
-        <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
-        <div class="campo">${campoFoto("g-foto", "Foto del ticket")}</div>
-        <p class="err" id="err-gasto" role="alert"></p>
-        <button class="btn btn-primary" type="submit" style="width:100%">Registrar gasto</button>
-      </form>
-      <div class="tarjeta"><h3>Gastos de este turno</h3>
-        ${E.gastos.length ? "<div>" + E.gastos.map(g => `<div class="gasto"><div><b>${esc(g.concepto)}</b><div class="meta">${esc(hora(g.creado))}${g.persona ? " · " + esc(g.persona) : ""}${g.con_foto ? " · con foto" : ""}</div></div><span class="m">${dinero(g.monto)}</span>${g.persona === E.persona && !cerrado ? `<button type="button" class="btn btn-line btn-sm" data-borrar-gasto="${esc(g.id)}" aria-label="Borrar gasto"><svg class="i"><use href="#i-basura"/></svg></button>` : ""}</div>`).join("") + "</div>" : `<p class="muted" style="margin:8px 0 0">Sin gastos en este turno.</p>`}
-        ${E.gastos.length ? `<div class="total"><span>Total</span><span>${dinero(total)}</span></div>` : ""}
+  // ---------- Inicio ----------
+  function verInicio() {
+    const hora = new Date().toLocaleString("es-MX", { hour: "numeric", hour12: false, timeZone: "America/Mexico_City" });
+    const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
+    const urg = E.tareas.filter(t => t.prioridad === "alta").length, graves = E.incidencias.filter(i => i.gravedad === "grave").length;
+    const nuevos = E.avisos.filter(a => !a.leido);
+    const c = E.corte;
+    sec().innerHTML = titulo(`${saludo}, ${esc(E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
+      <div class="ini-grid">
+        <section class="ini-card s2 ini-hero" data-ir="corte" tabindex="0" role="link">
+          <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
+          <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
+          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
+          <div class="fila"><span>Gastos <b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra <b>${dinero(sumar(E.extras))}</b></span></div>
+        </section>
+        <section class="ini-card" data-ir="avisos" tabindex="0" role="link">
+          <div class="ini-top"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas pendientes</span></div>
+          <b class="ini-num">${E.tareas.length}</b><span class="note">${urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Ninguna urgente" : "Todo al día"}</span>
+        </section>
+        <section class="ini-card" data-ir="avisos" tabindex="0" role="link">
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos nuevos</span></div>
+          <b class="ini-num">${nuevos.length}</b><span class="note">${E.avisos.length} ${E.avisos.length === 1 ? "aviso activo" : "avisos activos"}</span>
+        </section>
+        <section class="ini-card s4">
+          <span class="ini-k">Acciones rápidas</span>
+          <div class="acc-grid">
+            <button type="button" class="accion" data-accion="gasto"><span class="ibadge" style="--c:#ff7a70"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
+            <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
+            <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
+            <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Dejar aviso</button>
+            <button type="button" class="accion" data-accion="corte"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span>${c ? "Corregir corte" : "Hacer corte"}</button>
+          </div>
+        </section>
+        <section class="ini-card s2">${bloqueMovs("gastos")}</section>
+        <section class="ini-card s2">${bloqueMovs("extras")}</section>
+        <section class="ini-card s2" data-ir="incidencias" tabindex="0" role="link">
+          <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div>
+          <b class="ini-num">${E.incidencias.length}</b><span class="note">${graves ? `${graves} ${graves === 1 ? "grave" : "graves"} · ` : ""}De todos los turnos, hasta que la administración las resuelva.</span>
+        </section>
+        <section class="ini-card s2">
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos sin leer</span></div>
+          ${nuevos.length ? `<div class="lista">${nuevos.slice(0, 3).map(filaAviso).join("")}</div>${nuevos.length > 3 ? `<button class="lnk" type="button" data-ir="avisos">Ver los ${nuevos.length} avisos</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">Ya leíste todos los avisos.</p>`}
+        </section>
       </div>`;
-    activarFoto("g-foto", f => { fotoGasto = f; });
-    elegirChip("#g-conc", v => { const i = $("#f-gasto").concepto; if (!i.value || E.conceptos.includes(i.value)) i.value = v === "Otro" ? "" : v; i.focus(); });
-    $("#f-gasto").addEventListener("submit", async e => {
-      e.preventDefault();
-      const f = e.target, b = f.querySelector("[type=submit]");
-      b.disabled = true; $("#err-gasto").textContent = "";
-      try {
-        await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto: fotoGasto });
-        toast("Gasto registrado."); await cargar(); verGastos();
-      } catch (er) { $("#err-gasto").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
-    });
   }
-  // ---------- Corte ciego ----------
-  const DENOM = [1000, 500, 200, 100, 50, 20];
+  // Gastos o ingresos extra del turno (en Inicio y en Corte)
+  function bloqueMovs(tipo, conBoton = true) {
+    const l = tipo === "gastos" ? E.gastos : E.extras, cerrado = !!E.corte;
+    const t = tipo === "gastos" ? "Gastos del turno" : "Ingresos extra del turno";
+    return `<div class="ini-top"><span class="ibadge" style="--c:${tipo === "gastos" ? "#ff7a70" : "#30d158"}"><svg><use href="#${tipo === "gastos" ? "i-gasto" : "i-mas"}"/></svg></span><span class="ini-k">${t}</span>
+        ${conBoton ? `<button class="btn btn-line btn-sm" type="button" data-accion="${tipo === "gastos" ? "gasto" : "extra"}" style="margin-left:auto">+ Agregar</button>` : ""}</div>
+      ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? " · " + esc(x.persona) : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
+          <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
+        <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
+  }
+
+  // ---------- Avisos y tareas ----------
+  function filaAviso(a) {
+    const de = a.propio ? "Tú" : nombreDe(a.autor);
+    return `<div class="fila-l ${a.leido ? "" : "nuevo"}">${ico("i-aviso", a.autor === "admin" ? "c-aviso" : "c-admin")}
+      <span class="tt">${esc(a.titulo)}</span>
+      <span class="acc">${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</span>
+      <span class="mm"><span>${a.propio ? "Lo dejaste tú" : `De <b>${esc(de)}</b>`} para ${esc(paraTxt(a.para))}</span><span>${esc(fechaCorta(a.creado))}</span></span>
+      ${a.detalle ? `<span class="det">${esc(a.detalle)}</span>` : ""}
+      <span class="acc2">${!a.leido ? `<button class="btn btn-primary btn-sm" type="button" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : a.propio ? "" : `<span class="etq e-ok">${svg("i-check")}Enterado</span>`}
+        ${a.propio ? `<button class="btn btn-line btn-sm" type="button" data-quitar="${esc(a.id)}">Quitar aviso</button>` : `<button class="btn btn-line btn-sm" type="button" data-responder="${esc(a.id)}">Responder</button>`}</span>
+    </div>`;
+  }
+  function filaTarea(t) {
+    const ult = t.reportes && t.reportes[0];
+    return `<div class="fila-l"><button class="chk" type="button" data-reportar="${esc(t.id)}" aria-label="Informar cómo quedó: ${esc(t.titulo)}">${svg("i-check")}</button>
+      <span class="tt">${esc(t.titulo)}</span>
+      <span class="acc">${t.prioridad === "alta" ? `<span class="etq e-alta">Urgente</span>` : ""}</span>
+      <span class="mm">${t.fecha ? `<span>${t.fecha < E.hoy ? "Venció " : "Para "}${esc(diaTxt(t.fecha))}${t.hora ? " · " + esc(t.hora) : ""}</span>` : ""}${t.turno ? `<span>Solo turno ${esc(TURNO_TXT[t.turno])}</span>` : ""}</span>
+      ${t.detalle ? `<div class="nota-admin"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : ""}
+      ${ult ? `<span class="mm"><span class="etq ${RES[ult.resultado][1]}">${RES[ult.resultado][0]}</span><span>${esc(ult.persona)} · ${esc(fechaCorta(ult.creado))}${ult.nota ? " · " + esc(ult.nota) : ""}</span></span>` : ""}
+    </div>`;
+  }
+  function verAvisos() {
+    sec().innerHTML = titulo("Avisos y tareas.", "Tareas de la administración para tu turno y avisos de ida y vuelta con la administración y los demás encargados.") + `
+      <div class="cols">
+        <section class="card"><h3>${ico("i-tarea", "c-tarea")}Tareas del turno</h3>
+          <p class="note">Marca cada tarea y cuenta cómo quedó: cumplida, en parte o no se pudo. La administración recibe tu informe.</p>
+          ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
+          ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
+        </section>
+        <section class="card"><h3>${ico("i-aviso", "c-aviso")}Avisos<button class="btn btn-primary btn-sm der" type="button" data-accion="aviso">+ Nuevo aviso</button></h3>
+          <p class="note">Los de la administración y los que se dejan entre encargados. Marca "Enterado" al leerlos.</p>
+          ${E.avisos.length ? `<div class="lista">${E.avisos.map(filaAviso).join("")}</div>` : `<p class="vacio">No hay avisos.</p>`}
+        </section>
+      </div>`;
+  }
+
+  // ---------- Incidencias ----------
+  function verIncidencias() {
+    const l = E.incidencias;
+    const est = { abierta: "Abierta", en_proceso: "En proceso" };
+    sec().innerHTML = titulo("Incidencias.", "Las incidencias abiertas de todos los turnos. Se quitan de aquí cuando la administración las resuelve.") +
+      `<div class="herr"><button class="btn btn-primary" type="button" data-accion="incidencia">${svg("i-alerta")}Reportar incidencia</button></div>
+      <section class="card">${l.length ? `<div class="lista">${l.map(i => `<div class="fila-l">${ico("i-alerta", "c-incid")}
+        <span class="tt">${esc(i.titulo)}</span>
+        <span class="acc"><span class="etq g-${esc(i.gravedad)}">${i.gravedad === "grave" ? svg("i-alerta") : ""}${esc({ leve: "Leve", media: "Media", grave: "Grave" }[i.gravedad] || i.gravedad)}</span><span class="etq">${esc(est[i.estado] || i.estado)}</span></span>
+        <span class="mm">${i.area ? `<span>Dónde: <b>${esc(i.area)}</b></span>` : ""}<span>Reportó: <b>${esc(i.quien || i.reporto || "Administración")}</b></span><span>${esc(diaTxt(i.fecha))}${i.turno ? " · turno " + esc(TURNO_TXT[i.turno] || i.turno) : ""}</span>${fotoLink(i.foto)}</span>
+        ${i.detalle ? `<span class="det">${esc(i.detalle)}</span>` : ""}
+      </div>`).join("")}</div>` : `<p class="vacio">No hay incidencias abiertas.</p>`}</section>`;
+  }
+
+  // ---------- Corte ----------
   function verCorte() {
-    const c = E.corte, total = E.gastos.reduce((s, g) => s + g.monto, 0);
-    sec().innerHTML = `<h2>Corte de turno</h2><p class="sub">Cuenta el efectivo de la caja <b>sin el fondo de cambio</b> y escribe cuánto hay. La administración compara con el sistema.</p>
-      ${c ? `<div class="aviso-ok"><svg class="i"><use href="#i-check"/></svg><div><b>Corte entregado</b> a las ${esc(hora(c.actualizado))} por ${esc(c.persona)}: efectivo ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}. Si te equivocaste, corrígelo abajo.</div></div>` : ""}
-      <form class="tarjeta" id="f-corte" novalidate>
-        <details class="calc"${c ? "" : " open"}><summary>Contar por billetes y monedas</summary>
-          <div class="denom">${DENOM.map(d => `<label><b>$${d.toLocaleString("es-MX")}</b><span class="muted">×</span><input inputmode="numeric" data-d="${d}" placeholder="0" aria-label="Billetes de ${d}"></label>`).join("")}<label><b>Monedas</b><span class="muted">$</span><input inputmode="decimal" data-d="1" placeholder="0" aria-label="Total en monedas"></label></div>
-        </details>
-        <label class="campo"><span>Efectivo contado (sin fondo)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
-        <label class="campo"><span>Total de vouchers de tarjeta (opcional)</span><input class="t" name="tarjeta" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.tarjeta != null ? esc(c.tarjeta) : ""}"></label>
-        <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Ej. Se dejó cambio de $500 para el siguiente turno">${c ? esc(c.notas || "") : ""}</textarea></label>
-        <p class="muted" style="margin:0 0 12px;font-size:.92rem">Gastos de caja chica registrados en este turno: <b>${E.gastos.length}</b> por <b>${dinero(total)}</b>. Revisa que estén todos antes de entregar.</p>
-        <p class="err" id="err-corte" role="alert"></p>
-        <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
-      </form>`;
+    const c = E.corte;
+    sec().innerHTML = titulo("Corte de turno.", "Cuenta <b>todo el efectivo físico</b> de la caja, incluido el cambio inicial, y escríbelo. La administración lo compara con el sistema.") + `
+      ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
+      <div class="cols">
+        <form class="card" id="f-corte" novalidate>
+          <h3>${ico("i-billete", "c-corte")}Efectivo y vouchers</h3>
+          <label class="campo" style="margin-top:12px"><span>Efectivo físico (incluye cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
+          <label class="campo"><span>Total de vouchers de tarjeta (opcional)</span><input class="t" name="tarjeta" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.tarjeta != null ? esc(c.tarjeta) : ""}"></label>
+          <h3 style="margin:22px 0 4px">${ico("i-sobre", "c-aviso")}Informe final: reparto del efectivo</h3>
+          <p class="note" style="margin:0 0 12px">Después de contar, anota cómo repartiste el efectivo físico. Lo repartido debe sumar lo contado.</p>
+          <label class="campo"><span>Efectivo en sobre (para la administración)</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre ? esc(c.sobre) : ""}"></label>
+          <div class="campo"><span class="lb">Retiros extra <span class="muted" style="font-weight:400">(ej. taxi, compra de algo)</span></span>
+            <div id="retiros"></div>
+            <button class="btn btn-line btn-sm" type="button" id="mas-retiro">+ Agregar retiro</button></div>
+          <label class="campo"><span>Cambio para el siguiente turno</span><input class="t monto" name="cambio_sig" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.cambio_sig ? esc(c.cambio_sig) : ""}"></label>
+          <div class="reparto" id="reparto" aria-live="polite"></div>
+          <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Ej. Se dejaron $500 de cambio para el siguiente turno">${c ? esc(c.notas || "") : ""}</textarea></label>
+          <p class="note" style="margin:0 0 12px">Revisa que los gastos y los ingresos extra de este turno estén todos antes de entregar.</p>
+          <p class="err" id="err-corte" role="alert"></p>
+          <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
+        </form>
+        <div>
+          <section class="card">${bloqueMovs("gastos")}</section>
+          <section class="card">${bloqueMovs("extras")}</section>
+        </div>
+      </div>`;
     const f = $("#f-corte");
-    f.querySelectorAll("[data-d]").forEach(i => i.addEventListener("input", () => {
-      let s = 0; f.querySelectorAll("[data-d]").forEach(x => { const n = Number(String(x.value).replace(/[^\d.]/g, "")) || 0; s += x.dataset.d === "1" ? n : n * Number(x.dataset.d); });
-      f.efectivo.value = s ? s.toFixed(2) : "";
-    }));
+    const num = v => { const n = Number(String(v || "").replace(/[$,\s]/g, "")); return isFinite(n) ? n : 0; };
+    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="¿Para qué?" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" value="${r.monto ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
+    $("#retiros").innerHTML = ((c && c.retiros) || []).map(filaRetiro).join("");
+    const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({ concepto: x.querySelector('[data-r="concepto"]').value.trim(), monto: x.querySelector('[data-r="monto"]').value.trim() })).filter(r => r.concepto || r.monto);
+    function reparto() {
+      const ef = num(f.efectivo.value), rt = retiros().reduce((a, r) => a + num(r.monto), 0);
+      const rep = num(f.sobre.value) + rt + num(f.cambio_sig.value), dif = Math.round((ef - rep) * 100) / 100;
+      const el = $("#reparto");
+      if (!f.efectivo.value.trim()) { el.className = "reparto"; el.innerHTML = "Escribe primero el efectivo físico."; return dif; }
+      el.className = "reparto " + (Math.abs(dif) < 0.01 ? "ok" : "mal");
+      el.innerHTML = `<span>Sobre <b>${dinero(num(f.sobre.value))}</b> + retiros <b>${dinero(rt)}</b> + cambio <b>${dinero(num(f.cambio_sig.value))}</b> = <b>${dinero(rep)}</b></span><span>${Math.abs(dif) < 0.01 ? "✓ Cuadra con lo contado" : dif > 0 ? `Faltan ${dinero(dif)} por repartir` : `Repartiste ${dinero(-dif)} de más`}</span>`;
+      return dif;
+    }
+    $("#mas-retiro").addEventListener("click", () => { $("#retiros").insertAdjacentHTML("beforeend", filaRetiro()); $("#retiros .retiro:last-child input").focus(); });
+    f.addEventListener("click", e => { const q = e.target.closest("[data-quitar-retiro]"); if (q) { q.closest(".retiro").remove(); reparto(); } });
+    f.addEventListener("input", reparto);
+    reparto();
     f.addEventListener("submit", async e => {
       e.preventDefault();
       const b = f.querySelector("[type=submit]");
-      const ef = Number(String(f.efectivo.value).replace(/[$,\s]/g, ""));
-      if (f.efectivo.value.trim() === "" || !isFinite(ef)) { $("#err-corte").textContent = "Escribe el efectivo que contaste."; return; }
-      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Efectivo contado: ${dinero(ef)}. Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
+      const ef = num(f.efectivo.value);
+      if (f.efectivo.value.trim() === "") { $("#err-corte").textContent = "Escribe el efectivo físico que contaste."; return; }
+      const rts = retiros();
+      if (rts.some(r => r.concepto.length < 2 || !(num(r.monto) > 0))) { $("#err-corte").textContent = "Cada retiro necesita para qué fue y el monto."; return; }
+      const dif = reparto();
+      const aviso = Math.abs(dif) < 0.01 ? "" : dif > 0 ? ` Ojo: faltan ${dinero(dif)} por repartir.` : ` Ojo: repartiste ${dinero(-dif)} de más.`;
+      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Efectivo físico: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
       try {
-        await api("corte", { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value });
+        await api("corte", { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts });
         await cargar(); verCorte();
         if (await confirmar("Corte entregado", "¿Ya terminaste tu turno? Al salir, el siguiente encargado entra con su PIN.", "Terminar turno", "Seguir aquí")) salir();
-      } catch (er) { $("#err-corte").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
+      } catch (er) { $("#err-corte").textContent = errores(er); b.disabled = false; }
     });
   }
 
-  // ---------- Acciones en listas ----------
+  // ---------- Hojas (formularios en ventana) ----------
+  function hoja(html, enviar) {
+    const d = $("#dlg"), f = $("#dlg-form");
+    d.onclose = null;
+    f.innerHTML = html + `<p class="err" id="dlg-err" role="alert"></p><div class="acciones"><button class="btn btn-line" type="button" data-cerrar>Cancelar</button><button class="btn btn-primary" type="submit" id="dlg-ok">Guardar</button></div>`;
+    f.querySelector("[data-cerrar]").onclick = () => d.close();
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const b = $("#dlg-ok"); b.disabled = true; $("#dlg-err").textContent = "";
+      try { if (await enviar(f) !== false) d.close(); } catch (er) { $("#dlg-err").textContent = errores(er); }
+      b.disabled = false;
+    };
+    d.showModal();
+    return f;
+  }
+  function campoFoto(id, txt) {
+    return `<div class="foto"><label class="btn btn-line btn-sm" for="${id}">${svg("i-camara")}<span>${txt}</span></label><input type="file" id="${id}" accept="image/*" capture="environment"><img id="${id}-ver" alt="" hidden><button type="button" class="btn btn-bad btn-sm" id="${id}-quitar" hidden>Quitar</button></div>`;
+  }
+  const chips = (id, ops, sel, multi) => `<div class="chips" id="${id}"${multi ? ' data-multi="1"' : ""}>${ops.map(([v, t]) => `<button type="button" class="chip" data-v="${esc(v)}" aria-pressed="${Array.isArray(sel) ? sel.includes(v) : v === sel}">${t}</button>`).join("")}</div>`;
+  const marcados = id => [...document.querySelectorAll(`#${id} .chip[aria-pressed="true"]`)].map(b => b.dataset.v);
+
+  function hojaGasto() {
+    let foto = null;
+    hoja(`<h3>Agregar gasto</h3><p class="muted" style="margin:0 0 14px">Dinero que salió de la caja en este turno.</p>
+      <label class="campo"><span>¿En qué se gastó?</span>${chips("g-conc", E.conceptos.map(c => [c, esc(c)]), "")}<input class="t" name="concepto" maxlength="120" placeholder="Ej. Garrafón de agua" autocomplete="off" style="margin-top:8px"></label>
+      <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
+      <div class="campo"><span class="lb">Foto del comprobante (opcional)</span>${campoFoto("g-foto", "Tomar foto")}</div>`,
+      async f => { await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto }); toast("Gasto registrado."); await refrescar(); });
+    activarFoto("g-foto", x => { foto = x; });
+    elegirChip("#g-conc", v => { const i = $("#dlg-form").concepto; i.value = v === "Otro" ? "" : v; i.focus(); });
+  }
+  function hojaExtra() {
+    let foto = null;
+    hoja(`<h3>Agregar ingreso extra</h3><p class="muted" style="margin:0 0 14px">Efectivo que entra a la caja sin ticket: rentas, dinero de la administración para el cambio, etc.</p>
+      <div class="campo"><span class="lb">¿Qué es?</span>${chips("x-conc", E.conceptos_extra.map(c => [c, esc(c)]), "Renta")}</div>
+      <label class="campo"><span>¿De quién o de qué? <span class="muted" style="font-weight:400">(ej. señor de la ropa, restaurante)</span></span><input class="t" name="detalle" maxlength="120" autocomplete="off"></label>
+      <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
+      <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("x-foto", "Tomar foto")}</div>
+      <p class="note" style="margin:0">"Aumento de cambio" suma al efectivo de la caja pero no cuenta como ingreso del negocio.</p>`,
+      async f => { await api("extras", { concepto: marcados("x-conc")[0], detalle: f.detalle.value, monto: f.monto.value, foto }); toast("Ingreso registrado."); await refrescar(); });
+    activarFoto("x-foto", x => { foto = x; });
+    elegirChip("#x-conc", () => {});
+  }
+  function hojaIncidencia() {
+    let foto = null;
+    hoja(`<h3>Reportar incidencia</h3><p class="muted" style="margin:0 0 14px">Si es grave, la administración recibe un correo al momento.</p>
+      <label class="campo"><span>¿Qué pasó?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. La pluma no baja" autocomplete="off"></label>
+      <div class="campo"><span class="lb">¿Dónde pasó?</span>${chips("i-area", E.areas.map(a => [a, esc(a)]), "")}</div>
+      <label class="campo"><span>¿Quién reporta?</span><input class="t" name="quien" maxlength="60" value="${esc(E.nombre)}" autocomplete="off"></label>
+      <label class="campo"><span>Detalles (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
+      <div class="campo"><span class="lb">Gravedad</span>${chips("i-grav", [["leve", `<span class="etq g-leve">Leve</span>`], ["media", `<span class="etq g-media">Media</span>`], ["grave", `<span class="etq g-grave">${svg("i-alerta")}Grave</span>`]], "media")}</div>
+      <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("i-foto", "Tomar foto")}</div>`,
+      async f => {
+        const grav = marcados("i-grav")[0];
+        if (grav === "grave" && !confirm("Es grave: se enviará un correo a la administración ahora. ¿Continuar?")) return false;
+        const r = await api("incidencias", { titulo: f.titulo.value, area: marcados("i-area")[0], quien: f.quien.value, detalle: f.detalle.value, gravedad: grav, foto });
+        toast(r.avisado ? "Reportada. La administración ya recibió el correo." : "Incidencia reportada."); await refrescar();
+      });
+    activarFoto("i-foto", x => { foto = x; });
+    elegirChip("#i-area", () => {}); elegirChip("#i-grav", () => {});
+  }
+  function hojaAviso(base = {}) {
+    const ops = [["admin", "Administración"], ["todos", "Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "Turno " + TURNO_TXT[t]]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, esc(p.clave)])];
+    const sel = base.para || ["admin"];
+    hoja(`<h3>${base.titulo ? "Responder aviso" : "Nuevo aviso"}</h3><p class="muted" style="margin:0 0 14px">Para la administración, para todos o para un turno o encargado. La administración ve todos los avisos.</p>
+      <div class="campo"><span class="lb">¿Para quién?</span>${chips("a-para", ops, sel, true)}</div>
+      <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
+      <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
+      <label class="campo" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="alta" style="width:22px;height:22px;accent-color:var(--amber)"><span style="margin:0">Es importante</span></label>`,
+      async f => {
+        const v = marcados("a-para");
+        if (!v.length) throw new Error("Elige para quién es el aviso.");
+        const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
+        await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para });
+        toast("Aviso publicado."); await refrescar();
+      });
+    // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
+    $("#a-para").addEventListener("click", e => {
+      const b = e.target.closest(".chip"); if (!b) return;
+      const on = b.getAttribute("aria-pressed") !== "true";
+      b.setAttribute("aria-pressed", on);
+      if (on && b.dataset.v === "todos") $("#a-para").querySelectorAll('.chip[data-v^="t:"], .chip[data-v^="p:"]').forEach(x => x.setAttribute("aria-pressed", "false"));
+      if (on && /^[tp]:/.test(b.dataset.v)) { const t = $('#a-para .chip[data-v="todos"]'); t && t.setAttribute("aria-pressed", "false"); }
+    });
+  }
+  function hojaReporte(t) {
+    let foto = null;
+    hoja(`<h3>${esc(t.titulo)}</h3>${t.detalle ? `<div class="nota-admin" style="margin:6px 0 14px"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : `<p class="muted" style="margin:0 0 14px">¿Cómo quedó la tarea?</p>`}
+      <div class="campo"><span class="lb">Resultado</span>${chips("r-res", [["cumplida", `<span class="etq e-ok">${svg("i-check")}Cumplida</span>`], ["parcial", `<span class="etq e-parcial">En parte</span>`], ["no", `<span class="etq e-alta">No se pudo</span>`]], "cumplida")}</div>
+      <label class="campo"><span>Observaciones <span class="muted" style="font-weight:400">(obligatorias si quedó en parte o no se pudo)</span></span><textarea class="t" name="nota" maxlength="800"></textarea></label>
+      <div class="campo"><span class="lb">Evidencia (opcional)</span>${campoFoto("r-foto", "Tomar foto")}</div>`,
+      async f => {
+        const r = await api(`tareas/${t.id}/reporte`, { resultado: marcados("r-res")[0], nota: f.nota.value, foto });
+        toast(r.avisado ? "Informe enviado a la administración." : "Informe guardado."); await refrescar();
+      });
+    activarFoto("r-foto", x => { foto = x; });
+    elegirChip("#r-res", () => {});
+  }
+  async function refrescar() { await cargar(); pintar(); }
+
+  // ---------- Acciones (botones en cualquier sección) ----------
   sec().addEventListener("click", async e => {
-    const en = e.target.closest("[data-enterado]"), he = e.target.closest("[data-hecho]"), bg = e.target.closest("[data-borrar-gasto]");
-    if (en) {
+    const ac = e.target.closest("[data-accion]"), irA = e.target.closest("[data-ir]");
+    const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), resp = e.target.closest("[data-responder]"), qu = e.target.closest("[data-quitar]"), bo = e.target.closest("[data-borrar]");
+    if (ac) {
+      const a = ac.dataset.accion;
+      if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "corte") ir("corte");
+    } else if (en) {
       en.disabled = true;
-      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); await cargar(); verAvisos(); } catch (er) { toast(er.message, true); en.disabled = false; }
-    } else if (he) {
-      const t = E.tareas.find(x => x.id === he.dataset.hecho); if (!t) return;
-      const r = await dialogoTarea(t); if (!r) return;
-      try { await api(`tareas/${t.id}/hecho`, r); toast("Tarea terminada."); await cargar(); verTareas(); } catch (er) { toast(er.message, true); }
-    } else if (bg) {
-      if (!(await confirmar("¿Borrar este gasto?", "Se quitará de este turno.", "Borrar"))) return;
-      try { await api(`gastos/${bg.dataset.borrarGasto}/eliminar`, {}); toast("Gasto borrado."); await cargar(); verGastos(); } catch (er) { toast(er.message, true); }
-    }
+      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); await refrescar(); } catch (er) { toast(er.message, true); en.disabled = false; }
+    } else if (rp) {
+      const t = E.tareas.find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
+    } else if (resp) {
+      const a = E.avisos.find(x => x.id === resp.dataset.responder); if (!a) return;
+      hojaAviso({ titulo: ("Re: " + a.titulo).slice(0, 140), para: [a.autor === "admin" ? "admin" : "p:" + a.autor] });
+    } else if (qu) {
+      if (!(await confirmar("¿Quitar este aviso?", "Ya no lo verán los demás encargados. La administración lo conserva archivado.", "Quitar"))) return;
+      try { await api(`avisos/${qu.dataset.quitar}/archivar`, {}); toast("Aviso quitado."); await refrescar(); } catch (er) { toast(er.message, true); }
+    } else if (bo) {
+      const [tipo, id] = bo.dataset.borrar.split(":");
+      if (!(await confirmar(tipo === "gastos" ? "¿Borrar este gasto?" : "¿Borrar este ingreso?", "Se quitará de este turno.", "Borrar"))) return;
+      try { await api(`${tipo}/${id}/eliminar`, {}); toast("Borrado."); await refrescar(); } catch (er) { toast(er.message, true); }
+    } else if (irA) ir(irA.dataset.ir);
   });
+  sec().addEventListener("keydown", e => { const c = e.target.closest(".ini-card[data-ir]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ir(c.dataset.ir); } });
+  const hora12 = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
 
   // ---------- Utilidades de interfaz ----------
   function elegirChip(sel, cb) {
@@ -503,20 +753,10 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
   }
   function confirmar(titulo, texto, si, no = "Cancelar") {
     const d = $("#dlg");
+    $("#dlg-form").onsubmit = null; // la ventana se reutiliza: quitar el envío de la última hoja
     $("#dlg-form").innerHTML = `<h3>${esc(titulo)}</h3><p class="muted" style="margin:0">${esc(texto)}</p><div class="acciones"><button class="btn btn-line" value="no">${esc(no)}</button><button class="btn btn-primary" value="si">${esc(si)}</button></div>`;
     return new Promise(ok => { d.onclose = () => ok(d.returnValue === "si"); d.returnValue = ""; d.showModal(); });
   }
-  let fotoTarea = null;
-  function dialogoTarea(t) {
-    const d = $("#dlg"); fotoTarea = null;
-    $("#dlg-form").innerHTML = `<h3>${esc(t.titulo)}</h3><p class="muted" style="margin:0 0 14px">Marca la tarea como hecha.</p>
-      <label class="campo"><span>Comentario (opcional)</span><textarea class="t" id="t-nota" maxlength="500"></textarea></label>
-      <div class="campo">${campoFoto("t-foto", "Foto (opcional)")}</div>
-      <div class="acciones"><button class="btn btn-line" value="no">Cancelar</button><button class="btn btn-ok" value="si"><svg class="i"><use href="#i-check"/></svg>Hecho</button></div>`;
-    activarFoto("t-foto", f => { fotoTarea = f; });
-    return new Promise(ok => { d.onclose = () => ok(d.returnValue === "si" ? { nota: $("#t-nota").value, foto: fotoTarea } : null); d.returnValue = ""; d.showModal(); });
-  }
-
   // ---------- Salida ----------
   async function salir() {
     try { await api("salir", {}); } catch {}
@@ -527,17 +767,14 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
     if (await confirmar("¿Terminar turno?", "Se cerrará tu sesión en la tablet." + pend, "Terminar turno")) salir();
   });
   // Por seguridad: tras 30 minutos sin tocar la tablet se cierra la sesión
-  let ultimo = Date.now();
+  let ultimo = Date.now(), ultRef = Date.now();
   ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, () => { ultimo = Date.now(); }, { passive: true }));
   setInterval(() => {
     if (!E) return;
     if (Date.now() - ultimo > 30 * 60e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
-    // Refresca avisos y tareas cada 2 minutos si no hay un formulario a medio llenar
-    const ocupado = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) || $("#dlg").open;
-    if (!ocupado && (seccion === "avisos" || seccion === "tareas") && Date.now() - (window._ultRef || 0) > 120e3) {
-      window._ultRef = Date.now();
-      cargar().then(() => ir(seccion)).catch(() => {});
-    } else if (Date.now() - (window._ultRef || 0) > 120e3) { window._ultRef = Date.now(); cargar().catch(() => {}); }
+    // Cada minuto se actualizan avisos, tareas e incidencias si no hay un formulario a medio llenar
+    const ocupado = $("#dlg").open || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+    if (!ocupado && Date.now() - ultRef > 60e3) { ultRef = Date.now(); const y = scrollY; refrescar().then(() => scrollTo({ top: y })).catch(() => {}); }
   }, 20e3);
 
   // Al abrir: si ya hay sesión, directo al turno

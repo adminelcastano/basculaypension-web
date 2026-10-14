@@ -356,6 +356,15 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .tag svg { width: 12px; height: 12px; flex: none; }
 .lect { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: .78rem; font-weight: 600; background: #2a2a2d; color: #d2d2d7; }
 .lect.si { background: #12301d; color: #30d158; }
+.para-op { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; grid-column: 1 / -1; }
+.para-op > span { font-size: .85rem; font-weight: 600; color: var(--muted); margin-right: 4px; }
+.aform label.pchip { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #2a2a2d; color: var(--fg); font-weight: 500; cursor: pointer; }
+.aform label.pchip input { width: 16px; height: 16px; accent-color: var(--amber); padding: 0; }
+.aform label.pchip:has(input:checked) { background: #3a3010; color: var(--amber); }
+.informes { flex-direction: column; align-items: flex-start !important; }
+.informe { display: inline-block; padding: 4px 10px; border-radius: 10px; background: #1f1f22; font-size: .82rem; }
+.informe.ok b { color: #30d158; } .informe.parcial b { color: #ff9f0a; } .informe.no b { color: #ff6961; }
+.ptab .n.rojo { background: #ff453a !important; color: #fff !important; }
 .aform label.chkl { display: flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 500; min-height: 44px; }
 .aform label.chkl input { width: 20px; height: 20px; accent-color: var(--amber); }
 .enc { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -1980,7 +1989,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       $("#c-subtitulo").innerHTML = !j.conectado ? `<span style="color:var(--bad)">La hoja de Google todavía no está conectada.</span>`
         : `${esc(per)} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
       const t = j.totales;
-      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Transferencias", t.transferencias], [st.desde || st.hasta ? "Ingresos del periodo" : "Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
+      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Transferencias", t.transferencias], ...(t.otros ? [["Otros ingresos", t.otros]] : []), [st.desde || st.hasta ? "Ingresos del periodo" : "Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
       if (st.vista === "transf") {
@@ -2060,7 +2069,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     let j;
     try { j = await api(`caja/corte?dia=${encodeURIComponent(dia)}&turno=${encodeURIComponent(turno)}`); }
     catch (e) { if (e.message !== "sesion") d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
-    const c = j.corte || { bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 }, efectivo: 0, tarjeta: 0, ingresos: 0, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, gastos_total: 0, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, efectivo_caja: 0, fuera: { n: 0, importe: 0, formas: {} } };
+    const c = j.corte || { bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 }, efectivo: 0, tarjeta: 0, ingresos: 0, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, gastos_total: 0, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, extra: { n: 0, importe: 0, ingreso: 0 }, efectivo_caja: 0, fuera: { n: 0, importe: 0, formas: {} } };
     const fila = (k, a, b, cls = "") => `<span class="${cls}">${k}</span><span class="n ${cls}">${a}</span><span class="n ${cls}">${b}</span>`;
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
     const icono = sv => `<span class="svc ${sv}" title="${sv === "bascula" ? "Báscula" : "Pensión"}"><svg aria-hidden="true"><use href="#i-${sv}"/></svg></span>`;
@@ -2075,6 +2084,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
               ${fila("Pensión", dinero(c.pension.EFECTIVO), dinero(c.pension.TARJETA))}
               ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
               ${c.cambio && c.cambio.n ? fila("Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
+              ${c.extra && c.extra.n ? fila(`Ingresos extra (${c.extra.n})`, "+" + dinero(c.extra.importe), "") : ""}
               ${fila("Gastos", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
               ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
               <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
@@ -2083,19 +2093,38 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
               <div class="cres">
                 <span class="h">Entregó ${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
                 ${fila("Contado", dinero(c.conteo.efectivo), c.conteo.tarjeta != null ? dinero(c.conteo.tarjeta) : "—")}
-                ${fila(c.cambio && c.cambio.n ? "Según el sistema (sin cambio)" : "Según el sistema", dinero(c.conteo.esperado ?? c.efectivo_caja), dinero(c.tarjeta))}
+                ${fila(!c.conteo.con_cambio && c.cambio && c.cambio.n ? "Según el sistema (sin cambio)" : "Según el sistema", dinero(c.conteo.esperado ?? c.efectivo_caja), dinero(c.tarjeta))}
                 <span class="fin">Diferencia</span><span class="n">${difEtq(c.conteo.dif_efectivo)}</span><span class="n">${c.conteo.dif_tarjeta != null ? difEtq(c.conteo.dif_tarjeta) : ""}</span>
               </div>
+              ${c.conteo.sobre != null ? `<h4 style="margin-top:14px">Reparto del efectivo (informe final)</h4>
+              <div class="cres">
+                ${fila("Efectivo en sobre", dinero(c.conteo.sobre || 0), "")}
+                ${(c.conteo.retiros || []).map(r => fila("Retiro: " + esc(r.concepto), dinero(r.monto), "")).join("")}
+                ${fila("Cambio para el siguiente turno", dinero(c.conteo.cambio_sig || 0), "")}
+                ${(() => { const rep = (c.conteo.sobre || 0) + (c.conteo.retiros || []).reduce((x, r) => x + r.monto, 0) + (c.conteo.cambio_sig || 0), d = Math.round((c.conteo.efectivo - rep) * 100) / 100; return `<span class="fin">Repartido</span><span class="n fin">${dinero(rep)}</span><span class="n">${Math.abs(d) < 0.01 ? "✓ cuadra" : d > 0 ? "faltan " + dinero(d) : "sobran " + dinero(-d)}</span>`; })()}
+              </div>` : ""}
               <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
               <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
             ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
             ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
-            ${c.cambio && c.cambio.n ? `<p class="note">El cambio inicial se suma al efectivo en caja y no cuenta como ingreso. El encargado cuenta sin el fondo de cambio, así que el corte ciego se compara sin él.</p>` : ""}
+            ${c.cambio && c.cambio.n ? `<p class="note">El cambio inicial se suma al efectivo en caja y no cuenta como ingreso.${c.conteo && !c.conteo.con_cambio ? " Este corte se contó sin el fondo de cambio (antes del 14 oct), así que se compara sin él." : ""}</p>` : ""}
+            ${c.extra && c.extra.n ? `<p class="note">Ingresos extra: rentas y otros ingresos suman a la caja y a los ingresos${c.extra.importe - c.extra.ingreso ? `; el aumento de cambio (${dinero(c.extra.importe - c.extra.ingreso)}) solo suma a la caja` : ""}.</p>` : ""}
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos del turno</h3>
             ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
+          </section>
+          <section class="card"><h3>Ingresos extra del turno</h3>
+            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
+            <details><summary class="note" style="cursor:pointer;font-weight:600">Agregar ingreso extra a este turno</summary><div style="margin-top:12px">
+              <form class="cform" id="c-fextra" novalidate>
+                <label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
+                <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
+                <label class="wide">De quién o de qué<input name="detalle" maxlength="120" placeholder="Ej. renta del local de ropa"></label>
+                <span class="err wide" id="c-xerr" style="grid-column:1/-1"></span>
+                <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar ingreso</button></div>
+              </form></div></details>
           </section>
       </div>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
@@ -2106,6 +2135,21 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       </div>`;
     $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
     conectarForm();
+    $("#c-fextra").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const f = ev.target, b = f.querySelector("button[type=submit]");
+      b.disabled = true; $("#c-xerr").textContent = "";
+      try {
+        await api("caja/extras", { method: "POST", body: JSON.stringify({ dia, turno, concepto: f.concepto.value, detalle: f.detalle.value, monto: f.monto.value.replace(/[$,\s]/g, "") }) });
+        toast("Ingreso guardado"); await cargar(); abrir(k);
+      } catch (e) { if (e.message !== "sesion") $("#c-xerr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    });
+    d.querySelectorAll("[data-xdel]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "¿Seguro?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar"; }, 3000); return; }
+      b.disabled = true;
+      try { await api(`caja/extras/${encodeURIComponent(b.dataset.xdel)}/eliminar`, { method: "POST", body: "{}" }); toast("Ingreso eliminado"); await cargar(); abrir(k); }
+      catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
     d.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "¿Seguro?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar"; }, 3000); return; }
       b.disabled = true;
@@ -2396,8 +2440,9 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       const trHoy = j.transferencias.filter(t => t.fecha === ta.dia).reduce((a, t) => a + t.importe, 0);
       const ef = delDia.reduce((a, c) => a + c.efectivo, 0), tj = delDia.reduce((a, c) => a + c.tarjeta, 0);
       const bas = delDia.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0), pen = delDia.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0);
-      contar($("#i-hoy"), ef + tj + trHoy, v => dinero(v));
-      $("#i-split").innerHTML = `<span><i class="sw efe"></i> Efectivo <b>${dinero(ef, 2)}</b></span><span><i class="sw tar"></i> Tarjeta <b>${dinero(tj, 2)}</b></span><span><i class="sw tra"></i> Transferencias <b>${dinero(trHoy, 2)}</b></span>`;
+      const otrosHoy = delDia.reduce((a, c) => a + (c.extra ? c.extra.ingreso : 0), 0);
+      contar($("#i-hoy"), ef + tj + trHoy + otrosHoy, v => dinero(v));
+      $("#i-split").innerHTML = `<span><i class="sw efe"></i> Efectivo <b>${dinero(ef, 2)}</b></span><span><i class="sw tar"></i> Tarjeta <b>${dinero(tj, 2)}</b></span><span><i class="sw tra"></i> Transferencias <b>${dinero(trHoy, 2)}</b></span>${otrosHoy ? `<span>Otros (rentas) <b>${dinero(otrosHoy, 2)}</b></span>` : ""}`;
       const enCurso = porDiaTurno[ta.dia + "|" + ta.turno];
       contar($("#i-caja"), enCurso ? enCurso.efectivo_caja : 0, v => dinero(v));
       $("#i-caja-nota").textContent = `Turno de la ${TURNO_TXT[ta.turno].toLowerCase()}${enCurso ? ` · ${enCurso.registros} registros` : " · sin registros aún"}`;
@@ -2502,6 +2547,8 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
       for (const t of ["tarea", "compra", "incidencia", "aviso"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      // Avisos de los encargados sin leer: el contador se pone en rojo con cuántos son
+      const nA = $("#an-aviso"); nA.classList.toggle("rojo", !!j.avisos_sin_leer); if (j.avisos_sin_leer) nA.textContent = j.avisos_sin_leer;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
       const a = j.abiertos;
       $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.compra || 0} compras · ${a.incidencia || 0} incidencias abiertas`;
@@ -2523,6 +2570,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       <label>Fecha<input type="date" name="fecha" value="${esc(fecha)}"></label><label>Hora<input type="time" name="hora"></label>${avisoSel(60)}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "tarea") return `<form class="aform" data-tipo="tarea"><label class="w4">Nueva tarea<input name="titulo" maxlength="140" placeholder="Ej. Pintar la caseta, renovar extintores" autocomplete="off"></label>
       <label>Fecha límite<input type="date" name="fecha"></label><label>Prioridad<select name="prioridad"><option value="normal">Normal</option><option value="alta">Alta</option></select></label>${avisoSel()}
+      <label class="w4">Nota para el encargado <span style="font-weight:400">(opcional; la ve en la tablet)</span><input name="detalle" maxlength="1000" autocomplete="off"></label>
       <label class="chkl w2"><input type="checkbox" name="para_turno">Que la haga el encargado (tablet)</label><label>Turno<select name="turno"><option value="">Cualquiera</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
       <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
@@ -2541,7 +2589,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc"><select class="estado-sel" data-estado="${esc(it.id)}" aria-label="Estado">${[["abierta", "Abierta"], ["en_proceso", "En proceso"], ["resuelta", "Resuelta"]].map(([k, v]) => `<option value="${k}" ${it.estado === k ? "selected" : ""}>${v}</option>`).join("")}</select>${del}</span>
-        <span class="mm">${it.reporto ? `<span class="tag tablet">${ico("i-tablet")}${esc(it.reporto)}</span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
+        <span class="mm">${it.reporto ? `<span class="tag tablet">${ico("i-tablet")}${esc(it.reporto)}</span>` : ""}${it.quien ? `<span>Reportó: <b>${esc(it.quien)}</b></span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
     }
     const fin = it.tipo === "compra" ? "comprado" : "hecho";
     const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
@@ -2554,10 +2602,12 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       it.hora ? `<span>${esc(it.hora)}</span>` : "",
       it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : "",
       it.para_turno ? `<span class="tag tablet">${ico("i-tablet")}Tablet${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>` : "",
-      hecho && it.hecho_por ? `<span>Hecha por ${esc(it.hecho_por)} ${esc(cuando(it.cerrado))}${it.nota_cierre ? " · " + esc(it.nota_cierre) : ""}${foto(it.foto)}</span>` : ""
+      hecho && it.hecho_por && !(it.reportes || []).length ? `<span>Hecha por ${esc(it.hecho_por)} ${esc(cuando(it.cerrado))}${it.nota_cierre ? " · " + esc(it.nota_cierre) : ""}${foto(it.foto)}</span>` : ""
     ].filter(Boolean).join("");
+    const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
+    const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
-      <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}</div>`;
+      <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${it.tipo === "tarea" && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
   function vistaLista(tipo) {
@@ -2578,20 +2628,34 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     const todos = st.items.filter(x => x.tipo === "aviso");
     const act = todos.filter(abierto).sort((a, b) => b.creado.localeCompare(a.creado)), arch = todos.filter(x => !abierto(x));
     const activos = (st.personas || []).filter(p => p.activo);
+    const T = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
+    const paraTxt = p => [p.admin ? "Administración" : "", p.todos ? "Todos los encargados" : "", ...(p.turnos || []).map(t => "Turno " + T[t]), ...(p.personas || [])].filter(Boolean).join(", ") || "Todos";
+    const deTxt = it => it.autor === "admin" ? "Administración" : (activos.find(p => p.clave === it.autor) || { nombre: it.autor }).nombre + " (" + it.autor + ")";
+    const leidoAdmin = it => (it.lecturas || []).some(l => l.persona === "ADMIN");
     const lecturas = it => {
+      const p = it.para || {};
+      // Encargados a los que va dirigido (por turno no se sabe quién: se muestran todos)
+      const dest = p.todos || (p.turnos || []).length ? activos : activos.filter(x => (p.personas || []).includes(x.clave));
       const l = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
-      return activos.map(p => l.has(p.clave) ? `<span class="lect si" title="Enterado ${esc(cuando(l.get(p.clave)))}">✓ ${esc(p.clave)} ${esc(cuando(l.get(p.clave)).replace(/^.*?, /, ""))}</span>` : `<span class="lect" title="Todavía no lo lee">${esc(p.clave)}</span>`).join("");
+      return dest.filter(x => x.clave !== it.autor).map(x => l.has(x.clave) ? `<span class="lect si" title="Enterado ${esc(cuando(l.get(x.clave)))}">✓ ${esc(x.clave)} ${esc(cuando(l.get(x.clave)).replace(/^.*?, /, ""))}</span>` : `<span class="lect" title="Todavía no lo lee">${esc(x.clave)}</span>`).join("");
     };
-    const fila = it => `<div class="aitem ${abierto(it) ? "" : "hecho"}"><span class="grav ${it.prioridad === "alta" ? "grave" : "leve"}">${ico("i-aviso")}</span>
-      <span class="tt">${esc(it.titulo)}</span>
-      <span class="acc">${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Reactivar</button>`}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button></span>
-      <span class="mm">${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span>
+    const fila = it => {
+      const deEnc = it.autor !== "admin", paraAdmin = it.para && it.para.admin, nuevo = deEnc && paraAdmin && abierto(it) && !leidoAdmin(it);
+      return `<div class="aitem ${abierto(it) ? "" : "hecho"}"><span class="grav ${it.prioridad === "alta" ? "grave" : deEnc ? "media" : "leve"}">${ico(deEnc ? "i-tablet" : "i-aviso")}</span>
+      <span class="tt">${nuevo ? `<span class="tag hoy" style="margin-right:6px">Nuevo</span>` : ""}${esc(it.titulo)}</span>
+      <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:32px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:32px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Reactivar</button>`}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button></span>
+      <span class="mm"><span>De <b>${esc(deTxt(it))}</b> para <b>${esc(paraTxt(it.para || {}))}</b></span>${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}${deEnc && paraAdmin && leidoAdmin(it) ? `<span class="lect si">✓ Leído por ti</span>` : ""}</span>
       <span class="mm" style="margin-top:4px">${lecturas(it)}</span></div>`;
-    return `<section class="card"><form class="aform" data-tipo="aviso"><label class="w4">Nuevo aviso para los encargados<input name="titulo" maxlength="140" placeholder="Ej. Mañana viene el técnico de la báscula" autocomplete="off"></label>
+    };
+    const r = st.resp || {}; st.resp = null;
+    const opPara = [["todos", "Todos los encargados"], ...Object.entries(T).map(([k, v]) => ["t:" + k, "Turno " + v]), ...activos.map(p => ["p:" + p.clave, p.clave])];
+    const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
+    return `<section class="card"><form class="aform" data-tipo="aviso"><label class="w4">${r.persona ? "Responder a " + esc(r.persona) : "Nuevo aviso para los encargados"}<input name="titulo" maxlength="140" placeholder="Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label>
       <label class="w4">Mensaje <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
+      <div class="w4 para-op"><span>Para</span>${opPara.map(([v, t]) => `<label class="pchip"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>
       <label>Mostrar desde<input type="date" name="fecha"></label><label>Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
       <button class="btn btn-primary" type="submit">Publicar</button><span class="err"></span></form>
-      <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado".</p></section>
+      <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado". Los encargados también pueden dejarte avisos a ti o entre ellos; aquí los ves todos.</p></section>
       <section class="card"><div class="alist">${act.length ? act.map(fila).join("") : `<p class="note">No hay avisos activos.</p>`}</div>
       ${arch.length ? `<details class="hechos"><summary>Archivados en los últimos 30 días (${arch.length})</summary><div class="alist">${arch.map(fila).join("")}</div></details>` : ""}</section>`;
   }
@@ -2616,9 +2680,9 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
           <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
       </section>
       <section class="card"><h3>Últimos cortes ciegos</h3>
-        ${j.cortes.length ? `<div class="tabla-scroll"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th></tr></thead><tbody>
-          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td></tr>`).join("")}
-        </tbody></table></div><p class="note">Sistema = efectivo esperado según la hoja menos los gastos en efectivo, sin el cambio inicial (el encargado cuenta sin fondo). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
+        ${j.cortes.length ? `<div class="tabla-scroll"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th><th class="n">Sobre</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
+        </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo (los cortes anteriores al 14 oct se contaron sin el cambio). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
       </section>
       <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
     const guardar = async (clave, datos, err) => {
@@ -2668,6 +2732,11 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       ev.preventDefault();
       const datos = { tipo: f.dataset.tipo };
       for (const el of f.elements) if (el.name) datos[el.name] = el.type === "checkbox" ? (el.checked ? 1 : "") : el.value;
+      if (f.dataset.tipo === "aviso") {
+        const v = [...f.querySelectorAll("[data-para]:checked")].map(x => x.dataset.para);
+        if (!v.length) { f.querySelector(".err").textContent = "Elige para quién es el aviso."; return; }
+        datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
+      }
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
@@ -2679,6 +2748,21 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelectorAll("[data-leer]").forEach(b => b.addEventListener("click", async () => {
+      try { await post(`agenda/${b.dataset.leer}/enterado`); toast("Marcado como leído"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelectorAll("[data-responder]").forEach(b => b.addEventListener("click", () => {
+      const it = st.items.find(x => x.id === b.dataset.responder); if (!it) return;
+      st.resp = { persona: it.autor, titulo: ("Re: " + it.titulo).slice(0, 140) }; pintar();
+      const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); scrollTo({ top: 0, behavior: "smooth" });
+    }));
+    // "Todos los encargados" incluye turnos y personas
+    c.querySelectorAll("[data-para]").forEach(x => x.addEventListener("change", () => {
+      if (!x.checked) return;
+      const f = x.closest("form");
+      if (x.dataset.para === "todos") f.querySelectorAll('[data-para^="t:"],[data-para^="p:"]').forEach(y => { y.checked = false; });
+      else { const t = f.querySelector('[data-para="todos"]'); if (t) t.checked = false; }
     }));
     c.querySelectorAll("[data-archivar],[data-reactivar]").forEach(b => b.addEventListener("click", async () => {
       const id = b.dataset.archivar || b.dataset.reactivar;

@@ -29,13 +29,37 @@ export async function asegurarEsquemaAgenda(env) {
       creado TEXT NOT NULL, creado_por TEXT, actualizado TEXT, cerrado TEXT, aviso INTEGER, avisado TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_tipo ON agenda_items (tipo, estado)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_fecha ON agenda_items (fecha)"),
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_lecturas (item_id TEXT NOT NULL, persona TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (item_id, persona))")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_lecturas (item_id TEXT NOT NULL, persona TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (item_id, persona))"),
+    // Informes de la tablet sobre una tarea: cumplida, parcial o no se pudo, con nota y foto opcional
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS agenda_reportes (
+      id TEXT PRIMARY KEY, item_id TEXT NOT NULL, persona TEXT NOT NULL, turno TEXT, dia TEXT, resultado TEXT NOT NULL,
+      nota TEXT, foto TEXT, creado TEXT NOT NULL)`),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_reportes_item ON agenda_reportes (item_id)")
   ]);
   // Columnas agregadas para la tablet de turno
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"]])
+  // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
+  // quien: quién reporta la incidencia (texto libre en la tablet).
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   listo = true;
+}
+
+// Destinatarios de un aviso: { todos, admin, turnos: [...], personas: [...] }. Sin nada marcado = todos.
+export function normalizarPara(p) {
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch { p = null; } }
+  if (!p || typeof p !== "object") return { todos: true, admin: false, turnos: [], personas: [] };
+  const turnos = (Array.isArray(p.turnos) ? p.turnos : []).map(t => String(t).toUpperCase()).filter(t => TURNOS.includes(t));
+  const personas = (Array.isArray(p.personas) ? p.personas : []).map(x => texto(x, 12).toUpperCase()).filter(Boolean).slice(0, 30);
+  const r = { todos: !!p.todos, admin: !!p.admin, turnos: [...new Set(turnos)], personas: [...new Set(personas)] };
+  if (!r.todos && !r.admin && !r.turnos.length && !r.personas.length) r.todos = true;
+  return r;
+}
+// ¿Lo ve el encargado `persona` en el turno `turno`?
+export function avisoParaEncargado(it, persona, turno) {
+  if (it.autor === persona) return true;
+  const p = normalizarPara(it.para);
+  return p.todos || p.turnos.includes(turno) || p.personas.includes(persona);
 }
 
 function validar(tipo, c, previo = {}) {
@@ -48,7 +72,9 @@ function validar(tipo, c, previo = {}) {
     gravedad: v("gravedad") ? String(v("gravedad")) : null,
     aviso: v("aviso") ? Number(v("aviso")) : null,
     para_turno: v("para_turno") ? 1 : 0,
-    area: v("area") ? texto(v("area"), 40) : null
+    area: v("area") ? texto(v("area"), 40) : null,
+    para: tipo === "aviso" ? JSON.stringify(normalizarPara(v("para"))) : null,
+    quien: tipo === "incidencia" && v("quien") ? texto(v("quien"), 60) : null
   };
   const e = {};
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
@@ -71,9 +97,26 @@ function validar(tipo, c, previo = {}) {
 const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado')";
 
 export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {}) {
-  await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso, para_turno, area, reporto, foto)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, creadoPor, ahora, d.aviso, d.para_turno || 0, d.area || null, extra.reporto || null, extra.foto || null).run();
+  await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso, para_turno, area, reporto, foto, autor, para, quien)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, creadoPor, ahora, d.aviso, d.para_turno || 0, d.area || null, extra.reporto || null, extra.foto || null,
+      extra.autor || (tipo === "aviso" ? "admin" : null), d.para || null, d.quien || null).run();
+}
+// Borra registros de la agenda con sus fotos, lecturas e informes
+async function borrarItems(env, items) {
+  if (!items.length) return;
+  const ids = items.map(v => v.id);
+  const stmts = [];
+  for (let i = 0; i < ids.length; i += 90) {
+    const lote = ids.slice(i, i + 90), q = lote.map(() => "?").join(",");
+    const fotos = (await env.DB.prepare(`SELECT foto FROM agenda_reportes WHERE item_id IN (${q}) AND foto IS NOT NULL`).bind(...lote).all()).results;
+    for (const f of fotos) await env.FILES.delete(f.foto).catch(() => {});
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...lote));
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_reportes WHERE item_id IN (${q})`).bind(...lote));
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...lote));
+  }
+  for (const v of items) if (v.foto) await env.FILES.delete(v.foto).catch(() => {});
+  await env.DB.batch(stmts);
 }
 export { validar as validarItem, ABIERTO };
 
@@ -87,14 +130,7 @@ export async function limpiarAgenda(env, ahora = new Date()) {
     WHERE (NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
        OR (tipo = 'evento' AND fecha < ?) LIMIT 500`).bind(limite, diaLimite).all()).results;
   if (!viejos.length) return 0;
-  for (const v of viejos) if (v.foto) await env.FILES.delete(v.foto).catch(() => {});
-  const stmts = [];
-  for (let i = 0; i < viejos.length; i += 90) {
-    const ids = viejos.slice(i, i + 90).map(v => v.id), q = ids.map(() => "?").join(",");
-    stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...ids));
-    stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...ids));
-  }
-  await env.DB.batch(stmts);
+  await borrarItems(env, viejos);
   return viejos.length;
 }
 
@@ -131,9 +167,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     sql += " ORDER BY COALESCE(fecha, '9999-12-31'), COALESCE(hora, '99:99'), creado LIMIT 1000";
     const items = (await env.DB.prepare(sql).bind(...args).all()).results;
     const lect = items.some(it => it.tipo === "aviso") ? (await env.DB.prepare("SELECT l.item_id, l.persona, l.at FROM agenda_lecturas l JOIN agenda_items a ON a.id = l.item_id WHERE a.tipo = 'aviso'").all()).results : [];
-    for (const it of items) if (it.tipo === "aviso") it.lecturas = lect.filter(l => l.item_id === it.id);
+    for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
+    // Informes de la tablet sobre las tareas
+    const rep = items.some(it => it.tipo === "tarea") ? (await env.DB.prepare("SELECT r.* FROM agenda_reportes r JOIN agenda_items a ON a.id = r.item_id WHERE a.tipo = 'tarea' ORDER BY r.creado DESC").all()).results : [];
+    for (const it of items) if (it.tipo === "tarea") it.reportes = rep.filter(r => r.item_id === it.id);
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
-    return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), hoy: hoyMx(), estados: ESTADOS });
+    // Avisos de los encargados para la administración que todavía no se leen en el panel
+    const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
+    return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
@@ -166,8 +207,13 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
 
   if (partes[2] === "eliminar" && request.method === "POST") {
-    if (fila.foto) await env.FILES.delete(fila.foto).catch(() => {});
-    await env.DB.batch([env.DB.prepare("DELETE FROM agenda_items WHERE id = ?").bind(id), env.DB.prepare("DELETE FROM agenda_lecturas WHERE item_id = ?").bind(id)]);
+    await borrarItems(env, [fila]);
+    return json({ ok: true });
+  }
+
+  // La administración marca como leído un aviso de un encargado
+  if (partes[2] === "enterado" && request.method === "POST" && fila.tipo === "aviso") {
+    await env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, 'ADMIN', ?)").bind(id, ahora).run();
     return json({ ok: true });
   }
 

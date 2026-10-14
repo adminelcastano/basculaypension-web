@@ -10,6 +10,11 @@ const VENTANA = { "MAÑANA": [6, 14], "TARDE": [14, 22], "NOCHE": [22, 30] };
 // Solo estas formas de pago suman en el corte
 export const FORMAS_CONTADAS = ["EFECTIVO", "TARJETA"];
 const FORMAS_GASTO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"];
+// Ingresos extra (efectivo que entra a la caja sin ticket): rentas de locales, dinero que pone la
+// administración para aumentar el cambio, etc. Todos suman al efectivo del turno; el "Aumento de cambio"
+// no cuenta como ingreso del negocio.
+export const CONCEPTOS_EXTRA = ["Renta", "Aumento de cambio", "Otro ingreso"];
+export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
 // Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
 export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
@@ -70,8 +75,16 @@ export async function asegurarEsquemaCaja(env) {
       dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, efectivo REAL NOT NULL, tarjeta REAL,
       notas TEXT, creado TEXT NOT NULL, actualizado TEXT NOT NULL, veces INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (dia, turno))`)
   ]);
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS caja_extra (
+      id TEXT PRIMARY KEY, mes TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, concepto TEXT NOT NULL, detalle TEXT,
+      monto REAL NOT NULL, ingreso INTEGER NOT NULL DEFAULT 1, foto TEXT, persona TEXT, creado TEXT NOT NULL, creado_por TEXT)`).run();
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(caja_gastos)").all()).results.map(r => r.name));
   for (const c of ["foto", "persona"]) if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE caja_gastos ADD COLUMN ${c} TEXT`).run();
+  // Desde el 14 oct 2026 el encargado cuenta el efectivo físico CON el cambio inicial (con_cambio = 1)
+  const colsC = new Set((await env.DB.prepare("PRAGMA table_info(turno_cortes)").all()).results.map(r => r.name));
+  if (!colsC.has("con_cambio")) await env.DB.prepare("ALTER TABLE turno_cortes ADD COLUMN con_cambio INTEGER NOT NULL DEFAULT 0").run();
+  // Informe final: cómo se repartió el efectivo contado (sobre para la administración, retiros y cambio para el siguiente turno)
+  for (const [c, t] of [["sobre", "REAL"], ["cambio_sig", "REAL"], ["retiros", "TEXT"]]) if (!colsC.has(c)) await env.DB.prepare(`ALTER TABLE turno_cortes ADD COLUMN ${c} ${t}`).run();
   esquemaListo = true;
 }
 
@@ -153,13 +166,13 @@ export async function sincronizarCaja(env) {
 }
 
 // Cortes por día y turno a partir de ingresos y gastos
-export function calcularCortes(movs, gastos) {
+export function calcularCortes(movs, gastos, extras = []) {
   const cortes = new Map();
   const corte = (dia, turno) => {
     const k = dia + "|" + turno;
     if (!cortes.has(k)) cortes.set(k, {
       dia, turno, bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 },
-      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
+      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, extra: { n: 0, importe: 0, ingreso: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
     });
     return cortes.get(k);
   };
@@ -172,18 +185,20 @@ export function calcularCortes(movs, gastos) {
     else { c.fuera.n++; c.fuera.importe += m.importe; c.fuera.formas[m.forma] = (c.fuera.formas[m.forma] || 0) + m.importe; }
   }
   for (const g of gastos) { const c = corte(g.dia, g.turno); c.gastos[g.forma] = (c.gastos[g.forma] || 0) + g.monto; c.n_gastos++; }
+  for (const x of extras) { const c = corte(x.dia, x.turno); c.extra.n++; c.extra.importe += x.monto; if (x.ingreso) c.extra.ingreso += x.monto; }
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return [...cortes.values()].map(c => {
     const efectivo = c.bascula.EFECTIVO + c.pension.EFECTIVO, tarjeta = c.bascula.TARJETA + c.pension.TARJETA;
-    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.cambio.importe + c.caja.importe - c.gastos.EFECTIVO };
+    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.cambio.importe + c.extra.importe + c.caja.importe - c.gastos.EFECTIVO };
   }).sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
 
 function totalesMes(cortes, transf = []) {
-  const t = { efectivo: 0, tarjeta: 0, transferencias: 0, ingresos: 0, gastos: 0, caja: 0, bascula: 0, pension: 0, n_transferencias: transf.length };
+  const t = { efectivo: 0, tarjeta: 0, transferencias: 0, ingresos: 0, gastos: 0, caja: 0, bascula: 0, pension: 0, extras: 0, otros: 0, n_transferencias: transf.length };
   for (const x of transf) { t.transferencias += x.importe; t.ingresos += x.importe; }
   for (const c of cortes) {
-    t.efectivo += c.efectivo; t.tarjeta += c.tarjeta; t.ingresos += c.ingresos; t.gastos += c.gastos_total; t.caja += c.caja.importe;
+    t.efectivo += c.efectivo; t.tarjeta += c.tarjeta; t.ingresos += c.ingresos + c.extra.ingreso; t.gastos += c.gastos_total; t.caja += c.caja.importe;
+    t.extras += c.extra.importe; t.otros += c.extra.ingreso;
     t.bascula += c.bascula.EFECTIVO + c.bascula.TARJETA; t.pension += c.pension.EFECTIVO + c.pension.TARJETA;
   }
   return t;
@@ -201,12 +216,18 @@ export function unirConteos(cortes, conteos) {
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return salida.sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
+export function leerRetiros(v) {
+  let l = v; if (typeof l === "string") { try { l = JSON.parse(l); } catch { l = []; } }
+  return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
+}
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;
   return { persona: x.persona, efectivo: x.efectivo, tarjeta: x.tarjeta, notas: x.notas, actualizado: x.actualizado, veces: x.veces,
-    // El encargado cuenta sin el fondo de cambio: se compara contra el efectivo en caja menos el cambio inicial
-    esperado: c ? r2(c.efectivo_caja - (c.cambio ? c.cambio.importe : 0)) : null,
-    dif_efectivo: c ? r2(x.efectivo - (c.efectivo_caja - (c.cambio ? c.cambio.importe : 0))) : null, dif_tarjeta: c && x.tarjeta != null ? r2(x.tarjeta - c.tarjeta) : null };
+    // Antes el encargado contaba sin el fondo de cambio; desde el 14 oct 2026 cuenta todo (con_cambio = 1)
+    con_cambio: !!x.con_cambio,
+    sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros),
+    esperado: c ? r2(c.efectivo_caja - (x.con_cambio || !c.cambio ? 0 : c.cambio.importe)) : null,
+    dif_efectivo: c ? r2(x.efectivo - (c.efectivo_caja - (x.con_cambio || !c.cambio ? 0 : c.cambio.importe))) : null, dif_tarjeta: c && x.tarjeta != null ? r2(x.tarjeta - c.tarjeta) : null };
 }
 
 // Periodo opcional: desde/hasta (AAAA-MM-DD, por día del corte o fecha de la transferencia)
@@ -223,17 +244,19 @@ async function leerMes(env, mes, { desde = "", hasta = "" } = {}) {
   const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE mes = ?${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
   const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE mes = ?${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
   const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE mes = ?${rango("dia")}`).bind(...args).all()).results;
-  return { movs, gastos, transf, conteos };
+  const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE mes = ?${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  return { movs, gastos, transf, conteos, extras };
 }
 
 const NOMBRE_SERV = { bascula: "Báscula", pension: "Pensión" };
-export function hojasExcel(mes, movs, gastos, transf = [], conteos = []) {
-  const cortes = unirConteos(calcularCortes(movs, gastos), conteos).slice().reverse();
+export function hojasExcel(mes, movs, gastos, transf = [], conteos = [], extras = []) {
+  const cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos).slice().reverse();
   return [
-    { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14], filas: [
-      ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Cambio inicial", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta"],
-      ...cortes.map(c => [c.dia, c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.cambio.importe, c.caja.importe, c.efectivo_caja, c.fuera.importe,
-        c.conteo ? c.conteo.persona : "", c.conteo ? c.conteo.efectivo : "", c.conteo ? c.conteo.dif_efectivo : "", c.conteo && c.conteo.tarjeta != null ? c.conteo.tarjeta : "", c.conteo && c.conteo.dif_tarjeta != null ? c.conteo.dif_tarjeta : ""])
+    { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14, 14, 14, 30, 16], filas: [
+      ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Cambio inicial", "Ingresos extra", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta", "Efectivo en sobre", "Retiros extra", "Detalle de retiros", "Cambio para el siguiente turno"],
+      ...cortes.map(c => [c.dia, c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.cambio.importe, c.extra.importe, c.caja.importe, c.efectivo_caja, c.fuera.importe,
+        c.conteo ? c.conteo.persona : "", c.conteo ? c.conteo.efectivo : "", c.conteo ? c.conteo.dif_efectivo : "", c.conteo && c.conteo.tarjeta != null ? c.conteo.tarjeta : "", c.conteo && c.conteo.dif_tarjeta != null ? c.conteo.dif_tarjeta : "",
+        c.conteo && c.conteo.sobre != null ? c.conteo.sobre : "", c.conteo ? c.conteo.retiros.reduce((a, r) => a + r.monto, 0) || "" : "", c.conteo ? c.conteo.retiros.map(r => `${r.concepto} ${r.monto}`).join("; ") : "", c.conteo && c.conteo.cambio_sig != null ? c.conteo.cambio_sig : ""])
     ] },
     ...["bascula", "pension"].map(sv => ({ nombre: NOMBRE_SERV[sv], anchos: [19, 12, 10, 12, 14, 30, 12, 15, 12], filas: [
       ["Fecha y hora", "Día del corte", "Turno", "Folio", "Matrícula", "Cliente", sv === "bascula" ? "Tarifa" : "Recibido", "Forma de pago", "En el corte"],
@@ -242,6 +265,10 @@ export function hojasExcel(mes, movs, gastos, transf = [], conteos = []) {
     { nombre: "Gastos", anchos: [12, 10, 40, 12, 15, 30], filas: [
       ["Día", "Turno", "Concepto", "Monto", "Forma de pago", "Capturado por"],
       ...gastos.slice().reverse().map(g => [g.dia, g.turno, g.concepto, g.monto, g.forma, g.persona ? g.persona + " (tablet)" : g.creado_por || ""])
+    ] },
+    { nombre: "Ingresos extra", anchos: [12, 10, 20, 34, 12, 14, 30], filas: [
+      ["Día", "Turno", "Concepto", "Detalle", "Monto", "Cuenta como ingreso", "Capturado por"],
+      ...extras.slice().reverse().map(x => [x.dia, x.turno, x.concepto, x.detalle || "", x.monto, x.ingreso ? "Sí" : "No (solo caja)", x.persona ? x.persona + " (tablet)" : x.creado_por || ""])
     ] },
     { nombre: "Transferencias", anchos: [12, 40, 14, 20, 30], filas: [
       ["Fecha", "Cliente", "Importe", "Factura", "Capturado por"],
@@ -264,22 +291,25 @@ export async function cierreMensualCaja(env, h) {
   const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
   const transf = (await env.DB.prepare("SELECT * FROM caja_transf WHERE mes = ? ORDER BY fecha, creado").bind(mes).all()).results;
   const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE mes = ?").bind(mes).all()).results;
-  const t = totalesMes(calcularCortes(movs, gastos), transf);
-  const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos));
+  const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
+  const t = totalesMes(calcularCortes(movs, gastos, extras), transf);
+  const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras));
   const dinero = v => "$" + v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   try {
     await h.llamarScript(env, {
       asunto: `Respaldo de ingresos y gastos ${mes}`,
-      texto: `Respaldo de ingresos y gastos de ${mes} de Báscula y Pensión El Castaño.\n\nIngresos en efectivo: ${dinero(t.efectivo)}\nIngresos con tarjeta: ${dinero(t.tarjeta)}\nIngresos por transferencia: ${dinero(t.transferencias)}\nGastos: ${dinero(t.gastos)}\nMovimientos de caja (cambio, retiros): ${dinero(t.caja)}\n\nEl detalle por corte de turno va en el Excel adjunto. Estos datos ya se borraron del panel.`,
+      texto: `Respaldo de ingresos y gastos de ${mes} de Báscula y Pensión El Castaño.\n\nIngresos en efectivo: ${dinero(t.efectivo)}\nIngresos con tarjeta: ${dinero(t.tarjeta)}\nIngresos por transferencia: ${dinero(t.transferencias)}\nOtros ingresos (rentas): ${dinero(t.otros)}\nGastos: ${dinero(t.gastos)}\nMovimientos de caja (cambio, retiros): ${dinero(t.caja)}\n\nEl detalle por corte de turno va en el Excel adjunto. Estos datos ya se borraron del panel.`,
       adjunto: { nombre: `ingresos-gastos-${mes}.xlsx`, tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: h.aBase64(xlsx) }
     });
   } catch (e) { console.error("cierre caja: correo", e.message); return { error: e.message }; }
   // Fotos de comprobantes de la tablet del mes que se cierra
-  const fotos = (await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results;
+  const fotos = [...(await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results,
+    ...(await env.DB.prepare("SELECT foto FROM caja_extra WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results];
   for (const f of fotos) await env.FILES.delete(f.foto).catch(() => {});
   await env.DB.batch([
     env.DB.prepare("DELETE FROM caja_gastos WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_transf WHERE mes < ?").bind(actual),
+    env.DB.prepare("DELETE FROM caja_extra WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_mov WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM turno_cortes WHERE mes < ?").bind(actual)
   ]);
@@ -294,10 +324,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos } = await leerMes(env, mes, periodo);
-    const cortes = unirConteos(calcularCortes(movs, gastos), conteos);
+    const { movs, gastos, transf, conteos, extras } = await leerMes(env, mes, periodo);
+    const cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
-    return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO });
+    return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
@@ -305,8 +335,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const movs = (await env.DB.prepare("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC").bind(dia, turno).all()).results;
     const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
-    const corte = unirConteos(calcularCortes(movs, gastos), conteos)[0] || null;
-    return json({ ok: true, corte, movs, gastos, formas_contadas: FORMAS_CONTADAS });
+    const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
+    const corte = unirConteos(calcularCortes(movs, gastos, extras), conteos)[0] || null;
+    return json({ ok: true, corte, movs, gastos, extras, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
@@ -317,8 +348,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "exportar" && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos } = await leerMes(env, mes, periodo);
-    const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos));
+    const { movs, gastos, transf, conteos, extras } = await leerMes(env, mes, periodo);
+    const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras));
     const nombre = periodo.desde || periodo.hasta ? `ingresos-gastos-${periodo.desde || mes + "-01"}-a-${periodo.hasta || "hoy"}` : `ingresos-gastos-${mes}`;
     return new Response(xlsx, { headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -344,6 +375,28 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "gastos" && partes[3] === "eliminar" && request.method === "POST") {
     const r = await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ? AND mes = ?").bind(partes[2], mes).run();
+    return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
+  }
+
+  // Ingresos extra capturados desde el panel
+  if (partes[1] === "extras" && partes.length === 2 && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = CONCEPTOS_EXTRA.includes(c.concepto) ? c.concepto : "", detalle = texto(c.detalle, 120), monto = numero(c.monto);
+    const errores = {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || dia.slice(0, 7) > mes || dia < sumaDias(mes + "-01", -1)) errores.dia = "Elige un día del mes actual.";
+    if (!turno) errores.turno = "Elige el turno.";
+    if (!concepto) errores.concepto = "Elige el concepto.";
+    if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
+    if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, mes, dia, turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, new Date().toISOString(), usuario && usuario.email || null).run();
+    return json({ ok: true, id });
+  }
+  if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
+    const x = await env.DB.prepare("SELECT foto FROM caja_extra WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
+    if (x && x.foto) await env.FILES.delete(x.foto).catch(() => {});
+    const r = await env.DB.prepare("DELETE FROM caja_extra WHERE id = ? AND mes = ?").bind(partes[2], mes).run();
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 

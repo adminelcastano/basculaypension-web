@@ -2,11 +2,12 @@
 // Doble candado: Cloudflare Access (cuenta entrada@ o la de administración) y, encima,
 // cada encargado entra con su PIN de 4 dígitos. Todo lo que captura queda a su nombre.
 //
-// Secciones: avisos de la administración, tareas del turno, incidencias, gastos de caja chica
-// (con foto) y corte ciego (el encargado no ve cuánto debería haber; solo captura lo que contó).
+// Secciones: inicio (resumen y acciones rápidas: gasto, ingreso extra, incidencia, aviso, corte),
+// avisos y tareas (avisos de ida y vuelta con la administración y entre encargados; tareas con informe),
+// incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
-import { asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS } from "./agenda.js";
-import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes } from "./caja.js";
+import { asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
+import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
@@ -149,19 +150,31 @@ export async function servirFoto(env, llave) {
 // ---------------------------------------------------------------------------
 async function estado(env, s) {
   const hoy = local().dia;
-  const avisos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 30").bind(hoy).all()).results;
+  const personas = (await env.DB.prepare("SELECT clave, nombre FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave }));
+  // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
+  const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
   const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  for (const a of avisos) a.leido = leidos.has(a.id);
+  const avisos = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50)
+    .map(a => ({ ...a, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id) }));
+  // Tareas del turno, urgentes primero, con los informes que ya se mandaron
   const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
     ORDER BY CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, COALESCE(fecha, '9999'), creado LIMIT 50`).bind(s.turno, hoy).all()).results;
+  if (tareas.length) {
+    const q = tareas.map(() => "?").join(",");
+    const reps = (await env.DB.prepare(`SELECT item_id, persona, turno, resultado, nota, creado FROM agenda_reportes WHERE item_id IN (${q}) ORDER BY creado DESC`).bind(...tareas.map(t => t.id)).all()).results;
+    for (const t of tareas) t.reportes = reps.filter(r => r.item_id === t.id).slice(0, 3);
+  }
   const hechas = (await env.DB.prepare(`SELECT id, titulo, hecho_por, nota_cierre, cerrado FROM agenda_items WHERE tipo = 'tarea' AND para_turno = 1 AND estado = 'hecho' AND cerrado >= ? ORDER BY cerrado DESC LIMIT 10`)
     .bind(new Date(Date.now() - 864e5).toISOString()).all()).results;
-  const incidencias = (await env.DB.prepare(`SELECT id, titulo, detalle, area, gravedad, estado, fecha, reporto, turno, creado, foto IS NOT NULL AS con_foto FROM agenda_items
-    WHERE tipo = 'incidencia' AND (${ABIERTO} OR cerrado >= ?) ORDER BY CASE estado WHEN 'resuelta' THEN 1 ELSE 0 END, creado DESC LIMIT 20`).bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
+  // Incidencias abiertas de todos los turnos, hasta que la administración las resuelva
+  const incidencias = (await env.DB.prepare(`SELECT id, titulo, detalle, area, gravedad, estado, fecha, reporto, quien, turno, creado, foto FROM agenda_items
+    WHERE tipo = 'incidencia' AND ${ABIERTO} ORDER BY CASE gravedad WHEN 'grave' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, creado DESC LIMIT 100`).all()).results;
   const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
-  const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
-  return { ...s, hoy, avisos, tareas, hechas, incidencias, gastos, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS };
+  const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
+  const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
+  if (corte) corte.retiros = leerRetiros(corte.retiros);
+  return { ...s, hoy, personas, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,34 +240,66 @@ export async function turnoRuta(request, env, url, h) {
   if (request.method === "POST") { try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); } }
   const ahora = new Date().toISOString();
 
-  // Aviso leído
-  if (partes[0] === "avisos" && partes[2] === "enterado" && request.method === "POST") {
-    const a = await env.DB.prepare("SELECT id FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(partes[1]).first();
-    if (!a) return json({ ok: false, error: "Ese aviso ya no existe." }, 404);
-    await env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(a.id, s.persona, ahora).run();
-    return json({ ok: true });
+  const sinCorte = async () => !(await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first());
+  const errFoto = () => json({ ok: false, error: "La foto no es válida. Tómala otra vez.", errores: { foto: "Foto inválida." } }, 422);
+
+  // ---- Avisos ----
+  if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
+    const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
+    if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
+    const id = crypto.randomUUID();
+    await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona });
+    return json({ ok: true, id });
+  }
+  if (partes[0] === "avisos" && partes[2] && request.method === "POST") {
+    const a = await env.DB.prepare("SELECT id, autor, para FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(partes[1]).first();
+    if (!a || !avisoParaEncargado(a, s.persona, s.turno)) return json({ ok: false, error: "Ese aviso ya no existe." }, 404);
+    if (partes[2] === "enterado") {
+      await env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(a.id, s.persona, ahora).run();
+      return json({ ok: true });
+    }
+    if (partes[2] === "archivar") {
+      if (a.autor !== s.persona) return json({ ok: false, error: "Solo puedes quitar tus propios avisos." }, 403);
+      await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, a.id).run();
+      return json({ ok: true });
+    }
   }
 
-  // Tarea terminada (con nota y foto opcionales)
-  if (partes[0] === "tareas" && partes[2] === "hecho" && request.method === "POST") {
-    const t = await env.DB.prepare(`SELECT id, foto FROM agenda_items WHERE id = ? AND tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO}`).bind(partes[1]).first();
+  // ---- Informe de una tarea: cumplida (se cierra), parcial o no se pudo (sigue abierta) ----
+  if (partes[0] === "tareas" && partes[2] === "reporte" && request.method === "POST") {
+    const t = await env.DB.prepare(`SELECT id, titulo FROM agenda_items WHERE id = ? AND tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO}`).bind(partes[1]).first();
     if (!t) return json({ ok: false, error: "Esa tarea ya no está pendiente." }, 404);
+    const resultado = ["cumplida", "parcial", "no"].includes(c.resultado) ? c.resultado : "";
+    const nota = texto(c.nota, 800);
+    const errores = {};
+    if (!resultado) errores.resultado = "Elige cómo quedó la tarea.";
+    if (resultado && resultado !== "cumplida" && nota.length < 3) errores.nota = "Explica qué faltó o por qué no se pudo.";
+    if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el informe.", errores }, 422);
     let foto = null;
-    try { foto = await guardarFoto(env, c.foto, "tarea"); } catch { return json({ ok: false, error: "La foto no es válida. Tómala otra vez." }, 422); }
-    await env.DB.prepare("UPDATE agenda_items SET estado = 'hecho', cerrado = ?, actualizado = ?, hecho_por = ?, nota_cierre = ?, foto = COALESCE(?, foto) WHERE id = ?")
-      .bind(ahora, ahora, s.persona, texto(c.nota, 500) || null, foto, t.id).run();
-    return json({ ok: true });
+    try { foto = await guardarFoto(env, c.foto, "tarea"); } catch { return errFoto(); }
+    await env.DB.prepare("INSERT INTO agenda_reportes (id, item_id, persona, turno, dia, resultado, nota, foto, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), t.id, s.persona, s.turno, s.dia, resultado, nota || null, foto, ahora).run();
+    if (resultado === "cumplida")
+      await env.DB.prepare("UPDATE agenda_items SET estado = 'hecho', cerrado = ?, actualizado = ?, hecho_por = ?, nota_cierre = ?, foto = COALESCE(?, foto) WHERE id = ?")
+        .bind(ahora, ahora, s.persona, nota || null, foto, t.id).run();
+    else await env.DB.prepare("UPDATE agenda_items SET actualizado = ? WHERE id = ?").bind(ahora, t.id).run();
+    let avisado = false;
+    if (h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
+      try { await h.llamarScript(env, correoTarea(t, resultado, nota, !!foto, s)); avisado = true; } catch (err) { console.error("informe tarea: correo", err && err.message); }
+    }
+    return json({ ok: true, avisado });
   }
 
-  // Incidencia nueva
+  // ---- Incidencia nueva ----
   if (partes[0] === "incidencias" && partes.length === 1 && request.method === "POST") {
     const area = AREAS.includes(c.area) ? c.area : null;
-    const { d, e } = validarItem("incidencia", { titulo: c.titulo, detalle: c.detalle, gravedad: c.gravedad, turno: s.turno, area });
+    const quien = texto(c.quien, 60) || s.nombre;
+    const { d, e } = validarItem("incidencia", { titulo: c.titulo, detalle: c.detalle, gravedad: c.gravedad, turno: s.turno, area, quien });
     if (!area) e.area = "Elige dónde pasó.";
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     d.fecha = local().dia;
     let foto = null;
-    try { foto = await guardarFoto(env, c.foto, "incid"); } catch { return json({ ok: false, error: "La foto no es válida. Tómala otra vez." }, 422); }
+    try { foto = await guardarFoto(env, c.foto, "incid"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await insertarItem(env, id, "incidencia", d, `tablet:${s.persona}`, ahora, { reporto: s.persona, foto });
     let avisado = false;
@@ -264,42 +309,63 @@ export async function turnoRuta(request, env, url, h) {
     return json({ ok: true, id, avisado });
   }
 
-  // Gasto de caja chica (siempre en efectivo, con foto del comprobante)
+  // ---- Gasto de caja (en efectivo; la foto del comprobante es opcional) ----
   if (partes[0] === "gastos" && partes.length === 1 && request.method === "POST") {
     const concepto = texto(c.concepto, 120), monto = numero(c.monto);
     const errores = {};
     if (concepto.length < 2) errores.concepto = "Escribe en qué se gastó.";
     if (!(monto > 0) || monto > 20000) errores.monto = "Escribe un monto válido.";
-    if (!c.foto) errores.foto = "Toma la foto del ticket o comprobante.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
-    let foto;
-    try { foto = await guardarFoto(env, c.foto, "gasto"); } catch { return json({ ok: false, error: "La foto no es válida. Tómala otra vez.", errores: { foto: "Foto inválida." } }, 422); }
+    let foto = null;
+    try { foto = await guardarFoto(env, c.foto, "gasto"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona) VALUES (?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?)")
       .bind(id, mesActual(), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona).run();
     return json({ ok: true, id });
   }
-  // Borrar un gasto propio mientras el turno sigue abierto (antes del corte)
-  if (partes[0] === "gastos" && partes[2] === "eliminar" && request.method === "POST") {
-    const corte = await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
-    if (corte) return json({ ok: false, error: "El corte ya se entregó. Pide a la administración que lo corrija." }, 409);
-    const g = await env.DB.prepare("SELECT id, foto FROM caja_gastos WHERE id = ? AND persona = ? AND dia = ? AND turno = ?").bind(partes[1], s.persona, s.dia, s.turno).first();
-    if (!g) return json({ ok: false, error: "Solo puedes borrar tus gastos de este turno." }, 404);
-    await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(g.id).run();
+  // ---- Ingreso extra (renta, aumento de cambio, otro) ----
+  if (partes[0] === "extras" && partes.length === 1 && request.method === "POST") {
+    const concepto = CONCEPTOS_EXTRA.includes(c.concepto) ? c.concepto : "", detalle = texto(c.detalle, 120), monto = numero(c.monto);
+    const errores = {};
+    if (!concepto) errores.concepto = "Elige qué tipo de ingreso es.";
+    if (concepto !== "Aumento de cambio" && detalle.length < 2) errores.detalle = "Escribe de quién o de qué es.";
+    if (!(monto > 0) || monto > 200000) errores.monto = "Escribe un monto válido.";
+    if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
+    let foto = null;
+    try { foto = await guardarFoto(env, c.foto, "extra"); } catch { return errFoto(); }
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, mesActual(), s.dia, s.turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, foto, s.persona, ahora, `tablet:${s.persona}`).run();
+    return json({ ok: true, id });
+  }
+  // Borrar un gasto o ingreso propio mientras el turno sigue abierto (antes del corte)
+  if ((partes[0] === "gastos" || partes[0] === "extras") && partes[2] === "eliminar" && request.method === "POST") {
+    if (!(await sinCorte())) return json({ ok: false, error: "El corte ya se entregó. Pide a la administración que lo corrija." }, 409);
+    const tabla = partes[0] === "gastos" ? "caja_gastos" : "caja_extra";
+    const g = await env.DB.prepare(`SELECT id, foto FROM ${tabla} WHERE id = ? AND persona = ? AND dia = ? AND turno = ?`).bind(partes[1], s.persona, s.dia, s.turno).first();
+    if (!g) return json({ ok: false, error: "Solo puedes borrar lo que tú capturaste en este turno." }, 404);
+    await env.DB.prepare(`DELETE FROM ${tabla} WHERE id = ?`).bind(g.id).run();
     if (g.foto) await env.FILES.delete(g.foto).catch(() => {});
     return json({ ok: true });
   }
 
-  // Corte ciego
+  // ---- Corte ciego: efectivo físico de la caja, incluido el cambio inicial ----
   if (partes[0] === "corte" && request.method === "POST") {
     const efectivo = numero(c.efectivo), tarjeta = c.tarjeta === "" || c.tarjeta == null ? null : numero(c.tarjeta);
+    const opcional = v => v === "" || v == null ? 0 : numero(v);
+    const sobre = opcional(c.sobre), cambioSig = opcional(c.cambio_sig);
+    const retiros = (Array.isArray(c.retiros) ? c.retiros : []).slice(0, 20).map(r => ({ concepto: texto(r && r.concepto, 80), monto: numero(r && r.monto) }));
     const errores = {};
     if (!(efectivo >= 0) || efectivo > 1000000) errores.efectivo = "Escribe el efectivo que contaste.";
     if (tarjeta !== null && (!(tarjeta >= 0) || tarjeta > 1000000)) errores.tarjeta = "Monto inválido.";
+    if (!(sobre >= 0) || sobre > 1000000) errores.sobre = "Monto del sobre inválido.";
+    if (!(cambioSig >= 0) || cambioSig > 1000000) errores.cambio_sig = "Monto del cambio inválido.";
+    if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000)) errores.retiros = "Cada retiro necesita concepto y monto.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el corte.", errores }, 422);
-    await env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, efectivo = excluded.efectivo, tarjeta = excluded.tarjeta, notas = excluded.notas, actualizado = excluded.actualizado, veces = turno_cortes.veces + 1`)
-      .bind(s.dia, s.turno, mesActual(), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora).run();
+    await env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
+      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, efectivo = excluded.efectivo, tarjeta = excluded.tarjeta, notas = excluded.notas, actualizado = excluded.actualizado, veces = turno_cortes.veces + 1, con_cambio = 1,
+        sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros`)
+      .bind(s.dia, s.turno, mesActual(), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)).run();
     return json({ ok: true });
   }
 
@@ -310,8 +376,18 @@ const escHtml = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "
 function correoIncidencia(d, s) {
   return {
     asunto: `Incidencia grave: ${d.titulo}`.slice(0, 180),
-    texto: `Incidencia grave reportada desde la tablet.\n\n${d.titulo}\nDónde: ${d.area}\nReportó: ${s.nombre} · turno ${s.turno}${d.detalle ? "\n\n" + d.detalle : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
-    html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:#b42318;margin:0;font-weight:600">Incidencia grave · tablet de turno</p><h2 style="margin:4px 0 8px">${escHtml(d.titulo)}</h2><p style="margin:0 0 4px"><b>Dónde:</b> ${escHtml(d.area)}</p><p style="margin:0 0 12px"><b>Reportó:</b> ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${d.detalle ? `<p>${escHtml(d.detalle)}</p>` : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
+    texto: `Incidencia grave reportada desde la tablet.\n\n${d.titulo}\nDónde: ${d.area}\nReportó: ${d.quien || s.nombre} (capturó ${s.nombre}) · turno ${s.turno}${d.detalle ? "\n\n" + d.detalle : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
+    html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:#b42318;margin:0;font-weight:600">Incidencia grave · tablet de turno</p><h2 style="margin:4px 0 8px">${escHtml(d.titulo)}</h2><p style="margin:0 0 4px"><b>Dónde:</b> ${escHtml(d.area)}</p><p style="margin:0 0 12px"><b>Reportó:</b> ${escHtml(d.quien || s.nombre)} · capturó ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${d.detalle ? `<p>${escHtml(d.detalle)}</p>` : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
+  };
+}
+
+const RES_TXT = { cumplida: "Cumplida", parcial: "Cumplida en parte", no: "No se pudo" };
+function correoTarea(t, resultado, nota, conFoto, s) {
+  const r = RES_TXT[resultado];
+  return {
+    asunto: `Tarea ${r.toLowerCase()}: ${t.titulo}`.slice(0, 180),
+    texto: `Informe de tarea desde la tablet.\n\n${t.titulo}\nResultado: ${r}\nEncargado: ${s.nombre} · turno ${s.turno}${nota ? "\nObservaciones: " + nota : ""}${conFoto ? "\nCon foto de evidencia (en el panel)." : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
+    html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:${resultado === "cumplida" ? "#1a7f37" : "#9a6700"};margin:0;font-weight:600">Tarea · ${escHtml(r)}</p><h2 style="margin:4px 0 8px">${escHtml(t.titulo)}</h2><p style="margin:0 0 12px"><b>Encargado:</b> ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${nota ? `<p><b>Observaciones:</b> ${escHtml(nota)}</p>` : ""}${conFoto ? "<p>Con foto de evidencia (en el panel).</p>" : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
   };
 }
 
@@ -339,8 +415,9 @@ export async function turnoAdmin(request, env, url, partes) {
       const q = dias.map(() => "?").join(",");
       const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE dia IN (${q})`).bind(...dias).all()).results;
       const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia IN (${q})`).bind(...dias).all()).results;
+      const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE dia IN (${q})`).bind(...dias).all()).results;
       const claves = new Set(conteos.map(x => x.dia + "|" + x.turno));
-      cortes = unirConteos(calcularCortes(movs, gastos), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
+      cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
     }
     return json({ ok: true, personas, cortes });
   }
