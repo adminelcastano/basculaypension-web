@@ -19,6 +19,8 @@
   "triggers": { "crons": ["17 9 * * *", "47 14 * * *", "*/10 * * * *"] },
   "vars": {
     "ADMIN_EMAILS": "administracion@basculaypension.com",
+    // Script de la hoja de ingresos (sin INGRESOS_TOKEN, que es secreto, no entrega datos)
+    "INGRESOS_URL": "https://script.google.com/macros/s/AKfycbwXnHU8w6OMJFfCbaLHicr3VNevZ05-qtCr_ZiOxZQUjeiAW17bsOMk4JkY_WCIyerz/exec",
     "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
     "ACCESS_AUD": "a0dcf0e931c7b6a7b64cae835ae329cb05fc3bdbdc972c1af99c4619ee3fba1d"
   },
