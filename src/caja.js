@@ -102,22 +102,43 @@ export async function leerHoja(env, mes) {
   return [...limpiar(d.bascula, "bascula"), ...limpiar(d.pension, "pension")];
 }
 
-// Reemplaza los ingresos guardados por los del mes actual (en una sola transacción)
+// Actualiza los ingresos guardados con los del mes actual. Solo escribe lo que cambió:
+// D1 gratuito permite 100 000 filas escritas al día, y reescribir el mes completo cada
+// 10 minutos las agotaba. Ahora se comparan los registros y se insertan o borran las diferencias.
+const COLS_MOV = ["servicio", "fecha", "dia", "turno", "folio", "matricula", "cliente", "importe", "forma", "mes", "tipo"];
+const firmaMov = f => COLS_MOV.map(c => String(f[c] ?? "")).join("\u0001");
+export function diferenciasCaja(actuales, nuevas) {
+  const libres = new Map();
+  for (const f of actuales) { const k = firmaMov(f); if (!libres.has(k)) libres.set(k, []); libres.get(k).push(f.id); }
+  const insertar = [];
+  for (const f of nuevas) { const ids = libres.get(firmaMov(f)); if (ids && ids.length) ids.pop(); else insertar.push(f); }
+  const borrar = [...libres.values()].flat();
+  return { insertar, borrar };
+}
 export async function sincronizarCaja(env) {
   await asegurarEsquemaCaja(env);
   const mes = mesActual();
   try {
-    const filas = await leerHoja(env, mes);
-    const stmts = [env.DB.prepare("DELETE FROM caja_mov")];
-    const COLS = 11, POR = 9; // D1 admite hasta 100 parámetros por consulta
-    for (let i = 0; i < filas.length; i += POR) {
-      const lote = filas.slice(i, i + POR);
-      stmts.push(env.DB.prepare(`INSERT INTO caja_mov (servicio, fecha, dia, turno, folio, matricula, cliente, importe, forma, mes, tipo) VALUES ${lote.map(() => "(" + Array(COLS).fill("?").join(",") + ")").join(",")}`)
-        .bind(...lote.flatMap(f => [f.servicio, f.fecha, f.dia, f.turno, f.folio, f.matricula, f.cliente, f.importe, f.forma, mes, f.tipo])));
+    const filas = (await leerHoja(env, mes)).map(f => ({ ...f, mes }));
+    const actuales = (await env.DB.prepare(`SELECT id, ${COLS_MOV.join(", ")} FROM caja_mov`).all()).results;
+    const { insertar, borrar } = diferenciasCaja(actuales, filas);
+    const stmts = [];
+    for (let i = 0; i < borrar.length; i += 90) {
+      const lote = borrar.slice(i, i + 90);
+      stmts.push(env.DB.prepare(`DELETE FROM caja_mov WHERE id IN (${lote.map(() => "?").join(",")})`).bind(...lote));
     }
-    await env.DB.batch(stmts);
-    const estado = { at: new Date().toISOString(), n: filas.length, error: null };
-    await env.FILES.put("caja:sync", JSON.stringify(estado));
+    const POR = 9; // D1 admite hasta 100 parámetros por consulta
+    for (let i = 0; i < insertar.length; i += POR) {
+      const lote = insertar.slice(i, i + POR);
+      stmts.push(env.DB.prepare(`INSERT INTO caja_mov (${COLS_MOV.join(", ")}) VALUES ${lote.map(() => "(" + COLS_MOV.map(() => "?").join(",") + ")").join(",")}`)
+        .bind(...lote.flatMap(f => COLS_MOV.map(c => f[c]))));
+    }
+    if (stmts.length) await env.DB.batch(stmts);
+    const previo = await env.FILES.get("caja:sync", { type: "json" }) || {};
+    const estado = { at: new Date().toISOString(), n: filas.length, error: null, cambios: insertar.length + borrar.length };
+    // KV gratuito también tiene límite diario de escrituras: solo se guarda si hubo cambios o pasó 1 hora
+    if (estado.cambios || previo.error || !previo.at || Date.now() - Date.parse(previo.at) > 3600e3 || previo.n !== estado.n)
+      await env.FILES.put("caja:sync", JSON.stringify(estado));
     return estado;
   } catch (e) {
     const previo = await env.FILES.get("caja:sync", { type: "json" }) || {};
