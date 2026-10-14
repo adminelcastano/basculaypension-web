@@ -1,6 +1,7 @@
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
+import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -39,6 +40,15 @@ export default {
   async scheduled(event, env, ctx) {
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") { ctx.waitUntil(recordatoriosAutomaticos(env, enviarCorreoA)); return; }
+    // Cada 10 minutos: ingresos del mes desde la hoja de Google (y cierre al cambiar de mes)
+    if (event.cron === "*/10 * * * *") {
+      ctx.waitUntil((async () => {
+        if (!env.INGRESOS_URL) return;
+        await cierreMensualCaja(env, { crearLibro, llamarScript, aBase64 }).catch(e => console.error("cierre caja", e && e.message));
+        await sincronizarCaja(env);
+      })());
+      return;
+    }
     ctx.waitUntil(limpiarArchivos(env));
   }
 };
@@ -346,19 +356,27 @@ async function exportarXlsx(env, url) {
 }
 
 function crearXlsx(filas) {
+  return crearLibro([{ nombre: "Facturas", filas, anchos: [16, 17, 11, 16, 14, 12, 30, 24, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30] }]);
+}
+
+// Libro de Excel con una o varias hojas: [{ nombre, filas, anchos }]. Los números se guardan como número.
+function crearLibro(hojas) {
   const col = i => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
   const xml = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-  const anchos = [16, 17, 11, 16, 14, 12, 30, 24, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30];
-  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols><sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v)}</t></is></c>`).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
+  const celda = (v, r, c) => typeof v === "number" && isFinite(v)
+    ? `<c r="${col(c)}${r + 1}"${r === 0 ? ' s="1"' : ""}><v>${v}</v></c>`
+    : `<c r="${col(c)}${r + 1}" t="inlineStr"${r === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${xml(v ?? "")}</t></is></c>`;
+  const hojaXml = ({ filas, anchos = [] }) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${anchos.length ? `<cols>${anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : ""}<sheetData>${filas.map((f, r) => `<row r="${r + 1}">${f.map((v, c) => celda(v, r, c)).join("")}</row>`).join("")}</sheetData>${filas.length > 1 ? `<autoFilter ref="A1:${col(filas[0].length - 1)}${filas.length}"/>` : ""}</worksheet>`;
+  const nombreHoja = n => String(n).replace(/[\\\/?*\[\]:']/g, "").slice(0, 31) || "Hoja";
   const archivos = {
-    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${hojas.map((h, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
     "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Facturas" sheetId="1" r:id="rId1"/></sheets>${filas.length > 1 ? `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Facturas!$A$1:$${col(filas[0].length - 1)}$${filas.length}</definedName></definedNames>` : ""}</workbook>`,
-    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
-    "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3EBE5"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
-    "xl/worksheets/sheet1.xml": sheet
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${hojas.map((h, i) => `<sheet name="${xml(nombreHoja(h.nombre))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets>${hojas.some(h => h.filas.length > 1) ? `<definedNames>${hojas.map((h, i) => h.filas.length > 1 ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xml(nombreHoja(h.nombre))}'!$A$1:$${col(h.filas[0].length - 1)}$${h.filas.length}</definedName>` : "").join("")}</definedNames>` : ""}</workbook>`,
+    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${hojas.map((h, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3EBE5"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`
   };
+  hojas.forEach((h, i) => { archivos[`xl/worksheets/sheet${i + 1}.xml`] = hojaXml(h); });
   return zipSinCompresion(archivos);
 }
 
@@ -433,6 +451,7 @@ async function panel(request, env, url) {
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
+  if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, { crearLibro });
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";

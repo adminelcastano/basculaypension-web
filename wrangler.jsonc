@@ -16,7 +16,7 @@
   // Fotos de tickets y constancias (se crea sola al desplegar)
   "kv_namespaces": [{ "binding": "FILES" }],
   // Borrado diario de archivos con más de 90 días tras facturar o rechazar
-  "triggers": { "crons": ["17 9 * * *", "47 14 * * *"] },
+  "triggers": { "crons": ["17 9 * * *", "47 14 * * *", "*/10 * * * *"] },
   "vars": {
     "ADMIN_EMAILS": "administracion@basculaypension.com",
     "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",

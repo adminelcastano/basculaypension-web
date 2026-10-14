@@ -207,6 +207,44 @@ header.bar h1 { margin-right: 0; }
 header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
+/* Ingresos y gastos */
+.ctot { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
+.ctot .k { background: var(--surface); border-radius: 14px; padding: 10px 14px; min-width: 120px; display: grid; gap: 2px; }
+.ctot .k span { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.ctot .k b { font-size: 1.25rem; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.ctot .k.dest b { color: var(--amber); }
+.citem .t { display: flex; align-items: center; gap: 8px; }
+.cturno { font-size: .75rem; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #2a2a2d; color: #d2d2d7; }
+.cturno.ahora { background: var(--amber); color: var(--amber-ink); }
+.cres { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 18px; font-variant-numeric: tabular-nums; }
+.cres > * { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.cres .h { font-size: .8rem; color: var(--muted); font-weight: 600; text-align: right; }
+.cres .h:first-child { text-align: left; }
+.cres .n { text-align: right; }
+.cres .tot { font-weight: 700; }
+.cres .fin { font-weight: 700; color: var(--amber); font-size: 1.1rem; border-bottom: 0; }
+.cmovs { width: 100%; border-collapse: collapse; font-size: .92rem; font-variant-numeric: tabular-nums; }
+.cmovs th { text-align: left; font-size: .78rem; color: var(--muted); font-weight: 600; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
+.cmovs td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmovs td.n, .cmovs th.n { text-align: right; padding-right: 0; }
+.cmovs tr.no td { color: #6e6e73; }
+.cmovs tr.mov td { color: #a1a1a6; font-style: italic; }
+.cmovs .svc { width: 24px; height: 24px; border-radius: 7px; }
+.cmovs .svc svg { width: 15px; height: 15px; }
+.tabla-scroll { overflow-x: auto; }
+.cgasto { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cgasto:last-child { border-bottom: 0; }
+.cgasto .note { grid-column: 1; font-size: .85rem; }
+.cgasto b { font-variant-numeric: tabular-nums; }
+.cform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cform label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.cform label.wide { grid-column: 1 / -1; }
+.cform input, .cform select { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
+.cform .err { color: var(--bad); font-size: .85rem; font-weight: 500; }
+.modulos .corto { display: none; }
+.modulos button { white-space: nowrap; }
+@media (max-width: 640px) { .ctot .k { min-width: calc(50% - 4px); } .modulos button { padding: 6px 10px; font-size: 12.5px; } .modulos .largo { display: none; } .modulos .corto { display: inline; } }
+
 /* Personal */
 .folio { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; letter-spacing: .02em; color: var(--amber); }
 .folio-tag { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; padding: 3px 10px; border-radius: 8px; background: #2a2a2d; color: var(--amber); border: 0; cursor: pointer; }
@@ -289,6 +327,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <nav class="modulos" aria-label="Sección">
     <button type="button" data-mod="facturacion" aria-current="page">Facturación</button>
     <button type="button" data-mod="personal">Personal</button>
+    <button type="button" data-mod="caja"><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
   </nav>
   <small id="yo"></small>
 </header>
@@ -365,6 +404,22 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 <main class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
   <div class="detail" id="p-detalle"><p class="empty">Elige un colaborador o agrega uno nuevo.</p></div>
+</main>
+</div>
+<div class="mod" id="mod-caja" hidden>
+<div class="titlebar">
+  <h2 id="c-titulo">Ingresos y gastos.</h2>
+  <p id="c-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ctot" id="c-totales" aria-live="polite"></div>
+  <button class="btn btn-primary" id="c-gasto" type="button">+ Agregar gasto</button>
+  <button class="btn btn-line" id="c-sync" type="button">Actualizar ahora</button>
+  <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
+</div>
+<main class="work" id="c-work">
+  <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
+  <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
 </main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -937,11 +992,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   let personalCargado = false;
   function mostrar(mod) {
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    $("#mod-facturacion").hidden = mod !== "facturacion";
-    $("#mod-personal").hidden = mod !== "personal";
-    document.title = (mod === "personal" ? "Personal" : "Facturación") + " · El Castaño";
-    if (history.replaceState) history.replaceState(null, "", mod === "personal" ? "#personal" : location.pathname);
+    for (const m of ["facturacion", "personal", "caja"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    document.title = ({ personal: "Personal", caja: "Ingresos y gastos" }[mod] || "Facturación") + " · El Castaño";
+    if (history.replaceState) history.replaceState(null, "", mod === "facturacion" ? location.pathname : "#" + mod);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
+    document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod); });
 
@@ -1439,6 +1494,170 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   $("#p-nuevo").addEventListener("click", nuevo);
 
   if (location.hash === "#personal") mostrar("personal");
+  if (location.hash === "#caja") mostrar("caja");
+})();
+</script>
+<script>
+// ---- Ingresos y gastos por corte de turno ----
+(() => {
+  const $ = (q, el = document) => el.querySelector(q);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const dinero = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
+  const hora = f => (f || "").slice(11, 16);
+  const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
+  async function api(ruta, op = {}) {
+    const r = await fetch("/panel/api/" + ruta, { ...op, headers: { "X-Panel": "1", ...(op.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
+    const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida del servidor." }));
+    if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; throw e; }
+    return j;
+  }
+  // Turno actual (hora de Tapachula): mañana 6–14, tarde 14–22, noche 22–6
+  function turnoActual() {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date()).map(x => [x.type, x.value]));
+    let dia = `${p.year}-${p.month}-${p.day}`; const h = Number(p.hour) % 24;
+    if (h < 6) { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - 1); dia = d.toISOString().slice(0, 10); return { dia, turno: "NOCHE" }; }
+    return { dia, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE" };
+  }
+
+  const st = { datos: null, actual: null, cargado: false };
+  const clave = c => c.dia + "|" + c.turno;
+
+  async function cargar() {
+    const lista = $("#c-lista");
+    try {
+      const j = await api("caja");
+      st.datos = j;
+      const [a, m] = j.mes.split("-");
+      const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
+      const s = j.sync;
+      const hace = s && s.at ? Math.max(0, Math.round((Date.now() - new Date(s.at)) / 60000)) : null;
+      $("#c-subtitulo").innerHTML = !j.conectado ? `<span style="color:var(--bad)">La hoja de Google todavía no está conectada.</span>`
+        : `${esc(nomMes)} ${a} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
+      const t = j.totales;
+      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
+        .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
+      const ahora = turnoActual();
+      if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
+      lista.innerHTML = j.cortes.map(c => {
+        const es = c.dia === ahora.dia && c.turno === ahora.turno;
+        return `<button class="item citem" data-k="${esc(clave(c))}" ${st.actual === clave(c) ? 'aria-current="true"' : ""}>
+          <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+          <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:15px">${Number(c.dia.slice(8))}</span>
+          <span class="t">${esc(diaTxt(c.dia))} <span class="cturno ${es ? "ahora" : ""}">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? " · en curso" : ""}</span></span>
+          <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
+          <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
+        </button>`;
+      }).join("");
+    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+  }
+
+  function formGasto(dia, turno) {
+    return `<form class="cform" id="c-fgasto" novalidate>
+      <label>Día<input type="date" name="dia" value="${esc(dia)}" required></label>
+      <label>Turno<select name="turno">${["MAÑANA", "TARDE", "NOCHE"].map(t => `<option value="${t}" ${t === turno ? "selected" : ""}>${TURNO_TXT[t]}</option>`).join("")}</select></label>
+      <label class="wide">Concepto<input name="concepto" maxlength="120" placeholder="Ej. garrafón de agua, sueldo, papelería" required></label>
+      <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
+      <label>Forma de pago<select name="forma"><option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label>
+      <span class="err wide" id="c-ferr" style="grid-column:1/-1"></span>
+      <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar gasto</button></div>
+    </form>`;
+  }
+  function conectarForm(despues) {
+    $("#c-fgasto").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const f = ev.target, b = f.querySelector("button[type=submit]");
+      const cuerpo = { dia: f.dia.value, turno: f.turno.value, concepto: f.concepto.value, monto: f.monto.value.replace(/[$,\s]/g, ""), forma: f.forma.value };
+      b.disabled = true; $("#c-ferr").textContent = "";
+      try {
+        await api("caja/gastos", { method: "POST", body: JSON.stringify(cuerpo) });
+        toast("Gasto guardado");
+        await cargar();
+        abrir(cuerpo.dia + "|" + cuerpo.turno);
+      } catch (e) { if (e.message !== "sesion") $("#c-ferr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    });
+  }
+
+  function nuevoGasto() {
+    const a = turnoActual();
+    st.actual = null;
+    $("#c-work").classList.add("ver-detalle");
+    $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>Nuevo gasto</h2></div>
+      <section class="card">${formGasto(a.dia, a.turno)}</section>`;
+    $("#c-volver").addEventListener("click", () => $("#c-work").classList.remove("ver-detalle"));
+    conectarForm();
+    $("#c-fgasto").concepto.focus();
+  }
+
+  async function abrir(k) {
+    st.actual = k;
+    document.querySelectorAll("#c-lista .item").forEach(b => b.dataset.k === k ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current"));
+    const [dia, turno] = k.split("|");
+    const d = $("#c-detalle");
+    $("#c-work").classList.add("ver-detalle");
+    d.innerHTML = `<p class="empty">Cargando corte…</p>`;
+    let j;
+    try { j = await api(`caja/corte?dia=${encodeURIComponent(dia)}&turno=${encodeURIComponent(turno)}`); }
+    catch (e) { if (e.message !== "sesion") d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    const c = j.corte || { bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 }, efectivo: 0, tarjeta: 0, ingresos: 0, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, gastos_total: 0, caja: { n: 0, importe: 0 }, efectivo_caja: 0, fuera: { n: 0, importe: 0, formas: {} } };
+    const fila = (k, a, b, cls = "") => `<span class="${cls}">${k}</span><span class="n ${cls}">${a}</span><span class="n ${cls}">${b}</span>`;
+    const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
+    const icono = sv => `<span class="svc ${sv}" title="${sv === "bascula" ? "Báscula" : "Pensión"}"><svg aria-hidden="true"><use href="#i-${sv}"/></svg></span>`;
+    d.innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>${esc(diaTxt(dia))} · ${esc(TURNO_TXT[turno] || turno)}</h2><span class="note">${j.movs.length} ${j.movs.length === 1 ? "registro" : "registros"} de la hoja · ${j.gastos.length} ${j.gastos.length === 1 ? "gasto" : "gastos"}</span></div>
+      <div style="display:grid;gap:20px;min-width:0">
+      <div class="cols">
+          <section class="card"><h3>Corte</h3>
+            <div class="cres">
+              <span class="h">Ingresos</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
+              ${fila("Báscula", dinero(c.bascula.EFECTIVO), dinero(c.bascula.TARJETA))}
+              ${fila("Pensión", dinero(c.pension.EFECTIVO), dinero(c.pension.TARJETA))}
+              ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
+              ${fila("Gastos", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
+              ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
+              <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
+            </div>
+            ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
+            ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (cambio, retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
+            ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
+          </section>
+          <section class="card"><h3>Gastos del turno</h3>
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.creado_por ? " · " + esc(g.creado_por) : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
+          </section>
+      </div>
+        <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
+          ${j.movs.length ? `<div class="tabla-scroll"><table class="cmovs"><thead><tr><th></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
+            ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
+          </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: movimientos de caja.</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
+        </section>
+      </div>`;
+    $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
+    conectarForm();
+    d.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "¿Seguro?"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar"; }, 3000); return; }
+      b.disabled = true;
+      try { await api(`caja/gastos/${encodeURIComponent(b.dataset.del)}/eliminar`, { method: "POST", body: "{}" }); toast("Gasto eliminado"); await cargar(); abrir(k); }
+      catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
+  }
+
+  $("#c-lista").addEventListener("click", e => { const b = e.target.closest(".item[data-k]"); if (b) abrir(b.dataset.k); });
+  $("#c-gasto").addEventListener("click", nuevoGasto);
+  $("#c-sync").addEventListener("click", async e => {
+    const b = e.currentTarget; b.disabled = true; b.textContent = "Leyendo la hoja…";
+    try { await api("caja/sincronizar", { method: "POST", body: "{}" }); toast("Ingresos actualizados"); await cargar(); if (st.actual) abrir(st.actual); }
+    catch (err) { if (err.message !== "sesion") toast(err.message); }
+    b.disabled = false; b.textContent = "Actualizar ahora";
+  });
+  document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
+  if (location.hash === "#caja") cargar();
+  // Mientras la sección está abierta, se actualiza sola cada 5 minutos
+  setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
 })();
 </script>
 </body>
