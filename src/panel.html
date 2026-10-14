@@ -207,6 +207,49 @@ header.bar h1 { margin-right: 0; }
 header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
+/* Inicio */
+#mod-inicio { overflow-y: auto; }
+.ini { width: 100%; max-width: 1180px; margin: 0 auto; padding: 24px 24px 40px; display: grid; gap: 16px; }
+.ini-head h2 { font-size: clamp(34px, 5vw, 52px); letter-spacing: -0.035em; line-height: 1.05; }
+.ini-card { background: var(--surface); border-radius: 22px; padding: 20px 22px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.ini-card[data-ir] { cursor: pointer; transition: background .2s, transform .15s; }
+.ini-card[data-ir]:hover { background: #1f1f21; }
+.ini-card[data-ir]:active { transform: scale(.985); }
+.ini-k { font-size: .9rem; font-weight: 600; color: var(--muted); }
+.ini-big { font-size: clamp(48px, 8vw, 76px); font-weight: 700; letter-spacing: -0.04em; line-height: 1; color: var(--amber); }
+.ini-num { font-size: clamp(30px, 4vw, 40px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.ini-split { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .98rem; color: #d2d2d7; margin-top: 6px; }
+.ini-split b { color: var(--fg); font-weight: 600; }
+.ini-turno { font-size: .85rem; color: var(--muted); }
+.ini-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ini-tile .note { font-size: .85rem; }
+.ini-charts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; }
+.ini-card h3 { font-size: 1.05rem; font-weight: 600; }
+.leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: #d2d2d7; }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sw.bas { background: #c08a00; } .sw.pen { background: #3d8fd6; } .sw.tra { background: #8e8e93; }
+.graf { position: relative; width: 100%; }
+.graf svg { display: block; width: 100%; height: auto; overflow: visible; }
+.graf .eje { stroke: #2c2c2e; stroke-width: 1; }
+.graf text { fill: #8e8e93; font-size: 11px; font-family: inherit; }
+.graf text.val { fill: #d2d2d7; font-size: 11.5px; font-weight: 600; }
+.graf .col { cursor: default; }
+.graf .col:hover .segs { filter: brightness(1.2); }
+.graf rect.hit { fill: transparent; }
+.gtip { position: fixed; z-index: 50; pointer-events: none; background: #2c2c2e; color: var(--fg); border-radius: 10px; padding: 8px 10px; font-size: .82rem; box-shadow: 0 8px 24px rgba(0,0,0,.5); display: grid; gap: 3px; min-width: 150px; }
+.gtip b { font-size: .88rem; }
+.gtip .r { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.gtip .r span { display: inline-flex; align-items: center; gap: 6px; color: #d2d2d7; }
+.ini-pie { text-align: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .ini-card { animation: aparecer .5s cubic-bezier(.16,1,.3,1) both; }
+  .ini-tiles .ini-card:nth-child(2) { animation-delay: .05s; } .ini-tiles .ini-card:nth-child(3) { animation-delay: .1s; } .ini-tiles .ini-card:nth-child(4) { animation-delay: .15s; }
+  @keyframes aparecer { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+@media (max-width: 900px) { .ini-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-charts { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .ini { padding: 16px 16px 32px; } .ini-card { padding: 16px; border-radius: 18px; } }
+
 /* Ingresos y gastos */
 .cper { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex-basis: 100%; }
 .cper .ptab { white-space: nowrap; }
@@ -331,7 +374,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
   <h1>El Castaño</h1>
   <nav class="modulos" aria-label="Sección">
-    <button type="button" data-mod="facturacion" aria-current="page">Facturación</button>
+    <button type="button" data-mod="inicio" aria-current="page">Inicio</button>
+    <button type="button" data-mod="facturacion"><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
     <button type="button" data-mod="personal">Personal</button>
     <button type="button" data-mod="caja"><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
   </nav>
@@ -349,7 +393,33 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <symbol id="i-inactivo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M15.4 17.6h5.4"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
-<div class="mod" id="mod-facturacion">
+<div class="mod" id="mod-inicio">
+  <div class="ini">
+    <header class="ini-head">
+      <h2 id="i-saludo">Hola.</h2>
+      <p class="note" id="i-fecha"></p>
+    </header>
+    <section class="ini-hero ini-card" data-ir="caja" tabindex="0" role="link" aria-label="Ver ingresos y gastos">
+      <span class="ini-k">Ingresos de hoy</span>
+      <b class="ini-big" id="i-hoy">$0</b>
+      <div class="ini-split" id="i-split"></div>
+      <span class="ini-turno" id="i-turno"></span>
+    </section>
+    <div class="ini-tiles">
+      <section class="ini-card ini-tile" data-ir="facturacion" tabindex="0" role="link"><span class="ini-k">Facturas pendientes</span><b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span></section>
+      <section class="ini-card ini-tile" data-ir="caja" tabindex="0" role="link"><span class="ini-k">Efectivo en caja · turno en curso</span><b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span></section>
+      <section class="ini-card ini-tile" data-ir="caja" tabindex="0" role="link"><span class="ini-k">Gastos de hoy</span><b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span></section>
+      <section class="ini-card ini-tile" data-ir="personal" tabindex="0" role="link"><span class="ini-k">Expedientes incompletos</span><b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span></section>
+    </div>
+    <div class="ini-charts">
+      <section class="ini-card"><h3>Hoy por turno</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span></div><div class="graf" id="g-turnos"></div></section>
+      <section class="ini-card"><h3>Últimos 7 días</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span></div><div class="graf" id="g-dias"></div></section>
+    </div>
+    <p class="note ini-pie" id="i-pie"></p>
+  </div>
+  <div class="gtip" id="gtip" role="status" hidden></div>
+</div>
+<div class="mod" id="mod-facturacion" hidden>
 <div class="titlebar">
   <h2 id="titulo">Pendientes.</h2>
   <p id="subtitulo" class="note"></p>
@@ -1013,9 +1083,9 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   let personalCargado = false;
   function mostrar(mod) {
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    for (const m of ["facturacion", "personal", "caja"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    document.title = ({ personal: "Personal", caja: "Ingresos y gastos" }[mod] || "Facturación") + " · El Castaño";
-    if (history.replaceState) history.replaceState(null, "", mod === "facturacion" ? location.pathname : "#" + mod);
+    for (const m of ["inicio", "facturacion", "personal", "caja"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos" }[mod] || "Facturación") + " · El Castaño";
+    if (history.replaceState) history.replaceState(null, "", mod === "inicio" ? location.pathname : "#" + mod);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
@@ -1516,6 +1586,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 
   if (location.hash === "#personal") mostrar("personal");
   if (location.hash === "#caja") mostrar("caja");
+  if (location.hash === "#facturacion") mostrar("facturacion");
+  window.irA = mostrar;
 })();
 </script>
 <script>
@@ -1782,6 +1854,177 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   if (location.hash === "#caja") cargar();
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
+})();
+</script>
+<script>
+// ---- Inicio: resumen del día ----
+(() => {
+  const $ = q => document.querySelector(q);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const COL = { bas: "#c08a00", pen: "#3d8fd6", tra: "#8e8e93" };
+  const dinero = (v, dec = 0) => "$" + (Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const compacto = v => v >= 1000 ? "$" + (v / 1000).toLocaleString("es-MX", { maximumFractionDigits: 1 }) + "k" : "$" + Math.round(v);
+  const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
+  const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  async function api(ruta) {
+    const r = await fetch("/panel/api/" + ruta, { headers: { "X-Panel": "1" } });
+    if (r.status === 401) throw new Error("sesion");
+    const j = await r.json(); if (!j.ok) throw new Error(j.error || "Error"); return j;
+  }
+  const ahoraMx = () => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const sumar = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  // Día de operación y turno en curso (mañana 6–14, tarde 14–22, noche 22–6)
+  function turnoActual() {
+    const p = ahoraMx(); const h = Number(p.hour) % 24; const hoy = `${p.year}-${p.month}-${p.day}`;
+    if (h < 6) return { dia: sumar(hoy, -1), turno: "NOCHE", h };
+    return { dia: hoy, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE", h };
+  }
+  // Números que cuentan hacia su valor
+  const previos = new Map();
+  function contar(el, valor, formato) {
+    const desde = previos.get(el) ?? 0; previos.set(el, valor);
+    if (reducido || desde === valor) { el.textContent = formato(valor); return; }
+    const t0 = performance.now(), dur = 900;
+    const paso = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = formato(desde + (valor - desde) * e); if (k < 1) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  }
+
+  // Columnas apiladas: datos = [{ etiqueta, partes: [{ k, nombre, v }], nota }]
+  const tip = $("#gtip");
+  function tooltip(ev, d) {
+    tip.innerHTML = `<b>${esc(d.titulo)}</b>${d.partes.map(p => `<div class="r"><span><i class="sw ${p.k}"></i>${esc(p.nombre)}</span><span>${dinero(p.v, 2)}</span></div>`).join("")}<div class="r" style="border-top:1px solid #3a3a3c;padding-top:3px"><span>Total</span><b>${dinero(d.total, 2)}</b></div>`;
+    tip.hidden = false;
+    const x = Math.min(innerWidth - tip.offsetWidth - 8, ev.clientX + 12), y = Math.max(8, ev.clientY - tip.offsetHeight - 12);
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  function columnas(cont, datos, { alto = 200 } = {}) {
+    const W = Math.max(280, cont.clientWidth || 320), H = alto, izq = 40, der = 4, arr = 18, abajo = 24;
+    const max = Math.max(1, ...datos.map(d => d.total));
+    const paso = max > 20000 ? 10000 : max > 8000 ? 5000 : max > 4000 ? 2000 : max > 2000 ? 1000 : max > 800 ? 500 : 200;
+    const tope = Math.ceil(max / paso) * paso;
+    const y = v => arr + (H - arr - abajo) * (1 - v / tope);
+    const banda = (W - izq - der) / datos.length, ancho = Math.min(24 * (datos.length > 4 ? 1 : 1.5), banda * 0.6);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(cont.dataset.titulo || "")}">`;
+    for (let v = 0; v <= tope; v += paso) svg += `<line class="eje" x1="${izq}" x2="${W - der}" y1="${y(v)}" y2="${y(v)}"/><text x="${izq - 6}" y="${y(v) + 4}" text-anchor="end">${compacto(v)}</text>`;
+    datos.forEach((d, i) => {
+      const cx = izq + banda * i + banda / 2, x0 = cx - ancho / 2;
+      let base = y(0), segs = "";
+      const vivas = d.partes.filter(p => p.v > 0);
+      vivas.forEach((p, j) => {
+        const alto = (H - arr - abajo) * (p.v / tope);
+        const yTop = base - alto;
+        const ultimo = j === vivas.length - 1, gap = j > 0 ? 2 : 0;
+        const hh = Math.max(0, alto - gap);
+        segs += ultimo && hh > 4
+          ? `<path class="seg-p" d="M${x0},${base - gap} V${yTop + 4} Q${x0},${yTop} ${x0 + 4},${yTop} H${x0 + ancho - 4} Q${x0 + ancho},${yTop} ${x0 + ancho},${yTop + 4} V${base - gap} Z" fill="${COL[p.k]}"/>`
+          : `<rect x="${x0}" y="${yTop}" width="${ancho}" height="${hh}" fill="${COL[p.k]}"/>`;
+        base = yTop;
+      });
+      const etq = `<text x="${cx}" y="${H - 6}" text-anchor="middle"${d.resaltar ? ' style="fill:#f5f5f7;font-weight:600"' : ""}>${esc(d.etiqueta)}</text>`;
+      const val = d.total > 0 ? `<text class="val" x="${cx}" y="${base - 6}" text-anchor="middle">${compacto(d.total)}</text>` : "";
+      svg += `<g class="col" data-i="${i}"><g class="segs" style="transform-origin:${cx}px ${y(0)}px">${segs}</g>${val}${etq}<rect class="hit" x="${izq + banda * i}" y="${arr}" width="${banda}" height="${H - arr}"/></g>`;
+    });
+    svg += `<line class="eje" x1="${izq}" x2="${W - der}" y1="${y(0)}" y2="${y(0)}" style="stroke:#48484a"/></svg>`;
+    cont.innerHTML = svg;
+    cont.querySelectorAll(".col").forEach(g => {
+      const d = datos[g.dataset.i];
+      g.addEventListener("pointermove", ev => tooltip(ev, d));
+      g.addEventListener("pointerdown", ev => tooltip(ev, d));
+      g.addEventListener("pointerleave", () => { tip.hidden = true; });
+    });
+    // Animación: cada columna crece desde la base
+    if (!reducido) cont.querySelectorAll(".segs").forEach((g, i) => g.animate([{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }], { duration: 700, delay: i * 60, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
+  }
+
+  const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", timeZone: "UTC" });
+  const fLargo = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  let ultimo = null;
+
+  async function cargar() {
+    const ta = turnoActual();
+    const h = ta.h;
+    $("#i-saludo").textContent = h >= 6 && h < 12 ? "Buenos días." : h >= 12 && h < 19 ? "Buenas tardes." : "Buenas noches.";
+    const fechaTxt = fLargo.format(new Date(ta.dia + "T12:00:00Z"));
+    $("#i-fecha").textContent = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1) + ` · turno de la ${TURNO_TXT[ta.turno].toLowerCase()} en curso`;
+    const desde = sumar(ta.dia, -6);
+    const [fac, caja, per] = await Promise.allSettled([
+      api("solicitudes?estado=pendiente"),
+      api(`caja?desde=${desde}&hasta=${ta.dia}`),
+      api("colaboradores?tipo=colaborador&estatus=activo")
+    ]);
+    if ([fac, caja, per].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
+
+    // Facturas
+    if (fac.status === "fulfilled") {
+      const n = fac.value.conteos.pendiente || 0;
+      contar($("#i-pend"), n, v => String(Math.round(v)));
+      const viejo = fac.value.solicitudes[0];
+      const horas = viejo ? (Date.now() - new Date(viejo.creado)) / 36e5 : 0;
+      $("#i-pend-nota").textContent = !n ? "Todo facturado" : horas < 1 ? "La más antigua llegó hace menos de una hora" : horas < 24 ? `La más antigua espera desde hace ${Math.round(horas)} h` : `La más antigua espera desde hace ${Math.floor(horas / 24)} ${Math.floor(horas / 24) === 1 ? "día" : "días"}`;
+    }
+    // Personal
+    if (per.status === "fulfilled") {
+      const c = per.value.conteos;
+      contar($("#i-exp"), c.incompletos || 0, v => String(Math.round(v)));
+      $("#i-exp-nota").textContent = `de ${c.todos || 0} colaboradores activos`;
+    }
+    // Ingresos
+    if (caja.status === "fulfilled") {
+      const j = caja.value;
+      const delDia = j.cortes.filter(c => c.dia === ta.dia);
+      const tHoy = j.transferencias.filter(t => t.fecha === ta.dia).reduce((a, t) => a + t.importe, 0);
+      const ef = delDia.reduce((a, c) => a + c.efectivo, 0), tj = delDia.reduce((a, c) => a + c.tarjeta, 0);
+      contar($("#i-hoy"), ef + tj + tHoy, v => dinero(v));
+      $("#i-split").innerHTML = `<span>Efectivo <b>${dinero(ef, 2)}</b></span><span>Tarjeta <b>${dinero(tj, 2)}</b></span><span>Transferencias <b>${dinero(tHoy, 2)}</b></span>`;
+      const enCurso = delDia.find(c => c.turno === ta.turno);
+      contar($("#i-caja"), enCurso ? enCurso.efectivo_caja : 0, v => dinero(v));
+      $("#i-caja-nota").textContent = enCurso ? `${TURNO_TXT[ta.turno]}: ${enCurso.registros} registros en la hoja` : `${TURNO_TXT[ta.turno]}: sin registros todavía`;
+      const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
+      contar($("#i-gastos"), gHoy, v => dinero(v));
+      $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto capturado" : "gastos capturados"}` : "Sin gastos capturados";
+      const s = j.sync;
+      const hace = s && s.at ? Math.round((Date.now() - new Date(s.at)) / 60000) : null;
+      $("#i-turno").textContent = !j.conectado ? "La hoja de ingresos no está conectada" : hace === null ? "" : `Datos de la hoja actualizados hace ${hace < 1 ? "un momento" : hace + " min"}`;
+      $("#i-pie").textContent = "Las gráficas suman solo efectivo y tarjeta de la hoja (más transferencias capturadas). Prepago no suma.";
+
+      // Gráfica: hoy por turno
+      const turnos = ["MAÑANA", "TARDE", "NOCHE"].map(t => {
+        const c = delDia.find(x => x.turno === t);
+        const partes = [{ k: "bas", nombre: "Báscula", v: c ? c.bascula.EFECTIVO + c.bascula.TARJETA : 0 }, { k: "pen", nombre: "Pensión", v: c ? c.pension.EFECTIVO + c.pension.TARJETA : 0 }];
+        return { etiqueta: TURNO_TXT[t], titulo: `${TURNO_TXT[t]} · hoy`, partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: t === ta.turno };
+      });
+      $("#g-turnos").dataset.titulo = "Ingresos de hoy por turno";
+      // Gráfica: últimos 7 días
+      const dias = [];
+      for (let k = 6; k >= 0; k--) {
+        const d = sumar(ta.dia, -k), cs = j.cortes.filter(c => c.dia === d);
+        const partes = [
+          { k: "bas", nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) },
+          { k: "pen", nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) },
+          { k: "tra", nombre: "Transferencias", v: j.transferencias.filter(t => t.fecha === d).reduce((a, t) => a + t.importe, 0) }
+        ];
+        const et = fDia.format(new Date(d + "T12:00:00Z")).replace(".", "");
+        dias.push({ etiqueta: k === 0 ? "Hoy" : et, titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: k === 0 });
+      }
+      $("#g-dias").dataset.titulo = "Ingresos de los últimos 7 días";
+      const firma = JSON.stringify([turnos, dias]);
+      if (firma !== ultimo) { ultimo = firma; columnas($("#g-turnos"), turnos); columnas($("#g-dias"), dias); }
+    } else {
+      $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
+    }
+  }
+
+  document.querySelectorAll("#mod-inicio [data-ir]").forEach(el => {
+    const ir = () => window.irA && window.irA(el.dataset.ir);
+    el.addEventListener("click", ir);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ir(); } });
+  });
+  document.addEventListener("modulo", e => { if (e.detail === "inicio") { ultimo = null; cargar().catch(() => {}); } });
+  let ancho = innerWidth;
+  addEventListener("resize", () => { if (Math.abs(innerWidth - ancho) > 40 && !$("#mod-inicio").hidden) { ancho = innerWidth; ultimo = null; cargar().catch(() => {}); } });
+  if (!$("#mod-inicio").hidden) cargar().catch(() => {});
+  setInterval(() => { if (!$("#mod-inicio").hidden && !document.hidden) cargar().catch(() => {}); }, 120000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("#mod-inicio").hidden) cargar().catch(() => {}); });
 })();
 </script>
 </body>
