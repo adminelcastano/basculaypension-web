@@ -1,0 +1,15 @@
+{
+  "id": "/turno",
+  "name": "Turno · El Castaño",
+  "short_name": "Turno",
+  "start_url": "/turno",
+  "scope": "/turno",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111214",
+  "theme_color": "#111214",
+  "icons": [
+    { "src": "/img/turno-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/turno-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
