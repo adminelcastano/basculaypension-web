@@ -13,6 +13,8 @@
  */
 const CLAVE = "PEGA_AQUI_LA_CLAVE";
 const ZONA = "America/Mexico_City";
+// ID de la hoja "BASCULA Y PENSION 2026" (está en su enlace, entre /d/ y /edit)
+const HOJA_ID = "11f1UfV4O4D6IDFlLdJodsTtfSSvxZ-yHst65ObadSjA";
 
 const HOJAS = {
   bascula: { nombre: "FORBAS", cols: { fecha: "MARCA TEMPORAL", folio: "FOLIO", matricula: "MATRICULA", cliente: "CLIENTE", importe: "IMPORTE", forma: "FORMA DE PAGO", turno: "TURNO" } },
@@ -23,7 +25,8 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (!CLAVE || CLAVE === "PEGA_AQUI_LA_CLAVE" || p.token !== CLAVE) return salida({ ok: false, error: "no autorizado" });
   const mes = /^\d{4}-\d{2}$/.test(p.mes || "") ? p.mes : Utilities.formatDate(new Date(), ZONA, "yyyy-MM");
-  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  // Funciona pegado dentro de la hoja o como proyecto aparte
+  const libro = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(HOJA_ID);
   const res = { ok: true, mes: mes };
   for (const clave in HOJAS) {
     const hoja = buscarHoja(libro, HOJAS[clave].nombre);
