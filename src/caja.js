@@ -267,6 +267,9 @@ export async function cierreMensualCaja(env, h) {
       adjunto: { nombre: `ingresos-gastos-${mes}.xlsx`, tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: h.aBase64(xlsx) }
     });
   } catch (e) { console.error("cierre caja: correo", e.message); return { error: e.message }; }
+  // Fotos de comprobantes de la tablet del mes que se cierra
+  const fotos = (await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results;
+  for (const f of fotos) await env.FILES.delete(f.foto).catch(() => {});
   await env.DB.batch([
     env.DB.prepare("DELETE FROM caja_gastos WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_transf WHERE mes < ?").bind(actual),

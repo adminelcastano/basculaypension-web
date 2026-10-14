@@ -77,6 +77,27 @@ export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {
 }
 export { validar as validarItem, ABIERTO };
 
+// Limpieza diaria: lo terminado hace más de 30 días se borra por completo (registro, foto y lecturas).
+// Lo que sigue abierto no se toca, aunque sea viejo.
+export async function limpiarAgenda(env, ahora = new Date()) {
+  await asegurarEsquemaAgenda(env);
+  const limite = new Date(ahora.getTime() - 30 * 864e5).toISOString();
+  const diaLimite = limite.slice(0, 10);
+  const viejos = (await env.DB.prepare(`SELECT id, foto FROM agenda_items
+    WHERE (NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
+       OR (tipo = 'evento' AND fecha < ?) LIMIT 500`).bind(limite, diaLimite).all()).results;
+  if (!viejos.length) return 0;
+  for (const v of viejos) if (v.foto) await env.FILES.delete(v.foto).catch(() => {});
+  const stmts = [];
+  for (let i = 0; i < viejos.length; i += 90) {
+    const ids = viejos.slice(i, i + 90).map(v => v.id), q = ids.map(() => "?").join(",");
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...ids));
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...ids));
+  }
+  await env.DB.batch(stmts);
+  return viejos.length;
+}
+
 // Resumen para el Inicio
 export async function resumenAgenda(env) {
   await asegurarEsquemaAgenda(env);

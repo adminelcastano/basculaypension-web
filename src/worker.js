@@ -2,7 +2,7 @@ import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
-import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda } from "./agenda.js";
+import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda, limpiarAgenda } from "./agenda.js";
 import TURNO_HTML from "./turno.html";
 import { turnoRuta, turnoAdmin } from "./turno.js";
 
@@ -70,6 +70,7 @@ export default {
       })());
       return;
     }
+    ctx.waitUntil(limpiarAgenda(env).then(n => n && console.log("agenda: borrados", n)).catch(e => console.error("limpiar agenda", e && e.message)));
     ctx.waitUntil(limpiarArchivos(env));
   }
 };

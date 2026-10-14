@@ -50,4 +50,4 @@ Para el encargado de turno. Entra con la cuenta `entrada@basculaypension.com` (C
 - **Gastos de caja chica**: en efectivo, siempre con foto del comprobante. Entran directo a Ingresos y gastos, a nombre del encargado.
 - **Corte ciego**: el encargado captura el efectivo contado (sin fondo) y, si quiere, los vouchers. No ve lo esperado; el panel muestra la diferencia en Ingresos y gastos y en Agenda → Tablet de turno.
 
-Los encargados y sus PIN se administran en Agenda → Tablet de turno. Cambiar un PIN cierra al momento la sesión abierta de esa persona. Las fotos se guardan 200 días.
+Los encargados y sus PIN se administran en Agenda → Tablet de turno. Cambiar un PIN cierra al momento la sesión abierta de esa persona. Las fotos se guardan 100 días como máximo. En la Agenda, lo terminado (tareas hechas, compras, incidencias resueltas, avisos archivados) y los eventos pasados se borran por completo a los 30 días, con sus fotos; lo que sigue abierto no se toca. Las fotos de gastos se borran con el cierre de mes de Ingresos y gastos.
