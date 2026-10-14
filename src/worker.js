@@ -18,11 +18,22 @@ const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const RE_CP = /^\d{5}$/;
 const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 
+// Las URL de Apps Script de cuentas de empresa vienen como /a/macros/<dominio>/s/...,
+// que piden iniciar sesión; la forma /macros/s/... funciona sin sesión con acceso "Cualquiera".
+function urlScript(u) {
+  return typeof u === "string" ? u.trim().replace(/^https:\/\/script\.google\.com\/a\/macros\/[^/]+\/s\//, "https://script.google.com/macros/s/") : u;
+}
+function normalizarScripts(env) {
+  if (!env || (!/\/a\/macros\//.test(env.AVISO_URL || "") && !/\/a\/macros\//.test(env.INGRESOS_URL || ""))) return env;
+  return Object.assign(Object.create(Object.getPrototypeOf(env)), env, { AVISO_URL: urlScript(env.AVISO_URL), INGRESOS_URL: urlScript(env.INGRESOS_URL) });
+}
+
 // ---------------------------------------------------------------------------
 // Entrada
 // ---------------------------------------------------------------------------
 export default {
   async fetch(request, env, ctx) {
+    env = normalizarScripts(env);
     const url = new URL(request.url);
     try {
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
@@ -38,6 +49,7 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") { ctx.waitUntil(recordatoriosAutomaticos(env, enviarCorreoA)); return; }
     // Cada 10 minutos: ingresos del mes desde la hoja de Google (y cierre al cambiar de mes)
