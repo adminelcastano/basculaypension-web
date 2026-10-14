@@ -44,6 +44,8 @@ Folio: número consecutivo único (columna `num`) + iniciales del nombre (sin de
 
 Copia en Google Drive: el Apps Script (`herramientas/aviso-correo.gs`, acción `drive`) guarda cada documento en la carpeta raíz → COLABORADORES / EXTERNOS → "<folio> <nombre>". Se activa desde el panel con «Probar conexión con Drive» (`cfg.drive`); «Copiar a Drive» en cada ficha copia lo ya subido. Las relaciones carpeta/archivo se guardan en las propiedades del script.
 
+Navegación del panel: en cada detalle (factura, colaborador, corte) hay una barra fija con «‹ Lista», la posición («3 de 12») y flechas ‹ › para pasar al anterior o siguiente sin volver a la lista; en computadora también con las teclas ← → (Esc vuelve a la lista). En el celular el botón atrás cierra el detalle y luego regresa a la sección anterior, deslizar el detalle a la derecha vuelve a la lista y el menú de secciones va abajo. Las fichas largas traen un índice de secciones y hay un botón ↑ para subir. Código en el último `<script>` de `src/panel.html`.
+
 ## Tablet de turno (`/turno`)
 
 Para el encargado de turno. Entra con la cuenta `entrada@basculaypension.com` (Cloudflare Access) y luego cada encargado elige su nombre, su turno y escribe su PIN de 4 números. Cinco PIN equivocados bloquean a esa persona 15 minutos; tras 30 minutos sin tocar la tablet se cierra la sesión.

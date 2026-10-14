@@ -526,6 +526,94 @@ header.bar .sync { flex: none; }
 .grid-form .err { color: var(--bad); font-size: .82rem; }
 .grid-form .err:empty { display: none; }
 @media (max-width: 820px) { #mod-personal .detail, #mod-personal .list { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
+
+/* =====================================================================
+   Navegación del panel (14 oct 2026)
+   ===================================================================== */
+.modulos .mi { display: none; }
+
+/* Barra fija del detalle: ← Lista, nombre al bajar, posición y flechas ‹ › */
+.dnav { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 10px;
+  margin: -16px calc(-1 * clamp(16px, 3vw, 32px)) 14px; padding: 8px clamp(16px, 3vw, 32px);
+  background: rgba(0,0,0,.86); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--line); }
+.dnav button { border: 0; background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; border-radius: 999px; min-height: 40px; }
+.dnav button:disabled { opacity: .3; cursor: default; }
+.dn-lista { display: inline-flex; align-items: center; gap: 4px; padding: 0 14px 0 10px; }
+.dn-lista svg { width: 18px; height: 18px; transform: rotate(180deg); }
+.dn-tit { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 15px; opacity: 0; transition: opacity .2s; }
+.dnav.compacta .dn-tit { opacity: 1; }
+.dn-der { display: flex; align-items: center; gap: 6px; grid-column: 3; }
+.dn-pos { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 2px; }
+.dn-flecha { width: 44px; display: grid; place-items: center; padding: 0; }
+.dn-flecha svg { width: 20px; height: 20px; }
+.dn-prev svg { transform: rotate(180deg); }
+.dn-indice { grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 2px calc(-1 * clamp(16px, 3vw, 32px)) 0; padding: 2px clamp(16px, 3vw, 32px) 2px; }
+.dn-indice::-webkit-scrollbar { display: none; }
+.dnav .dn-indice button { flex: none; min-height: 32px; padding: 0 12px; font-size: 13px; font-weight: 500; color: #d2d2d7; background: #1c1c1e; }
+.dnav .dn-indice button.on { background: #3a3a3c; color: #fff; }
+.detail .back { display: none !important; }
+.detail section.card { scroll-margin-top: var(--dnav-alto, 110px); }
+@media (min-width: 821px) { .dn-lista { display: none !important; } .dnav { grid-template-columns: minmax(0, 1fr) auto; } .dn-tit { grid-column: 1; } .dn-der { grid-column: 2; } }
+@media (max-width: 820px), (max-height: 640px) and (min-width: 1201px) { .dnav { top: 52px; } }
+
+/* Al ver un detalle en una columna, se ocultan título y filtros de la lista */
+@media (max-width: 820px) {
+  .mod:has(> main.work.ver-detalle) > .titlebar, .mod:has(> main.work.ver-detalle) > .tools { display: none; }
+  /* Las pestañas de estado de Facturación quedan arriba, dentro de la sección */
+  .tabs { position: static; width: 100%; border-radius: 12px; padding: 3px; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); border-top: 0; }
+  .tab { padding: 6px 2px; }
+  .tab .ti { width: 22px; height: 22px; }
+  .detail, .list { padding-bottom: 32px; }
+}
+
+/* Botón para volver arriba */
+.arriba { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 45; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255,255,255,.1);
+  background: rgba(44,44,46,.92); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); color: var(--fg); display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 10px 28px -8px rgba(0,0,0,.7); opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .2s, transform .2s; }
+.arriba svg { width: 22px; height: 22px; }
+.arriba.on { opacity: 1; transform: none; pointer-events: auto; }
+.undo:not([hidden]) ~ .arriba { opacity: 0; pointer-events: none; }
+
+/* Deslizar a la derecha en el detalle para volver a la lista */
+main.work.ver-detalle .detail.arrastre { transition: none; }
+main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2s ease; }
+
+/* Ajustes de Personal (fecha límite, recordatorios y Drive) plegados */
+.ajustes { flex-basis: 100%; }
+.ajustes > summary { list-style: none; cursor: pointer; width: max-content; }
+.ajustes > summary::-webkit-details-marker { display: none; }
+.ajustes > summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); margin-left: 4px; transition: transform .2s; }
+.ajustes[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.ajustes > .plim { margin-top: 12px; padding: 14px 16px; border-radius: 14px; background: var(--surface); }
+
+/* Cortes de turno agrupados por día */
+.cgrupo + .cgrupo { margin-top: 16px; }
+.cdia { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; gap: 12px; padding: 8px 6px; background: var(--bg); font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.cdia span:first-child { display: inline-block; }
+.cdia span:first-child::first-letter { text-transform: uppercase; }
+.cdia span:last-child { color: var(--fg); font-variant-numeric: tabular-nums; }
+.cgrupo > .item:first-of-type { border-top-left-radius: 14px; border-top-right-radius: 14px; }
+.cgrupo > .item:last-of-type { border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+@media (max-width: 1200px), (max-height: 640px) { .cdia { top: 52px; } }
+
+/* Celular: menú de secciones abajo, como una app */
+@media (max-width: 640px) {
+  header.bar { -webkit-backdrop-filter: none; backdrop-filter: none; background: #161617; }
+  header.bar h1 { display: block; margin-right: auto; }
+  header.bar .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
+    max-width: none; border-radius: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: #161617; border-top: 1px solid rgba(255,255,255,.08); overflow: visible; }
+  header.bar .modulos button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 2px; font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 500; color: #8e8e93; border-radius: 10px; min-height: 48px; justify-content: center; }
+  header.bar .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
+  header.bar .modulos .mi { display: block; width: 24px; height: 24px; }
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .undo { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .arriba { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  /* Agenda: el estado y el botón de borrar van debajo del título */
+  .aitem { grid-template-columns: auto minmax(0, 1fr); }
+  .aitem .mm { grid-row: 2; }
+  .aitem .acc { grid-row: 3; grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+}
 </style>
 </head>
 <body>
@@ -553,11 +641,11 @@ header.bar .sync { flex: none; }
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
   <h1>El Castaño</h1>
   <nav class="modulos" aria-label="Sección">
-    <button type="button" data-mod="inicio" aria-current="page">Inicio</button>
-    <button type="button" data-mod="facturacion"><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
-    <button type="button" data-mod="personal">Personal</button>
-    <button type="button" data-mod="caja"><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
-    <button type="button" data-mod="agenda">Agenda</button>
+    <button type="button" data-mod="inicio" aria-current="page"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
+    <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
+    <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
+    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
+    <button type="button" data-mod="agenda"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Agenda</span></button>
   </nav>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
@@ -588,6 +676,8 @@ header.bar .sync { flex: none; }
   <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 19.6c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 12.4l4 4 8-8.6"/></symbol>
   <symbol id="i-sync" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8M17.6 3.6v3.6H14M6.4 20.4v-3.6H10"/></symbol>
+  <symbol id="i-casa" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h4.4v-5.6h3.2v5.6H18V9"/></symbol>
+  <symbol id="i-arriba" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <div class="mod" id="mod-inicio">
@@ -694,6 +784,8 @@ header.bar .sync { flex: none; }
   </div>
   <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, folio, puesto o teléfono" aria-label="Buscar colaborador">
   <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
+  <details class="ajustes">
+  <summary class="btn btn-line">Ajustes</summary>
   <div class="plim">
     <label>Fecha límite de entrega<input type="date" id="p-flim"></label>
     <button class="btn btn-line" id="p-recordar-todos" type="button">Recordar a incompletos</button>
@@ -701,6 +793,7 @@ header.bar .sync { flex: none; }
     <button class="btn btn-line" id="p-drive" type="button" style="margin-left:auto">Probar conexión con Drive</button>
     <span class="note" id="p-drive-nota"></span>
   </div>
+  </details>
 </div>
 <main class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
@@ -756,6 +849,7 @@ header.bar .sync { flex: none; }
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
+<button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
 
 <script>
 (() => {
@@ -1323,15 +1417,18 @@ header.bar .sync { flex: none; }
   // ---- Cambio de sección ----
   let personalCargado = false;
   document.addEventListener("recargar-todo", () => { if (personalCargado) cargar(); });
-  function mostrar(mod) {
+  // opciones.historia === "push": el cambio queda en el historial (el botón atrás del celular regresa)
+  function mostrar(mod, opciones = {}) {
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     for (const m of ["inicio", "facturacion", "personal", "caja", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
     document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos", agenda: "Agenda" }[mod] || "Facturación") + " · El Castaño";
-    if (history.replaceState) history.replaceState(null, "", mod === "inicio" ? location.pathname : "#" + mod);
+    const url = mod === "inicio" ? location.pathname : "#" + mod;
+    if (opciones.historia === "push" && (history.state || {}).mod !== mod) history.pushState({ mod }, "", url);
+    else history.replaceState({ mod }, "", url);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
-  document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod); });
+  document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod, { historia: "push" }); });
 
   // ---- Personal ----
   const st = { tipo: "colaborador", estatus: "activo", filtro: "todos", q: "", actual: null, listas: null };
@@ -1830,7 +1927,7 @@ header.bar .sync { flex: none; }
   if (location.hash === "#caja") mostrar("caja");
   if (location.hash === "#facturacion") mostrar("facturacion");
   if (location.hash === "#agenda") mostrar("agenda");
-  window.irA = mostrar;
+  window.irA = (mod, opciones = { historia: "push" }) => mostrar(mod, opciones);
 })();
 </script>
 <script>
@@ -1897,17 +1994,21 @@ header.bar .sync { flex: none; }
         return;
       }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
-      lista.innerHTML = j.cortes.map(c => {
+      const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
         return `<button class="item citem" data-k="${esc(clave(c))}" ${st.actual === clave(c) ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
-          <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:15px">${Number(c.dia.slice(8))}</span>
-          <span class="t">${esc(diaTxt(c.dia))} <span class="cturno ${es ? "ahora" : ""}">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? " · en curso" : ""}</span></span>
+          <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:15px">${esc((TURNO_TXT[c.turno] || c.turno).slice(0, 1))}</span>
+          <span class="t">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? ` <span class="cturno ahora">en curso</span>` : ""}</span>
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
           ${c.conteo ? `<span class="m"><span>Contó ${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
         </button>`;
-      }).join("");
+      };
+      // Un grupo por día, con el total de ingresos del día en el encabezado
+      const grupos = [];
+      for (const c of j.cortes) { const g = grupos[grupos.length - 1]; if (g && g.dia === c.dia) g.cs.push(c); else grupos.push({ dia: c.dia, cs: [c] }); }
+      lista.innerHTML = grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
@@ -2613,6 +2714,178 @@ header.bar .sync { flex: none; }
     setTimeout(() => { b.disabled = false; b.classList.remove("girando"); }, 600);
     if (error && error.message !== "sesion") toast("Hoja de ingresos: " + error.message); else if (!error) toast("Todo sincronizado");
   });
+})();
+</script>
+<script>
+// ---- Navegación (14 oct 2026): barra fija del detalle con ← Lista y flechas ‹ ›, índice de la ficha,
+// botón atrás del celular, deslizar a la derecha para volver, teclado (← → Esc) y botón para subir ----
+(() => {
+  const unaColumna = () => matchMedia("(max-width: 820px)").matches;
+  const svg = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
+  const llave = el => el && (el.dataset.id || el.dataset.k || el.dataset.t || "");
+  const zonas = [...document.querySelectorAll("main.work")].map(w => ({ w, mod: w.closest(".mod"), lista: w.querySelector(".list"), det: w.querySelector(".detail"), ultima: "" }));
+  const zonaVisible = () => zonas.find(z => !z.mod.hidden);
+  const items = z => [...z.lista.querySelectorAll(".item, .pitem")].filter(llave);
+
+  // Registro que se está viendo: el último tocado en la lista (o el marcado como actual)
+  zonas.forEach(z => z.lista.addEventListener("click", e => { const it = e.target.closest(".item, .pitem"); if (it && llave(it)) z.ultima = llave(it); }, true));
+  function posicion(z) {
+    const lista = items(z);
+    let i = z.ultima ? lista.findIndex(x => llave(x) === z.ultima) : -1;
+    if (i < 0) i = lista.findIndex(x => x.getAttribute("aria-current") === "true");
+    return { lista, i };
+  }
+
+  // ---- Barra del detalle ----
+  function armar(z) {
+    const d = z.det, primero = d.firstElementChild;
+    if (!primero || primero.classList.contains("empty")) return;
+    let nav = d.querySelector(":scope > .dnav");
+    if (!nav) {
+      nav = document.createElement("div");
+      nav.className = "dnav";
+      nav.innerHTML = `<button class="dn-lista" type="button">${svg("i-chev")}Lista</button><b class="dn-tit"></b>
+        <span class="dn-der"><span class="dn-pos"></span><button class="dn-flecha dn-prev" type="button" aria-label="Anterior" title="Anterior (←)">${svg("i-chev")}</button><button class="dn-flecha dn-next" type="button" aria-label="Siguiente" title="Siguiente (→)">${svg("i-chev")}</button></span>`;
+      d.prepend(nav);
+      nav.querySelector(".dn-lista").addEventListener("click", () => cerrar(z));
+      nav.querySelector(".dn-prev").addEventListener("click", () => mover(z, -1));
+      nav.querySelector(".dn-next").addEventListener("click", () => mover(z, 1));
+      // Índice de secciones cuando la ficha es larga
+      const secs = [...d.querySelectorAll("section.card")].filter(x => x.querySelector(":scope > h3"));
+      if (secs.length >= 4) {
+        const ind = document.createElement("div");
+        ind.className = "dn-indice";
+        secs.forEach(sec => {
+          const b = document.createElement("button"); b.type = "button";
+          b.textContent = sec.querySelector(":scope > h3").textContent.trim();
+          b.addEventListener("click", () => { sec.scrollIntoView({ behavior: "smooth", block: "start" }); });
+          ind.append(b); b._sec = sec;
+        });
+        nav.append(ind);
+      }
+      // El nombre aparece en la barra cuando el título grande sale de la pantalla
+      const h2 = d.querySelector(".detail-head h2");
+      nav.querySelector(".dn-tit").textContent = h2 ? h2.textContent.trim() : "";
+      if (h2 && "IntersectionObserver" in window) {
+        new IntersectionObserver(([en]) => nav.classList.toggle("compacta", !en.isIntersecting), { rootMargin: "-120px 0px 0px 0px" }).observe(h2);
+      }
+    }
+    contar(z);
+    document.documentElement.style.setProperty("--dnav-alto", (nav.offsetHeight + (unaColumna() ? 60 : 8)) + "px");
+  }
+  function contar(z) {
+    const nav = z.det.querySelector(":scope > .dnav"); if (!nav) return;
+    const { lista, i } = posicion(z);
+    const pos = nav.querySelector(".dn-pos"), der = nav.querySelector(".dn-der");
+    der.hidden = i < 0;
+    if (i >= 0) {
+      pos.textContent = `${i + 1} de ${lista.length}`;
+      nav.querySelector(".dn-prev").disabled = i === 0;
+      nav.querySelector(".dn-next").disabled = i === lista.length - 1;
+    }
+  }
+  let saltando = false;
+  function mover(z, paso) {
+    const { lista, i } = posicion(z);
+    const sig = lista[i + paso]; if (i < 0 || !sig) return;
+    z.ultima = llave(sig); saltando = true;
+    sig.click();
+    // En dos columnas la lista acompaña: el registro nuevo queda a la vista y marcado
+    if (!unaColumna()) { sig.scrollIntoView({ block: "nearest" }); sig.focus({ preventScroll: true }); }
+  }
+  function cerrar(z) {
+    if (!z.w.classList.contains("ver-detalle")) return;
+    if (unaColumna() && (history.state || {}).detalle) { history.back(); return; }
+    const b = z.det.querySelector(".back");
+    if (b) b.click(); else z.w.classList.remove("ver-detalle");
+  }
+  zonas.forEach(z => {
+    new MutationObserver(() => {
+      armar(z);
+      if (saltando) { saltando = false; if (unaColumna()) scrollTo({ top: 0, behavior: "instant" }); else z.det.scrollTop = 0; }
+    }).observe(z.det, { childList: true });
+    new MutationObserver(() => contar(z)).observe(z.lista, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-current"] });
+  });
+
+  // ---- Botón atrás del celular: cierra el detalle y luego regresa a la sección anterior ----
+  if (!history.state) {
+    const m = (location.hash || "#inicio").slice(1);
+    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda"].includes(m) ? m : "inicio" }, "", location.href);
+  }
+  zonas.forEach(z => {
+    let abierto = z.w.classList.contains("ver-detalle");
+    new MutationObserver(() => {
+      const ahora = z.w.classList.contains("ver-detalle");
+      if (ahora === abierto) return;
+      abierto = ahora;
+      const st = history.state || {};
+      if (ahora && unaColumna() && !st.detalle) history.pushState({ mod: st.mod || z.mod.id.slice(4), detalle: true }, "", location.href);
+      if (!ahora && st.detalle) { ignorar = true; history.back(); }
+    }).observe(z.w, { attributes: true, attributeFilter: ["class"] });
+  });
+  let ignorar = false;
+  addEventListener("popstate", e => {
+    if (ignorar) { ignorar = false; return; }
+    const st = e.state || {};
+    const z = zonaVisible();
+    if (z && z.w.classList.contains("ver-detalle") && !st.detalle && unaColumna()) {
+      const b = z.det.querySelector(".back"); if (b) b.click(); else z.w.classList.remove("ver-detalle");
+      return;
+    }
+    if (st.detalle && !(z && z.w.classList.contains("ver-detalle"))) { history.replaceState({ mod: st.mod }, "", location.href); return; }
+    const actual = (document.querySelector(".modulos button[aria-current]") || {}).dataset?.mod;
+    const destino = st.mod || "inicio";
+    if (destino !== actual && window.irA) window.irA(destino, {});
+  });
+
+  // ---- Teclado: ← → anterior y siguiente, Esc vuelve a la lista ----
+  addEventListener("keydown", e => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const z = zonaVisible(); if (!z || !z.det.querySelector(":scope > .dnav")) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); mover(z, -1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); mover(z, 1); }
+    else if (e.key === "Escape" && unaColumna()) cerrar(z);
+  });
+
+  // ---- Deslizar a la derecha sobre el detalle para volver a la lista ----
+  let toque = null;
+  const noDeslizar = el => el.closest("input, textarea, select, canvas, .pdf-pages, .dn-indice, .fotos, img, [data-noswipe]") ||
+    (() => { for (let n = el; n && n !== document.body; n = n.parentElement) if (n.scrollWidth > n.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true; return false; })();
+  document.addEventListener("touchstart", e => {
+    const z = zonaVisible();
+    if (!z || !unaColumna() || !z.w.classList.contains("ver-detalle") || e.touches.length !== 1 || !z.det.contains(e.target) || noDeslizar(e.target)) { toque = null; return; }
+    const p = e.touches[0]; toque = { z, x: p.clientX, y: p.clientY, t: Date.now(), dx: 0, horizontal: null };
+  }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if (!toque) return;
+    const p = e.touches[0], dx = p.clientX - toque.x, dy = p.clientY - toque.y;
+    if (toque.horizontal === null && Math.abs(dx) + Math.abs(dy) > 12) toque.horizontal = Math.abs(dx) > Math.abs(dy) * 1.5 && dx > 0;
+    if (!toque.horizontal) return;
+    toque.dx = Math.max(0, dx);
+    const d = toque.z.det; d.classList.add("arrastre"); d.classList.remove("suelta");
+    d.style.transform = `translateX(${Math.min(toque.dx * .5, 120)}px)`; d.style.opacity = String(1 - Math.min(toque.dx / 600, .35));
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    if (!toque) return;
+    const { z, dx, t, horizontal } = toque; toque = null;
+    const d = z.det; d.classList.remove("arrastre"); d.classList.add("suelta"); d.style.transform = ""; d.style.opacity = "";
+    if (horizontal && (dx > 110 || (dx > 60 && Date.now() - t < 300))) cerrar(z);
+  });
+
+  // ---- Botón para volver arriba (página, lista o detalle, el que se esté desplazando) ----
+  const arriba = document.getElementById("arriba");
+  let fuente = document.scrollingElement;
+  const alto = el => el === document.scrollingElement ? innerHeight : el.clientHeight;
+  function revisar() { arriba.classList.toggle("on", !!fuente && fuente.scrollTop > alto(fuente) * 1.2); }
+  document.addEventListener("scroll", e => {
+    const el = e.target === document ? document.scrollingElement : e.target;
+    if (!(el instanceof Element) || !(el === document.scrollingElement || el.matches(".list, .detail, .ag, #mod-inicio"))) return;
+    fuente = el; revisar();
+  }, { capture: true, passive: true });
+  arriba.addEventListener("click", () => { if (fuente) fuente.scrollTo({ top: 0, behavior: "smooth" }); });
+  document.addEventListener("modulo", () => { fuente = document.scrollingElement; setTimeout(revisar, 50); });
 })();
 </script>
 </body>
