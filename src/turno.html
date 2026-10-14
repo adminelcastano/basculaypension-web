@@ -72,7 +72,7 @@ header.bar img { height: 34px; width: auto; display: block; }
 .modulos button { border: 0; background: transparent; color: #d2d2d7; font-weight: 600; font-size: 14px; letter-spacing: .02em; text-transform: uppercase; padding: 9px 16px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; position: relative; }
 .modulos button[aria-current="page"] { background: var(--amber); color: var(--amber-ink); }
 .modulos .mi { display: none; width: 24px; height: 24px; }
-.modulos .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ff453a; color: #fff; font-size: 11.5px; display: grid; place-items: center; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.modulos .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #d70015; color: #fff; font-size: 11.5px; display: grid; place-items: center; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .modulos button[aria-current="page"] .n { background: var(--amber-ink); color: var(--amber); }
 .yo { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .68rem; letter-spacing: -.02em; flex: none; }
@@ -82,14 +82,14 @@ header.bar img { height: 34px; width: auto; display: block; }
 
 main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32px) calc(40px + env(safe-area-inset-bottom)); }
 .titlebar { display: grid; gap: 4px; margin-bottom: 18px; }
-.titlebar h2 { font-size: clamp(32px, 4.4vw, 46px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+.titlebar h1 { font-size: clamp(32px, 4.4vw, 46px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
 .titlebar p { color: var(--muted); margin: 0; font-size: 15.5px; }
 .herr { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: -4px 0 18px; }
 
 .card { background: var(--surface); border-radius: 22px; padding: 20px 22px; }
 .card + .card { margin-top: 16px; }
-.card > h3 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.card > h3 .der { margin-left: auto; }
+.card > h2 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.card > h2 .der { margin-left: auto; }
 .card > .note { margin: 0 0 12px; }
 .note { color: var(--muted); font-size: .92rem; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -106,7 +106,7 @@ main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32p
 .ini-card[data-ir]:active { transform: scale(.985); }
 .ini-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ini-k { color: #d2d2d7; font-weight: 600; font-size: .95rem; }
-.ibadge { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); flex: none; }
+.ibadge { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: #26262a; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); flex: none; }
 .ibadge svg { width: 21px; height: 21px; }
 .ini-num { font-size: 2.6rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; display: block; }
 .ini-card .note { display: block; margin-top: 6px; }
@@ -162,7 +162,7 @@ main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32p
 .mov .x svg { width: 19px; height: 19px; }
 .total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--line); font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .vacio { color: var(--muted); padding: 18px 0 6px; }
-a.lnk, button.lnk { color: var(--amber); background: none; border: 0; padding: 0; font-weight: 600; cursor: pointer; text-decoration: none; }
+a.lnk, button.lnk { color: var(--amber); background: none; border: 0; padding: 0; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; min-height: 40px; }
 .aviso-ok { display: flex; gap: 12px; align-items: center; background: var(--ok-soft); color: #c9f5d6; border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; }
 .aviso-ok svg { color: var(--ok); width: 24px; height: 24px; flex: none; }
 
@@ -186,10 +186,13 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 .reparto b { color: var(--fg); }
 .reparto.ok { background: var(--ok-soft); color: #c9f5d6; } .reparto.ok span:last-child { color: var(--ok); font-weight: 700; }
 .reparto.mal { background: var(--warn-soft); color: #f5e3b8; } .reparto.mal span:last-child { color: var(--warn); font-weight: 700; }
+.red { padding: 6px 12px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.aviso-warn { background: var(--warn-soft); color: #f5e3b8; }
+.aviso-warn svg { color: var(--warn); }
 /* Hoja (diálogo) */
 dialog { border: 0; border-radius: 24px; background: var(--surface); color: var(--fg); padding: 22px; width: min(94vw, 600px); max-height: 92dvh; overflow: auto; }
 dialog::backdrop { background: rgba(0,0,0,.7); }
-dialog h3 { font-size: 1.3rem; margin-bottom: 6px; }
+dialog h2 { font-size: 1.3rem; margin-bottom: 6px; }
 dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; position: sticky; bottom: -22px; background: var(--surface); padding: 12px 0 2px; }
 dialog .acciones .btn { flex: 1 1 160px; }
 @media (max-width: 900px) {
@@ -207,7 +210,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
   .modulos .mi { display: block; }
   .modulos .n { position: absolute; top: 2px; left: calc(50% + 6px); }
-  .modulos button[aria-current="page"] .n { background: #ff453a; color: #fff; }
+  .modulos button[aria-current="page"] .n { background: #d70015; color: #fff; }
   .yo { margin-left: auto; }
   main.sec { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
   #toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
@@ -255,7 +258,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
 </svg>
 
 <!-- ======================= Entrada con PIN ======================= -->
-<section id="entrada">
+<main id="entrada">
   <div class="caja-entrada">
     <img src="/img/logo.png" alt="">
     <h1>Tablet de turno</h1>
@@ -275,10 +278,10 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <p class="err" id="err-pin" role="alert"></p>
     </div>
   </div>
-</section>
+</main>
 
 <!-- ======================= Turno abierto ======================= -->
-<section id="app" hidden>
+<div id="app" hidden>
   <header class="bar">
     <img src="/img/logo.png" alt="" width="167" height="229">
     <nav class="modulos" aria-label="Secciones">
@@ -288,10 +291,11 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <button type="button" data-sec="corte"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Corte</span></button>
     </nav>
     <div class="yo"><div class="avatar" id="avatar"></div><div><b id="nombre"></b><small id="turno-txt"></small></div></div>
-    <button class="salir" id="terminar" type="button"><svg class="i"><use href="#i-salir"/></svg><span>Salir</span></button>
+    <span class="red" id="red" role="status" hidden></span>
+    <button class="salir" id="terminar" type="button" aria-label="Terminar turno y salir"><svg class="i" aria-hidden="true"><use href="#i-salir"/></svg><span>Salir</span></button>
   </header>
   <main class="sec" id="sec"></main>
-</section>
+</div>
 
 
 <dialog id="dlg"><form method="dialog" id="dlg-form"></form></dialog>
@@ -310,10 +314,26 @@ dialog .acciones .btn { flex: 1 1 160px; }
   const GRAV = { leve: "Leve", media: "Media", grave: "Grave" };
   const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
 
-  async function api(ruta, datos) {
+  // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
+  const COLA_RUTAS = /^(gastos|extras|incidencias|avisos|corte|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
+  const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+  const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+  const cola = () => leerLS("turno:cola", []);
+  async function api(ruta, datos, opciones = {}) {
+    if (datos !== undefined && !datos.uid && ruta !== "entrar" && ruta !== "salir") datos = { ...datos, uid: nuevoUid() };
     const op = datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Turno": "1" }, body: JSON.stringify(datos) };
     let r, j;
-    try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); } catch { throw Object.assign(new Error("Sin conexión. Revisa el internet y vuelve a intentar."), { red: true }); }
+    try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); }
+    catch {
+      if (datos !== undefined && opciones.cola !== false && E && COLA_RUTAS.test(ruta)) {
+        const l = cola(); l.push({ ruta, datos, persona: E.persona, at: new Date().toISOString() });
+        if (!guardarLS("turno:cola", l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
+        pintarRed();
+        return { ok: true, enCola: true };
+      }
+      throw Object.assign(new Error("Sin conexión. Revisa el internet y vuelve a intentar."), { red: true });
+    }
     try { j = await r.json(); } catch { j = { ok: false, error: r.status === 401 || r.status === 403 ? "La tablet perdió el acceso. Recarga la página." : "Error del servidor (" + r.status + ")." }; }
     if (j.sesion === false) { mostrarEntrada(); throw new Error(j.error); }
     if (!j.ok) throw Object.assign(new Error(j.error || "Error"), { datos: j });
@@ -389,9 +409,48 @@ dialog .acciones .btn { flex: 1 1 160px; }
   }
 
   let E = null, seccion = "inicio";
-  async function cargar() { E = await api("estado"); pintarCabecera(); return E; }
+  // El último estado se guarda en la tablet para poder trabajar sin internet
+  let sinRed = false;
+  async function cargar() {
+    try { E = await api("estado"); sinRed = false; guardarLS("turno:estado", { at: new Date().toISOString(), E }); }
+    catch (e) {
+      const g = leerLS("turno:estado", null);
+      if (!e.red || !g || (E && g.E.persona !== E.persona)) throw e;
+      E = g.E; sinRed = g.at;
+    }
+    pintarCabecera(); return E;
+  }
+  // Manda lo que quedó pendiente sin internet, en orden
+  let enviando = false;
+  async function enviarCola() {
+    if (enviando || !E) return;
+    enviando = true;
+    try {
+      let l = cola(), n = 0;
+      while (l.length) {
+        const it = l[0];
+        try { await api(it.ruta, it.datos, { cola: false }); n++; }
+        catch (e) {
+          if (e.red) break;
+          if (e.datos && e.datos.sesion === false) break;
+          toast(`No se pudo enviar un registro guardado sin internet: ${e.message}`, true);
+        }
+        l = cola(); l.shift(); guardarLS("turno:cola", l);
+      }
+      if (n) { toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`); await refrescar().catch(() => {}); }
+    } finally { enviando = false; pintarRed(); }
+  }
+  function pintarRed() {
+    const el = $("#red"); if (!el) return;
+    const n = cola().length;
+    el.hidden = !n && !sinRed;
+    el.textContent = sinRed ? `Sin internet${n ? ` · ${n} por enviar` : ""}` : `${n} por enviar`;
+  }
+  addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
     await cargar();
+    enviarCola();
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" }).catch(() => {});
     $("#entrada").hidden = true; $("#app").hidden = false;
     ir("inicio");
   }
@@ -400,19 +459,22 @@ dialog .acciones .btn { flex: 1 1 160px; }
     $("#avatar").textContent = E.persona.slice(0, 4);
     $("#nombre").textContent = E.nombre;
     $("#turno-txt").innerHTML = `Turno de la ${esc(TURNO_TXT[E.turno])}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
-    const n = { avisos: sinLeer() + E.tareas.length, incidencias: E.incidencias.length };
-    for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k]; el.hidden = !n[k]; }
+    // Contadores: avisos sin leer + tareas pendientes; en incidencias solo las graves abiertas
+    const n = { avisos: sinLeer() + E.tareas.length, incidencias: E.incidencias.filter(i => i.gravedad === "grave").length };
+    for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k] > 99 ? "99+" : n[k]; el.hidden = !n[k]; el.setAttribute("aria-label", k === "avisos" ? `${n[k]} pendientes` : `${n[k]} graves`); }
+    pintarRed();
   }
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-sec]"); if (b) ir(b.dataset.sec); });
+  let sucio = false; // hay algo escrito sin guardar en la sección
   function ir(s) {
-    seccion = s;
+    seccion = s; sucio = false;
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.sec === s) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     pintar();
     window.scrollTo({ top: 0 });
   }
   function pintar() { ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, corte: verCorte })[seccion](); }
   const sec = () => $("#sec");
-  const titulo = (h, p) => `<div class="titlebar"><h2>${h}</h2>${p ? `<p>${p}</p>` : ""}</div>`;
+  const titulo = (h, p) => `<div class="titlebar"><h1>${h}</h1>${p ? `<p>${p}</p>` : ""}</div>`;
 
   // ---------- Inicio ----------
   function verInicio() {
@@ -423,20 +485,20 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const c = E.corte;
     sec().innerHTML = titulo(`${saludo}, ${esc(E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
       <div class="ini-grid">
-        <section class="ini-card s2 ini-hero" data-ir="corte" tabindex="0" role="link">
+        <div class="ini-card s2 ini-hero" data-ir="corte" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
-          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
+          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
           <div class="fila"><span>Gastos <b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra <b>${dinero(sumar(E.extras))}</b></span></div>
-        </section>
-        <section class="ini-card" data-ir="avisos" tabindex="0" role="link">
+        </div>
+        <div class="ini-card" data-ir="avisos" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas pendientes</span></div>
           <b class="ini-num">${E.tareas.length}</b><span class="note">${urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Ninguna urgente" : "Todo al día"}</span>
-        </section>
-        <section class="ini-card" data-ir="avisos" tabindex="0" role="link">
+        </div>
+        <div class="ini-card" data-ir="avisos" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos nuevos</span></div>
           <b class="ini-num">${nuevos.length}</b><span class="note">${E.avisos.length} ${E.avisos.length === 1 ? "aviso activo" : "avisos activos"}</span>
-        </section>
+        </div>
         <section class="ini-card s4">
           <span class="ini-k">Acciones rápidas</span>
           <div class="acc-grid">
@@ -449,10 +511,10 @@ dialog .acciones .btn { flex: 1 1 160px; }
         </section>
         <section class="ini-card s2">${bloqueMovs("gastos")}</section>
         <section class="ini-card s2">${bloqueMovs("extras")}</section>
-        <section class="ini-card s2" data-ir="incidencias" tabindex="0" role="link">
+        <div class="ini-card s2" data-ir="incidencias" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div>
           <b class="ini-num">${E.incidencias.length}</b><span class="note">${graves ? `${graves} ${graves === 1 ? "grave" : "graves"} · ` : ""}De todos los turnos, hasta que la administración las resuelva.</span>
-        </section>
+        </div>
         <section class="ini-card s2">
           <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos sin leer</span></div>
           ${nuevos.length ? `<div class="lista">${nuevos.slice(0, 3).map(filaAviso).join("")}</div>${nuevos.length > 3 ? `<button class="lnk" type="button" data-ir="avisos">Ver los ${nuevos.length} avisos</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">Ya leíste todos los avisos.</p>`}
@@ -466,7 +528,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     return `<div class="ini-top"><span class="ibadge" style="--c:${tipo === "gastos" ? "#ff7a70" : "#30d158"}"><svg><use href="#${tipo === "gastos" ? "i-gasto" : "i-mas"}"/></svg></span><span class="ini-k">${t}</span>
         ${conBoton ? `<button class="btn btn-line btn-sm" type="button" data-accion="${tipo === "gastos" ? "gasto" : "extra"}" style="margin-left:auto">+ Agregar</button>` : ""}</div>
       ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? " · " + esc(x.persona) : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
-          <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
+          <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar ${esc(x.concepto)} de ${dinero(x.monto)}"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
         <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
   }
 
@@ -495,13 +557,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
   function verAvisos() {
     sec().innerHTML = titulo("Avisos y tareas.", "Tareas de la administración para tu turno y avisos de ida y vuelta con la administración y los demás encargados.") + `
       <div class="cols">
-        <section class="card"><h3>${ico("i-tarea", "c-tarea")}Tareas del turno</h3>
+        <section class="card"><h2>${ico("i-tarea", "c-tarea")}Tareas del turno</h2>
           <p class="note">Marca cada tarea y cuenta cómo quedó: cumplida, en parte o no se pudo. La administración recibe tu informe.</p>
           ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
           ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
         </section>
-        <section class="card"><h3>${ico("i-aviso", "c-aviso")}Avisos<button class="btn btn-primary btn-sm der" type="button" data-accion="aviso">+ Nuevo aviso</button></h3>
-          <p class="note">Los de la administración y los que se dejan entre encargados. Marca "Enterado" al leerlos.</p>
+        <section class="card"><h2>${ico("i-aviso", "c-aviso")}Avisos<button class="btn btn-primary btn-sm der" type="button" data-accion="aviso">+ Nuevo aviso</button></h2>
+          <p class="note">Los de la administración y los que se dejan entre encargados. Marca "Enterado" al leerlos. Los avisos entre encargados se quitan solos a los 3 días.</p>
           ${E.avisos.length ? `<div class="lista">${E.avisos.map(filaAviso).join("")}</div>` : `<p class="vacio">No hay avisos.</p>`}
         </section>
       </div>`;
@@ -526,12 +588,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const c = E.corte;
     sec().innerHTML = titulo("Corte de turno.", "Cuenta <b>todo el efectivo físico</b> de la caja, incluido el cambio inicial, y escríbelo. La administración lo compara con el sistema.") + `
       ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
+      ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
         <form class="card" id="f-corte" novalidate>
-          <h3>${ico("i-billete", "c-corte")}Efectivo y vouchers</h3>
+          <h2>${ico("i-billete", "c-corte")}Efectivo y vouchers</h2>
           <label class="campo" style="margin-top:12px"><span>Efectivo físico (incluye cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
           <label class="campo"><span>Total de vouchers de tarjeta (opcional)</span><input class="t" name="tarjeta" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.tarjeta != null ? esc(c.tarjeta) : ""}"></label>
-          <h3 style="margin:22px 0 4px">${ico("i-sobre", "c-aviso")}Informe final: reparto del efectivo</h3>
+          <h2 style="margin:22px 0 4px">${ico("i-sobre", "c-aviso")}Informe final: reparto del efectivo</h2>
           <p class="note" style="margin:0 0 12px">Después de contar, anota cómo repartiste el efectivo físico. Lo repartido debe sumar lo contado.</p>
           <label class="campo"><span>Efectivo en sobre (para la administración)</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre ? esc(c.sobre) : ""}"></label>
           <div class="campo"><span class="lb">Retiros extra <span class="muted" style="font-weight:400">(ej. taxi, compra de algo)</span></span>
@@ -552,7 +615,11 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const f = $("#f-corte");
     const num = v => { const n = Number(String(v || "").replace(/[$,\s]/g, "")); return isFinite(n) ? n : 0; };
     const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="¿Para qué?" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" value="${r.monto ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
-    $("#retiros").innerHTML = ((c && c.retiros) || []).map(filaRetiro).join("");
+    // Borrador: lo escrito se guarda en la tablet y se recupera si la pantalla se redibuja o se cierra la app
+    const llaveB = `turno:borrador:${E.persona}:${E.dia}:${E.turno}`;
+    const b = leerLS(llaveB, null);
+    if (b) for (const k of ["efectivo", "tarjeta", "notas", "sobre", "cambio_sig"]) if (b[k] != null) f[k].value = b[k];
+    $("#retiros").innerHTML = ((b && b.retiros) || (c && c.retiros) || []).map(filaRetiro).join("");
     const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({ concepto: x.querySelector('[data-r="concepto"]').value.trim(), monto: x.querySelector('[data-r="monto"]').value.trim() })).filter(r => r.concepto || r.monto);
     function reparto() {
       const ef = num(f.efectivo.value), rt = retiros().reduce((a, r) => a + num(r.monto), 0);
@@ -565,7 +632,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     }
     $("#mas-retiro").addEventListener("click", () => { $("#retiros").insertAdjacentHTML("beforeend", filaRetiro()); $("#retiros .retiro:last-child input").focus(); });
     f.addEventListener("click", e => { const q = e.target.closest("[data-quitar-retiro]"); if (q) { q.closest(".retiro").remove(); reparto(); } });
-    f.addEventListener("input", reparto);
+    f.addEventListener("input", () => { reparto(); guardarLS(llaveB, { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: retiros() }); });
     reparto();
     f.addEventListener("submit", async e => {
       e.preventDefault();
@@ -579,7 +646,9 @@ dialog .acciones .btn { flex: 1 1 160px; }
       if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Efectivo físico: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
       try {
-        await api("corte", { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts });
+        const r = await api("corte", { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts });
+        guardarLS(llaveB, null);
+        if (r.enCola) { b.disabled = false; toast("Sin internet: el corte se guardó en la tablet y se enviará al volver la conexión."); return; }
         await cargar(); verCorte();
         if (await confirmar("Corte entregado", "¿Ya terminaste tu turno? Al salir, el siguiente encargado entra con su PIN.", "Terminar turno", "Seguir aquí")) salir();
       } catch (er) { $("#err-corte").textContent = errores(er); b.disabled = false; }
@@ -609,29 +678,29 @@ dialog .acciones .btn { flex: 1 1 160px; }
 
   function hojaGasto() {
     let foto = null;
-    hoja(`<h3>Agregar gasto</h3><p class="muted" style="margin:0 0 14px">Dinero que salió de la caja en este turno.</p>
+    hoja(`<h2>Agregar gasto</h2><p class="muted" style="margin:0 0 14px">Dinero que salió de la caja en este turno.</p>
       <label class="campo"><span>¿En qué se gastó?</span>${chips("g-conc", E.conceptos.map(c => [c, esc(c)]), "")}<input class="t" name="concepto" maxlength="120" placeholder="Ej. Garrafón de agua" autocomplete="off" style="margin-top:8px"></label>
       <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <div class="campo"><span class="lb">Foto del comprobante (opcional)</span>${campoFoto("g-foto", "Tomar foto")}</div>`,
-      async f => { await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto }); toast("Gasto registrado."); await refrescar(); });
+      async f => { const r = await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Gasto registrado."); await refrescar(); });
     activarFoto("g-foto", x => { foto = x; });
     elegirChip("#g-conc", v => { const i = $("#dlg-form").concepto; i.value = v === "Otro" ? "" : v; i.focus(); });
   }
   function hojaExtra() {
     let foto = null;
-    hoja(`<h3>Agregar ingreso extra</h3><p class="muted" style="margin:0 0 14px">Efectivo que entra a la caja sin ticket: rentas, dinero de la administración para el cambio, etc.</p>
+    hoja(`<h2>Agregar ingreso extra</h2><p class="muted" style="margin:0 0 14px">Efectivo que entra a la caja sin ticket: rentas, dinero de la administración para el cambio, etc.</p>
       <div class="campo"><span class="lb">¿Qué es?</span>${chips("x-conc", E.conceptos_extra.map(c => [c, esc(c)]), "Renta")}</div>
       <label class="campo"><span>¿De quién o de qué? <span class="muted" style="font-weight:400">(ej. señor de la ropa, restaurante)</span></span><input class="t" name="detalle" maxlength="120" autocomplete="off"></label>
       <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("x-foto", "Tomar foto")}</div>
       <p class="note" style="margin:0">"Aumento de cambio" suma al efectivo de la caja pero no cuenta como ingreso del negocio.</p>`,
-      async f => { await api("extras", { concepto: marcados("x-conc")[0], detalle: f.detalle.value, monto: f.monto.value, foto }); toast("Ingreso registrado."); await refrescar(); });
+      async f => { const r = await api("extras", { concepto: marcados("x-conc")[0], detalle: f.detalle.value, monto: f.monto.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Ingreso registrado."); await refrescar(); });
     activarFoto("x-foto", x => { foto = x; });
     elegirChip("#x-conc", () => {});
   }
   function hojaIncidencia() {
     let foto = null;
-    hoja(`<h3>Reportar incidencia</h3><p class="muted" style="margin:0 0 14px">Si es grave, la administración recibe un correo al momento.</p>
+    hoja(`<h2>Reportar incidencia</h2><p class="muted" style="margin:0 0 14px">Si es grave, la administración recibe un correo al momento.</p>
       <label class="campo"><span>¿Qué pasó?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. La pluma no baja" autocomplete="off"></label>
       <div class="campo"><span class="lb">¿Dónde pasó?</span>${chips("i-area", E.areas.map(a => [a, esc(a)]), "")}</div>
       <label class="campo"><span>¿Quién reporta?</span><input class="t" name="quien" maxlength="60" value="${esc(E.nombre)}" autocomplete="off"></label>
@@ -642,7 +711,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
         const grav = marcados("i-grav")[0];
         if (grav === "grave" && !confirm("Es grave: se enviará un correo a la administración ahora. ¿Continuar?")) return false;
         const r = await api("incidencias", { titulo: f.titulo.value, area: marcados("i-area")[0], quien: f.quien.value, detalle: f.detalle.value, gravedad: grav, foto });
-        toast(r.avisado ? "Reportada. La administración ya recibió el correo." : "Incidencia reportada."); await refrescar();
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : r.avisado ? "Reportada. La administración ya recibió el correo." : "Incidencia reportada."); await refrescar();
       });
     activarFoto("i-foto", x => { foto = x; });
     elegirChip("#i-area", () => {}); elegirChip("#i-grav", () => {});
@@ -650,7 +719,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   function hojaAviso(base = {}) {
     const ops = [["admin", "Administración"], ["todos", "Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "Turno " + TURNO_TXT[t]]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, esc(p.clave)])];
     const sel = base.para || ["admin"];
-    hoja(`<h3>${base.titulo ? "Responder aviso" : "Nuevo aviso"}</h3><p class="muted" style="margin:0 0 14px">Para la administración, para todos o para un turno o encargado. La administración ve todos los avisos.</p>
+    hoja(`<h2>${base.titulo ? "Responder aviso" : "Nuevo aviso"}</h2><p class="muted" style="margin:0 0 14px">Para la administración, para todos o para un turno o encargado. La administración ve todos los avisos.</p>
       <div class="campo"><span class="lb">¿Para quién?</span>${chips("a-para", ops, sel, true)}</div>
       <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
       <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
@@ -659,8 +728,8 @@ dialog .acciones .btn { flex: 1 1 160px; }
         const v = marcados("a-para");
         if (!v.length) throw new Error("Elige para quién es el aviso.");
         const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
-        await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para });
-        toast("Aviso publicado."); await refrescar();
+        const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para });
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Aviso publicado."); await refrescar();
       });
     // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
     $("#a-para").addEventListener("click", e => {
@@ -673,13 +742,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
   }
   function hojaReporte(t) {
     let foto = null;
-    hoja(`<h3>${esc(t.titulo)}</h3>${t.detalle ? `<div class="nota-admin" style="margin:6px 0 14px"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : `<p class="muted" style="margin:0 0 14px">¿Cómo quedó la tarea?</p>`}
+    hoja(`<h2>${esc(t.titulo)}</h2>${t.detalle ? `<div class="nota-admin" style="margin:6px 0 14px"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : `<p class="muted" style="margin:0 0 14px">¿Cómo quedó la tarea?</p>`}
       <div class="campo"><span class="lb">Resultado</span>${chips("r-res", [["cumplida", `<span class="etq e-ok">${svg("i-check")}Cumplida</span>`], ["parcial", `<span class="etq e-parcial">En parte</span>`], ["no", `<span class="etq e-alta">No se pudo</span>`]], "cumplida")}</div>
       <label class="campo"><span>Observaciones <span class="muted" style="font-weight:400">(obligatorias si quedó en parte o no se pudo)</span></span><textarea class="t" name="nota" maxlength="800"></textarea></label>
       <div class="campo"><span class="lb">Evidencia (opcional)</span>${campoFoto("r-foto", "Tomar foto")}</div>`,
       async f => {
         const r = await api(`tareas/${t.id}/reporte`, { resultado: marcados("r-res")[0], nota: f.nota.value, foto });
-        toast(r.avisado ? "Informe enviado a la administración." : "Informe guardado."); await refrescar();
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : r.avisado ? "Informe enviado a la administración." : "Informe guardado."); await refrescar();
       });
     activarFoto("r-foto", x => { foto = x; });
     elegirChip("#r-res", () => {});
@@ -710,6 +779,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       try { await api(`${tipo}/${id}/eliminar`, {}); toast("Borrado."); await refrescar(); } catch (er) { toast(er.message, true); }
     } else if (irA) ir(irA.dataset.ir);
   });
+  sec().addEventListener("input", () => { sucio = true; });
   sec().addEventListener("keydown", e => { const c = e.target.closest(".ini-card[data-ir]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ir(c.dataset.ir); } });
   const hora12 = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
 
@@ -754,7 +824,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   function confirmar(titulo, texto, si, no = "Cancelar") {
     const d = $("#dlg");
     $("#dlg-form").onsubmit = null; // la ventana se reutiliza: quitar el envío de la última hoja
-    $("#dlg-form").innerHTML = `<h3>${esc(titulo)}</h3><p class="muted" style="margin:0">${esc(texto)}</p><div class="acciones"><button class="btn btn-line" value="no">${esc(no)}</button><button class="btn btn-primary" value="si">${esc(si)}</button></div>`;
+    $("#dlg-form").innerHTML = `<h2>${esc(titulo)}</h2><p class="muted" style="margin:0">${esc(texto)}</p><div class="acciones"><button class="btn btn-line" value="no">${esc(no)}</button><button class="btn btn-primary" value="si">${esc(si)}</button></div>`;
     return new Promise(ok => { d.onclose = () => ok(d.returnValue === "si"); d.returnValue = ""; d.showModal(); });
   }
   // ---------- Salida ----------
@@ -774,7 +844,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
     if (Date.now() - ultimo > 30 * 60e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
     // Cada minuto se actualizan avisos, tareas e incidencias si no hay un formulario a medio llenar
     const ocupado = $("#dlg").open || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
-    if (!ocupado && Date.now() - ultRef > 60e3) { ultRef = Date.now(); const y = scrollY; refrescar().then(() => scrollTo({ top: y })).catch(() => {}); }
+    if (!ocupado && Date.now() - ultRef > 60e3) {
+      ultRef = Date.now();
+      enviarCola();
+      // En el corte o con algo escrito sin guardar solo se actualizan los contadores (no se redibuja)
+      if (seccion === "corte" || sucio) cargar().catch(() => {});
+      else { const y = scrollY; refrescar().then(() => scrollTo({ top: y })).catch(() => {}); }
+    }
   }, 20e3);
 
   // Al abrir: si ya hay sesión, directo al turno

@@ -1,3 +1,4 @@
+import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // ---------------------------------------------------------------------------
 // Personal: expediente laboral de colaboradores
@@ -729,7 +730,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
   }
 
   if (partes[2] === "archivo" && DOC_DE_ARCHIVO[partes[3]] && request.method === "GET") {
-    const { value, metadata } = await env.FILES.getWithMetadata(`x:${id}:${partes[3]}`, { type: "arrayBuffer" });
+    const { value, metadata } = await leerArchivo(env, `x:${id}:${partes[3]}`);
     if (!value) return new Response("Archivo no disponible.", { status: 404, headers: cabecerasPrivadas() });
     const tipo = metadata && TIPOS_FOTO.includes(metadata.tipo) ? metadata.tipo : "application/octet-stream";
     const ext = tipo === "application/pdf" ? "pdf" : (tipo.split("/")[1] || "bin");
@@ -738,7 +739,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
   }
 
   if (partes[2] === "archivo-admin" && /^[0-9a-f]{16}$/.test(partes[3] || "") && request.method === "GET") {
-    const { value, metadata } = await env.FILES.getWithMetadata(`xa:${id}:${partes[3]}`, { type: "arrayBuffer" });
+    const { value, metadata } = await leerArchivo(env, `xa:${id}:${partes[3]}`);
     if (!value) return new Response("Archivo no disponible.", { status: 404, headers: cabecerasPrivadas() });
     const tipo = metadata && TIPOS_FOTO.includes(metadata.tipo) ? metadata.tipo : "application/octet-stream";
     const nombre = String((metadata && metadata.nombre) || "documento").replace(/[^\w.\- ]/g, "").slice(0, 80) || "documento";
@@ -774,7 +775,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const lista = JSON.parse(fila.admin_docs || "[]");
     const nueva = lista.filter(d => d.id !== cuerpo.doc);
     if (nueva.length === lista.length) return json({ ok: false, error: "No existe ese documento." }, 404);
-    await env.FILES.delete(`xa:${id}:${cuerpo.doc}`);
+    await borrarArchivo(env, `xa:${id}:${cuerpo.doc}`);
     try { await borrarDeDrive(env, fila, "a:" + cuerpo.doc); } catch (e) { console.error("drive", e && e.message); }
     await env.DB.prepare("UPDATE colaboradores SET admin_docs = ? WHERE id = ?").bind(JSON.stringify(nueva), id).run();
     return json({ ok: true, admin_docs: nueva });
@@ -861,12 +862,12 @@ export async function personalPanel(request, env, url, partes, enviar) {
     let n = 0, fallas = 0;
     const docs = parse(fila.docs);
     for (const [clave, d] of Object.entries(docs)) for (const a of Object.keys((d && d.fotos) || {})) {
-      const { value, metadata } = await env.FILES.getWithMetadata(`x:${id}:${a}`, { type: "arrayBuffer" });
+      const { value, metadata } = await leerArchivo(env, `x:${id}:${a}`);
       if (!value) continue;
       try { await aDrive(env, fila, "d:" + a, value, (metadata && metadata.tipo) || "application/octet-stream", NOMBRE_ARCHIVO[a] || a); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
     }
     for (const d of JSON.parse(fila.admin_docs || "[]")) {
-      const { value } = await env.FILES.getWithMetadata(`xa:${id}:${d.id}`, { type: "arrayBuffer" });
+      const { value } = await leerArchivo(env, `xa:${id}:${d.id}`);
       if (!value) continue;
       try { await aDrive(env, fila, "a:" + d.id, value, d.tipo, nombreAdmin(d)); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
     }
@@ -875,8 +876,8 @@ export async function personalPanel(request, env, url, partes, enviar) {
   }
 
   if (partes[2] === "eliminar") {
-    for (const a of Object.keys(DOC_DE_ARCHIVO)) await env.FILES.delete(`x:${id}:${a}`);
-    for (const d of JSON.parse(fila.admin_docs || "[]")) await env.FILES.delete(`xa:${id}:${d.id}`);
+    for (const a of Object.keys(DOC_DE_ARCHIVO)) await borrarArchivo(env, `x:${id}:${a}`);
+    for (const d of JSON.parse(fila.admin_docs || "[]")) await borrarArchivo(env, `xa:${id}:${d.id}`);
     await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }

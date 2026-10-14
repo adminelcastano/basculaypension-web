@@ -1,3 +1,4 @@
+import { leerArchivo, borrarArchivo } from "./fotos.js";
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
 
@@ -110,12 +111,12 @@ async function borrarItems(env, items) {
   for (let i = 0; i < ids.length; i += 90) {
     const lote = ids.slice(i, i + 90), q = lote.map(() => "?").join(",");
     const fotos = (await env.DB.prepare(`SELECT foto FROM agenda_reportes WHERE item_id IN (${q}) AND foto IS NOT NULL`).bind(...lote).all()).results;
-    for (const f of fotos) await env.FILES.delete(f.foto).catch(() => {});
+    for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
     stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_reportes WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...lote));
   }
-  for (const v of items) if (v.foto) await env.FILES.delete(v.foto).catch(() => {});
+  for (const v of items) if (v.foto) await borrarArchivo(env, v.foto).catch(() => {});
   await env.DB.batch(stmts);
 }
 export { validar as validarItem, ABIERTO };
@@ -124,6 +125,10 @@ export { validar as validarItem, ABIERTO };
 // Lo que sigue abierto no se toca, aunque sea viejo.
 export async function limpiarAgenda(env, ahora = new Date()) {
   await asegurarEsquemaAgenda(env);
+  // Los avisos que dejan los encargados se archivan solos a los 3 días (los de la administración, cuando ella decida)
+  const tresDias = new Date(ahora.getTime() - 3 * 864e5).toISOString();
+  await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE tipo = 'aviso' AND estado = 'activo' AND autor IS NOT NULL AND autor != 'admin' AND creado < ?")
+    .bind(ahora.toISOString(), ahora.toISOString(), tresDias).run();
   const limite = new Date(ahora.getTime() - 30 * 864e5).toISOString();
   const diaLimite = limite.slice(0, 10);
   const viejos = (await env.DB.prepare(`SELECT id, foto FROM agenda_items
@@ -166,10 +171,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     sql += ` AND (${ABIERTO} OR cerrado IS NULL OR cerrado >= ?)`; args.push(limite);
     sql += " ORDER BY COALESCE(fecha, '9999-12-31'), COALESCE(hora, '99:99'), creado LIMIT 1000";
     const items = (await env.DB.prepare(sql).bind(...args).all()).results;
-    const lect = items.some(it => it.tipo === "aviso") ? (await env.DB.prepare("SELECT l.item_id, l.persona, l.at FROM agenda_lecturas l JOIN agenda_items a ON a.id = l.item_id WHERE a.tipo = 'aviso'").all()).results : [];
+    // Lecturas e informes solo de los registros que se listan (no de toda la historia)
+    const deIds = async (sql, ids) => { const out = []; for (let i = 0; i < ids.length; i += 90) { const l = ids.slice(i, i + 90); out.push(...(await env.DB.prepare(sql.replace("(?)", "(" + l.map(() => "?").join(",") + ")")).bind(...l).all()).results); } return out; };
+    const lect = await deIds("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id));
     for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
     // Informes de la tablet sobre las tareas
-    const rep = items.some(it => it.tipo === "tarea") ? (await env.DB.prepare("SELECT r.* FROM agenda_reportes r JOIN agenda_items a ON a.id = r.item_id WHERE a.tipo = 'tarea' ORDER BY r.creado DESC").all()).results : [];
+    const rep = (await deIds("SELECT * FROM agenda_reportes WHERE item_id IN (?)", items.filter(it => it.tipo === "tarea").map(it => it.id))).sort((a, b) => b.creado.localeCompare(a.creado));
     for (const it of items) if (it.tipo === "tarea") it.reportes = rep.filter(r => r.item_id === it.id);
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
@@ -201,8 +208,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
-    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=? WHERE id=?`)
-      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, id).run();
+    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
+      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
     return json({ ok: true });
   }
 

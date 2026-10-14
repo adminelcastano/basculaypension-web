@@ -5,6 +5,9 @@
  * - Envía a colaboradores y al encargado de turno los correos con su enlace de expediente.
  * - Guarda una copia de los documentos del personal en Google Drive:
  *   COLABORADORES / EXTERNOS → carpeta de cada persona (la busca por su número) → documentos.
+ * - Es el almacén de fotos y PDFs del panel y la tablet: carpeta dedicada "El Castaño · Archivos del panel"
+ *   en el Drive de esta cuenta (tickets y constancias, expedientes, fotos de la tablet). No la renombres;
+ *   puedes moverla de lugar dentro de tu Drive.
  *
  * TOKEN: cópialo igual en Cloudflare como secreto AVISO_TOKEN.
  */
@@ -14,6 +17,9 @@ function doPost(e) {
   let datos = {};
   try { datos = JSON.parse(e.postData.contents); } catch (err) { return respuesta('error'); }
   if (!datos.token || datos.token !== TOKEN) return respuesta('no autorizado');
+  if (datos.accion === 'archivos') {
+    try { return json(archivos(datos)); } catch (err) { return json({ ok: false, error: String(err && err.message || err).slice(0, 200) }); }
+  }
   if (datos.accion === 'drive') {
     try { return respuesta(drive(datos)); } catch (err) { return respuesta('error drive: ' + err.message); }
   }
@@ -83,9 +89,64 @@ function drive(d) {
 }
 
 function respuesta(t) { return ContentService.createTextOutput(t); }
+function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+// ---- Almacén de archivos del panel (carpeta dedicada) ----
+function raizArchivos(nombre) {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('raiz_archivos');
+  if (id) { try { const c = DriveApp.getFolderById(id); if (!c.isTrashed()) return c; } catch (err) {} }
+  const it = DriveApp.getFoldersByName(nombre);
+  const c = it.hasNext() ? it.next() : DriveApp.createFolder(nombre);
+  props.setProperty('raiz_archivos', c.getId());
+  return c;
+}
+function subcarpeta(raiz, ruta) {
+  const props = PropertiesService.getScriptProperties();
+  let actual = raiz, camino = '';
+  for (const parte of (ruta || [])) {
+    const n = String(parte).replace(/[\\/]/g, '-').slice(0, 120);
+    if (!n) continue;
+    camino += '/' + n;
+    const llave = 'sc_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, camino));
+    const id = props.getProperty(llave);
+    let c = null;
+    if (id) { try { c = DriveApp.getFolderById(id); if (c.isTrashed()) c = null; } catch (err) { c = null; } }
+    if (!c) { const it = actual.getFoldersByName(n); c = it.hasNext() ? it.next() : actual.createFolder(n); props.setProperty(llave, c.getId()); }
+    actual = c;
+  }
+  return actual;
+}
+function archivos(d) {
+  if (d.op === 'probar') { const r = raizArchivos(String(d.raiz || 'El Castaño · Archivos del panel')); return { ok: true, url: r.getUrl() }; }
+  if (d.op === 'guardar') {
+    const carpeta = subcarpeta(raizArchivos(String(d.raiz || 'El Castaño · Archivos del panel')), d.carpeta);
+    const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'archivo'));
+    return { ok: true, id: carpeta.createFile(blob).getId() };
+  }
+  if (!d.id || !/^[A-Za-z0-9_-]{10,}$/.test(String(d.id))) return { ok: false, error: 'id inválido' };
+  const archivo = DriveApp.getFileById(String(d.id));
+  // Solo archivos que están dentro de la carpeta dedicada
+  if (!dentroDeRaiz(archivo)) return { ok: false, error: 'fuera de la carpeta del panel' };
+  if (d.op === 'leer') { const b = archivo.getBlob(); return { ok: true, tipo: b.getContentType(), base64: Utilities.base64Encode(b.getBytes()) }; }
+  if (d.op === 'borrar') { archivo.setTrashed(true); return { ok: true }; }
+  return { ok: false, error: 'operación' };
+}
+function dentroDeRaiz(archivo) {
+  const raiz = PropertiesService.getScriptProperties().getProperty('raiz_archivos');
+  const vistos = {};
+  let pendientes = [archivo.getParents()];
+  for (let n = 0; n < 8 && pendientes.length; n++) {
+    const sig = [];
+    for (const it of pendientes) while (it.hasNext()) { const c = it.next(); const id = c.getId(); if (id === raiz) return true; if (!vistos[id]) { vistos[id] = 1; sig.push(c.getParents()); } }
+    pendientes = sig;
+  }
+  return false;
+}
 
 /** Ejecuta esta función una vez desde el editor para autorizar correo y Drive. */
 function probar() {
+  raizArchivos('El Castaño · Archivos del panel');
   DriveApp.getFolderById(CARPETA_COLABORADORES).getName();
   DriveApp.getFolderById(CARPETA_EXTERNOS).getName();
   GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'Prueba de aviso · El Castaño', 'Si recibes esto, el aviso de solicitudes y la carpeta de Drive están listos.');

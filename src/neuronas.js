@@ -1,3 +1,4 @@
+import { enAhorro } from "./consumo.js";
 // Tope diario de Workers AI para no generar cobros.
 // Cloudflare regala 10 000 neuronas al día (se reinician a las 00:00 UTC, 6 p.m. en Tapachula).
 // Con Workers Paid, lo que pase de ahí se cobra, y Cloudflare no ofrece un tope de gasto.
@@ -29,6 +30,7 @@ export async function neuronasHoy(env) {
 
 // Igual que env.AI.run, pero se niega (lanza SinNeuronas) si la llamada podría pasarse del tope
 export async function correrIA(env, modelo, entrada) {
+  if (await enAhorro(env)) throw new SinNeuronas();
   const llave = llaveDia();
   const usadas = Number(await env.FILES.get(llave)) || 0;
   const reserva = peorCaso(entrada && entrada.max_tokens);

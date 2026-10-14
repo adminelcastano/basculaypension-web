@@ -1,3 +1,4 @@
+import { leerArchivo, borrarArchivo } from "./fotos.js";
 // Tablet del encargado de turno (/turno).
 // Doble candado: Cloudflare Access (cuenta entrada@ o la de administración) y, encima,
 // cada encargado entra con su PIN de 4 dígitos. Todo lo que captura queda a su nombre.
@@ -19,7 +20,8 @@ const CONCEPTOS = ["Agua", "Limpieza", "Papelería", "Refacción", "Comida de tu
 
 const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra } });
 const texto = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
-const numero = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); const n = t === "" ? NaN : Number(t); return isFinite(n) ? Math.round(n * 100) / 100 : NaN; };
+// Montos capturados: solo dígitos con hasta 2 decimales (no "1e4" ni negativos)
+const numero = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
 const enc = new TextEncoder();
 const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
 const b64u = s => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -140,7 +142,7 @@ async function guardarFoto(env, dataUrl, prefijo) {
 export async function servirFoto(env, llave) {
   try { llave = decodeURIComponent(llave || ""); } catch { llave = ""; }
   if (!/^tf:[a-z]+:[0-9a-f-]{36}$/.test(llave || "")) return new Response("No encontrado", { status: 404 });
-  const r = await env.FILES.getWithMetadata(llave, { type: "arrayBuffer" });
+  const r = await leerArchivo(env, llave);
   if (!r || !r.value) return new Response("La foto ya no está disponible.", { status: 404 });
   return new Response(r.value, { headers: { "Content-Type": (r.metadata && r.metadata.tipo) || "image/jpeg", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" } });
 }
@@ -173,7 +175,11 @@ async function estado(env, s) {
   const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
-  if (corte) corte.retiros = leerRetiros(corte.retiros);
+  if (corte) {
+    corte.retiros = leerRetiros(corte.retiros);
+    // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
+    corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
+  }
   return { ...s, hoy, personas, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
 }
 
@@ -187,6 +193,8 @@ export async function turnoRuta(request, env, url, h) {
   const ruta = url.pathname.replace(/\/+$/, "") || "/turno";
   if (ruta === "/turno" && request.method === "GET") return new Response(h.html, { headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
   if (ruta === "/turno/manifest.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-store" } });
+  // Service worker: abre la tablet aunque no haya internet (la página y el logo quedan guardados)
+  if (ruta === "/turno/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/turno" } });
   if (!ruta.startsWith("/turno/api/")) return new Response("No encontrado", { status: 404, headers: h.cabeceras() });
 
   if (request.method !== "GET") {
@@ -240,6 +248,14 @@ export async function turnoRuta(request, env, url, h) {
   if (request.method === "POST") { try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); } }
   const ahora = new Date().toISOString();
 
+  // Envíos repetidos (modo sin conexión o red inestable): el mismo uid devuelve la misma respuesta
+  let llaveUid = null;
+  if (request.method === "POST" && /^[a-z0-9-]{8,40}$/i.test(String(c.uid || ""))) {
+    llaveUid = `uid:${s.persona}:${c.uid}`;
+    const previo = await env.FILES.get(llaveUid);
+    if (previo) return new Response(previo, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+  }
+  const recordar = async r => { if (llaveUid && r.status < 300) await env.FILES.put(llaveUid, await r.clone().text(), { expirationTtl: 3 * 86400 }); return r; };
   const sinCorte = async () => !(await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first());
   const errFoto = () => json({ ok: false, error: "La foto no es válida. Tómala otra vez.", errores: { foto: "Foto inválida." } }, 422);
 
@@ -249,7 +265,7 @@ export async function turnoRuta(request, env, url, h) {
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
     const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona });
-    return json({ ok: true, id });
+    return recordar(json({ ok: true, id }));
   }
   if (partes[0] === "avisos" && partes[2] && request.method === "POST") {
     const a = await env.DB.prepare("SELECT id, autor, para FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(partes[1]).first();
@@ -267,8 +283,9 @@ export async function turnoRuta(request, env, url, h) {
 
   // ---- Informe de una tarea: cumplida (se cierra), parcial o no se pudo (sigue abierta) ----
   if (partes[0] === "tareas" && partes[2] === "reporte" && request.method === "POST") {
-    const t = await env.DB.prepare(`SELECT id, titulo FROM agenda_items WHERE id = ? AND tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO}`).bind(partes[1]).first();
+    const t = await env.DB.prepare(`SELECT id, titulo, turno FROM agenda_items WHERE id = ? AND tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO}`).bind(partes[1]).first();
     if (!t) return json({ ok: false, error: "Esa tarea ya no está pendiente." }, 404);
+    if (t.turno && t.turno !== s.turno) return json({ ok: false, error: "Esa tarea es de otro turno." }, 403);
     const resultado = ["cumplida", "parcial", "no"].includes(c.resultado) ? c.resultado : "";
     const nota = texto(c.nota, 800);
     const errores = {};
@@ -287,7 +304,7 @@ export async function turnoRuta(request, env, url, h) {
     if (h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
       try { await h.llamarScript(env, correoTarea(t, resultado, nota, !!foto, s)); avisado = true; } catch (err) { console.error("informe tarea: correo", err && err.message); }
     }
-    return json({ ok: true, avisado });
+    return recordar(json({ ok: true, avisado }));
   }
 
   // ---- Incidencia nueva ----
@@ -306,7 +323,7 @@ export async function turnoRuta(request, env, url, h) {
     if (d.gravedad === "grave" && h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
       try { await h.llamarScript(env, correoIncidencia(d, s)); avisado = true; } catch (err) { console.error("incidencia grave: correo", err && err.message); }
     }
-    return json({ ok: true, id, avisado });
+    return recordar(json({ ok: true, id, avisado }));
   }
 
   // ---- Gasto de caja (en efectivo; la foto del comprobante es opcional) ----
@@ -320,8 +337,8 @@ export async function turnoRuta(request, env, url, h) {
     try { foto = await guardarFoto(env, c.foto, "gasto"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona) VALUES (?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?)")
-      .bind(id, mesActual(), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona).run();
-    return json({ ok: true, id });
+      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona).run();
+    return recordar(json({ ok: true, id }));
   }
   // ---- Ingreso extra (renta, aumento de cambio, otro) ----
   if (partes[0] === "extras" && partes.length === 1 && request.method === "POST") {
@@ -335,8 +352,8 @@ export async function turnoRuta(request, env, url, h) {
     try { foto = await guardarFoto(env, c.foto, "extra"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, mesActual(), s.dia, s.turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, foto, s.persona, ahora, `tablet:${s.persona}`).run();
-    return json({ ok: true, id });
+      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, foto, s.persona, ahora, `tablet:${s.persona}`).run();
+    return recordar(json({ ok: true, id }));
   }
   // Borrar un gasto o ingreso propio mientras el turno sigue abierto (antes del corte)
   if ((partes[0] === "gastos" || partes[0] === "extras") && partes[2] === "eliminar" && request.method === "POST") {
@@ -345,7 +362,7 @@ export async function turnoRuta(request, env, url, h) {
     const g = await env.DB.prepare(`SELECT id, foto FROM ${tabla} WHERE id = ? AND persona = ? AND dia = ? AND turno = ?`).bind(partes[1], s.persona, s.dia, s.turno).first();
     if (!g) return json({ ok: false, error: "Solo puedes borrar lo que tú capturaste en este turno." }, 404);
     await env.DB.prepare(`DELETE FROM ${tabla} WHERE id = ?`).bind(g.id).run();
-    if (g.foto) await env.FILES.delete(g.foto).catch(() => {});
+    if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true });
   }
 
@@ -361,12 +378,16 @@ export async function turnoRuta(request, env, url, h) {
     if (!(sobre >= 0) || sobre > 1000000) errores.sobre = "Monto del sobre inválido.";
     if (!(cambioSig >= 0) || cambioSig > 1000000) errores.cambio_sig = "Monto del cambio inválido.";
     if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000)) errores.retiros = "Cada retiro necesita concepto y monto.";
+    const repartido = sobre + cambioSig + retiros.reduce((a, r) => a + (r.monto || 0), 0);
+    if (!errores.efectivo && repartido - efectivo > 0.5) errores.sobre = `Repartiste ${(repartido - efectivo).toFixed(2)} más de lo que contaste. Revisa el sobre, los retiros y el cambio.`;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el corte.", errores }, 422);
     await env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
       ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, efectivo = excluded.efectivo, tarjeta = excluded.tarjeta, notas = excluded.notas, actualizado = excluded.actualizado, veces = turno_cortes.veces + 1, con_cambio = 1,
         sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros`)
-      .bind(s.dia, s.turno, mesActual(), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)).run();
-    return json({ ok: true });
+      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)).run();
+    await env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora).run();
+    return recordar(json({ ok: true }));
   }
 
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
@@ -390,6 +411,20 @@ function correoTarea(t, resultado, nota, conFoto, s) {
     html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:${resultado === "cumplida" ? "#1a7f37" : "#9a6700"};margin:0;font-weight:600">Tarea · ${escHtml(r)}</p><h2 style="margin:4px 0 8px">${escHtml(t.titulo)}</h2><p style="margin:0 0 12px"><b>Encargado:</b> ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${nota ? `<p><b>Observaciones:</b> ${escHtml(nota)}</p>` : ""}${conFoto ? "<p>Con foto de evidencia (en el panel).</p>" : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
   };
 }
+
+const SW = `const C = "turno-v1";
+self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(["/turno", "/img/logo.png", "/img/turno-192.png"])).catch(() => {})); self.skipWaiting(); });
+self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))); self.clients.claim(); });
+self.addEventListener("fetch", e => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== "GET" || u.origin !== location.origin) return;
+  // La página: primero internet; sin conexión, la copia guardada
+  if (e.request.mode === "navigate" && u.pathname === "/turno") {
+    e.respondWith(fetch(e.request).then(r => { if (r.ok && r.type === "basic") { const c = r.clone(); caches.open(C).then(x => x.put("/turno", c)); } return r; }).catch(() => caches.match("/turno")));
+  } else if (u.pathname.startsWith("/img/")) {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  }
+});`;
 
 const MANIFIESTO = {
   name: "Turno · El Castaño", short_name: "Turno", start_url: "/turno", scope: "/turno", display: "standalone",

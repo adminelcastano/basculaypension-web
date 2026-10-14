@@ -44,7 +44,7 @@ header.bar small { color: var(--muted); font-size: .8rem; }
 .btn-bad { background: transparent; color: var(--bad); border-color: currentColor; }
 .btn:disabled { opacity: .5; cursor: progress; }
 
-main.work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); }
+div.work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); }
 .list { overflow-y: auto; border-right: 1px solid var(--line); background: #0b0b0c; }
 .item { display: grid; gap: 2px; width: 100%; text-align: left; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; }
 .item:hover { background: var(--sel); }
@@ -92,16 +92,16 @@ section.card h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em
 .export-box { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: min(320px, calc(100vw - 32px)); background: #1d1d1f; border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 10px; box-shadow: 0 16px 36px -18px rgba(0,0,0,.45); }
 .export-box label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .export-box input, .export-box select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; }
-@media (max-width: 600px) { .export-box { left: 0; right: auto; } }
+@media (max-width: 720px) { .export[open] { flex-basis: 100%; } .export-box { position: static; width: 100%; margin-top: 8px; } }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: rgba(245,245,247,.95); color: #000; padding: 10px 18px; border-radius: 999px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; }
 .toast.on { opacity: 1; }
 
 @media (max-width: 820px) {
-  main.work { grid-template-columns: 1fr; }
+  div.work { grid-template-columns: 1fr; }
   .list { border-right: 0; }
   .detail { display: none; }
-  main.work.ver-detalle .list { display: none; }
-  main.work.ver-detalle .detail { display: block; }
+  div.work.ver-detalle .list { display: none; }
+  div.work.ver-detalle .detail { display: block; }
   .back { display: inline-flex; }
 }
 
@@ -120,7 +120,7 @@ header.bar h1 { font-size: 15px; }
 .tab[aria-selected="true"] .n { background: var(--amber); color: var(--amber-ink); }
 .tab .ti { display: none; width: 24px; height: 24px; }
 .search { border-radius: 12px; padding: 10px 14px; }
-main.work { border-top: 1px solid var(--line); }
+div.work { border-top: 1px solid var(--line); }
 .list { background: var(--bg); padding: 12px; display: block; }
 .item { position: relative; background: var(--surface); border: 0; border-radius: 0; padding: 14px 40px 14px 16px; transition: background .2s; }
 .item + .item { box-shadow: inset 0 1px 0 var(--line); }
@@ -155,7 +155,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   .list .item { animation: aparecer .45s ease both; }
   @keyframes subir { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
-  @media (max-width: 820px) { main.work.ver-detalle .detail { animation: empujar .38s cubic-bezier(.16,1,.3,1) both; } @keyframes empujar { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } } }
+  @media (max-width: 820px) { div.work.ver-detalle .detail { animation: empujar .38s cubic-bezier(.16,1,.3,1) both; } @keyframes empujar { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } } }
 }
 /* Celular: las pestañas pasan abajo como barra de pestañas de iOS */
 @media (max-width: 820px) {
@@ -166,8 +166,8 @@ section.card { border-radius: 22px; padding: 22px 24px; }
   .tab[aria-selected="true"] { background: transparent; box-shadow: none; color: var(--amber); }
   .tab .ti { display: block; }
   .tab .n { position: absolute; top: 0; left: calc(50% + 6px); font-size: 11px; padding: 0 5px; min-width: 18px; }
-  .tab:not([aria-selected="true"]) .n { background: #ff453a; color: #fff; }
-  main.work { border-top: 0; }
+  .tab:not([aria-selected="true"]) .n { background: #d70015; color: #fff; }
+  div.work { border-top: 0; }
   .detail, .list { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
   .tools { padding-top: 8px; }
 }
@@ -201,7 +201,7 @@ section.card { border-radius: 22px; padding: 22px 24px; }
 /* ---- Secciones del panel: Facturación y Personal ---- */
 .mod { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .modulos { display: flex; gap: 2px; background: #2a2a2d; padding: 3px; border-radius: 10px; }
-.modulos button { border: 0; background: transparent; color: #d2d2d7; font-weight: 600; font-size: 13.5px; letter-spacing: .02em; text-transform: uppercase; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+.modulos button { min-height: 40px; border: 0; background: transparent; color: #d2d2d7; font-weight: 600; font-size: 13.5px; letter-spacing: .02em; text-transform: uppercase; padding: 6px 14px; border-radius: 8px; cursor: pointer; }
 .modulos button[aria-current="page"] { background: var(--amber); color: var(--amber-ink); }
 header.bar h1 { margin-right: 0; }
 header.bar .modulos { margin-right: auto; margin-left: 8px; }
@@ -225,10 +225,10 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ini-grid .s2 { grid-column: span 2; } .ini-grid .s3 { grid-column: span 3; }
 .ini-top { display: flex; align-items: center; gap: 10px; }
 .ini-top .ini-k { flex: 1; }
-.ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: #2a2a2d; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 .ibadge svg { width: 19px; height: 19px; }
 .kpi .ini-num { color: var(--c); }
-.kpi { border-top: 3px solid color-mix(in srgb, var(--c) 70%, transparent); }
+.kpi { border-top: 3px solid #3a3a3c; border-top: 3px solid color-mix(in srgb, var(--c) 70%, transparent); }
 .acc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
 .accion { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: #1f1f21; color: var(--fg); border-radius: 14px; padding: 10px; font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .15s, border-color .2s; line-height: 1.2; }
 .accion:hover { background: #2a2a2d; border-color: color-mix(in srgb, var(--c) 60%, transparent); }
@@ -314,7 +314,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal .dow { font-size: .75rem; font-weight: 600; color: var(--muted); text-align: center; padding: 4px 0; text-transform: uppercase; }
 .cal .d { aspect-ratio: 1 / .9; min-height: 44px; border: 0; border-radius: 12px; background: #1f1f21; color: var(--fg); cursor: pointer; display: grid; align-content: space-between; justify-items: start; padding: 6px 7px; font: inherit; font-weight: 600; font-size: .95rem; }
-.cal .d.fuera { background: transparent; color: #48484a; }
+.cal .d.fuera { background: transparent; color: #8e8e93; }
 .cal .d.hoy { box-shadow: inset 0 0 0 2px var(--amber); }
 .cal .d.sel { background: var(--amber); color: var(--amber-ink); }
 .cal .d:hover:not(.sel) { background: #2a2a2d; }
@@ -336,7 +336,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .chk svg { width: 16px; height: 16px; }
 .chk.on { background: var(--ok); border-color: var(--ok); color: #04210f; }
 .chk:hover:not(.on) { border-color: var(--ok); }
-.del { width: 32px; height: 32px; border-radius: 999px; border: 0; background: transparent; color: #6e6e73; cursor: pointer; display: grid; place-items: center; }
+.del { width: 40px; height: 40px; border-radius: 999px; border: 0; background: transparent; color: #98989d; cursor: pointer; display: grid; place-items: center; }
 .del:hover { color: var(--bad); background: var(--bad-soft); }
 .del.armed { color: #fff; background: var(--bad); }
 .del svg { width: 18px; height: 18px; }
@@ -354,17 +354,21 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .aform .btn { justify-self: start; }
 .tag.tablet { background: #2a2405; color: var(--amber); }
 .tag svg { width: 12px; height: 12px; flex: none; }
+.copy { min-height: 36px; } #p-folio { min-height: 36px; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .lect { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: .78rem; font-weight: 600; background: #2a2a2d; color: #d2d2d7; }
 .lect.si { background: #12301d; color: #30d158; }
 .para-op { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; grid-column: 1 / -1; }
+.aitem .edit { min-height: 40px; padding: 0 12px; font-size: .85rem; }
+.aitem form.editar { grid-column: 1 / -1; padding: 6px 0; }
 .para-op > span { font-size: .85rem; font-weight: 600; color: var(--muted); margin-right: 4px; }
 .aform label.pchip { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #2a2a2d; color: var(--fg); font-weight: 500; cursor: pointer; }
 .aform label.pchip input { width: 16px; height: 16px; accent-color: var(--amber); padding: 0; }
-.aform label.pchip:has(input:checked) { background: #3a3010; color: var(--amber); }
+.aform label.pchip:has(input:checked), .aform label.pchip.on { background: #3a3010; color: var(--amber); }
 .informes { flex-direction: column; align-items: flex-start !important; }
 .informe { display: inline-block; padding: 4px 10px; border-radius: 10px; background: #1f1f22; font-size: .82rem; }
 .informe.ok b { color: #30d158; } .informe.parcial b { color: #ff9f0a; } .informe.no b { color: #ff6961; }
-.ptab .n.rojo { background: #ff453a !important; color: #fff !important; }
+.ptab .n.rojo { background: #d70015 !important; color: #fff !important; }
 .aform label.chkl { display: flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 500; min-height: 44px; }
 .aform label.chkl input { width: 20px; height: 20px; accent-color: var(--amber); }
 .enc { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -394,7 +398,7 @@ details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted);
   body { display: block; min-height: 100%; }
   .mod { display: block; min-height: 0; }
   #mod-inicio, #mod-agenda { overflow: visible; }
-  main.work { min-height: 0; align-items: start; }
+  div.work { min-height: 0; align-items: start; }
   .list, .detail { overflow: visible; }
 }
 @media (min-width: 821px) and (max-width: 1200px) {
@@ -438,7 +442,7 @@ header.bar .sync { flex: none; }
 .cmovs th { text-align: left; font-size: .78rem; color: var(--muted); font-weight: 600; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
 .cmovs td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cmovs td.n, .cmovs th.n { text-align: right; padding-right: 0; }
-.cmovs tr.no td { color: #6e6e73; }
+.cmovs tr.no td { color: #98989d; }
 .cmovs tr.mov td { color: #a1a1a6; font-style: italic; }
 .cmovs .svc { width: 24px; height: 24px; border-radius: 7px; }
 .cmovs .svc svg { width: 15px; height: 15px; }
@@ -453,9 +457,10 @@ header.bar .sync { flex: none; }
 .dif { display: inline-flex; align-items: center; gap: 4px; padding: 1px 9px; border-radius: 999px; font-size: .85rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dif.ok { background: #12301d; color: #30d158; } .dif.falta { background: #3a1714; color: #ff6961; } .dif.sobra { background: #102538; color: #7db8ec; }
 .cform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .cform { grid-template-columns: minmax(0, 1fr); } }
 .cform label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .cform label.wide { grid-column: 1 / -1; }
-.cform input, .cform select { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
+.cform input, .cform select { min-width: 0; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
 .cform .err { color: var(--bad); font-size: .85rem; font-weight: 500; }
 .modulos .corto { display: none; }
 .modulos button { white-space: nowrap; }
@@ -478,7 +483,9 @@ header.bar .sync { flex: none; }
 .adoc .acc a, .adoc .acc button { text-decoration: none; }
 .archivo-sel { position: relative; overflow: hidden; }
 .archivo-sel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.ptabs { display: flex; background: var(--surface); padding: 3px; border-radius: 12px; gap: 2px; }
+.ptabs { display: flex; background: var(--surface); padding: 3px; border-radius: 12px; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.ptabs::-webkit-scrollbar { display: none; }
+.ptabs .ptab { flex: none; }
 .ptab { border: 0; background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 14.5px; font-weight: 500; color: #d2d2d7; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
 .ptab[aria-selected="true"] { background: #3a3a3c; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 #a-tabs { flex-wrap: wrap; } #a-tabs .ptab { white-space: nowrap; }
@@ -567,7 +574,7 @@ header.bar .sync { flex: none; }
 
 /* Al ver un detalle en una columna, se ocultan título y filtros de la lista */
 @media (max-width: 820px) {
-  .mod:has(> main.work.ver-detalle) > .titlebar, .mod:has(> main.work.ver-detalle) > .tools { display: none; }
+  .mod:has(> div.work.ver-detalle) > .titlebar, .mod:has(> div.work.ver-detalle) > .tools, .mod.en-detalle > .titlebar, .mod.en-detalle > .tools { display: none; }
   /* Las pestañas de estado de Facturación quedan arriba, dentro de la sección */
   .tabs { position: static; width: 100%; border-radius: 12px; padding: 3px; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); border-top: 0; }
   .tab { padding: 6px 2px; }
@@ -584,8 +591,8 @@ header.bar .sync { flex: none; }
 .undo:not([hidden]) ~ .arriba { opacity: 0; pointer-events: none; }
 
 /* Deslizar a la derecha en el detalle para volver a la lista */
-main.work.ver-detalle .detail.arrastre { transition: none; }
-main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2s ease; }
+div.work.ver-detalle .detail.arrastre { transition: none; }
+div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2s ease; }
 
 /* Ajustes de Personal (fecha límite, recordatorios y Drive) plegados */
 .ajustes { flex-basis: 100%; }
@@ -689,35 +696,35 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   <symbol id="i-arriba" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
-<div class="mod" id="mod-inicio">
+<main class="mod" id="mod-inicio">
   <div class="ini">
-    <header class="ini-head">
+    <div class="ini-head">
       <h2 id="i-saludo">Hola.</h2>
       <p class="note" id="i-fecha"></p>
-    </header>
+    </div>
     <div class="ini-grid">
-      <section class="ini-card ini-hero s2" data-ir="caja" tabindex="0" role="link">
+      <div class="ini-card ini-hero s2" data-ir="caja" tabindex="0" role="link">
         <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
         <b class="ini-big" id="i-hoy">$0</b>
         <div class="ini-split" id="i-split"></div>
         <span class="ini-turno" id="i-turno"></span>
-      </section>
-      <section class="ini-card kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+      </div>
+      <div class="ini-card kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
         <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
-      </section>
-      <section class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
+      </div>
+      <div class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
         <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span>
-      </section>
-      <section class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
+      </div>
+      <div class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
         <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span>
-      </section>
-      <section class="ini-card kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
+      </div>
+      <div class="ini-card kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-persona"/></svg></span><span class="ini-k">Expedientes incompletos</span></div>
         <b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span>
-      </section>
+      </div>
       <section class="ini-card s2 acciones">
         <span class="ini-k">Acciones rápidas</span>
         <div class="acc-grid">
@@ -733,17 +740,18 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       <section class="ini-card"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
       <section class="ini-card s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
       <section class="ini-card s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
-      <section class="ini-card" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></section>
-      <section class="ini-card ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></section>
-      <section class="ini-card ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></section>
-      <section class="ini-card ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></section>
-      <section class="ini-card ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></section>
+      <div class="ini-card" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
+      <div class="ini-card ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+      <div class="ini-card ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
+      <div class="ini-card ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
+      <div class="ini-card ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
+      <section class="ini-card s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
     </div>
     <p class="note ini-pie" id="i-pie"></p>
   </div>
   <div class="gtip" id="gtip" role="status" hidden></div>
-</div>
-<div class="mod" id="mod-facturacion" hidden>
+</main>
+<main class="mod" id="mod-facturacion" hidden>
 <div class="titlebar">
   <h2 id="titulo">Pendientes.</h2>
   <p id="subtitulo" class="note"></p>
@@ -767,12 +775,12 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     </div>
   </details>
 </div>
-<main class="work" id="work">
+<div class="work" id="work">
   <nav class="list" id="lista" aria-label="Solicitudes"></nav>
   <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
-</main>
 </div>
-<div class="mod" id="mod-personal" hidden>
+</main>
+<main class="mod" id="mod-personal" hidden>
 <div class="titlebar">
   <h2 id="p-titulo">Personal.</h2>
   <p id="p-subtitulo" class="note"></p>
@@ -804,23 +812,23 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   </div>
   </details>
 </div>
-<main class="work" id="p-work">
+<div class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
   <div class="detail" id="p-detalle"><p class="empty">Elige un colaborador o agrega uno nuevo.</p></div>
-</main>
 </div>
-<div class="mod" id="mod-caja" hidden>
+</main>
+<main class="mod" id="mod-caja" hidden>
 <div class="titlebar">
   <h2 id="c-titulo">Ingresos y gastos.</h2>
   <p id="c-subtitulo" class="note"></p>
 </div>
 <div class="tools">
   <div class="cper" role="group" aria-label="Periodo">
-    <div class="ptabs" id="c-rapidos">
-      <button class="ptab" type="button" data-r="hoy">Hoy</button>
-      <button class="ptab" type="button" data-r="ayer">Ayer</button>
-      <button class="ptab" type="button" data-r="7"><span class="largo">Últimos 7 días</span><span class="corto">7 días</span></button>
-      <button class="ptab" type="button" data-r="mes" aria-selected="true">Mes</button>
+    <div class="ptabs" id="c-rapidos" role="tablist" aria-label="Periodo rápido">
+      <button class="ptab" type="button" role="tab" data-r="hoy">Hoy</button>
+      <button class="ptab" type="button" role="tab" data-r="ayer">Ayer</button>
+      <button class="ptab" type="button" role="tab" data-r="7"><span class="largo">Últimos 7 días</span><span class="corto">7 días</span></button>
+      <button class="ptab" type="button" role="tab" data-r="mes" aria-selected="true">Mes</button>
     </div>
     <label>Desde<input type="date" id="c-desde"></label>
     <label>Hasta<input type="date" id="c-hasta"></label>
@@ -834,12 +842,12 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   <button class="btn btn-line" id="c-transf" type="button">+ Agregar transferencia</button>
   <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
 </div>
-<main class="work" id="c-work">
+<div class="work" id="c-work">
   <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
-</main>
 </div>
-<div class="mod" id="mod-agenda" hidden>
+</main>
+<main class="mod" id="mod-agenda" hidden>
 <div class="titlebar">
   <h2 id="a-titulo">Agenda.</h2>
   <p id="a-subtitulo" class="note"></p>
@@ -855,7 +863,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   </div>
 </div>
 <div class="ag" id="ag-cuerpo"></div>
-</div>
+</main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
 <button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
@@ -901,6 +909,10 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   async function cargarLista() {
     const p = new URLSearchParams({ estado: estadoState.estado });
     if (estadoState.q) p.set("q", estadoState.q);
+    // Páginas de 200: al cambiar de pestaña o búsqueda se vuelve a la primera
+    const clavePag = estadoState.estado + "|" + (estadoState.q || "");
+    if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.limite = 200; }
+    p.set("limite", estadoState.limite);
     const lista = $("#lista");
     try {
       const j = await api("solicitudes?" + p);
@@ -924,7 +936,8 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
           <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${estadoState.estado === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
-        </button>${deslizable ? "</div>" : ""}`).join("");
+        </button>${deslizable ? "</div>" : ""}`).join("") + (j.hay_mas ? `<button class="btn btn-line" type="button" id="ver-mas" style="width:100%;margin-top:12px">Ver ${Math.min(200, (j.conteos[estadoState.estado] || 0) - j.limite) > 0 ? Math.min(200, (j.conteos[estadoState.estado] || 0) - j.limite) : 200} más (se muestran ${j.limite} de ${j.conteos[estadoState.estado] || "más"})</button>` : "");
+      const vm = $("#ver-mas"); if (vm) vm.addEventListener("click", () => { estadoState.limite += 200; vm.disabled = true; cargarLista(); });
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
   }
 
@@ -1031,7 +1044,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
           <section class="card">
             <h3>Mensaje al cliente</h3>
             <p class="note">${{ pendiente: "Confirma que recibiste su solicitud.", facturada: "Confirma el ticket, el importe y la factura emitida.", rechazada: "Explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
-            <textarea id="wa-texto" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
+            <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
               <button class="btn btn-line" id="wa-copiar" type="button">Copiar mensaje</button>
@@ -2103,6 +2116,10 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
                 ${fila("Cambio para el siguiente turno", dinero(c.conteo.cambio_sig || 0), "")}
                 ${(() => { const rep = (c.conteo.sobre || 0) + (c.conteo.retiros || []).reduce((x, r) => x + r.monto, 0) + (c.conteo.cambio_sig || 0), d = Math.round((c.conteo.efectivo - rep) * 100) / 100; return `<span class="fin">Repartido</span><span class="n fin">${dinero(rep)}</span><span class="n">${Math.abs(d) < 0.01 ? "✓ cuadra" : d > 0 ? "faltan " + dinero(d) : "sobran " + dinero(-d)}</span>`; })()}
               </div>` : ""}
+              ${(j.historial || []).length > 1 ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
+                <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+                ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
+                </tbody></table></div></details>` : ""}
               <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
               <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
             ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
@@ -2112,11 +2129,11 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos del turno</h3>
-            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
           <section class="card"><h3>Ingresos extra del turno</h3>
-            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
+            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
             <details><summary class="note" style="cursor:pointer;font-weight:600">Agregar ingreso extra a este turno</summary><div style="margin-top:12px">
               <form class="cform" id="c-fextra" novalidate>
                 <label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
@@ -2128,7 +2145,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
           </section>
       </div>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
-          ${j.movs.length ? `<div class="tabla-scroll"><table class="cmovs"><thead><tr><th></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
+          ${j.movs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Registros de la hoja"><table class="cmovs"><thead><tr><th><span class="sr">Servicio</span></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
             ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
           </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: movimientos de caja.</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
         </section>
@@ -2262,8 +2279,8 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   const barra = () => (document.querySelector("header.bar") || { offsetHeight: 0 }).offsetHeight;
   // La posición de la lista se guarda mientras se desplaza (al abrir el detalle la página ya se acortó)
   const enLista = new WeakMap();
-  addEventListener("scroll", () => { document.querySelectorAll("main.work").forEach(w => { if (!w.classList.contains("ver-detalle") && w.offsetParent) enLista.set(w, scrollY); }); }, { passive: true });
-  document.querySelectorAll("main.work").forEach(w => {
+  addEventListener("scroll", () => { document.querySelectorAll("div.work").forEach(w => { if (!w.classList.contains("ver-detalle") && w.offsetParent) enLista.set(w, scrollY); }); }, { passive: true });
+  document.querySelectorAll("div.work").forEach(w => {
     let antes = w.classList.contains("ver-detalle");
     new MutationObserver(() => {
       const ahora = w.classList.contains("ver-detalle");
@@ -2281,7 +2298,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     }).observe(w, { attributes: true, attributeFilter: ["class"] });
   });
   // En dos columnas (iPad horizontal, tabletas) el detalle tiene su propio desplazamiento: cada registro nuevo empieza arriba
-  document.querySelectorAll("main.work .detail").forEach(d => new MutationObserver(() => { d.scrollTop = 0; }).observe(d, { childList: true }));
+  document.querySelectorAll("div.work .detail").forEach(d => new MutationObserver(() => { d.scrollTop = 0; }).observe(d, { childList: true }));
   // Al cambiar de sección, empezar arriba
   document.addEventListener("modulo", () => { if (matchMedia("(max-width: 1200px), (max-height: 640px)").matches) scrollTo({ top: 0, behavior: "instant" }); });
 })();
@@ -2410,11 +2427,31 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   const fLargo = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
   let firmaGraf = null;
 
+  // Consumo del mes (guardián) y almacén de archivos en Drive
+  async function cargarConsumo() {
+    const el = $("#i-consumo-txt");
+    try {
+      const j = await api("consumo"), c = j.consumo, a = j.archivos || {};
+      const e = c.estado;
+      const top = e && e.filas && e.filas.length ? e.filas.slice().sort((x, y) => y.fraccion - x.fraccion)[0] : null;
+      const lineas = [];
+      if (c.ahorro) lineas.push(`<b style="color:#ff6961">Modo ahorro activo:</b> formularios públicos, IA y sincronización frecuente pausados hasta el próximo mes para no generar cobros.`);
+      if (!c.configurado) lineas.push(`<b style="color:#ff9f0a">Falta el token de analítica</b> (CF_API_TOKEN): sin él no se puede vigilar el consumo.`);
+      else if (top) lineas.push(`Lo más alto del mes: <b>${esc(top.nombre)}</b> al <b>${(Math.round(top.fraccion * 1000) / 10).toLocaleString("es-MX")} %</b> de lo incluido en los 5 USD. Aviso al 60 %, modo ahorro al 85 %.`);
+      else lineas.push("Todavía no hay lectura del consumo (se revisa cada hora).");
+      if (e && e.errores && e.errores.length) lineas.push(`<span style="color:#ff9f0a">No se pudo leer: ${esc(e.errores.join("; ").slice(0, 160))}</span>`);
+      if (a.error) lineas.push(`Archivos: ${esc(a.error)}`);
+      else lineas.push(`Archivos en Google Drive: <b>${(a.en_drive || 0).toLocaleString("es-MX")}</b>${a.en_kv ? ` · <b>${a.en_kv}</b> esperando para subir${a.script ? "" : " (falta el script de Google)"}` : " · todo subido"}.`);
+      el.innerHTML = lineas.map(x => `<p style="margin:0 0 6px">${x}</p>`).join("");
+    } catch (e) { if (e.message !== "sesion") el.textContent = "No se pudo leer el consumo: " + e.message; }
+  }
+
   async function cargar() {
     const ta = turnoActual(), h = ta.h;
     $("#i-saludo").textContent = h >= 6 && h < 12 ? "Buenos días." : h >= 12 && h < 19 ? "Buenas tardes." : "Buenas noches.";
     const fechaTxt = fLargo.format(new Date(ta.dia + "T12:00:00Z"));
     $("#i-fecha").textContent = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1) + ` · turno de la ${TURNO_TXT[ta.turno].toLowerCase()} en curso`;
+    cargarConsumo();
     const [fac, caja, per, ag] = await Promise.allSettled([
       api("solicitudes?estado=pendiente"), api(`caja?desde=${sumar(ta.dia, -7)}&hasta=${ta.dia}`),
       api("colaboradores?tipo=colaborador&estatus=activo"), api("agenda/resumen")
@@ -2582,9 +2619,30 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   }
 
   // ---- Elementos de lista ----
+  // Edición de un registro ya creado (título, nota, fecha, prioridad, turno, destinatarios…)
+  function formEditar(it) {
+    const sel = (n, ops, v) => `<select name="${n}">${ops.map(([k, t]) => `<option value="${esc(k)}" ${String(v ?? "") === k ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`;
+    const T = TURNO_TXT, p = it.para || {};
+    const campos = [`<label class="w4">Título<input name="titulo" maxlength="140" value="${esc(it.titulo)}" autocomplete="off"></label>`,
+      `<label class="w4">${it.tipo === "tarea" ? "Nota para el encargado" : "Detalle"}<textarea name="detalle" rows="2" maxlength="1000">${esc(it.detalle || "")}</textarea></label>`];
+    if (["evento", "tarea", "incidencia", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Mostrar desde" : it.tipo === "tarea" ? "Fecha límite" : "Fecha"}<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label>`);
+    if (it.tipo === "evento") campos.push(`<label>Hora<input type="time" name="hora" value="${esc(it.hora || "")}"></label>`);
+    if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
+    if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
+    if (it.tipo === "tarea") campos.push(`<label class="chkl w2"><input type="checkbox" name="para_turno" ${it.para_turno ? "checked" : ""}>Que la haga el encargado (tablet)</label><label>Turno${sel("turno", [["", "Cualquiera"], ...Object.entries(T)], it.turno || "")}</label>`);
+    if (it.tipo === "incidencia") campos.push(`<label>Gravedad${sel("gravedad", [["leve", "Leve"], ["media", "Media"], ["grave", "Grave"]], it.gravedad)}</label><label>Dónde<input name="area" maxlength="40" value="${esc(it.area || "")}"></label>`);
+    if (it.tipo === "aviso") {
+      const op = [["todos", "Todos los encargados"], ...Object.entries(T).map(([k, v]) => ["t:" + k, "Turno " + v.toLowerCase()]), ...(st.personas || []).filter(x => x.activo).map(x => ["p:" + x.clave, x.clave])];
+      const on = v => v === "todos" ? !!p.todos : v.startsWith("t:") ? (p.turnos || []).includes(v.slice(2)) : (p.personas || []).includes(v.slice(2));
+      campos.push(`<div class="w4 para-op"><span>Para</span>${op.map(([v, t]) => `<label class="pchip ${on(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${on(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>`);
+    }
+    return `<form class="aform editar" data-id="${esc(it.id)}" data-tipo="${esc(it.tipo)}" aria-label="Editar ${esc(it.titulo)}">${campos.join("")}
+      <div class="w4 row" style="display:flex;gap:8px"><button class="btn btn-primary" type="submit">Guardar cambios</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button></div><span class="err"></span></form>`;
+  }
   function item(it) {
+    if (st.editando === it.id) return formEditar(it);
     const hecho = !abierto(it);
-    const del = `<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button>`;
+    const del = `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}" aria-label="Editar ${esc(it.titulo)}">Editar</button><button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button>`;
     if (it.tipo === "incidencia") {
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
@@ -2640,10 +2698,11 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       return dest.filter(x => x.clave !== it.autor).map(x => l.has(x.clave) ? `<span class="lect si" title="Enterado ${esc(cuando(l.get(x.clave)))}">✓ ${esc(x.clave)} ${esc(cuando(l.get(x.clave)).replace(/^.*?, /, ""))}</span>` : `<span class="lect" title="Todavía no lo lee">${esc(x.clave)}</span>`).join("");
     };
     const fila = it => {
+      if (st.editando === it.id) return `<div class="aitem">${formEditar(it)}</div>`;
       const deEnc = it.autor !== "admin", paraAdmin = it.para && it.para.admin, nuevo = deEnc && paraAdmin && abierto(it) && !leidoAdmin(it);
       return `<div class="aitem ${abierto(it) ? "" : "hecho"}"><span class="grav ${it.prioridad === "alta" ? "grave" : deEnc ? "media" : "leve"}">${ico(deEnc ? "i-tablet" : "i-aviso")}</span>
       <span class="tt">${nuevo ? `<span class="tag hoy" style="margin-right:6px">Nuevo</span>` : ""}${esc(it.titulo)}</span>
-      <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:32px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:32px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Reactivar</button>`}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button></span>
+      <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:40px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:40px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Reactivar</button>`}${it.autor === "admin" ? `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}">Editar</button>` : ""}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button></span>
       <span class="mm"><span>De <b>${esc(deTxt(it))}</b> para <b>${esc(paraTxt(it.para || {}))}</b></span>${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}${deEnc && paraAdmin && leidoAdmin(it) ? `<span class="lect si">✓ Leído por ti</span>` : ""}</span>
       <span class="mm" style="margin-top:4px">${lecturas(it)}</span></div>`;
     };
@@ -2652,7 +2711,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
     return `<section class="card"><form class="aform" data-tipo="aviso"><label class="w4">${r.persona ? "Responder a " + esc(r.persona) : "Nuevo aviso para los encargados"}<input name="titulo" maxlength="140" placeholder="Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label>
       <label class="w4">Mensaje <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
-      <div class="w4 para-op"><span>Para</span>${opPara.map(([v, t]) => `<label class="pchip"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>
+      <div class="w4 para-op"><span>Para</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>
       <label>Mostrar desde<input type="date" name="fecha"></label><label>Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
       <button class="btn btn-primary" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado". Los encargados también pueden dejarte avisos a ti o entre ellos; aquí los ves todos.</p></section>
@@ -2680,7 +2739,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
           <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
       </section>
       <section class="card"><h3>Últimos cortes ciegos</h3>
-        ${j.cortes.length ? `<div class="tabla-scroll"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th><th class="n">Sobre</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+        ${j.cortes.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Últimos cortes"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th><th class="n">Sobre</th><th class="n">Cambio sig.</th></tr></thead><tbody>
           ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
         </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo (los cortes anteriores al 14 oct se contaron sin el cambio). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
       </section>
@@ -2728,7 +2787,22 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
 
   function conectar() {
     const c = $("#ag-cuerpo");
-    c.querySelectorAll("form.aform").forEach(f => f.addEventListener("submit", async ev => {
+    c.querySelectorAll("[data-editar]").forEach(b => b.addEventListener("click", () => { st.editando = b.dataset.editar; pintar(); const f = $(`#ag-cuerpo form.editar`); f && f.titulo.focus(); }));
+    c.querySelectorAll("form.editar [data-cancelar]").forEach(b => b.addEventListener("click", () => { st.editando = null; pintar(); }));
+    c.querySelectorAll("form.editar").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const datos = {};
+      for (const el of f.elements) if (el.name) datos[el.name] = el.type === "checkbox" ? (el.checked ? 1 : "") : el.value;
+      if (f.dataset.tipo === "aviso") {
+        const v = [...f.querySelectorAll("[data-para]:checked")].map(x => x.dataset.para);
+        if (!v.length) { f.querySelector(".err").textContent = "Elige para quién es el aviso."; return; }
+        datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
+      }
+      const b = f.querySelector("button[type=submit]"); b.disabled = true;
+      try { await post("agenda/" + f.dataset.id, datos); st.editando = null; toast("Cambios guardados"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    }));
+    c.querySelectorAll("form.aform:not(.editar)").forEach(f => f.addEventListener("submit", async ev => {
       ev.preventDefault();
       const datos = { tipo: f.dataset.tipo };
       for (const el of f.elements) if (el.name) datos[el.name] = el.type === "checkbox" ? (el.checked ? 1 : "") : el.value;
@@ -2759,10 +2833,12 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     }));
     // "Todos los encargados" incluye turnos y personas
     c.querySelectorAll("[data-para]").forEach(x => x.addEventListener("change", () => {
-      if (!x.checked) return;
       const f = x.closest("form");
+      const marcar = () => f.querySelectorAll(".pchip").forEach(l => l.classList.toggle("on", l.querySelector("input").checked));
+      if (!x.checked) { marcar(); return; }
       if (x.dataset.para === "todos") f.querySelectorAll('[data-para^="t:"],[data-para^="p:"]').forEach(y => { y.checked = false; });
       else { const t = f.querySelector('[data-para="todos"]'); if (t) t.checked = false; }
+      marcar();
     }));
     c.querySelectorAll("[data-archivar],[data-reactivar]").forEach(b => b.addEventListener("click", async () => {
       const id = b.dataset.archivar || b.dataset.reactivar;
@@ -2809,7 +2885,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
   const unaColumna = () => matchMedia("(max-width: 820px)").matches;
   const svg = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
   const llave = el => el && (el.dataset.id || el.dataset.k || el.dataset.t || "");
-  const zonas = [...document.querySelectorAll("main.work")].map(w => ({ w, mod: w.closest(".mod"), lista: w.querySelector(".list"), det: w.querySelector(".detail"), ultima: "" }));
+  const zonas = [...document.querySelectorAll("div.work")].map(w => ({ w, mod: w.closest(".mod"), lista: w.querySelector(".list"), det: w.querySelector(".detail"), ultima: "" }));
   const zonaVisible = () => zonas.find(z => !z.mod.hidden);
   const items = z => [...z.lista.querySelectorAll(".item, .pitem")].filter(llave);
 
@@ -2904,6 +2980,12 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       const ahora = z.w.classList.contains("ver-detalle");
       if (ahora === abierto) return;
       abierto = ahora;
+      z.mod.classList.toggle("en-detalle", ahora);
+      // Foco: al abrir, en el título del detalle; al volver, en el registro de la lista
+      if (unaColumna()) requestAnimationFrame(() => {
+        if (ahora) { const h = z.det.querySelector(".detail-head h2"); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+        else { const it = z.ultima && items(z).find(x => llave(x) === z.ultima); if (it) it.focus({ preventScroll: true }); }
+      });
       const st = history.state || {};
       if (ahora && unaColumna() && !st.detalle) history.pushState({ mod: st.mod || z.mod.id.slice(4), detalle: true }, "", location.href);
       if (!ahora && st.detalle) { ignorar = true; history.back(); }

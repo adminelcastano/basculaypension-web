@@ -1,3 +1,5 @@
+import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
+import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
@@ -40,6 +42,9 @@ export default {
     env = normalizarScripts(env);
     const url = new URL(request.url);
     try {
+      // Modo ahorro (consumo cerca del límite incluido): se pausan los formularios públicos
+      if (request.method === "POST" && (url.pathname === "/api/solicitud" || url.pathname === "/api/revisar-ticket" || url.pathname.startsWith("/api/expediente/")) && await enAhorro(env))
+        return json({ ok: false, error: "Por ahora no podemos recibir archivos en línea. Escríbenos por WhatsApp al 962 564 2170 y te ayudamos." }, 503);
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
       if (url.pathname === "/api/revisar-ticket") return await revisarTicketApi(request, env);
       if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
@@ -65,8 +70,15 @@ export default {
     if (event.cron === "*/10 * * * *") {
       ctx.waitUntil((async () => {
         await recordatoriosAgenda(env, llamarScript).catch(e => console.error("recordatorios agenda", e && e.message));
+        // Fotos y PDFs: de KV a la carpeta dedicada de Google Drive
+        await mantenerArchivos(env).then(r => (r.subidos || r.vencidos || r.error) && console.log("archivos", JSON.stringify(r))).catch(e => console.error("archivos", e && e.message));
+        const enPuntoDeHora = new Date(event.scheduledTime).getUTCMinutes() < 10;
+        // Cada hora: revisar el consumo del mes (avisos y modo ahorro)
+        if (enPuntoDeHora) await revisarConsumo(env, llamarScript).catch(e => console.error("consumo", e && e.message));
         if (!env.INGRESOS_URL) return;
         await cierreMensualCaja(env, { crearLibro, llamarScript, aBase64 }).catch(e => console.error("cierre caja", e && e.message));
+        // En modo ahorro la hoja se lee cada hora en vez de cada 10 minutos
+        if (!enPuntoDeHora && await enAhorro(env)) return;
         await sincronizarCaja(env);
       })());
       return;
@@ -237,8 +249,8 @@ async function crearSolicitud(request, env, ctx) {
   } catch (e) {
     // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
     console.error("guardar solicitud", e && e.message);
-    await env.FILES.delete(`f:${id}:ticket`).catch(() => {});
-    if (csfTipo) await env.FILES.delete(`f:${id}:csf`).catch(() => {});
+    await borrarArchivo(env, `f:${id}:ticket`).catch(() => {});
+    if (csfTipo) await borrarArchivo(env, `f:${id}:csf`).catch(() => {});
     return json({ ok: false, error: "No pudimos registrar tu solicitud en este momento. Intenta de nuevo en unas horas o escríbenos por WhatsApp." }, 503);
   }
 
@@ -485,6 +497,10 @@ async function panel(request, env, url) {
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, { crearLibro });
   if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
   if (partes[0] === "turno") return await turnoAdmin(request, env, url, partes);
+  if (partes[0] === "consumo" && request.method === "GET") {
+    const [consumo, archivos] = await Promise.all([estadoConsumo(env), estadoArchivos(env).catch(e => ({ error: e.message }))]);
+    return json({ ok: true, consumo, archivos });
+  }
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
@@ -500,12 +516,15 @@ async function panel(request, env, url) {
       const like = "%" + q.replace(/[%_]/g, "") + "%";
       args.push(like, like, like, like, like, like);
     }
-    sql += estado === "pendiente" ? " ORDER BY creado ASC LIMIT 300" : " ORDER BY resuelta_en DESC LIMIT 300";
-    const { results } = await env.DB.prepare(sql).bind(...args).all();
+    // Por páginas: el panel pide más con "Ver más" (antes se cortaba en 300 sin avisar)
+    const limite = Math.min(2000, Math.max(50, Number(url.searchParams.get("limite")) || 200));
+    sql += (estado === "pendiente" ? " ORDER BY creado ASC" : " ORDER BY resuelta_en DESC") + ` LIMIT ${limite + 1}`;
+    const { results: todos } = await env.DB.prepare(sql).bind(...args).all();
+    const hayMas = todos.length > limite, results = todos.slice(0, limite);
     const conteos = await env.DB.prepare(
       "SELECT CASE WHEN estado != 'pendiente' AND resuelta_en < ? THEN 'historico' ELSE estado END AS grupo, COUNT(*) AS n FROM solicitudes GROUP BY grupo"
     ).bind(lim).all();
-    return json({ ok: true, solicitudes: results, conteos: Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])), dias_retencion: DIAS_RETENCION });
+    return json({ ok: true, solicitudes: results, hay_mas: hayMas, limite, conteos: Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])), dias_retencion: DIAS_RETENCION });
   }
 
   const id = partes[1];
@@ -524,7 +543,7 @@ async function panel(request, env, url) {
     }
 
     if (partes[2] === "archivo" && ["ticket", "csf"].includes(partes[3]) && request.method === "GET") {
-      const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:${partes[3]}`, { type: "arrayBuffer" });
+      const { value, metadata } = await leerArchivo(env, `f:${id}:${partes[3]}`);
       if (!value) return new Response("Archivo no disponible (pudo haberse borrado por antigüedad).", { status: 404, headers: cabecerasPanel() });
       const tipo = metadata && (TIPOS_IMAGEN.includes(metadata.tipo) || metadata.tipo === TIPO_PDF) ? metadata.tipo : "application/octet-stream";
       const ext = tipo === TIPO_PDF ? "pdf" : (tipo.split("/")[1] || "bin");
@@ -576,8 +595,8 @@ async function panel(request, env, url) {
       }
       if (partes[2] === "eliminar") {
         if (fila.estado !== "rechazada") return json({ ok: false, error: "Solo se pueden eliminar solicitudes rechazadas." }, 409);
-        await env.FILES.delete(`f:${id}:ticket`);
-        await env.FILES.delete(`f:${id}:csf`);
+        await borrarArchivo(env, `f:${id}:ticket`);
+        await borrarArchivo(env, `f:${id}:csf`);
         await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(id).run();
         return json({ ok: true });
       }
@@ -713,8 +732,8 @@ async function limpiarArchivos(env) {
     return { borradas: 0, error: "respaldo no confirmado" };
   }
   for (const r of results) {
-    await env.FILES.delete(`f:${r.id}:ticket`);
-    await env.FILES.delete(`f:${r.id}:csf`);
+    await borrarArchivo(env, `f:${r.id}:ticket`);
+    await borrarArchivo(env, `f:${r.id}:csf`);
     await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(r.id).run();
   }
   console.log("limpieza: borradas", results.length);
@@ -899,7 +918,7 @@ async function leerTicket(env, id, forzar = false) {
   await asegurarEsquema(env);
   const fila = await env.DB.prepare("SELECT * FROM solicitudes WHERE id = ?").bind(id).first();
   if (!fila) return { error: "No existe esa solicitud." };
-  const { value, metadata } = await env.FILES.getWithMetadata(`f:${id}:ticket`, { type: "arrayBuffer" });
+  const { value, metadata } = await leerArchivo(env, `f:${id}:ticket`);
   if (!value) return { error: "La foto del ticket ya no está disponible." };
   const a = await analizarTicketImagen(env, value, metadata && metadata.tipo, fila.servicio);
   if (a.error) return a;

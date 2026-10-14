@@ -1,3 +1,4 @@
+import { leerArchivo, borrarArchivo } from "./fotos.js";
 // Ingresos y gastos por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -21,6 +22,13 @@ export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.f
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
+// Meses con datos abiertos en el panel: el actual y, mientras no se cierre, el anterior.
+// El cierre espera a que termine el turno de noche del último día (7:00 del día 1), así ese
+// turno no se parte en dos meses: todo se guarda con el mes del DÍA DEL CORTE, no de la hora de captura.
+export async function mesesAbiertos(env) {
+  const actual = mesActual(), g = await env.FILES.get("caja:mes");
+  return g && g < actual ? [g, actual] : [actual];
+}
 export function mesActual(ahora = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(ahora).slice(0, 7);
 }
@@ -53,6 +61,8 @@ const normTurno = t => {
 };
 const normForma = f => String(f || "").trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const numero = v => { const n = Number(String(v ?? "").replace(/[$,\s]/g, "")); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+// Montos que captura una persona: solo dígitos y hasta 2 decimales (no "1e4", no negativos)
+export const montoUsuario = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
 const texto = (v, n = 80) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 let esquemaListo = false;
@@ -85,6 +95,8 @@ export async function asegurarEsquemaCaja(env) {
   if (!colsC.has("con_cambio")) await env.DB.prepare("ALTER TABLE turno_cortes ADD COLUMN con_cambio INTEGER NOT NULL DEFAULT 0").run();
   // Informe final: cómo se repartió el efectivo contado (sobre para la administración, retiros y cambio para el siguiente turno)
   for (const [c, t] of [["sobre", "REAL"], ["cambio_sig", "REAL"], ["retiros", "TEXT"]]) if (!colsC.has(c)) await env.DB.prepare(`ALTER TABLE turno_cortes ADD COLUMN ${c} ${t}`).run();
+  // Cada entrega o corrección del corte queda registrada (no se pierde lo que se entregó antes)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_cortes_hist (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, datos TEXT NOT NULL, creado TEXT NOT NULL)").run();
   esquemaListo = true;
 }
 
@@ -134,10 +146,13 @@ export function diferenciasCaja(actuales, nuevas) {
 }
 export async function sincronizarCaja(env) {
   await asegurarEsquemaCaja(env);
-  const mes = mesActual();
+  const meses = await mesesAbiertos(env);
   try {
-    const filas = (await leerHoja(env, mes)).map(f => ({ ...f, mes }));
-    const actuales = (await env.DB.prepare(`SELECT id, ${COLS_MOV.join(", ")} FROM caja_mov`).all()).results;
+    // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
+    const filas = [];
+    for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
+    const q = meses.map(() => "?").join(",");
+    const actuales = (await env.DB.prepare(`SELECT id, ${COLS_MOV.join(", ")} FROM caja_mov WHERE mes IN (${q})`).bind(...meses).all()).results;
     const { insertar, borrar } = diferenciasCaja(actuales, filas);
     const stmts = [];
     for (let i = 0; i < borrar.length; i += 90) {
@@ -237,14 +252,16 @@ function leerPeriodo(url) {
   if (desde && hasta && desde > hasta) [desde, hasta] = [hasta, desde];
   return { desde, hasta };
 }
-async function leerMes(env, mes, { desde = "", hasta = "" } = {}) {
+async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
+  meses = [].concat(meses);
   const rango = (col) => `${desde ? ` AND ${col} >= ?` : ""}${hasta ? ` AND ${col} <= ?` : ""}`;
-  const args = [mes, ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
-  const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE mes = ?${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
-  const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE mes = ?${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
-  const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE mes = ?${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
-  const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE mes = ?${rango("dia")}`).bind(...args).all()).results;
-  const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE mes = ?${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  const args = [...meses, ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
+  const enMes = `mes IN (${meses.map(() => "?").join(",")})`;
+  const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
+  const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
+  const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
+  const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
   return { movs, gastos, transf, conteos, extras };
 }
 
@@ -284,10 +301,16 @@ export async function cierreMensualCaja(env, h) {
   const actual = mesActual();
   const guardado = await env.FILES.get("caja:mes");
   if (!guardado) { await env.FILES.put("caja:mes", actual); return { nada: true }; }
-  if (guardado === actual) return { nada: true };
+  if (guardado >= actual) return { nada: true };
+  // Se espera a que termine el turno de noche del último día del mes (7:00 del día 1, hora de Tapachula)
+  if (mesActual(new Date(Date.now() - 7 * 3600e3)) !== actual) return { esperando: true };
   const mes = guardado;
   let movs;
-  try { movs = await leerHoja(env, mes); } catch (e) { console.error("cierre caja: hoja", e.message); return { error: e.message }; }
+  try {
+    // Del mes que se cierra: lo de su hoja más lo capturado después de medianoche del día 1 que es de su último día
+    const sig = (await leerHoja(env, actual)).filter(f => String(f.dia).slice(0, 7) === mes);
+    movs = [...(await leerHoja(env, mes)).filter(f => String(f.dia).slice(0, 7) === mes), ...sig];
+  } catch (e) { console.error("cierre caja: hoja", e.message); return { error: e.message }; }
   const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
   const transf = (await env.DB.prepare("SELECT * FROM caja_transf WHERE mes = ? ORDER BY fecha, creado").bind(mes).all()).results;
   const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE mes = ?").bind(mes).all()).results;
@@ -305,13 +328,14 @@ export async function cierreMensualCaja(env, h) {
   // Fotos de comprobantes de la tablet del mes que se cierra
   const fotos = [...(await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results,
     ...(await env.DB.prepare("SELECT foto FROM caja_extra WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results];
-  for (const f of fotos) await env.FILES.delete(f.foto).catch(() => {});
+  for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
   await env.DB.batch([
     env.DB.prepare("DELETE FROM caja_gastos WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_transf WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_extra WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_mov WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM turno_cortes WHERE mes < ?").bind(actual)
+    env.DB.prepare("DELETE FROM turno_cortes WHERE mes < ?").bind(actual),
+    env.DB.prepare("DELETE FROM turno_cortes_hist WHERE mes < ?").bind(actual)
   ]);
   await env.FILES.put("caja:mes", actual);
   return { cerrado: mes };
@@ -320,11 +344,13 @@ export async function cierreMensualCaja(env, h) {
 // Rutas del panel: /panel/api/caja...
 export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCaja(env);
-  const mes = mesActual();
+  const meses = await mesesAbiertos(env), mes = meses[meses.length - 1];
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras } = await leerMes(env, mes, periodo);
+    const { movs, gastos, transf, conteos, extras } = await leerMes(env, meses, periodo);
     const cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
     return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
@@ -337,7 +363,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const corte = unirConteos(calcularCortes(movs, gastos, extras), conteos)[0] || null;
-    return json({ ok: true, corte, movs, gastos, extras, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
+    const historial = (await env.DB.prepare("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results
+      .map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
+    return json({ ok: true, corte, movs, gastos, extras, historial, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
@@ -348,7 +376,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "exportar" && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras } = await leerMes(env, mes, periodo);
+    const { movs, gastos, transf, conteos, extras } = await leerMes(env, meses, periodo);
     const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras));
     const nombre = periodo.desde || periodo.hasta ? `ingresos-gastos-${periodo.desde || mes + "-01"}-a-${periodo.hasta || "hoy"}` : `ingresos-gastos-${mes}`;
     return new Response(xlsx, { headers: {
@@ -359,9 +387,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "gastos" && partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = texto(c.concepto, 120), monto = numero(c.monto), forma = normForma(c.forma) || "EFECTIVO";
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = texto(c.concepto, 120), monto = montoUsuario(c.monto), forma = normForma(c.forma) || "EFECTIVO";
     const errores = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || dia.slice(0, 7) > mes || dia < sumaDias(mes + "-01", -1)) errores.dia = "Elige un día del mes actual.";
+    if (!diaValido(dia)) errores.dia = "Elige un día del mes actual (no futuro).";
     if (!turno) errores.turno = "Elige el turno.";
     if (concepto.length < 2) errores.concepto = "Escribe en qué se gastó.";
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
@@ -369,40 +397,42 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, mes, dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null).run();
+      .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null).run();
     return json({ ok: true, id });
   }
 
   if (partes[1] === "gastos" && partes[3] === "eliminar" && request.method === "POST") {
-    const r = await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ? AND mes = ?").bind(partes[2], mes).run();
+    const g = await env.DB.prepare("SELECT foto FROM caja_gastos WHERE id = ?").bind(partes[2]).first();
+    if (g && g.foto) await borrarArchivo(env, g.foto).catch(() => {});
+    const r = await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(partes[2]).run();
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
   // Ingresos extra capturados desde el panel
   if (partes[1] === "extras" && partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = CONCEPTOS_EXTRA.includes(c.concepto) ? c.concepto : "", detalle = texto(c.detalle, 120), monto = numero(c.monto);
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = CONCEPTOS_EXTRA.includes(c.concepto) ? c.concepto : "", detalle = texto(c.detalle, 120), monto = montoUsuario(c.monto);
     const errores = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || dia.slice(0, 7) > mes || dia < sumaDias(mes + "-01", -1)) errores.dia = "Elige un día del mes actual.";
+    if (!diaValido(dia)) errores.dia = "Elige un día del mes actual (no futuro).";
     if (!turno) errores.turno = "Elige el turno.";
     if (!concepto) errores.concepto = "Elige el concepto.";
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
     const id = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, mes, dia, turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, new Date().toISOString(), usuario && usuario.email || null).run();
+      .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, new Date().toISOString(), usuario && usuario.email || null).run();
     return json({ ok: true, id });
   }
   if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
-    const x = await env.DB.prepare("SELECT foto FROM caja_extra WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
-    if (x && x.foto) await env.FILES.delete(x.foto).catch(() => {});
-    const r = await env.DB.prepare("DELETE FROM caja_extra WHERE id = ? AND mes = ?").bind(partes[2], mes).run();
+    const x = await env.DB.prepare("SELECT foto FROM caja_extra WHERE id = ?").bind(partes[2]).first();
+    if (x && x.foto) await borrarArchivo(env, x.foto).catch(() => {});
+    const r = await env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(partes[2]).run();
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
   if (partes[1] === "transferencias" && partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const fecha = String(c.fecha || ""), cliente = texto(c.cliente, 120), importe = numero(c.importe), factura = texto(c.factura, 60);
+    const fecha = String(c.fecha || ""), cliente = texto(c.cliente, 120), importe = montoUsuario(c.importe), factura = texto(c.factura, 60);
     const errores = {};
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha.slice(0, 7) !== mes) errores.fecha = "Elige una fecha del mes actual.";
     if (cliente.length < 2) errores.cliente = "Escribe el nombre del cliente.";

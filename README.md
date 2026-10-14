@@ -12,6 +12,11 @@ Cloudflare publica automáticamente cada cambio en la rama `main` (comando de de
 
 Plan: **Workers Paid** (5 USD al mes, desde el 14 oct 2026). `wrangler.jsonc` fija `limits.cpu_ms` en 30 000; si el plan se cancela, el despliegue falla en lugar de publicar algo que no cabe en el plan gratuito.
 
+**Sin cobros sorpresa.** Cloudflare no tiene tope de gasto, así que:
+- `limits.cpu_ms` en 5 000 (5 s de CPU por petición como máximo; lo normal es menos de 50 ms).
+- Guardián de consumo (`src/consumo.js`): cada hora lee el uso del mes con la API de analítica (secreto `CF_API_TOKEN`, token de solo lectura "Account Analytics"; `CF_ACCOUNT_ID` en `wrangler.jsonc`). Al 60 % de cualquier límite incluido manda correo; al 85 % activa el **modo ahorro** (pausa formularios públicos, IA y la sincronización cada 10 min de la hoja) hasta el mes siguiente. El estado se ve en Inicio → "Consumo de Cloudflare y archivos".
+- Fotos y PDFs en Google Drive (ver "Archivos"), no en el almacenamiento de Cloudflare.
+
 Workers AI (lectura de tickets y documentos) tiene tope diario de 9 000 neuronas (`src/neuronas.js`), debajo de las 10 000 gratis, para que nunca genere cobro. Al llegar al tope, la lectura automática se apaga hasta las 6 p.m. de Tapachula (00:00 UTC) y los datos se capturan a mano; lo demás sigue funcionando.
 
 ## Archivos (en `public/`)
@@ -23,6 +28,10 @@ Workers AI (lectura de tickets y documentos) tiene tope diario de 9 000 neuronas
 - `og-image.png`: imagen que aparece al compartir el enlace por WhatsApp o redes.
 - `robots.txt`, `sitemap.xml`: para buscadores.
 - `_headers`: cabeceras de seguridad y caché.
+
+## Archivos (fotos y PDFs)
+
+Se guardan en Google Drive, en la carpeta dedicada **"El Castaño · Archivos del panel"** de administracion@ (subcarpetas: Facturas, Expedientes del personal, Tablet de turno; por mes o por persona). Cada archivo entra primero a KV (rápido para quien lo sube) y la tarea de cada 10 minutos lo pasa a Drive por medio de `herramientas/aviso-correo.gs` (acción `archivos`); la tabla `archivos` de D1 dice dónde vive cada uno. Al verlo, el Worker lo trae de Drive y lo guarda en la caché de Cloudflare. Si Drive no responde, nada se pierde: el archivo se queda en KV y se reintenta. Borrar en el panel manda el archivo de Drive a la papelera. Código en `src/fotos.js`.
 
 ## Panel: Facturación y Personal
 
