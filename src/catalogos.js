@@ -27,6 +27,14 @@ export const USOS = {
   "S01": "Sin efectos fiscales"
 };
 
+// Formas de pago que acepta el negocio, con su clave del catálogo c_FormaPago del SAT
+export const FORMAS_PAGO = {
+  "01": "Efectivo",
+  "04": "Tarjeta de crédito",
+  "28": "Tarjeta de débito",
+  "03": "Transferencia electrónica de fondos"
+};
+
 export const SERVICIOS = {
   "bascula": "Báscula",
   "pension": "Pensión",

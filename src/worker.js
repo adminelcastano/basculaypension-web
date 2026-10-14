@@ -1,4 +1,4 @@
-import { REGIMENES, USOS, SERVICIOS } from "./catalogos.js";
+import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 
@@ -77,7 +77,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["forma_pago", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   esquemaListo = true;
@@ -118,12 +118,14 @@ async function crearSolicitud(request, env, ctx) {
   const regimen = texto(form, "regimen");
   const cp = texto(form, "cp").replace(/\s/g, "");
   const uso = texto(form, "uso");
+  const formaPago = texto(form, "forma_pago");
   const email = texto(form, "email").toLowerCase();
   const telefono = texto(form, "telefono").replace(/\D/g, "").slice(-10);
   const comentario = texto(form, "comentario").slice(0, 500);
 
   if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
+  if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
   if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
   if (telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
@@ -190,13 +192,13 @@ async function crearSolicitud(request, env, ctx) {
   }
 
   await env.DB.prepare(`INSERT INTO solicitudes
-    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket)
-    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago)
+    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, folio, ahora, servicio, folioTicket || null, modo,
       rfc || null, modo === "manual" ? nombre : (nombre || null),
       modo === "manual" ? regimen : (REGIMENES[regimen] ? regimen : null),
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
-      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket)
+      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket, formaPago)
     .run();
 
   if (lectura && !lectura.error) {
@@ -301,7 +303,7 @@ async function enviarCorreoA(env, datos) {
 // ---------------------------------------------------------------------------
 // Exportar a Excel (.xlsx mínimo, sin librerías)
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
@@ -310,7 +312,7 @@ function filasExcel(results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
       r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
   }
   return filas;
 }
@@ -466,7 +468,7 @@ async function panel(request, env, url) {
           .bind(fila.folio_ticket, id, fila.servicio, fila.servicio).all();
         duplicados = r.results;
       }
-      return json({ ok: true, solicitud: fila, duplicados, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS });
+      return json({ ok: true, solicitud: fila, duplicados, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS, formas_pago: FORMAS_PAGO });
     }
 
     if (partes[2] === "archivo" && ["ticket", "csf"].includes(partes[3]) && request.method === "GET") {
@@ -545,10 +547,12 @@ async function panel(request, env, url) {
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
         const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
         const cliente = "cliente" in cuerpo ? String(cuerpo.cliente || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.cliente || "");
+        const formaPago = "forma_pago" in cuerpo ? String(cuerpo.forma_pago || "") : (fila.forma_pago || "");
+        if (formaPago && !FORMAS_PAGO[formaPago]) errores.forma_pago = "Forma de pago inválida.";
         const anotacion = "anotacion" in cuerpo ? String(cuerpo.anotacion || "").replace(/\s+/g, " ").trim().slice(0, 80) : (fila.anotacion || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=?, forma_pago=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, formaPago || null, id).run();
         return json({ ok: true });
       }
     }

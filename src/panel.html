@@ -454,6 +454,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const s = j.solicitud; estadoState.cat = j;
     const reg = s.regimen ? `${s.regimen} · ${j.regimenes[s.regimen] || ""}` : "";
     const uso = s.uso ? `${s.uso} · ${j.usos[s.uso] || ""}` : "";
+    const pago = s.forma_pago ? `${s.forma_pago} · ${(j.formas_pago || {})[s.forma_pago] || ""}` : "";
     const tel = s.telefono ? `52${s.telefono}` : "";
     const archivo = tipo => `/panel/api/solicitudes/${s.id}/archivo/${tipo}`;
     const docHtml = (tipo, mime, titulo) => {
@@ -484,6 +485,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
               ${campo("Código postal", s.cp)}
               ${campo("Régimen fiscal", reg)}
               ${campo("Uso del CFDI", uso)}
+              ${campo("Forma de pago", pago)}
               ${campo("Correo", s.email)}
             </div>
           </section>
@@ -565,6 +567,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
               <label>Código postal<input id="d-cp" value="${esc(s.cp)}" inputmode="numeric" maxlength="5"></label>
               <label class="wide">Nombre o razón social<input id="d-nombre" value="${esc(s.nombre)}"></label>
               <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
+              <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
             </div>
             <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
           </section>
@@ -648,7 +651,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   }
 
   async function guardarDatos(boton, deCsf) {
-    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf,
+    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf, forma_pago: $("#d-pago").value,
       folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value, anotacion: $("#t-anot").value };
     for (const [clave, sel] of [["placas", "#t-placas"], ["descripcion", "#t-desc"], ["tarifa", "#t-tarifa"], ["cliente", "#t-cliente"]]) if ($(sel)) cuerpo[clave] = $(sel).value;
     boton.disabled = true;
