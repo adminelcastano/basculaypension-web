@@ -10,6 +10,8 @@ Al final de `public/index.html` está el bloque `NEGOCIO` con WhatsApp, teléfon
 
 Cloudflare publica automáticamente cada cambio en la rama `main` (comando de despliegue: `npx wrangler deploy`).
 
+Plan: **Workers Paid** (5 USD al mes, desde el 14 oct 2026). `wrangler.jsonc` fija `limits.cpu_ms` en 30 000; si el plan se cancela, el despliegue falla en lugar de publicar algo que no cabe en el plan gratuito.
+
 ## Archivos (en `public/`)
 
 - `index.html`: la página.

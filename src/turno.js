@@ -12,7 +12,7 @@ const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
-// Las fotos se guardan 100 días (KV gratuito tiene 1 GB en total)
+// Las fotos se guardan 100 días como máximo (KV incluye 1 GB; lo que pase de ahí se cobra aparte)
 const FOTO_MAX = 1_500_000, FOTO_TTL = 100 * 86400;
 const CONCEPTOS = ["Agua", "Limpieza", "Papelería", "Refacción", "Comida de turno", "Gasolina", "Otro"];
 
@@ -67,17 +67,22 @@ export async function asegurarEsquemaTurno(env) {
 // ---------------------------------------------------------------------------
 // PIN y sesión
 // ---------------------------------------------------------------------------
-// El plan gratuito de Workers da ~10 ms de CPU por petición: se usan pocas iteraciones
-// (el PIN lo protegen sobre todo el bloqueo por intentos y Cloudflare Access).
-// Los hash nuevos llevan el prefijo "v2$"; los anteriores (sin prefijo) usaban 20 000.
+// Con el plan Workers Paid hay hasta 30 s de CPU por petición, así que el PIN se deriva con
+// 100 000 iteraciones de PBKDF2 (el máximo que admite Workers).
+// Formatos guardados: "v3$" (100 000, actual), "v2$" (2 000, plan gratuito) y sin prefijo (20 000).
+// Los v2 y sin prefijo se siguen aceptando y se convierten a v3 al entrar con el PIN correcto.
+const ITER_V3 = 100000;
 async function derivar(pin, sal, iteraciones) {
   const llave = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
   return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: iteraciones }, llave, 256));
 }
-const hashPin = async (pin, sal) => "v2$" + await derivar(pin, sal, 2000);
+const hashPin = async (pin, sal) => "v3$" + await derivar(pin, sal, ITER_V3);
+const pinViejo = guardado => !String(guardado || "").startsWith("v3$");
 async function pinCorrecto(pin, sal, guardado) {
   if (!guardado) return false;
-  const calculado = guardado.startsWith("v2$") ? await hashPin(pin, sal) : await derivar(pin, sal, 20000);
+  const calculado = guardado.startsWith("v3$") ? await hashPin(pin, sal)
+    : guardado.startsWith("v2$") ? "v2$" + await derivar(pin, sal, 2000)
+    : await derivar(pin, sal, 20000);
   return igual(calculado, guardado);
 }
 function igual(a, b) {
@@ -203,6 +208,8 @@ export async function turnoRuta(request, env, url, h) {
       return json({ ok: false, error: bloquear ? `PIN incorrecto. Se bloqueó ${BLOQUEO_MIN} minutos.` : `PIN incorrecto. Te quedan ${MAX_FALLAS - fallas} intentos.`, bloqueado: bloquear }, 401);
     }
     await env.DB.prepare("UPDATE turno_personas SET fallas = 0, bloqueado_hasta = NULL, ultimo_acceso = ? WHERE clave = ?").bind(ahora.toISOString(), clave).run();
+    // PIN guardado con el formato anterior: se vuelve a guardar con 100 000 iteraciones (misma sal, la sesión no cambia)
+    if (pinViejo(p.pin_hash)) await env.DB.prepare("UPDATE turno_personas SET pin_hash = ? WHERE clave = ?").bind(await hashPin(pin, p.pin_sal), clave).run();
     const ses = await crearSesion(env, p, turno, diaDeTurno(turno, ahora));
     return json({ ok: true }, 200, { "Set-Cookie": cookie(ses, SESION_HORAS * 3600) });
   }

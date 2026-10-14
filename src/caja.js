@@ -103,8 +103,9 @@ export async function leerHoja(env, mes) {
 }
 
 // Actualiza los ingresos guardados con los del mes actual. Solo escribe lo que cambió:
-// D1 gratuito permite 100 000 filas escritas al día, y reescribir el mes completo cada
-// 10 minutos las agotaba. Ahora se comparan los registros y se insertan o borran las diferencias.
+// Reescribir el mes completo cada 10 minutos agotaba las escrituras de D1 en el plan gratuito
+// (100 000 filas al día). Se comparan los registros y solo se insertan o borran las diferencias;
+// con Workers Paid (50 millones al mes incluidas) se conserva así para no gastar de más.
 const COLS_MOV = ["servicio", "fecha", "dia", "turno", "folio", "matricula", "cliente", "importe", "forma", "mes", "tipo"];
 const firmaMov = f => COLS_MOV.map(c => String(f[c] ?? "")).join("\u0001");
 export function diferenciasCaja(actuales, nuevas) {
@@ -136,7 +137,7 @@ export async function sincronizarCaja(env) {
     if (stmts.length) await env.DB.batch(stmts);
     const previo = await env.FILES.get("caja:sync", { type: "json" }) || {};
     const estado = { at: new Date().toISOString(), n: filas.length, error: null, cambios: insertar.length + borrar.length };
-    // KV gratuito también tiene límite diario de escrituras: solo se guarda si hubo cambios o pasó 1 hora
+    // Solo se guarda el estado si hubo cambios o pasó 1 hora (ahorra escrituras de KV)
     if (estado.cambios || previo.error || !previo.at || Date.now() - Date.parse(previo.at) > 3600e3 || previo.n !== estado.n)
       await env.FILES.put("caja:sync", JSON.stringify(estado));
     return estado;
