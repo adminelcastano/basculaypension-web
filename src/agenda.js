@@ -3,13 +3,15 @@
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
-export const TIPOS = ["evento", "tarea", "compra", "incidencia"];
+export const TIPOS = ["evento", "tarea", "compra", "incidencia", "aviso"];
 const ESTADOS = {
   evento: ["programado", "hecho"],
   tarea: ["pendiente", "hecho"],
   compra: ["pendiente", "comprado"],
-  incidencia: ["abierta", "en_proceso", "resuelta"]
+  incidencia: ["abierta", "en_proceso", "resuelta"],
+  aviso: ["activo", "archivado"]
 };
+export const AREAS = ["Báscula", "Caseta", "Patio", "Pluma / acceso", "Baños", "Iluminación", "Cámaras", "Otro"];
 const PRIORIDADES = ["normal", "alta"];
 const GRAVEDADES = ["leve", "media", "grave"];
 const TURNOS = ["MAÑANA", "TARDE", "NOCHE"];
@@ -26,8 +28,13 @@ export async function asegurarEsquemaAgenda(env) {
       estado TEXT NOT NULL, prioridad TEXT, cantidad TEXT, turno TEXT, gravedad TEXT,
       creado TEXT NOT NULL, creado_por TEXT, actualizado TEXT, cerrado TEXT, aviso INTEGER, avisado TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_tipo ON agenda_items (tipo, estado)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_fecha ON agenda_items (fecha)")
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS agenda_fecha ON agenda_items (fecha)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_lecturas (item_id TEXT NOT NULL, persona TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (item_id, persona))")
   ]);
+  // Columnas agregadas para la tablet de turno
+  const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"]])
+    if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   listo = true;
 }
 
@@ -39,7 +46,9 @@ function validar(tipo, c, previo = {}) {
     estado: String(v("estado") || ESTADOS[tipo][0]), prioridad: v("prioridad") ? String(v("prioridad")) : null,
     cantidad: texto(v("cantidad"), 40) || null, turno: v("turno") ? String(v("turno")).toUpperCase() : null,
     gravedad: v("gravedad") ? String(v("gravedad")) : null,
-    aviso: v("aviso") ? Number(v("aviso")) : null
+    aviso: v("aviso") ? Number(v("aviso")) : null,
+    para_turno: v("para_turno") ? 1 : 0,
+    area: v("area") ? texto(v("area"), 40) : null
   };
   const e = {};
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
@@ -54,11 +63,19 @@ function validar(tipo, c, previo = {}) {
   if (tipo === "incidencia" && !d.gravedad) d.gravedad = "media";
   if (d.aviso !== null && ![15, 60, 1440].includes(d.aviso)) e.aviso = "Recordatorio inválido.";
   if (d.aviso && !["evento", "tarea"].includes(tipo)) d.aviso = null;
+  if (tipo !== "tarea") d.para_turno = tipo === "aviso" ? 1 : 0;
   if (d.aviso && !d.fecha) e.aviso = "Para recordarte, ponle fecha.";
   return { d, e };
 }
 
-const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta')";
+const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado')";
+
+export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {}) {
+  await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso, para_turno, area, reporto, foto)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, creadoPor, ahora, d.aviso, d.para_turno || 0, d.area || null, extra.reporto || null, extra.foto || null).run();
+}
+export { validar as validarItem, ABIERTO };
 
 // Resumen para el Inicio
 export async function resumenAgenda(env) {
@@ -92,6 +109,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     sql += ` AND (${ABIERTO} OR cerrado IS NULL OR cerrado >= ?)`; args.push(limite);
     sql += " ORDER BY COALESCE(fecha, '9999-12-31'), COALESCE(hora, '99:99'), creado LIMIT 1000";
     const items = (await env.DB.prepare(sql).bind(...args).all()).results;
+    const lect = (await env.DB.prepare("SELECT item_id, persona, at FROM agenda_lecturas").all()).results;
+    for (const it of items) if (it.tipo === "aviso") it.lecturas = lect.filter(l => l.item_id === it.id);
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), hoy: hoyMx(), estados: ESTADOS });
   }
@@ -105,9 +124,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const { d, e } = validar(tipo, c);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const id = crypto.randomUUID();
-    await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, usuario && usuario.email || null, ahora, d.aviso).run();
+    await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora);
     return json({ ok: true, id });
   }
 
@@ -119,16 +136,17 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const { d, e } = validar(fila.tipo, c, fila);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
-    const cerradoAhora = ["hecho", "comprado", "resuelta"].includes(d.estado);
+    const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
-    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=? WHERE id=?`)
-      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, id).run();
+    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=? WHERE id=?`)
+      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, id).run();
     return json({ ok: true });
   }
 
   if (partes[2] === "eliminar" && request.method === "POST") {
-    await env.DB.prepare("DELETE FROM agenda_items WHERE id = ?").bind(id).run();
+    if (fila.foto) await env.FILES.delete(fila.foto).catch(() => {});
+    await env.DB.batch([env.DB.prepare("DELETE FROM agenda_items WHERE id = ?").bind(id), env.DB.prepare("DELETE FROM agenda_lecturas WHERE item_id = ?").bind(id)]);
     return json({ ok: true });
   }
 

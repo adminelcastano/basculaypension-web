@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tablet de turno</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#111214">
+<meta name="color-scheme" content="dark">
+<link rel="manifest" href="/turno/manifest.webmanifest">
+<link rel="icon" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+:root {
+  --bg: #000; --surface: #161617; --surface2: #1f1f22; --fg: #f5f5f7; --muted: #a1a1a6; --line: #2e2e30;
+  --amber: #ffcc00; --amber-ink: #111; --ok: #30d158; --ok-soft: #12301d; --bad: #ff6961; --bad-soft: #3a1714; --warn: #fab219; --warn-soft: #3a3010;
+  --info: #3d8fd6; --info-soft: #102538;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 17px; line-height: 1.45; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+body { overflow-x: clip; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
+h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
+svg.i { width: 1.25em; height: 1.25em; flex: none; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border-radius: 14px; border: 1px solid transparent; font-weight: 600; cursor: pointer; transition: transform .12s, background .2s; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn-primary { background: var(--amber); color: var(--amber-ink); }
+.btn-ok { background: var(--ok); color: #04210f; }
+.btn-line { background: var(--surface); border-color: var(--line); }
+.btn-bad { background: transparent; color: var(--bad); border-color: currentColor; }
+.btn-sm { min-height: 42px; padding: 0 16px; border-radius: 12px; font-size: .95rem; }
+.muted { color: var(--muted); }
+#terminar .corto { display: none; }
+@media (max-width: 760px) { #terminar .corto { display: inline; } }
+.err { color: var(--bad); font-size: .92rem; min-height: 1.3em; margin: 6px 0 0; }
+
+/* ---------- Entrada ---------- */
+#entrada { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); }
+.caja-entrada { width: min(100%, 640px); text-align: center; margin: auto 0; }
+.caja-entrada img { height: 64px; margin: 0 auto 10px; display: block; }
+.caja-entrada h1 { font-size: 1.9rem; margin-bottom: 4px; }
+.paso { margin-top: 26px; }
+.paso > h2 { font-size: 1.05rem; color: var(--muted); font-weight: 500; margin-bottom: 12px; }
+.personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.persona { min-height: 78px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface); font-size: 1.25rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; display: grid; place-items: center; gap: 2px; padding: 8px; }
+.persona small { font-size: .78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.persona[aria-pressed="true"] { border-color: var(--amber); background: #2a2405; }
+.turnos { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.chip { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.chip[aria-pressed="true"] { border-color: var(--amber); background: #2a2405; }
+.puntos { display: flex; gap: 16px; justify-content: center; margin: 4px 0 14px; }
+.puntos i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); }
+.puntos i.on { background: var(--amber); border-color: var(--amber); }
+.puntos.mal { animation: sacude .35s; }
+@keyframes sacude { 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+.teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 340px; margin: 0 auto; }
+.teclado button { min-height: 68px; border-radius: 16px; border: 0; background: var(--surface2); font-size: 1.6rem; font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; }
+.teclado button:active { background: #33333a; }
+.teclado .sec { background: transparent; font-size: 1rem; color: var(--muted); }
+
+/* ---------- App ---------- */
+#app { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+header.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); background: rgba(22,22,23,.88); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-bottom: 1px solid rgba(255,255,255,.07); }
+.quien { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .7rem; letter-spacing: -.02em; flex: none; }
+.quien b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quien > div { min-width: 0; }
+.quien b { display: block; font-size: 1.05rem; }
+.quien small { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.cuerpo { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 0; }
+nav.secciones { padding: 14px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; position: sticky; top: 64px; align-self: start; }
+nav.secciones button { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 14px; border: 0; border-radius: 14px; background: transparent; font-weight: 600; text-align: left; cursor: pointer; }
+nav.secciones button[aria-current="true"] { background: var(--surface2); }
+nav.secciones .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+nav.secciones .n { margin-left: auto; min-width: 26px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--amber); color: var(--amber-ink); font-size: .85rem; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.c-aviso { background: #2a2405; color: var(--amber); }
+.c-tarea { background: var(--info-soft); color: #7db8ec; }
+.c-incid { background: var(--bad-soft); color: var(--bad); }
+.c-gasto { background: #2b1630; color: #e08ad0; }
+.c-corte { background: var(--ok-soft); color: var(--ok); }
+main.sec { padding: 20px 20px calc(30px + env(safe-area-inset-bottom)); max-width: 860px; width: 100%; }
+main.sec > h2 { font-size: 1.6rem; margin-bottom: 4px; }
+main.sec > p.sub { color: var(--muted); margin: 0 0 18px; }
+.tarjeta { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
+.tarjeta.nuevo { border-color: var(--amber); }
+.tarjeta h3 { font-size: 1.12rem; margin-bottom: 4px; }
+.tarjeta .det { color: #d6d6da; white-space: pre-wrap; margin: 6px 0 0; }
+.meta { color: var(--muted); font-size: .88rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.fila { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.fila .btn { margin-left: auto; }
+.vacio { text-align: center; color: var(--muted); padding: 34px 12px; border: 1px dashed var(--line); border-radius: 18px; }
+.etq { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; }
+.g-leve { background: var(--info-soft); color: #7db8ec; }
+.g-media { background: var(--warn-soft); color: var(--warn); }
+.g-grave { background: var(--bad-soft); color: var(--bad); }
+.e-ok { background: var(--ok-soft); color: var(--ok); }
+.e-alta { background: var(--bad-soft); color: var(--bad); }
+label.campo { display: block; margin-bottom: 14px; }
+label.campo > span { display: block; font-weight: 600; margin-bottom: 6px; }
+input.t, textarea.t, select.t { width: 100%; min-height: 52px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: #0d0d0e; }
+textarea.t { min-height: 92px; resize: vertical; }
+input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chips .chip { min-height: 44px; font-size: .95rem; }
+.foto { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.foto img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.foto input { display: none; }
+.total { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 4px 0; border-top: 1px solid var(--line); margin-top: 6px; font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.gasto { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.gasto:last-child { border-bottom: 0; }
+.gasto .m { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.denom { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.denom label { display: flex; align-items: center; gap: 8px; background: #0d0d0e; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; }
+.denom label b { min-width: 58px; font-variant-numeric: tabular-nums; }
+.denom input { width: 100%; min-width: 0; border: 0; background: transparent; min-height: 40px; font-size: 1.1rem; text-align: right; font-variant-numeric: tabular-nums; }
+.aviso-ok { display: flex; gap: 12px; align-items: center; background: var(--ok-soft); color: #c9f5d6; border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; }
+.aviso-ok svg { color: var(--ok); }
+details.calc summary { cursor: pointer; color: var(--amber); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+dialog { border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--fg); padding: 20px; width: min(92vw, 520px); }
+dialog::backdrop { background: rgba(0,0,0,.65); }
+dialog h3 { font-size: 1.25rem; margin-bottom: 8px; }
+dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+#toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--fg); color: #000; padding: 12px 20px; border-radius: 14px; font-weight: 600; z-index: 50; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 92vw; }
+#toast.mal { background: var(--bad); color: #fff; }
+
+/* Tablet vertical y teléfono: secciones abajo */
+@media (max-width: 760px) {
+  .cuerpo { grid-template-columns: 1fr; }
+  nav.secciones { position: fixed; bottom: 0; left: 0; right: 0; top: auto; z-index: 6; flex-direction: row; justify-content: space-around; padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); background: rgba(22,22,23,.95); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); gap: 2px; }
+  nav.secciones button { flex: 1; flex-direction: column; gap: 2px; min-height: 60px; padding: 4px 2px; font-size: .74rem; font-weight: 600; position: relative; justify-content: center; text-align: center; }
+  nav.secciones .ic { width: 30px; height: 30px; }
+  nav.secciones .n { position: absolute; top: 2px; right: calc(50% - 26px); min-width: 20px; height: 20px; font-size: .72rem; padding: 0 5px; margin: 0; }
+  main.sec { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .quien small .largo, #terminar .largo { display: none; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10v4h3l6 4V6L7 10z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.4 9a4 4 0 0 1 0 6M18.8 6.6a7.4 7.4 0 0 1 0 10.8"/></symbol>
+  <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.6 4.4a1.6 1.6 0 0 1 2.8 0l7.4 13.2a1.6 1.6 0 0 1-1.4 2.4H4.6a1.6 1.6 0 0 1-1.4-2.4z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 9.6v4.4"/><circle cx="12" cy="16.9" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-gasto" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 8.6h6M9 12h6M9 15.4h3.6"/></symbol>
+  <symbol id="i-billete" viewBox="0 0 24 24"><rect x="2.8" y="6.4" width="18.4" height="11.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 8.4h3l1.6-2.4h6.8L17 8.4h3v11H4z"/><circle cx="12" cy="13.6" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 12.4l4 4 8-8.6"/></symbol>
+  <symbol id="i-salir" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14 4.4H6.4v15.2H14M10.4 12h10M17 8.6l3.4 3.4-3.4 3.4"/></symbol>
+  <symbol id="i-basura" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4.6 6.6h14.8M9.4 6.4V4.6h5.2v1.8M6.6 6.6l1 13h8.8l1-13M10.2 10.4v6M13.8 10.4v6"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M5.5 18.5l1.4-1.4M17.1 6.9l1.4-1.4"/></symbol>
+  <symbol id="i-tarde" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3 17.4h18M7.4 17.4a4.6 4.6 0 0 1 9.2 0M12 6.4v2.4M5.6 10.2l1.6 1.4M18.4 10.2l-1.6 1.4"/></symbol>
+  <symbol id="i-luna" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M19.4 14.6A7.6 7.6 0 0 1 9.4 4.6a7.6 7.6 0 1 0 10 10z"/></symbol>
+</svg>
+
+<!-- ======================= Entrada con PIN ======================= -->
+<section id="entrada">
+  <div class="caja-entrada">
+    <img src="/img/logo.png" alt="">
+    <h1>Tablet de turno</h1>
+    <p class="muted" style="margin:0">Báscula y Pensión El Castaño</p>
+    <div class="paso">
+      <h2>¿Quién está de turno?</h2>
+      <div class="personas" id="personas"><p class="muted">Cargando…</p></div>
+    </div>
+    <div class="paso" id="paso-turno" hidden>
+      <h2>Turno</h2>
+      <div class="turnos" id="turnos"></div>
+    </div>
+    <div class="paso" id="paso-pin" hidden>
+      <h2>Tu PIN</h2>
+      <div class="puntos" id="puntos" aria-live="polite"><i></i><i></i><i></i><i></i></div>
+      <div class="teclado" id="teclado"></div>
+      <p class="err" id="err-pin" role="alert"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= Turno abierto ======================= -->
+<section id="app" hidden>
+  <header class="bar">
+    <div class="quien">
+      <div class="avatar" id="avatar"></div>
+      <div><b id="nombre"></b><small id="turno-txt"></small></div>
+    </div>
+    <button class="btn btn-line btn-sm" id="terminar" type="button"><svg class="i"><use href="#i-salir"/></svg><span class="largo">Terminar turno</span><span class="corto">Salir</span></button>
+  </header>
+  <div class="cuerpo">
+    <nav class="secciones" aria-label="Secciones">
+      <button type="button" data-sec="avisos"><span class="ic c-aviso"><svg class="i"><use href="#i-aviso"/></svg></span>Avisos<span class="n" data-n="avisos" hidden></span></button>
+      <button type="button" data-sec="tareas"><span class="ic c-tarea"><svg class="i"><use href="#i-tarea"/></svg></span>Tareas<span class="n" data-n="tareas" hidden></span></button>
+      <button type="button" data-sec="incidencias"><span class="ic c-incid"><svg class="i"><use href="#i-alerta"/></svg></span>Incidencias</button>
+      <button type="button" data-sec="gastos"><span class="ic c-gasto"><svg class="i"><use href="#i-gasto"/></svg></span>Gastos</button>
+      <button type="button" data-sec="corte"><span class="ic c-corte"><svg class="i"><use href="#i-billete"/></svg></span>Corte</button>
+    </nav>
+    <main class="sec" id="sec"></main>
+  </div>
+</section>
+
+<dialog id="dlg"><form method="dialog" id="dlg-form"></form></dialog>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const dinero = v => "$" + Number(v || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const hora = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+  const fechaCorta = iso => iso ? new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+  const diaTxt = d => d ? new Date(d + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : "";
+  const ICONO_TURNO = { "MAÑANA": "i-sol", "TARDE": "i-tarde", "NOCHE": "i-luna" };
+  const GRAV = { leve: "Leve", media: "Media", grave: "Grave" };
+  const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
+
+  async function api(ruta, datos) {
+    const op = datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Turno": "1" }, body: JSON.stringify(datos) };
+    let r, j;
+    try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); } catch { throw Object.assign(new Error("Sin conexión. Revisa el internet y vuelve a intentar."), { red: true }); }
+    try { j = await r.json(); } catch { j = { ok: false, error: r.status === 401 || r.status === 403 ? "La tablet perdió el acceso. Recarga la página." : "Error del servidor (" + r.status + ")." }; }
+    if (j.sesion === false) { mostrarEntrada(); throw new Error(j.error); }
+    if (!j.ok) throw Object.assign(new Error(j.error || "Error"), { datos: j });
+    return j;
+  }
+  let tToast;
+  function toast(msg, mal) {
+    const t = $("#toast"); t.textContent = msg; t.className = mal ? "mal" : ""; t.hidden = false;
+    clearTimeout(tToast); tToast = setTimeout(() => { t.hidden = true; }, mal ? 5000 : 2600);
+  }
+
+  // ======================= Entrada =======================
+  let elegido = null, turnoElegido = null, pin = "";
+  async function mostrarEntrada() {
+    $("#app").hidden = true; $("#entrada").hidden = false;
+    elegido = null; pin = ""; pintarPin();
+    $("#paso-turno").hidden = true; $("#paso-pin").hidden = true; $("#err-pin").textContent = "";
+    try {
+      const j = await api("personas");
+      turnoElegido = j.sugerido;
+      $("#personas").innerHTML = j.personas.map(p => `<button type="button" class="persona" data-clave="${esc(p.clave)}" aria-pressed="false">${esc(p.clave)}${p.nombre && p.nombre !== p.clave ? `<small>${esc(p.nombre)}</small>` : ""}${p.tiene_pin ? "" : "<small>sin PIN</small>"}</button>`).join("") || `<p class="muted">No hay encargados dados de alta.</p>`;
+      $("#turnos").innerHTML = j.turnos.map(t => `<button type="button" class="chip" data-turno="${t}" aria-pressed="${t === turnoElegido}"><svg class="i"><use href="#${ICONO_TURNO[t]}"/></svg>${t[0] + t.slice(1).toLowerCase()}</button>`).join("");
+    } catch (e) { $("#personas").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  }
+  $("#personas").addEventListener("click", e => {
+    const b = e.target.closest(".persona"); if (!b) return;
+    elegido = b.dataset.clave;
+    document.querySelectorAll(".persona").forEach(x => x.setAttribute("aria-pressed", x === b));
+    $("#paso-turno").hidden = false; $("#paso-pin").hidden = false; pin = ""; pintarPin(); $("#err-pin").textContent = "";
+    $("#paso-pin").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  $("#turnos").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    turnoElegido = b.dataset.turno;
+    document.querySelectorAll("#turnos .chip").forEach(x => x.setAttribute("aria-pressed", x === b));
+  });
+  $("#teclado").innerHTML = [1,2,3,4,5,6,7,8,9].map(n => `<button type="button" data-k="${n}">${n}</button>`).join("") + `<button type="button" class="sec" data-k="x">Borrar todo</button><button type="button" data-k="0">0</button><button type="button" class="sec" data-k="b" aria-label="Borrar">⌫</button>`;
+  function pintarPin() { document.querySelectorAll("#puntos i").forEach((i, n) => i.classList.toggle("on", n < pin.length)); }
+  let entrando = false;
+  async function teclear(k) {
+    if (entrando || !elegido) return;
+    if (k === "b") pin = pin.slice(0, -1); else if (k === "x") pin = ""; else if (pin.length < 4) pin += k;
+    pintarPin(); $("#err-pin").textContent = "";
+    if (pin.length === 4) {
+      entrando = true;
+      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }); await abrirApp(); }
+      catch (e) { $("#err-pin").textContent = e.message; const p = $("#puntos"); p.classList.remove("mal"); void p.offsetWidth; p.classList.add("mal"); }
+      finally { pin = ""; pintarPin(); entrando = false; }
+    }
+  }
+  $("#teclado").addEventListener("click", e => { const b = e.target.closest("button"); if (b) teclear(b.dataset.k); });
+  document.addEventListener("keydown", e => {
+    if ($("#entrada").hidden) return;
+    if (/^\d$/.test(e.key)) teclear(e.key); else if (e.key === "Backspace") teclear("b");
+  });
+
+  // ======================= Turno abierto =======================
+  let E = null, seccion = null;
+  async function cargar() { E = await api("estado"); pintarCabecera(); return E; }
+  async function abrirApp() {
+    await cargar();
+    $("#entrada").hidden = true; $("#app").hidden = false;
+    const sinLeer = E.avisos.filter(a => !a.leido).length;
+    ir(sinLeer ? "avisos" : E.tareas.length ? "tareas" : "incidencias");
+  }
+  function pintarCabecera() {
+    $("#avatar").textContent = E.persona.slice(0, 4);
+    $("#nombre").textContent = E.nombre;
+    $("#turno-txt").innerHTML = `Turno ${esc(E.turno.toLowerCase())}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
+    const n = { avisos: E.avisos.filter(a => !a.leido).length, tareas: E.tareas.length };
+    for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k]; el.hidden = !n[k]; }
+  }
+  document.querySelector("nav.secciones").addEventListener("click", e => { const b = e.target.closest("button[data-sec]"); if (b) ir(b.dataset.sec); });
+  function ir(s) {
+    seccion = s;
+    document.querySelectorAll("nav.secciones button").forEach(b => b.setAttribute("aria-current", b.dataset.sec === s));
+    ({ avisos: verAvisos, tareas: verTareas, incidencias: verIncidencias, gastos: verGastos, corte: verCorte })[s]();
+    window.scrollTo({ top: 0 });
+  }
+  const sec = () => $("#sec");
+
+  // ---------- Avisos ----------
+  function verAvisos() {
+    const l = E.avisos;
+    sec().innerHTML = `<h2>Avisos</h2><p class="sub">Mensajes de la administración. Marca "Enterado" cuando lo leas.</p>` +
+      (l.length ? l.map(a => `<article class="tarjeta${a.leido ? "" : " nuevo"}">
+        <div class="meta">${a.prioridad === "alta" ? `<span class="etq e-alta"><svg class="i"><use href="#i-alerta"/></svg>Importante</span>` : ""}<span>${esc(fechaCorta(a.creado))}</span></div>
+        <h3 style="margin-top:6px">${esc(a.titulo)}</h3>${a.detalle ? `<p class="det">${esc(a.detalle)}</p>` : ""}
+        <div class="fila" style="margin-top:12px">${a.leido ? `<span class="etq e-ok"><svg class="i"><use href="#i-check"/></svg>Enterado</span>` : `<button class="btn btn-primary btn-sm" data-enterado="${esc(a.id)}"><svg class="i"><use href="#i-check"/></svg>Enterado</button>`}</div>
+      </article>`).join("") : `<div class="vacio">No hay avisos.</div>`);
+  }
+  // ---------- Tareas ----------
+  function verTareas() {
+    const l = E.tareas;
+    sec().innerHTML = `<h2>Tareas del turno</h2><p class="sub">Lo que la administración pidió hacer en este turno.</p>` +
+      (l.length ? l.map(t => `<article class="tarjeta">
+        <div class="meta">${t.prioridad === "alta" ? `<span class="etq e-alta">Urgente</span>` : ""}${t.fecha ? `<span>${t.fecha < E.hoy ? "Venció " : "Para "}${esc(diaTxt(t.fecha))}${t.hora ? " · " + esc(t.hora) : ""}</span>` : ""}${t.turno ? `<span>Solo turno ${esc(t.turno.toLowerCase())}</span>` : ""}</div>
+        <h3 style="margin-top:6px">${esc(t.titulo)}</h3>${t.detalle ? `<p class="det">${esc(t.detalle)}</p>` : ""}
+        <div class="fila" style="margin-top:12px"><button class="btn btn-ok btn-sm" data-hecho="${esc(t.id)}"><svg class="i"><use href="#i-check"/></svg>Hecho</button></div>
+      </article>`).join("") : `<div class="vacio">No hay tareas pendientes. ¡Bien!</div>`) +
+      (E.hechas.length ? `<h3 style="margin:22px 0 10px;font-size:1rem" class="muted">Terminadas en las últimas 24 horas</h3>` + E.hechas.map(t => `<div class="tarjeta" style="padding:12px 16px"><div class="fila"><span class="etq e-ok"><svg class="i"><use href="#i-check"/></svg>${esc(t.hecho_por || "")}</span><b>${esc(t.titulo)}</b><span class="muted" style="margin-left:auto">${esc(hora(t.cerrado))}</span></div>${t.nota_cierre ? `<p class="det muted">${esc(t.nota_cierre)}</p>` : ""}</div>`).join("") : "");
+  }
+  // ---------- Incidencias ----------
+  let fotoInc = null, gravInc = "media", areaInc = null;
+  function campoFoto(id, txt) {
+    return `<div class="foto"><label class="btn btn-line btn-sm" for="${id}"><svg class="i"><use href="#i-camara"/></svg><span>${txt}</span></label><input type="file" id="${id}" accept="image/*" capture="environment"><img id="${id}-ver" alt="" hidden><button type="button" class="btn btn-bad btn-sm" id="${id}-quitar" hidden>Quitar</button></div>`;
+  }
+  function verIncidencias() {
+    fotoInc = null; gravInc = "media"; areaInc = null;
+    sec().innerHTML = `<h2>Incidencias</h2><p class="sub">Reporta cualquier falla, daño o problema. Si es grave, la administración recibe un correo al momento.</p>
+      <form class="tarjeta" id="f-inc" novalidate>
+        <label class="campo"><span>¿Dónde?</span><div class="chips" id="inc-area">${E.areas.map(a => `<button type="button" class="chip" data-v="${esc(a)}" aria-pressed="false">${esc(a)}</button>`).join("")}</div></label>
+        <label class="campo"><span>¿Qué pasó?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. La pluma no baja" autocomplete="off"></label>
+        <label class="campo"><span>Detalles (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
+        <label class="campo"><span>Gravedad</span><div class="chips" id="inc-grav">${["leve","media","grave"].map(g => `<button type="button" class="chip" data-v="${g}" aria-pressed="${g === gravInc}"><span class="etq g-${g}">${g === "grave" ? `<svg class="i"><use href="#i-alerta"/></svg>` : ""}${GRAV[g]}</span></button>`).join("")}</div></label>
+        <div class="campo">${campoFoto("inc-foto", "Agregar foto (opcional)")}</div>
+        <p class="err" id="err-inc" role="alert"></p>
+        <button class="btn btn-primary" type="submit" style="width:100%">Reportar incidencia</button>
+      </form>
+      <h3 style="margin:22px 0 10px;font-size:1.1rem">Reportadas recientemente</h3>` +
+      (E.incidencias.length ? E.incidencias.map(i => `<article class="tarjeta" style="padding:14px 16px">
+        <div class="meta"><span class="etq g-${esc(i.gravedad)}">${i.gravedad === "grave" ? `<svg class="i"><use href="#i-alerta"/></svg>` : ""}${esc(GRAV[i.gravedad] || i.gravedad)}</span><span class="etq ${i.estado === "resuelta" ? "e-ok" : ""}" style="${i.estado === "resuelta" ? "" : "background:var(--surface2)"}">${esc(EST_INC[i.estado] || i.estado)}</span>${i.area ? `<span>${esc(i.area)}</span>` : ""}<span>${esc(fechaCorta(i.creado))}</span>${i.reporto ? `<span>· ${esc(i.reporto)}</span>` : ""}</div>
+        <h3 style="margin-top:6px;font-size:1.02rem">${esc(i.titulo)}</h3>${i.detalle ? `<p class="det">${esc(i.detalle)}</p>` : ""}
+      </article>`).join("") : `<div class="vacio">Sin incidencias recientes.</div>`);
+    activarFoto("inc-foto", f => { fotoInc = f; });
+    elegirChip("#inc-area", v => { areaInc = v; });
+    elegirChip("#inc-grav", v => { gravInc = v; });
+    $("#f-inc").addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = e.target, b = f.querySelector("[type=submit]");
+      if (gravInc === "grave" && !(await confirmar("¿Es grave?", "Se enviará un correo a la administración en este momento.", "Sí, reportar"))) return;
+      b.disabled = true; $("#err-inc").textContent = "";
+      try {
+        const r = await api("incidencias", { titulo: f.titulo.value, detalle: f.detalle.value, gravedad: gravInc, area: areaInc, foto: fotoInc });
+        toast(r.avisado ? "Reportada. La administración ya recibió el aviso." : "Incidencia reportada.");
+        await cargar(); verIncidencias();
+      } catch (er) { $("#err-inc").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
+    });
+  }
+  // ---------- Gastos ----------
+  let fotoGasto = null;
+  function verGastos() {
+    fotoGasto = null;
+    const total = E.gastos.reduce((s, g) => s + g.monto, 0);
+    const cerrado = !!E.corte;
+    sec().innerHTML = `<h2>Gastos de caja chica</h2><p class="sub">Lo que se pagó con efectivo de la caja en este turno. Siempre con foto del ticket o comprobante.</p>
+      ${cerrado ? `<div class="aviso-ok"><svg class="i"><use href="#i-check"/></svg><div>El corte de este turno ya se entregó. Si falta un gasto, regístralo y vuelve a entregar el corte.</div></div>` : ""}
+      <form class="tarjeta" id="f-gasto" novalidate>
+        <label class="campo"><span>¿En qué se gastó?</span><div class="chips" id="g-conc" style="margin-bottom:8px">${E.conceptos.map(c => `<button type="button" class="chip" data-v="${esc(c)}" aria-pressed="false">${esc(c)}</button>`).join("")}</div><input class="t" name="concepto" maxlength="120" placeholder="Ej. 2 garrafones de agua" autocomplete="off"></label>
+        <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
+        <div class="campo">${campoFoto("g-foto", "Foto del ticket")}</div>
+        <p class="err" id="err-gasto" role="alert"></p>
+        <button class="btn btn-primary" type="submit" style="width:100%">Registrar gasto</button>
+      </form>
+      <div class="tarjeta"><h3>Gastos de este turno</h3>
+        ${E.gastos.length ? "<div>" + E.gastos.map(g => `<div class="gasto"><div><b>${esc(g.concepto)}</b><div class="meta">${esc(hora(g.creado))}${g.persona ? " · " + esc(g.persona) : ""}${g.con_foto ? " · con foto" : ""}</div></div><span class="m">${dinero(g.monto)}</span>${g.persona === E.persona && !cerrado ? `<button type="button" class="btn btn-line btn-sm" data-borrar-gasto="${esc(g.id)}" aria-label="Borrar gasto"><svg class="i"><use href="#i-basura"/></svg></button>` : ""}</div>`).join("") + "</div>" : `<p class="muted" style="margin:8px 0 0">Sin gastos en este turno.</p>`}
+        ${E.gastos.length ? `<div class="total"><span>Total</span><span>${dinero(total)}</span></div>` : ""}
+      </div>`;
+    activarFoto("g-foto", f => { fotoGasto = f; });
+    elegirChip("#g-conc", v => { const i = $("#f-gasto").concepto; if (!i.value || E.conceptos.includes(i.value)) i.value = v === "Otro" ? "" : v; i.focus(); });
+    $("#f-gasto").addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = e.target, b = f.querySelector("[type=submit]");
+      b.disabled = true; $("#err-gasto").textContent = "";
+      try {
+        await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto: fotoGasto });
+        toast("Gasto registrado."); await cargar(); verGastos();
+      } catch (er) { $("#err-gasto").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
+    });
+  }
+  // ---------- Corte ciego ----------
+  const DENOM = [1000, 500, 200, 100, 50, 20];
+  function verCorte() {
+    const c = E.corte, total = E.gastos.reduce((s, g) => s + g.monto, 0);
+    sec().innerHTML = `<h2>Corte de turno</h2><p class="sub">Cuenta el efectivo de la caja <b>sin el fondo de cambio</b> y escribe cuánto hay. La administración compara con el sistema.</p>
+      ${c ? `<div class="aviso-ok"><svg class="i"><use href="#i-check"/></svg><div><b>Corte entregado</b> a las ${esc(hora(c.actualizado))} por ${esc(c.persona)}: efectivo ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}. Si te equivocaste, corrígelo abajo.</div></div>` : ""}
+      <form class="tarjeta" id="f-corte" novalidate>
+        <details class="calc"${c ? "" : " open"}><summary>Contar por billetes y monedas</summary>
+          <div class="denom">${DENOM.map(d => `<label><b>$${d.toLocaleString("es-MX")}</b><span class="muted">×</span><input inputmode="numeric" data-d="${d}" placeholder="0" aria-label="Billetes de ${d}"></label>`).join("")}<label><b>Monedas</b><span class="muted">$</span><input inputmode="decimal" data-d="1" placeholder="0" aria-label="Total en monedas"></label></div>
+        </details>
+        <label class="campo"><span>Efectivo contado (sin fondo)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
+        <label class="campo"><span>Total de vouchers de tarjeta (opcional)</span><input class="t" name="tarjeta" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.tarjeta != null ? esc(c.tarjeta) : ""}"></label>
+        <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Ej. Se dejó cambio de $500 para el siguiente turno">${c ? esc(c.notas || "") : ""}</textarea></label>
+        <p class="muted" style="margin:0 0 12px;font-size:.92rem">Gastos de caja chica registrados en este turno: <b>${E.gastos.length}</b> por <b>${dinero(total)}</b>. Revisa que estén todos antes de entregar.</p>
+        <p class="err" id="err-corte" role="alert"></p>
+        <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
+      </form>`;
+    const f = $("#f-corte");
+    f.querySelectorAll("[data-d]").forEach(i => i.addEventListener("input", () => {
+      let s = 0; f.querySelectorAll("[data-d]").forEach(x => { const n = Number(String(x.value).replace(/[^\d.]/g, "")) || 0; s += x.dataset.d === "1" ? n : n * Number(x.dataset.d); });
+      f.efectivo.value = s ? s.toFixed(2) : "";
+    }));
+    f.addEventListener("submit", async e => {
+      e.preventDefault();
+      const b = f.querySelector("[type=submit]");
+      const ef = Number(String(f.efectivo.value).replace(/[$,\s]/g, ""));
+      if (f.efectivo.value.trim() === "" || !isFinite(ef)) { $("#err-corte").textContent = "Escribe el efectivo que contaste."; return; }
+      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Efectivo contado: ${dinero(ef)}. Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
+      b.disabled = true; $("#err-corte").textContent = "";
+      try {
+        await api("corte", { efectivo: f.efectivo.value, tarjeta: f.tarjeta.value, notas: f.notas.value });
+        await cargar(); verCorte();
+        if (await confirmar("Corte entregado", "¿Ya terminaste tu turno? Al salir, el siguiente encargado entra con su PIN.", "Terminar turno", "Seguir aquí")) salir();
+      } catch (er) { $("#err-corte").textContent = er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message; b.disabled = false; }
+    });
+  }
+
+  // ---------- Acciones en listas ----------
+  sec().addEventListener("click", async e => {
+    const en = e.target.closest("[data-enterado]"), he = e.target.closest("[data-hecho]"), bg = e.target.closest("[data-borrar-gasto]");
+    if (en) {
+      en.disabled = true;
+      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); await cargar(); verAvisos(); } catch (er) { toast(er.message, true); en.disabled = false; }
+    } else if (he) {
+      const t = E.tareas.find(x => x.id === he.dataset.hecho); if (!t) return;
+      const r = await dialogoTarea(t); if (!r) return;
+      try { await api(`tareas/${t.id}/hecho`, r); toast("Tarea terminada."); await cargar(); verTareas(); } catch (er) { toast(er.message, true); }
+    } else if (bg) {
+      if (!(await confirmar("¿Borrar este gasto?", "Se quitará de este turno.", "Borrar"))) return;
+      try { await api(`gastos/${bg.dataset.borrarGasto}/eliminar`, {}); toast("Gasto borrado."); await cargar(); verGastos(); } catch (er) { toast(er.message, true); }
+    }
+  });
+
+  // ---------- Utilidades de interfaz ----------
+  function elegirChip(sel, cb) {
+    const cont = $(sel);
+    cont.addEventListener("click", e => {
+      const b = e.target.closest(".chip"); if (!b) return;
+      cont.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", x === b));
+      cb(b.dataset.v);
+    });
+  }
+  function activarFoto(id, cb) {
+    const inp = document.getElementById(id), ver = document.getElementById(id + "-ver"), quitar = document.getElementById(id + "-quitar");
+    const lbl = document.querySelector(`label[for="${id}"] span`), txt = lbl.textContent;
+    inp.addEventListener("change", async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      lbl.textContent = "Preparando…";
+      try { const d = await comprimir(f); cb(d); ver.src = d; ver.hidden = false; quitar.hidden = false; lbl.textContent = "Cambiar foto"; }
+      catch { toast("No se pudo leer la foto. Intenta otra vez.", true); lbl.textContent = txt; }
+      inp.value = "";
+    });
+    quitar.addEventListener("click", () => { cb(null); ver.hidden = true; ver.removeAttribute("src"); quitar.hidden = true; lbl.textContent = txt; });
+  }
+  // Reduce la foto a máx. 1400 px y JPEG para que suba rápido
+  async function comprimir(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+      let lado = 1400, q = 0.75, out;
+      for (let n = 0; n < 5; n++) {
+        const k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL("image/jpeg", q);
+        if (out.length < 1_300_000) return out;
+        lado *= 0.8; q = Math.max(0.55, q - 0.07);
+      }
+      return out;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function confirmar(titulo, texto, si, no = "Cancelar") {
+    const d = $("#dlg");
+    $("#dlg-form").innerHTML = `<h3>${esc(titulo)}</h3><p class="muted" style="margin:0">${esc(texto)}</p><div class="acciones"><button class="btn btn-line" value="no">${esc(no)}</button><button class="btn btn-primary" value="si">${esc(si)}</button></div>`;
+    return new Promise(ok => { d.onclose = () => ok(d.returnValue === "si"); d.returnValue = ""; d.showModal(); });
+  }
+  let fotoTarea = null;
+  function dialogoTarea(t) {
+    const d = $("#dlg"); fotoTarea = null;
+    $("#dlg-form").innerHTML = `<h3>${esc(t.titulo)}</h3><p class="muted" style="margin:0 0 14px">Marca la tarea como hecha.</p>
+      <label class="campo"><span>Comentario (opcional)</span><textarea class="t" id="t-nota" maxlength="500"></textarea></label>
+      <div class="campo">${campoFoto("t-foto", "Foto (opcional)")}</div>
+      <div class="acciones"><button class="btn btn-line" value="no">Cancelar</button><button class="btn btn-ok" value="si"><svg class="i"><use href="#i-check"/></svg>Hecho</button></div>`;
+    activarFoto("t-foto", f => { fotoTarea = f; });
+    return new Promise(ok => { d.onclose = () => ok(d.returnValue === "si" ? { nota: $("#t-nota").value, foto: fotoTarea } : null); d.returnValue = ""; d.showModal(); });
+  }
+
+  // ---------- Salida ----------
+  async function salir() {
+    try { await api("salir", {}); } catch {}
+    E = null; sec().innerHTML = ""; mostrarEntrada();
+  }
+  $("#terminar").addEventListener("click", async () => {
+    const pend = E && !E.corte ? " Todavía no entregas el corte." : "";
+    if (await confirmar("¿Terminar turno?", "Se cerrará tu sesión en la tablet." + pend, "Terminar turno")) salir();
+  });
+  // Por seguridad: tras 30 minutos sin tocar la tablet se cierra la sesión
+  let ultimo = Date.now();
+  ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, () => { ultimo = Date.now(); }, { passive: true }));
+  setInterval(() => {
+    if (!E) return;
+    if (Date.now() - ultimo > 30 * 60e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
+    // Refresca avisos y tareas cada 2 minutos si no hay un formulario a medio llenar
+    const ocupado = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) || $("#dlg").open;
+    if (!ocupado && (seccion === "avisos" || seccion === "tareas") && Date.now() - (window._ultRef || 0) > 120e3) {
+      window._ultRef = Date.now();
+      cargar().then(() => ir(seccion)).catch(() => {});
+    } else if (Date.now() - (window._ultRef || 0) > 120e3) { window._ultRef = Date.now(); cargar().catch(() => {}); }
+  }, 20e3);
+
+  // Al abrir: si ya hay sesión, directo al turno
+  (async () => {
+    try { await abrirApp(); } catch { mostrarEntrada(); }
+  })();
+})();
+</script>
+</body>
+</html>

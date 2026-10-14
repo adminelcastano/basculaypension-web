@@ -3,6 +3,8 @@ import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
 import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda } from "./agenda.js";
+import TURNO_HTML from "./turno.html";
+import { turnoRuta, turnoAdmin } from "./turno.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -42,6 +44,7 @@ export default {
       if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
       if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
+      if (url.pathname === "/turno" || url.pathname.startsWith("/turno/")) return await turnoRuta(request, env, url, { verificarAcceso, paginaBloqueada, cabeceras: cabecerasPanel, html: TURNO_HTML, llamarScript });
       return env.ASSETS.fetch(request);
     } catch (err) {
       console.error("error", err && err.stack || err);
@@ -471,6 +474,7 @@ async function panel(request, env, url) {
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, { crearLibro });
   if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
+  if (partes[0] === "turno") return await turnoAdmin(request, env, url, partes);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
@@ -620,7 +624,8 @@ function paginaBloqueada(mensaje) {
 // ---------------------------------------------------------------------------
 let cacheCerts = { en: 0, llaves: null, equipo: "" };
 
-async function verificarAcceso(request, env) {
+// zona "turno": además de la administración, entra la cuenta de la tablet (TURNO_EMAILS)
+async function verificarAcceso(request, env, zona = "panel") {
   const equipo = (env.ACCESS_TEAM_DOMAIN || "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const aud = env.ACCESS_AUD || "";
   if (!equipo || !aud) return { error: "El panel todavía no tiene configurado el inicio de sesión. Termina la configuración de Cloudflare Access.", status: 503 };
@@ -646,14 +651,16 @@ async function verificarAcceso(request, env) {
 
   const ahora = Math.floor(Date.now() / 1000);
   const auds = Array.isArray(datos.aud) ? datos.aud : [datos.aud];
-  if (!auds.includes(aud)) return { error: "Sesión no válida para este panel.", status: 401 };
+  if (!aud.split(",").map(x => x.trim()).some(x => x && auds.includes(x))) return { error: "Sesión no válida para este panel.", status: 401 };
   if (!datos.exp || datos.exp < ahora) return { error: "Tu sesión expiró. Vuelve a iniciar sesión.", status: 401 };
   if (datos.iss !== `https://${equipo}`) return { error: "Sesión inválida.", status: 401 };
 
-  const permitidos = (env.ADMIN_EMAILS || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
+  const lista = v => (v || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
+  const admins = lista(env.ADMIN_EMAILS);
+  const permitidos = zona === "turno" ? [...admins, ...lista(env.TURNO_EMAILS)] : admins;
   const email = String(datos.email || "").toLowerCase();
-  if (!email || !permitidos.includes(email)) return { error: "Tu cuenta no tiene permiso para ver el panel.", status: 403 };
-  return { email };
+  if (!email || !permitidos.includes(email)) return { error: zona === "turno" ? "Esta cuenta no tiene permiso para la tablet de turno." : "Tu cuenta no tiene permiso para ver el panel.", status: 403 };
+  return { email, admin: admins.includes(email) };
 }
 
 async function obtenerCerts(equipo) {

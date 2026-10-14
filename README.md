@@ -39,3 +39,15 @@ Externos (lavado de trailers, venta de ropa o comida): mismo módulo con el sele
 Folio: número consecutivo único (columna `num`) + iniciales del nombre (sin de/del/la/y) + fecha de ingreso DDMMAA para colaboradores (`001_JPL_010224`); externos sin fecha (`002_RM`). Externos: no se les envía nada; el registro y los avisos de estatus (registro completo, pendiente, baja, reactivado) van al encargado de turno: entrada@basculaypension.com y WhatsApp 962 216 5453 (constantes en `src/personal.js`).
 
 Copia en Google Drive: el Apps Script (`herramientas/aviso-correo.gs`, acción `drive`) guarda cada documento en la carpeta raíz → COLABORADORES / EXTERNOS → "<folio> <nombre>". Se activa desde el panel con «Probar conexión con Drive» (`cfg.drive`); «Copiar a Drive» en cada ficha copia lo ya subido. Las relaciones carpeta/archivo se guardan en las propiedades del script.
+
+## Tablet de turno (`/turno`)
+
+Para el encargado de turno. Entra con la cuenta `entrada@basculaypension.com` (Cloudflare Access) y luego cada encargado elige su nombre, su turno y escribe su PIN de 4 números. Cinco PIN equivocados bloquean a esa persona 15 minutos; tras 30 minutos sin tocar la tablet se cierra la sesión.
+
+- **Avisos**: los publica la administración en Agenda → Avisos; cada encargado marca "Enterado" y el panel muestra quién ya lo leyó.
+- **Tareas**: las tareas de la Agenda marcadas "Que la haga el encargado (tablet)", opcionalmente solo para un turno. Se cierran con comentario y foto opcional.
+- **Incidencias**: con área, gravedad y foto opcional. Las graves mandan correo al momento.
+- **Gastos de caja chica**: en efectivo, siempre con foto del comprobante. Entran directo a Ingresos y gastos, a nombre del encargado.
+- **Corte ciego**: el encargado captura el efectivo contado (sin fondo) y, si quiere, los vouchers. No ve lo esperado; el panel muestra la diferencia en Ingresos y gastos y en Agenda → Tablet de turno.
+
+Los encargados y sus PIN se administran en Agenda → Tablet de turno. Cambiar un PIN cierra al momento la sesión abierta de esa persona. Las fotos se guardan 200 días.

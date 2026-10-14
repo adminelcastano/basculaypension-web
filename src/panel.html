@@ -352,6 +352,30 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .aform input, .aform select, .aform textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; width: 100%; }
 .aform .err { color: var(--bad); font-size: .85rem; grid-column: 1 / -1; }
 .aform .btn { justify-self: start; }
+.tag.tablet { background: #2a2405; color: var(--amber); }
+.tag svg { width: 12px; height: 12px; flex: none; }
+.lect { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: .78rem; font-weight: 600; background: #2a2a2d; color: #d2d2d7; }
+.lect.si { background: #12301d; color: #30d158; }
+.aform label.chkl { display: flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 500; min-height: 44px; }
+.aform label.chkl input { width: 20px; height: 20px; accent-color: var(--amber); }
+.enc { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 8px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.enc:last-child { border-bottom: 0; }
+.enc .av { width: 46px; height: 46px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .7rem; letter-spacing: -.02em; }
+.enc.inactivo .av { background: #2a2a2d; color: var(--muted); }
+.enc .nm b { display: block; } .enc .nm span { font-size: .82rem; color: var(--muted); }
+.enc form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.enc input { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
+.enc input.pin { width: 7.5em; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+.enc input.nom { width: 10em; }
+.enc .err { color: var(--bad); font-size: .82rem; flex-basis: 100%; }
+.enc .ac { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.estp { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+.estp.ok { background: #12301d; color: #30d158; } .estp.no { background: #3a3010; color: #fab219; } .estp.bloq { background: #3a1714; color: #ff6961; }
+table.tcortes { width: 100%; border-collapse: collapse; font-size: .92rem; }
+table.tcortes th, table.tcortes td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.tcortes th { color: var(--muted); font-weight: 600; font-size: .8rem; }
+table.tcortes .n { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .enc { grid-template-columns: auto minmax(0, 1fr); } .enc form, .enc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
 details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted); font-size: .9rem; }
 @media (max-width: 900px) { .ag-cal { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .ag { padding: 4px 16px 32px; } .aform { grid-template-columns: repeat(2, minmax(0, 1fr)); } .aform label.w2 { grid-column: 1 / -1; } .cal .d { min-height: 40px; padding: 4px 5px; font-size: .85rem; border-radius: 10px; } }
@@ -414,6 +438,11 @@ header.bar .sync { flex: none; }
 .cgasto:last-child { border-bottom: 0; }
 .cgasto .note { grid-column: 1; font-size: .85rem; }
 .cgasto b { font-variant-numeric: tabular-nums; }
+.cgasto a, .aitem a { color: var(--amber); }
+.conteo { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.conteo h4 { margin: 0 0 8px; font-size: .95rem; }
+.dif { display: inline-flex; align-items: center; gap: 4px; padding: 1px 9px; border-radius: 999px; font-size: .85rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dif.ok { background: #12301d; color: #30d158; } .dif.falta { background: #3a1714; color: #ff6961; } .dif.sobra { background: #102538; color: #7db8ec; }
 .cform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .cform label { display: grid; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .cform label.wide { grid-column: 1 / -1; }
@@ -443,6 +472,7 @@ header.bar .sync { flex: none; }
 .ptabs { display: flex; background: var(--surface); padding: 3px; border-radius: 12px; gap: 2px; }
 .ptab { border: 0; background: transparent; border-radius: 9px; padding: 7px 14px; font-size: 14.5px; font-weight: 500; color: #d2d2d7; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
 .ptab[aria-selected="true"] { background: #3a3a3c; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+#a-tabs { flex-wrap: wrap; } #a-tabs .ptab { white-space: nowrap; }
 .ptab .n { font-variant-numeric: tabular-nums; font-size: .85rem; padding: 0 7px; border-radius: 999px; background: #3a3a3c; color: var(--fg); }
 .ptab[aria-selected="true"] .n { background: var(--amber); color: var(--amber-ink); }
 .pitem { position: relative; display: grid; gap: 4px; width: 100%; text-align: left; background: var(--surface); border: 0; padding: 14px 40px 14px 16px; cursor: pointer; transition: background .2s; }
@@ -522,6 +552,8 @@ header.bar .sync { flex: none; }
   <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
   <symbol id="i-activo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M15 17.4l2.2 2.2 4-4.2"/></symbol>
   <symbol id="i-inactivo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M15.4 17.6h5.4"/></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10v4h3l6 4V6L7 10z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.4 9a4 4 0 0 1 0 6M18.8 6.6a7.4 7.4 0 0 1 0 10.8"/></symbol>
+  <symbol id="i-tablet" viewBox="0 0 24 24"><rect x="4.4" y="2.8" width="15.2" height="18.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M10.6 18h2.8"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.8 9.6h16.4M8 3.4v3.2M16 3.4v3.2"/><circle cx="8.4" cy="13.6" r="1.1" fill="currentColor"/><circle cx="12" cy="13.6" r="1.1" fill="currentColor"/><circle cx="15.6" cy="13.6" r="1.1" fill="currentColor"/><circle cx="8.4" cy="17" r="1.1" fill="currentColor"/></symbol>
   <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
   <symbol id="i-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
@@ -696,6 +728,8 @@ header.bar .sync { flex: none; }
     <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
     <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
     <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
+    <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
+    <button class="ptab" role="tab" data-t="tablet" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tablet"/></svg>Tablet de turno</button>
   </div>
 </div>
 <div class="ag" id="ag-cuerpo"></div>
@@ -1788,6 +1822,9 @@ header.bar .sync { flex: none; }
   const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
   const hora = f => (f || "").slice(11, 16);
+  const fechaHora = iso => iso ? "Entregado " + new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+  // Diferencia del corte ciego: contado − sistema (con ícono y texto, no solo color)
+  const difEtq = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${dinero(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${dinero(v)}</span>`;
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
   async function api(ruta, op = {}) {
@@ -1848,6 +1885,7 @@ header.bar .sync { flex: none; }
           <span class="t">${esc(diaTxt(c.dia))} <span class="cturno ${es ? "ahora" : ""}">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? " · en curso" : ""}</span></span>
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
+          ${c.conteo ? `<span class="m"><span>Contó ${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
         </button>`;
       }).join("");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
@@ -1919,12 +1957,21 @@ header.bar .sync { flex: none; }
               ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
               <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
             </div>
+            ${c.conteo ? `<div class="conteo"><h4>Corte ciego de la tablet</h4>
+              <div class="cres">
+                <span class="h">Entregó ${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
+                ${fila("Contado", dinero(c.conteo.efectivo), c.conteo.tarjeta != null ? dinero(c.conteo.tarjeta) : "—")}
+                ${fila("Según el sistema", dinero(c.efectivo_caja), dinero(c.tarjeta))}
+                <span class="fin">Diferencia</span><span class="n">${difEtq(c.conteo.dif_efectivo)}</span><span class="n">${c.conteo.dif_tarjeta != null ? difEtq(c.conteo.dif_tarjeta) : ""}</span>
+              </div>
+              <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
+              <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
             ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
             ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (cambio, retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos del turno</h3>
-            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.creado_por ? " · " + esc(g.creado_por) : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:32px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
       </div>
@@ -2320,7 +2367,10 @@ header.bar .sync { flex: none; }
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   const AVISO_TXT = { 15: "15 min antes", 60: "1 hora antes", 1440: "1 día antes" };
   const ico = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
-  const abierto = it => !["hecho", "comprado", "resuelta"].includes(it.estado);
+  const abierto = it => !["hecho", "comprado", "resuelta", "archivado"].includes(it.estado);
+  const foto = k => k ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">ver foto</a>` : "";
+  const fHora = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
+  const cuando = iso => iso ? fHora.format(new Date(iso)) : "";
 
   async function cargar() {
     try {
@@ -2328,7 +2378,8 @@ header.bar .sync { flex: none; }
       st.items = j.items; st.hoy = j.hoy;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
-      for (const t of ["tarea", "compra", "incidencia"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      for (const t of ["tarea", "compra", "incidencia", "aviso"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
       const a = j.abiertos;
       $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.compra || 0} compras · ${a.incidencia || 0} incidencias abiertas`;
       pintar();
@@ -2337,7 +2388,8 @@ header.bar .sync { flex: none; }
 
   function pintar() {
     document.querySelectorAll("#a-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.tab ? "true" : "false"));
-    $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : vistaLista(st.tab);
+    if (st.tab === "tablet") { vistaTablet(); return; }
+    $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : st.tab === "aviso" ? vistaAvisos() : vistaLista(st.tab);
     conectar();
   }
 
@@ -2347,7 +2399,9 @@ header.bar .sync { flex: none; }
     if (tipo === "evento") return `<form class="aform" data-tipo="evento"><label class="w4">Nuevo evento<input name="titulo" maxlength="140" placeholder="Ej. Pago de luz, junta con proveedor" autocomplete="off"></label>
       <label>Fecha<input type="date" name="fecha" value="${esc(fecha)}"></label><label>Hora<input type="time" name="hora"></label>${avisoSel(60)}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "tarea") return `<form class="aform" data-tipo="tarea"><label class="w4">Nueva tarea<input name="titulo" maxlength="140" placeholder="Ej. Pintar la caseta, renovar extintores" autocomplete="off"></label>
-      <label>Fecha límite<input type="date" name="fecha"></label><label>Prioridad<select name="prioridad"><option value="normal">Normal</option><option value="alta">Alta</option></select></label>${avisoSel()}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+      <label>Fecha límite<input type="date" name="fecha"></label><label>Prioridad<select name="prioridad"><option value="normal">Normal</option><option value="alta">Alta</option></select></label>${avisoSel()}
+      <label class="chkl w2"><input type="checkbox" name="para_turno">Que la haga el encargado (tablet)</label><label>Turno<select name="turno"><option value="">Cualquiera</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+      <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
       <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
@@ -2364,7 +2418,7 @@ header.bar .sync { flex: none; }
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc"><select class="estado-sel" data-estado="${esc(it.id)}" aria-label="Estado">${[["abierta", "Abierta"], ["en_proceso", "En proceso"], ["resuelta", "Resuelta"]].map(([k, v]) => `<option value="${k}" ${it.estado === k ? "selected" : ""}>${v}</option>`).join("")}</select>${del}</span>
-        <span class="mm"><span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span><span>Gravedad ${esc(it.gravedad)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
+        <span class="mm">${it.reporto ? `<span class="tag tablet">${ico("i-tablet")}${esc(it.reporto)}</span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
     }
     const fin = it.tipo === "compra" ? "comprado" : "hecho";
     const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
@@ -2375,7 +2429,9 @@ header.bar .sync { flex: none; }
       it.cantidad ? `<span>${esc(it.cantidad)}</span>` : "",
       it.fecha && it.tipo !== "evento" ? `<span>${it.tipo === "tarea" ? "Límite " : ""}${esc(diaTxt(it.fecha))}</span>` : "",
       it.hora ? `<span>${esc(it.hora)}</span>` : "",
-      it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : ""
+      it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : "",
+      it.para_turno ? `<span class="tag tablet">${ico("i-tablet")}Tablet${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>` : "",
+      hecho && it.hecho_por ? `<span>Hecha por ${esc(it.hecho_por)} ${esc(cuando(it.cerrado))}${it.nota_cierre ? " · " + esc(it.nota_cierre) : ""}${foto(it.foto)}</span>` : ""
     ].filter(Boolean).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
       <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}</div>`;
@@ -2394,12 +2450,76 @@ header.bar .sync { flex: none; }
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
   }
 
+  // ---- Avisos para la tablet ----
+  function vistaAvisos() {
+    const todos = st.items.filter(x => x.tipo === "aviso");
+    const act = todos.filter(abierto).sort((a, b) => b.creado.localeCompare(a.creado)), arch = todos.filter(x => !abierto(x));
+    const activos = (st.personas || []).filter(p => p.activo);
+    const lecturas = it => {
+      const l = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
+      return activos.map(p => l.has(p.clave) ? `<span class="lect si" title="Enterado ${esc(cuando(l.get(p.clave)))}">✓ ${esc(p.clave)} ${esc(cuando(l.get(p.clave)).replace(/^.*?, /, ""))}</span>` : `<span class="lect" title="Todavía no lo lee">${esc(p.clave)}</span>`).join("");
+    };
+    const fila = it => `<div class="aitem ${abierto(it) ? "" : "hecho"}"><span class="grav ${it.prioridad === "alta" ? "grave" : "leve"}">${ico("i-aviso")}</span>
+      <span class="tt">${esc(it.titulo)}</span>
+      <span class="acc">${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:32px;padding:0 12px">Reactivar</button>`}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button></span>
+      <span class="mm">${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span>
+      <span class="mm" style="margin-top:4px">${lecturas(it)}</span></div>`;
+    return `<section class="card"><form class="aform" data-tipo="aviso"><label class="w4">Nuevo aviso para los encargados<input name="titulo" maxlength="140" placeholder="Ej. Mañana viene el técnico de la báscula" autocomplete="off"></label>
+      <label class="w4">Mensaje <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
+      <label>Mostrar desde<input type="date" name="fecha"></label><label>Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
+      <button class="btn btn-primary" type="submit">Publicar</button><span class="err"></span></form>
+      <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado".</p></section>
+      <section class="card"><div class="alist">${act.length ? act.map(fila).join("") : `<p class="note">No hay avisos activos.</p>`}</div>
+      ${arch.length ? `<details class="hechos"><summary>Archivados en los últimos 30 días (${arch.length})</summary><div class="alist">${arch.map(fila).join("")}</div></details>` : ""}</section>`;
+  }
+
+  // ---- Tablet de turno: encargados con PIN y cortes ciegos ----
+  async function vistaTablet() {
+    const c = $("#ag-cuerpo");
+    c.innerHTML = `<p class="empty">Cargando…</p>`;
+    let j;
+    try { j = await api("turno"); st.personas = j.personas; } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    if (st.tab !== "tablet") return;
+    const DIN = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dif = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${DIN(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${DIN(v)}</span>`;
+    const enc = p => `<div class="enc ${p.activo ? "" : "inactivo"}"><span class="av">${esc(p.clave.slice(0, 5))}</span>
+      <span class="nm"><b>${esc(p.nombre)}</b><span>${p.activo ? (p.bloqueado ? `<span class="estp bloq">Bloqueado</span>` : p.tiene_pin ? `<span class="estp ok">✓ PIN listo</span>` : `<span class="estp no">Sin PIN</span>`) : "Desactivado"}${p.ultimo_acceso ? " · entró " + esc(cuando(p.ultimo_acceso)) : ""}</span></span>
+      <form data-enc="${esc(p.clave)}" autocomplete="off"><input class="nom" name="nombre" value="${esc(p.nombre)}" maxlength="60" aria-label="Nombre de ${esc(p.clave)}"><input class="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" aria-label="Nuevo PIN de ${esc(p.clave)}" autocomplete="new-password"><button class="btn btn-primary" type="submit" style="min-height:38px">Guardar</button><span class="err"></span></form>
+      <span class="ac">${p.bloqueado ? `<button class="btn btn-line" type="button" data-desbloquear="${esc(p.clave)}" style="min-height:34px;padding:0 12px">Desbloquear</button>` : ""}<button class="btn btn-line" type="button" data-activo="${esc(p.clave)}" data-v="${p.activo ? 0 : 1}" style="min-height:34px;padding:0 12px">${p.activo ? "Desactivar" : "Activar"}</button></span></div>`;
+    c.innerHTML = `<section class="card"><h3>Encargados de turno</h3>
+        <p class="note" style="margin:4px 0 8px">Cada encargado entra a la tablet con su PIN de 4 números. Para cambiar un PIN, escribe el nuevo y guarda; el anterior deja de servir al momento.</p>
+        <div>${j.personas.map(enc).join("") || `<p class="note">Sin encargados.</p>`}</div>
+        <details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Agregar encargado</summary>
+          <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
+      </section>
+      <section class="card"><h3>Últimos cortes ciegos</h3>
+        ${j.cortes.length ? `<div class="tabla-scroll"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th></tr></thead><tbody>
+          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td></tr>`).join("")}
+        </tbody></table></div><p class="note">Sistema = efectivo esperado según la hoja menos los gastos en efectivo. El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
+      </section>
+      <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
+    const guardar = async (clave, datos, err) => {
+      try { await post("turno/personas" + (clave ? "/" + encodeURIComponent(clave) : ""), datos); toast("Guardado"); st.personas = null; vistaTablet(); }
+      catch (e) { if (e.message !== "sesion") { if (err) err.textContent = e.message; else toast(e.message); } }
+    };
+    c.querySelectorAll("form[data-enc]").forEach(f => f.addEventListener("submit", ev => {
+      ev.preventDefault(); f.querySelector(".err").textContent = "";
+      guardar(f.dataset.enc, { nombre: f.nombre.value, pin: f.pin.value }, f.querySelector(".err"));
+    }));
+    c.querySelectorAll("[data-desbloquear]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.desbloquear, { desbloquear: 1 })));
+    c.querySelectorAll("[data-activo]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.activo, { activo: b.dataset.v === "1" })));
+    $("#enc-nuevo").addEventListener("submit", ev => {
+      ev.preventDefault(); const f = ev.target; f.querySelector(".err").textContent = "";
+      guardar("", { clave: f.clave.value, nombre: f.nombre.value, pin: f.pin.value }, f.querySelector(".err"));
+    });
+  }
+
   function vistaCalendario() {
     const [a, m] = st.mes.split("-").map(Number);
     const primero = new Date(Date.UTC(a, m - 1, 1));
     const inicio = new Date(primero); inicio.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7)); // semana inicia en lunes
     const porDia = {};
-    for (const it of st.items) if (it.fecha && abierto(it) || (it.fecha && it.tipo === "evento")) (porDia[it.fecha] = porDia[it.fecha] || []).push(it);
+    for (const it of st.items) if (it.tipo !== "aviso" && (it.fecha && abierto(it) || (it.fecha && it.tipo === "evento"))) (porDia[it.fecha] = porDia[it.fecha] || []).push(it);
     let celdas = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map(d => `<span class="dow">${d}</span>`).join("");
     for (let i = 0; i < 42; i++) {
       const d = new Date(inicio); d.setUTCDate(inicio.getUTCDate() + i);
@@ -2409,7 +2529,7 @@ header.bar .sync { flex: none; }
       celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${its.length ? `, ${its.length} pendientes` : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span></button>`;
       if (i >= 34 && d.getUTCMonth() !== m - 1 && d.getUTCDay() === 0) break;
     }
-    const delDia = st.items.filter(x => x.fecha === st.sel).sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
+    const delDia = st.items.filter(x => x.fecha === st.sel && x.tipo !== "aviso").sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
     return `<div class="ag-cal">
       <section class="card"><div class="cal-head"><h3>${esc(mayus(fMes.format(primero)))}</h3><div class="cal-nav"><button type="button" data-mes="-1" aria-label="Mes anterior">‹</button><button type="button" data-mes="hoy" aria-label="Hoy" style="width:auto;padding:0 12px;font-size:14px">Hoy</button><button type="button" data-mes="1" aria-label="Mes siguiente">›</button></div></div>
         <div class="cal">${celdas}</div>
@@ -2424,7 +2544,7 @@ header.bar .sync { flex: none; }
     c.querySelectorAll("form.aform").forEach(f => f.addEventListener("submit", async ev => {
       ev.preventDefault();
       const datos = { tipo: f.dataset.tipo };
-      for (const el of f.elements) if (el.name) datos[el.name] = el.value;
+      for (const el of f.elements) if (el.name) datos[el.name] = el.type === "checkbox" ? (el.checked ? 1 : "") : el.value;
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
@@ -2436,6 +2556,10 @@ header.bar .sync { flex: none; }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelectorAll("[data-archivar],[data-reactivar]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.dataset.archivar || b.dataset.reactivar;
+      try { await post("agenda/" + id, { estado: b.dataset.archivar ? "archivado" : "activo" }); toast(b.dataset.archivar ? "Aviso archivado" : "Aviso reactivado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
