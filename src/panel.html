@@ -506,17 +506,17 @@ header.bar .sync { flex: none; }
 .pill.faltan { background: #3a3010; color: #ffd60a; }
 .pill.sinllenar { background: #3a3a3c; color: #e5e5ea; }
 .checklist { display: grid; gap: 0; }
-.chk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-.chk:last-child { border-bottom: 0; }
+.dchk { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.dchk:last-child { border-bottom: 0; }
 .chkrow { border-bottom: 1px solid var(--line); }
 .chkrow:last-child { border-bottom: 0; }
-.chkrow .chk { border-bottom: 0; }
+.chkrow .dchk { border-bottom: 0; }
 .chkrow .fotos { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 0 11px 42px; margin-top: -4px; }
 .chkrow .fotos a { text-decoration: none; }
-.chk input { width: 24px; height: 24px; margin: 0; accent-color: var(--ok); cursor: pointer; }
-.chk b { font-weight: 600; font-size: 1.02rem; }
-.chk.ok b { color: var(--muted); text-decoration: line-through; text-decoration-color: #5a5a5e; }
-.chk .note { font-size: .85rem; white-space: nowrap; }
+.dchk input { width: 24px; height: 24px; margin: 0; accent-color: var(--ok); cursor: pointer; }
+.dchk b { font-weight: 600; font-size: 1.02rem; }
+.dchk.ok b { color: var(--muted); text-decoration: line-through; text-decoration-color: #5a5a5e; }
+.dchk .note { font-size: .85rem; white-space: nowrap; }
 .barra { height: 8px; background: #2a2a2d; border-radius: 999px; overflow: hidden; }
 .barra i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width .35s; }
 .barra.ok i { background: var(--ok); }
@@ -1451,7 +1451,7 @@ header.bar .sync { flex: none; }
             <h3>Documentos entregados</h3>
             <div class="row" style="justify-content:space-between"><span class="note">${c.tipo === "externo" ? "Se palomean solos cuando sube la foto. También puedes palomearlos tú." : "Se palomean solos cuando el colaborador sube la foto. También puedes palomearlos tú al recibir sus copias."}</span><b id="p-docs-n"></b></div>
             <div class="barra"><i id="p-barra" style="width:0"></i></div>
-            <div class="checklist">${c.docs.map(x => `<div class="chkrow"><label class="chk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>${x.fotos.length ? `<div class="fotos">${x.fotos.map(f => `<a class="copy" href="/panel/api/colaboradores/${c.id}/archivo/${f.archivo}" target="_blank" rel="noopener">${f.archivo === "ine" && x.piezas > 1 ? "Ver frente" : f.archivo === "ine2" ? "Ver reverso" : f.archivo === "solicitud" ? "Ver hoja 1" : f.archivo === "solicitud2" ? "Ver hoja 2" : "Ver foto"}</a>`).join("")}</div>` : ""}</div>`).join("")}</div>
+            <div class="checklist">${c.docs.map(x => `<div class="chkrow"><label class="dchk ${x.recibido ? "ok" : ""}"><input type="checkbox" data-doc="${x.clave}" ${x.recibido ? "checked" : ""}><b>${esc(x.nombre)}</b><span class="note" data-docf="${x.clave}">${x.recibido ? "Recibido " + fecha(x.fecha) : ""}</span></label>${x.fotos.length ? `<div class="fotos">${x.fotos.map(f => `<a class="copy" href="/panel/api/colaboradores/${c.id}/archivo/${f.archivo}" target="_blank" rel="noopener">${f.archivo === "ine" && x.piezas > 1 ? "Ver frente" : f.archivo === "ine2" ? "Ver reverso" : f.archivo === "solicitud" ? "Ver hoja 1" : f.archivo === "solicitud2" ? "Ver hoja 2" : "Ver foto"}</a>`).join("")}</div>` : ""}</div>`).join("")}</div>
           </section>
           <section class="card">
             ${c.tipo === "externo" ? `<h3>Registro con el encargado de turno</h3>
@@ -1585,7 +1585,7 @@ header.bar .sync { flex: none; }
       try {
         const r = await post(`colaboradores/${id}/doc`, { clave: cb.dataset.doc, recibido: cb.checked });
         const x = r.docs.lista.find(y => y.clave === cb.dataset.doc);
-        cb.closest(".chk").classList.toggle("ok", x.recibido);
+        cb.closest(".dchk").classList.toggle("ok", x.recibido);
         d.querySelector(`[data-docf="${x.clave}"]`).textContent = x.recibido ? "Recibido " + fecha(x.fecha) : "";
         pintarDocs(r.docs.lista);
         cargar();

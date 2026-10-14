@@ -1,3 +1,4 @@
+import { correrIA } from "./neuronas.js";
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
@@ -733,7 +734,7 @@ function limpiarPlacas(v) {
 
 async function aceptarLicenciaModelo(env) {
   if (await env.FILES.get("ai:licencia")) return;
-  try { await env.AI.run(MODELO_VISION, { prompt: "agree" }); } catch (e) { console.log("licencia", e && e.message); }
+  try { await correrIA(env, MODELO_VISION, { prompt: "agree" }); } catch (e) { console.log("licencia", e && e.message); }
   await env.FILES.put("ai:licencia", "1");
 }
 
@@ -747,7 +748,7 @@ La foto puede estar girada, inclinada o arrugada; si lees el texto de uno de los
 Responde SOLO con JSON: {"clase": "pension" | "bascula" | "otro"}`;
 
 async function clasificarTicket(env, bytes, tipo) {
-  const r = await env.AI.run(MODELO_VISION, {
+  const r = await correrIA(env, MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: INSTRUCCIONES_CLASE }],
     image: `data:${tipo};base64,${aBase64(new Uint8Array(bytes))}`,
     max_tokens: 30,
@@ -851,7 +852,7 @@ Responde SOLO con un objeto JSON, sin texto adicional, con estas claves:
 "total": el número IMPRESO que sigue a "TOTAL" en el ticket de la báscula, sin signo de pesos,
 "anotacion": cualquier texto o cantidad escrita a mano con pluma sobre el ticket, tal cual; null si no hay nada escrito a mano.
 Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece, está tapado o no se lee con claridad, usa null. No inventes datos.`;
-  const r = await env.AI.run(MODELO_VISION, {
+  const r = await correrIA(env, MODELO_VISION, {
     messages: [{ role: "system", content: "Respondes únicamente con JSON válido." }, { role: "user", content: instrucciones }],
     image: imagen,
     max_tokens: 350,

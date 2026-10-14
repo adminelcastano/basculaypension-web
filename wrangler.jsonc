@@ -29,8 +29,8 @@
   // Plan Workers Paid: hasta 30 s de CPU por petición (en el plan gratuito este ajuste no se acepta
   // y el despliegue falla, así que también sirve para confirmar que el plan está activo)
   "limits": { "cpu_ms": 30000 },
-  // Lectura de fotos de tickets (Workers AI: 10 000 neuronas diarias gratis; con Workers Paid
-  // lo que pase de ahí se cobra en lugar de fallar)
+  // Lectura de fotos de tickets (Workers AI: 10 000 neuronas diarias gratis). Con Workers Paid
+  // el excedente se cobraría; src/neuronas.js corta a las 9 000 para que eso no pase.
   "ai": { "binding": "AI" },
   "observability": { "enabled": true }
 }

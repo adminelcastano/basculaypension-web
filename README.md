@@ -12,6 +12,8 @@ Cloudflare publica automáticamente cada cambio en la rama `main` (comando de de
 
 Plan: **Workers Paid** (5 USD al mes, desde el 14 oct 2026). `wrangler.jsonc` fija `limits.cpu_ms` en 30 000; si el plan se cancela, el despliegue falla en lugar de publicar algo que no cabe en el plan gratuito.
 
+Workers AI (lectura de tickets y documentos) tiene tope diario de 9 000 neuronas (`src/neuronas.js`), debajo de las 10 000 gratis, para que nunca genere cobro. Al llegar al tope, la lectura automática se apaga hasta las 6 p.m. de Tapachula (00:00 UTC) y los datos se capturan a mano; lo demás sigue funcionando.
+
 ## Archivos (en `public/`)
 
 - `index.html`: la página.

@@ -1,3 +1,4 @@
+import { correrIA } from "./neuronas.js";
 // ---------------------------------------------------------------------------
 // Personal: expediente laboral de colaboradores
 // Cada colaborador recibe un enlace personal (/expediente/<token>) para llenar
@@ -250,7 +251,7 @@ async function leerDocumento(env, archivo, bytes, tipo, admin) {
   const instr = INSTRUCCIONES_DOC[clave];
   if (!instr) return {};
   if (!(await env.FILES.get("ai:licencia"))) {
-    try { await env.AI.run(MODELO_VISION, { prompt: "agree" }); } catch {}
+    try { await correrIA(env, MODELO_VISION, { prompt: "agree" }); } catch {}
     await env.FILES.put("ai:licencia", "1");
   }
   let bin = ""; const u = new Uint8Array(bytes);
@@ -258,7 +259,7 @@ async function leerDocumento(env, archivo, bytes, tipo, admin) {
   let r;
   try {
     r = await Promise.race([
-      env.AI.run(MODELO_VISION, {
+      correrIA(env, MODELO_VISION, {
         messages: [{ role: "system", content: "Respondes únicamente con JSON válido." },
           { role: "user", content: `${instr}\nLa foto puede estar girada o inclinada. Copia los datos exactamente como aparecen. Si un dato no se lee con claridad, usa null. No inventes datos.\nResponde SOLO con un objeto JSON con esas claves.` }],
         image: `data:${tipo};base64,${btoa(bin)}`, max_tokens: 300, temperature: 0
