@@ -2060,7 +2060,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
     let j;
     try { j = await api(`caja/corte?dia=${encodeURIComponent(dia)}&turno=${encodeURIComponent(turno)}`); }
     catch (e) { if (e.message !== "sesion") d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
-    const c = j.corte || { bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 }, efectivo: 0, tarjeta: 0, ingresos: 0, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, gastos_total: 0, caja: { n: 0, importe: 0 }, efectivo_caja: 0, fuera: { n: 0, importe: 0, formas: {} } };
+    const c = j.corte || { bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 }, efectivo: 0, tarjeta: 0, ingresos: 0, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, gastos_total: 0, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, efectivo_caja: 0, fuera: { n: 0, importe: 0, formas: {} } };
     const fila = (k, a, b, cls = "") => `<span class="${cls}">${k}</span><span class="n ${cls}">${a}</span><span class="n ${cls}">${b}</span>`;
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
     const icono = sv => `<span class="svc ${sv}" title="${sv === "bascula" ? "Báscula" : "Pensión"}"><svg aria-hidden="true"><use href="#i-${sv}"/></svg></span>`;
@@ -2074,6 +2074,7 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
               ${fila("Báscula", dinero(c.bascula.EFECTIVO), dinero(c.bascula.TARJETA))}
               ${fila("Pensión", dinero(c.pension.EFECTIVO), dinero(c.pension.TARJETA))}
               ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
+              ${c.cambio && c.cambio.n ? fila("Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
               ${fila("Gastos", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
               ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
               <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
@@ -2082,13 +2083,14 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
               <div class="cres">
                 <span class="h">Entregó ${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
                 ${fila("Contado", dinero(c.conteo.efectivo), c.conteo.tarjeta != null ? dinero(c.conteo.tarjeta) : "—")}
-                ${fila("Según el sistema", dinero(c.efectivo_caja), dinero(c.tarjeta))}
+                ${fila(c.cambio && c.cambio.n ? "Según el sistema (sin cambio)" : "Según el sistema", dinero(c.conteo.esperado ?? c.efectivo_caja), dinero(c.tarjeta))}
                 <span class="fin">Diferencia</span><span class="n">${difEtq(c.conteo.dif_efectivo)}</span><span class="n">${c.conteo.dif_tarjeta != null ? difEtq(c.conteo.dif_tarjeta) : ""}</span>
               </div>
               <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
               <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
             ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
-            ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (cambio, retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
+            ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
+            ${c.cambio && c.cambio.n ? `<p class="note">El cambio inicial se suma al efectivo en caja y no cuenta como ingreso. El encargado cuenta sin el fondo de cambio, así que el corte ciego se compara sin él.</p>` : ""}
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos del turno</h3>
@@ -2615,8 +2617,8 @@ main.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .
       </section>
       <section class="card"><h3>Últimos cortes ciegos</h3>
         ${j.cortes.length ? `<div class="tabla-scroll"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th></tr></thead><tbody>
-          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td></tr>`).join("")}
-        </tbody></table></div><p class="note">Sistema = efectivo esperado según la hoja menos los gastos en efectivo. El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
+          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td></tr>`).join("")}
+        </tbody></table></div><p class="note">Sistema = efectivo esperado según la hoja menos los gastos en efectivo, sin el cambio inicial (el encargado cuenta sin fondo). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
       </section>
       <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
     const guardar = async (clave, datos, err) => {

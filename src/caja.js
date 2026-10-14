@@ -10,6 +10,9 @@ const VENTANA = { "MAÑANA": [6, 14], "TARDE": [14, 22], "NOCHE": [22, 30] };
 // Solo estas formas de pago suman en el corte
 export const FORMAS_CONTADAS = ["EFECTIVO", "TARJETA"];
 const FORMAS_GASTO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"];
+// Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
+// matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
+export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
@@ -156,13 +159,14 @@ export function calcularCortes(movs, gastos) {
     const k = dia + "|" + turno;
     if (!cortes.has(k)) cortes.set(k, {
       dia, turno, bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 },
-      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
+      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
     });
     return cortes.get(k);
   };
   for (const m of movs) {
     const c = corte(m.dia, m.turno);
     c.registros++;
+    if (esCambio(m)) { c.cambio.n++; c.cambio.importe += m.importe; continue; }
     if (m.tipo === "caja") { c.caja.n++; if (m.forma === "EFECTIVO") c.caja.importe += m.importe; continue; }
     if (FORMAS_CONTADAS.includes(m.forma)) c[m.servicio][m.forma] += m.importe;
     else { c.fuera.n++; c.fuera.importe += m.importe; c.fuera.formas[m.forma] = (c.fuera.formas[m.forma] || 0) + m.importe; }
@@ -171,7 +175,7 @@ export function calcularCortes(movs, gastos) {
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return [...cortes.values()].map(c => {
     const efectivo = c.bascula.EFECTIVO + c.pension.EFECTIVO, tarjeta = c.bascula.TARJETA + c.pension.TARJETA;
-    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.caja.importe - c.gastos.EFECTIVO };
+    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.cambio.importe + c.caja.importe - c.gastos.EFECTIVO };
   }).sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
 
@@ -200,7 +204,9 @@ export function unirConteos(cortes, conteos) {
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;
   return { persona: x.persona, efectivo: x.efectivo, tarjeta: x.tarjeta, notas: x.notas, actualizado: x.actualizado, veces: x.veces,
-    dif_efectivo: c ? r2(x.efectivo - c.efectivo_caja) : null, dif_tarjeta: c && x.tarjeta != null ? r2(x.tarjeta - c.tarjeta) : null };
+    // El encargado cuenta sin el fondo de cambio: se compara contra el efectivo en caja menos el cambio inicial
+    esperado: c ? r2(c.efectivo_caja - (c.cambio ? c.cambio.importe : 0)) : null,
+    dif_efectivo: c ? r2(x.efectivo - (c.efectivo_caja - (c.cambio ? c.cambio.importe : 0))) : null, dif_tarjeta: c && x.tarjeta != null ? r2(x.tarjeta - c.tarjeta) : null };
 }
 
 // Periodo opcional: desde/hasta (AAAA-MM-DD, por día del corte o fecha de la transferencia)
@@ -224,9 +230,9 @@ const NOMBRE_SERV = { bascula: "Báscula", pension: "Pensión" };
 export function hojasExcel(mes, movs, gastos, transf = [], conteos = []) {
   const cortes = unirConteos(calcularCortes(movs, gastos), conteos).slice().reverse();
   return [
-    { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14], filas: [
-      ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta"],
-      ...cortes.map(c => [c.dia, c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.caja.importe, c.efectivo_caja, c.fuera.importe,
+    { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14], filas: [
+      ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Cambio inicial", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta"],
+      ...cortes.map(c => [c.dia, c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.cambio.importe, c.caja.importe, c.efectivo_caja, c.fuera.importe,
         c.conteo ? c.conteo.persona : "", c.conteo ? c.conteo.efectivo : "", c.conteo ? c.conteo.dif_efectivo : "", c.conteo && c.conteo.tarjeta != null ? c.conteo.tarjeta : "", c.conteo && c.conteo.dif_tarjeta != null ? c.conteo.dif_tarjeta : ""])
     ] },
     ...["bascula", "pension"].map(sv => ({ nombre: NOMBRE_SERV[sv], anchos: [19, 12, 10, 12, 14, 30, 12, 15, 12], filas: [
