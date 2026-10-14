@@ -141,6 +141,26 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
 </style>
 </head>
 <body>
+<script>
+// Si la sesión de Cloudflare Access vence, las llamadas a la API reciben una redirección
+// al inicio de sesión; en vez de fallar con "sin conexión", se recarga la página para entrar de nuevo.
+(() => {
+  const f = window.fetch.bind(window);
+  let avisado = false;
+  window.fetch = async (u, o = {}) => {
+    const interna = typeof u === "string" && u.startsWith("/");
+    const r = await f(u, interna ? { redirect: "manual", ...o } : o);
+    if (interna && (r.type === "opaqueredirect" || r.status === 0) && !avisado) {
+      avisado = true;
+      alert("Tu sesión venció. La página se va a recargar para que vuelvas a entrar.");
+      location.reload();
+      throw new Error("sesion");
+    }
+    return r;
+  };
+})();
+</script>
+
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-aviso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10v4h3l6 4V6L7 10z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.4 9a4 4 0 0 1 0 6M18.8 6.6a7.4 7.4 0 0 1 0 10.8"/></symbol>
   <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
@@ -469,13 +489,13 @@ dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-t
     const url = URL.createObjectURL(file);
     try {
       const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
-      let lado = 1400, q = 0.75, out;
+      let lado = 1280, q = 0.72, out;
       for (let n = 0; n < 5; n++) {
         const k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
         const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         out = c.toDataURL("image/jpeg", q);
-        if (out.length < 1_300_000) return out;
+        if (out.length < 700_000) return out;
         lado *= 0.8; q = Math.max(0.55, q - 0.07);
       }
       return out;

@@ -222,6 +222,7 @@ async function crearSolicitud(request, env, ctx) {
     csfTipo = csf.type;
   }
 
+  try {
   await env.DB.prepare(`INSERT INTO solicitudes
     (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago)
     VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -231,6 +232,13 @@ async function crearSolicitud(request, env, ctx) {
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
       uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket, formaPago)
     .run();
+  } catch (e) {
+    // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
+    console.error("guardar solicitud", e && e.message);
+    await env.FILES.delete(`f:${id}:ticket`).catch(() => {});
+    if (csfTipo) await env.FILES.delete(`f:${id}:csf`).catch(() => {});
+    return json({ ok: false, error: "No pudimos registrar tu solicitud en este momento. Intenta de nuevo en unas horas o escríbenos por WhatsApp." }, 503);
+  }
 
   if (lectura && !lectura.error) {
     try { await guardarLecturaTicket(env, { id, folio_ticket: folioTicket }, lectura.datos, false); }

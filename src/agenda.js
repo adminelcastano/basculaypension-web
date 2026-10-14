@@ -109,7 +109,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     sql += ` AND (${ABIERTO} OR cerrado IS NULL OR cerrado >= ?)`; args.push(limite);
     sql += " ORDER BY COALESCE(fecha, '9999-12-31'), COALESCE(hora, '99:99'), creado LIMIT 1000";
     const items = (await env.DB.prepare(sql).bind(...args).all()).results;
-    const lect = (await env.DB.prepare("SELECT item_id, persona, at FROM agenda_lecturas").all()).results;
+    const lect = items.some(it => it.tipo === "aviso") ? (await env.DB.prepare("SELECT l.item_id, l.persona, l.at FROM agenda_lecturas l JOIN agenda_items a ON a.id = l.item_id WHERE a.tipo = 'aviso'").all()).results : [];
     for (const it of items) if (it.tipo === "aviso") it.lecturas = lect.filter(l => l.item_id === it.id);
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), hoy: hoyMx(), estados: ESTADOS });

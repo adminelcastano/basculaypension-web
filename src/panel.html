@@ -529,6 +529,26 @@ header.bar .sync { flex: none; }
 </style>
 </head>
 <body>
+<script>
+// Si la sesión de Cloudflare Access vence, las llamadas a la API reciben una redirección
+// al inicio de sesión; en vez de fallar con "sin conexión", se recarga la página para entrar de nuevo.
+(() => {
+  const f = window.fetch.bind(window);
+  let avisado = false;
+  window.fetch = async (u, o = {}) => {
+    const interna = typeof u === "string" && u.startsWith("/");
+    const r = await f(u, interna ? { redirect: "manual", ...o } : o);
+    if (interna && (r.type === "opaqueredirect" || r.status === 0) && !avisado) {
+      avisado = true;
+      alert("Tu sesión venció. La página se va a recargar para que vuelvas a entrar.");
+      location.reload();
+      throw new Error("sesion");
+    }
+    return r;
+  };
+})();
+</script>
+
 <header class="bar">
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
   <h1>El Castaño</h1>

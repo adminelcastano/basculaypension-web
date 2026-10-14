@@ -12,7 +12,8 @@ const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
-const FOTO_MAX = 1_500_000, FOTO_TTL = 200 * 86400;
+// Las fotos se guardan 100 días (KV gratuito tiene 1 GB en total)
+const FOTO_MAX = 1_500_000, FOTO_TTL = 100 * 86400;
 const CONCEPTOS = ["Agua", "Limpieza", "Papelería", "Refacción", "Comida de turno", "Gasolina", "Otro"];
 
 const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra } });
@@ -66,19 +67,30 @@ export async function asegurarEsquemaTurno(env) {
 // ---------------------------------------------------------------------------
 // PIN y sesión
 // ---------------------------------------------------------------------------
-async function hashPin(pin, sal) {
+// El plan gratuito de Workers da ~10 ms de CPU por petición: se usan pocas iteraciones
+// (el PIN lo protegen sobre todo el bloqueo por intentos y Cloudflare Access).
+// Los hash nuevos llevan el prefijo "v2$"; los anteriores (sin prefijo) usaban 20 000.
+async function derivar(pin, sal, iteraciones) {
   const llave = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: 20000 }, llave, 256));
+  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: iteraciones }, llave, 256));
+}
+const hashPin = async (pin, sal) => "v2$" + await derivar(pin, sal, 2000);
+async function pinCorrecto(pin, sal, guardado) {
+  if (!guardado) return false;
+  const calculado = guardado.startsWith("v2$") ? await hashPin(pin, sal) : await derivar(pin, sal, 20000);
+  return igual(calculado, guardado);
 }
 function igual(a, b) {
   if (a.length !== b.length) return false;
   let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
 }
+let secretoCache = null;
 async function secreto(env) {
+  if (secretoCache) return secretoCache;
   let s = await env.FILES.get("turno:secreto");
   if (!s) { s = hex(crypto.getRandomValues(new Uint8Array(32))); await env.FILES.put("turno:secreto", s); }
-  return s;
+  return (secretoCache = s);
 }
 async function firmar(env, datos) {
   const llave = await crypto.subtle.importKey("raw", enc.encode(await secreto(env)), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -183,7 +195,7 @@ export async function turnoRuta(request, env, url, h) {
       const min = Math.ceil((Date.parse(p.bloqueado_hasta) - ahora) / 60000);
       return json({ ok: false, error: `Demasiados intentos. Espera ${min} min o pide ayuda a la administración.`, bloqueado: true }, 429);
     }
-    if (!/^\d{4}$/.test(pin) || !igual(await hashPin(pin, p.pin_sal), p.pin_hash)) {
+    if (!/^\d{4}$/.test(pin) || !(await pinCorrecto(pin, p.pin_sal, p.pin_hash))) {
       const fallas = (p.fallas || 0) + 1;
       const bloquear = fallas >= MAX_FALLAS;
       await env.DB.prepare("UPDATE turno_personas SET fallas = ?, bloqueado_hasta = ? WHERE clave = ?")
@@ -349,7 +361,7 @@ export async function turnoAdmin(request, env, url, partes) {
       if (/^(\d)\1{3}$/.test(pin) || "0123456789".includes(pin) || "9876543210".includes(pin)) return json({ ok: false, error: "Ese PIN es muy fácil de adivinar. Usa otro.", errores: { pin: "Muy fácil." } }, 422);
       // Que no se repita entre encargados
       const otros = (await env.DB.prepare("SELECT clave, pin_hash, pin_sal FROM turno_personas WHERE clave != ? AND pin_hash IS NOT NULL").bind(clave).all()).results;
-      for (const o of otros) if (igual(await hashPin(pin, o.pin_sal), o.pin_hash)) return json({ ok: false, error: `Ese PIN ya lo usa ${o.clave}. Elige otro.`, errores: { pin: "Repetido." } }, 422);
+      for (const o of otros) if (await pinCorrecto(pin, o.pin_sal, o.pin_hash)) return json({ ok: false, error: `Ese PIN ya lo usa ${o.clave}. Elige otro.`, errores: { pin: "Repetido." } }, 422);
       sal = hex(crypto.getRandomValues(new Uint8Array(16)));
       pinHash = await hashPin(pin, sal);
     }
