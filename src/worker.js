@@ -2,6 +2,7 @@ import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
+import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda } from "./agenda.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -51,10 +52,15 @@ export default {
   async scheduled(event, env, ctx) {
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
-    if (event.cron === "47 14 * * *") { ctx.waitUntil(recordatoriosAutomaticos(env, enviarCorreoA)); return; }
+    if (event.cron === "47 14 * * *") {
+      ctx.waitUntil(recordatoriosAutomaticos(env, enviarCorreoA));
+      ctx.waitUntil(resumenDiarioAgenda(env, llamarScript).catch(e => console.error("resumen agenda", e && e.message)));
+      return;
+    }
     // Cada 10 minutos: ingresos del mes desde la hoja de Google (y cierre al cambiar de mes)
     if (event.cron === "*/10 * * * *") {
       ctx.waitUntil((async () => {
+        await recordatoriosAgenda(env, llamarScript).catch(e => console.error("recordatorios agenda", e && e.message));
         if (!env.INGRESOS_URL) return;
         await cierreMensualCaja(env, { crearLibro, llamarScript, aBase64 }).catch(e => console.error("cierre caja", e && e.message));
         await sincronizarCaja(env);
@@ -464,6 +470,7 @@ async function panel(request, env, url) {
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, { crearLibro });
+  if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";

@@ -221,6 +221,51 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ini-split { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .98rem; color: #d2d2d7; margin-top: 6px; }
 .ini-split b { color: var(--fg); font-weight: 600; }
 .ini-turno { font-size: .85rem; color: var(--muted); }
+.ini-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ini-grid .s2 { grid-column: span 2; } .ini-grid .s3 { grid-column: span 3; }
+.ini-top { display: flex; align-items: center; gap: 10px; }
+.ini-top .ini-k { flex: 1; }
+.ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.ibadge svg { width: 19px; height: 19px; }
+.kpi .ini-num { color: var(--c); }
+.kpi { border-top: 3px solid color-mix(in srgb, var(--c) 70%, transparent); }
+.acc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.accion { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: #1f1f21; color: var(--fg); border-radius: 14px; padding: 10px; font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .15s, border-color .2s; line-height: 1.2; }
+.accion:hover { background: #2a2a2d; border-color: color-mix(in srgb, var(--c) 60%, transparent); }
+.accion:active { transform: scale(.97); }
+.dona { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; justify-items: center; }
+.dona .ley { width: 100%; }
+.dona svg { width: 128px; height: 128px; display: block; }
+.dona .ley { display: grid; gap: 8px; font-size: .88rem; }
+.dona .ley div { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.dona .ley b { font-variant-numeric: tabular-nums; }
+.dona .ley small { color: var(--muted); font-size: .78rem; margin-left: 4px; font-weight: 500; }
+.dona .centro-v { fill: var(--fg); font-weight: 700; font-size: 15px; }
+.dona .centro-k { fill: #8e8e93; font-size: 9.5px; }
+.st-ico { width: 18px; height: 18px; border-radius: 6px; display: grid; place-items: center; color: #111; }
+.st-ico svg { width: 13px; height: 13px; }
+.cmp-fila { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; }
+.cmp-fila .k { font-size: .88rem; color: #d2d2d7; }
+.cmp-bar { height: 14px; border-radius: 0 4px 4px 0; background: var(--c); transform-origin: left; }
+.cmp-fila b { font-variant-numeric: tabular-nums; font-size: .95rem; }
+.delta { font-size: .8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.delta.sube { background: #10301c; color: #30d158; } .delta.baja { background: #3a1714; color: #ff6961; } .delta.igual { background: #2a2a2d; color: #c7c7cc; }
+.cmp-turnos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.cmp-turnos div { background: #1f1f21; border-radius: 12px; padding: 10px; display: grid; gap: 2px; }
+.cmp-turnos div.act { box-shadow: inset 0 0 0 1.5px var(--amber); }
+.cmp-turnos span { font-size: .78rem; color: var(--muted); font-weight: 600; }
+.cmp-turnos b { font-variant-numeric: tabular-nums; }
+.sw.prom { background: transparent; border-top: 2px solid #c7c7cc; height: 0; width: 14px; border-radius: 0; }
+.mini-n { font-size: 1.4rem; color: var(--c); font-variant-numeric: tabular-nums; }
+.mini-l { display: grid; gap: 6px; margin-top: 6px; font-size: .88rem; }
+.mini-l div { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.mini-l div span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-l div span.m { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.mini-l .vacio { color: var(--muted); }
+.ag-mini { cursor: pointer; }
+.ag-mini:hover { background: #1f1f21; }
+@media (max-width: 1000px) { .ini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-grid .s3 { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .ini-grid > .ini-card:not(.kpi) { grid-column: 1 / -1; } .dona { grid-template-columns: auto minmax(0, 1fr); justify-items: stretch; align-items: center; } .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-grid .s2, .ini-grid .s3 { grid-column: 1 / -1; } .dona svg { width: 104px; height: 104px; } .cmp-fila { grid-template-columns: 74px minmax(0, 1fr) auto; } }
 .ini-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .ini-tile .note { font-size: .85rem; }
 .ini-charts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; }
@@ -228,7 +273,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .leyenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: #d2d2d7; }
 .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.sw.bas { background: #c08a00; } .sw.pen { background: #3d8fd6; } .sw.tra { background: #8e8e93; }
+.sw.bas { background: #c08a00; } .sw.pen { background: #3d8fd6; } .sw.tra { background: #d0559a; } .sw.efe { background: #1aa3a3; } .sw.tar { background: #6c74e8; }
 .graf { position: relative; width: 100%; }
 .graf svg { display: block; width: 100%; height: auto; overflow: visible; }
 .graf .eje { stroke: #2c2c2e; stroke-width: 1; }
@@ -249,6 +294,68 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 }
 @media (max-width: 900px) { .ini-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-charts { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .ini { padding: 16px 16px 32px; } .ini-card { padding: 16px; border-radius: 18px; } }
+
+/* Sincronizar todo */
+.sync { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+.sync svg { width: 17px; height: 17px; }
+.sync.girando svg { animation: girar 1s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .sync span { display: none; } .sync { padding: 7px; margin-left: 4px; } }
+
+/* Agenda */
+#mod-agenda { overflow-y: auto; }
+.aico { width: 17px; height: 17px; flex: none; }
+.ag { width: 100%; padding: 4px 24px 40px; display: grid; gap: 16px; }
+.ag-cal { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-head h3 { font-size: 1.2rem; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-nav button { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; font-size: 18px; line-height: 1; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal .dow { font-size: .75rem; font-weight: 600; color: var(--muted); text-align: center; padding: 4px 0; text-transform: uppercase; }
+.cal .d { aspect-ratio: 1 / .9; min-height: 44px; border: 0; border-radius: 12px; background: #1f1f21; color: var(--fg); cursor: pointer; display: grid; align-content: space-between; justify-items: start; padding: 6px 7px; font: inherit; font-weight: 600; font-size: .95rem; }
+.cal .d.fuera { background: transparent; color: #48484a; }
+.cal .d.hoy { box-shadow: inset 0 0 0 2px var(--amber); }
+.cal .d.sel { background: var(--amber); color: var(--amber-ink); }
+.cal .d:hover:not(.sel) { background: #2a2a2d; }
+.cal .pts { display: flex; gap: 3px; flex-wrap: wrap; }
+.cal .pt { width: 7px; height: 7px; border-radius: 50%; }
+.pt.evento, .tag.evento { background: #a78bfa; } .pt.tarea, .tag.tarea { background: #64d2ff; } .pt.incidencia, .tag.incidencia { background: #ff6961; }
+.cal .d.sel .pt { box-shadow: 0 0 0 1.5px var(--amber-ink); }
+.cal-ley { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: #d2d2d7; }
+.cal-ley span { display: inline-flex; align-items: center; gap: 6px; }
+.cal-ley .pt { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.alist { display: grid; }
+.aitem { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.aitem:last-child { border-bottom: 0; }
+.aitem .tt { font-weight: 600; overflow-wrap: anywhere; }
+.aitem .mm { grid-column: 2; font-size: .85rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.aitem .acc { grid-row: 1 / span 2; grid-column: 3; display: flex; gap: 6px; align-items: center; }
+.aitem.hecho .tt { text-decoration: line-through; color: var(--muted); }
+.chk { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #48484a; background: transparent; cursor: pointer; display: grid; place-items: center; color: transparent; padding: 0; grid-row: 1 / span 2; }
+.chk svg { width: 16px; height: 16px; }
+.chk.on { background: var(--ok); border-color: var(--ok); color: #04210f; }
+.chk:hover:not(.on) { border-color: var(--ok); }
+.del { width: 32px; height: 32px; border-radius: 999px; border: 0; background: transparent; color: #6e6e73; cursor: pointer; display: grid; place-items: center; }
+.del:hover { color: var(--bad); background: var(--bad-soft); }
+.del.armed { color: #fff; background: var(--bad); }
+.del svg { width: 18px; height: 18px; }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; padding: 2px 8px; border-radius: 999px; color: #111; }
+.tag.alta { background: #ff9f0a; } .tag.vencida { background: #ff6961; } .tag.hoy { background: var(--amber); }
+.grav { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; grid-row: 1 / span 2; }
+.grav svg { width: 19px; height: 19px; }
+.grav.leve { background: #2a2a2d; color: #d2d2d7; } .grav.media { background: #3a2a10; color: #ff9f0a; } .grav.grave { background: #3a1714; color: #ff6961; }
+.estado-sel { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: #0b0b0c; color: var(--fg); font: inherit; font-size: .85rem; }
+.aform { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.aform label { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.aform label.w2 { grid-column: span 2; } .aform label.w4 { grid-column: 1 / -1; }
+.aform input, .aform select, .aform textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; width: 100%; }
+.aform .err { color: var(--bad); font-size: .85rem; grid-column: 1 / -1; }
+.aform .btn { justify-self: start; }
+details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted); font-size: .9rem; }
+@media (max-width: 900px) { .ag-cal { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .ag { padding: 4px 16px 32px; } .aform { grid-template-columns: repeat(2, minmax(0, 1fr)); } .aform label.w2 { grid-column: 1 / -1; } .cal .d { min-height: 40px; padding: 4px 5px; font-size: .85rem; border-radius: 10px; } }
+@media (max-width: 640px) { header.bar .modulos { overflow-x: auto; scrollbar-width: none; max-width: calc(100vw - 72px); } header.bar .modulos::-webkit-scrollbar { display: none; } }
 
 /* Ingresos y gastos */
 .cper { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex-basis: 100%; }
@@ -378,7 +485,9 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     <button type="button" data-mod="facturacion"><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
     <button type="button" data-mod="personal">Personal</button>
     <button type="button" data-mod="caja"><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
+    <button type="button" data-mod="agenda">Agenda</button>
   </nav>
+  <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
 </header>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -391,6 +500,20 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
   <symbol id="i-activo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M15 17.4l2.2 2.2 4-4.2"/></symbol>
   <symbol id="i-inactivo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M15.4 17.6h5.4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.8 9.6h16.4M8 3.4v3.2M16 3.4v3.2"/><circle cx="8.4" cy="13.6" r="1.1" fill="currentColor"/><circle cx="12" cy="13.6" r="1.1" fill="currentColor"/><circle cx="15.6" cy="13.6" r="1.1" fill="currentColor"/><circle cx="8.4" cy="17" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
+  <symbol id="i-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.6 4.4a1.6 1.6 0 0 1 2.8 0l7.4 13.2a1.6 1.6 0 0 1-1.4 2.4H4.6a1.6 1.6 0 0 1-1.4-2.4z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 9.6v4.4"/><circle cx="12" cy="16.9" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6.6 3.6h7.6l4.2 4.2v11a1.6 1.6 0 0 1-1.6 1.6H6.6A1.6 1.6 0 0 1 5 18.8V5.2a1.6 1.6 0 0 1 1.6-1.6z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M14 3.8v4.2h4.2M8.6 12.4h6.8M8.6 16h4.6"/></symbol>
+  <symbol id="i-billete" viewBox="0 0 24 24"><rect x="2.8" y="6.4" width="18.4" height="11.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M6 9.6v.01M18 14.4v.01"/></symbol>
+  <symbol id="i-gasto" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 8.6h6M9 12h6M9 15.4h3.6"/></symbol>
+  <symbol id="i-tendencia" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3.6 16.8l5.4-5.4 3.6 3.6 7.2-7.2M14.4 7.8h5.4v5.4"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
+  <symbol id="i-transf" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 8.4h14.4l-3.4-3.4M20 15.6H5.6l3.4 3.4"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 7.4V12l3 2"/></symbol>
+  <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 19.6c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 12.4l4 4 8-8.6"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8M17.6 3.6v3.6H14M6.4 20.4v-3.6H10"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <div class="mod" id="mod-inicio">
@@ -399,21 +522,49 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
       <h2 id="i-saludo">Hola.</h2>
       <p class="note" id="i-fecha"></p>
     </header>
-    <section class="ini-hero ini-card" data-ir="caja" tabindex="0" role="link" aria-label="Ver ingresos y gastos">
-      <span class="ini-k">Ingresos de hoy</span>
-      <b class="ini-big" id="i-hoy">$0</b>
-      <div class="ini-split" id="i-split"></div>
-      <span class="ini-turno" id="i-turno"></span>
-    </section>
-    <div class="ini-tiles">
-      <section class="ini-card ini-tile" data-ir="facturacion" tabindex="0" role="link"><span class="ini-k">Facturas pendientes</span><b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span></section>
-      <section class="ini-card ini-tile" data-ir="caja" tabindex="0" role="link"><span class="ini-k">Efectivo en caja · turno en curso</span><b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span></section>
-      <section class="ini-card ini-tile" data-ir="caja" tabindex="0" role="link"><span class="ini-k">Gastos de hoy</span><b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span></section>
-      <section class="ini-card ini-tile" data-ir="personal" tabindex="0" role="link"><span class="ini-k">Expedientes incompletos</span><b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span></section>
-    </div>
-    <div class="ini-charts">
-      <section class="ini-card"><h3>Hoy por turno</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span></div><div class="graf" id="g-turnos"></div></section>
-      <section class="ini-card"><h3>Últimos 7 días</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span></div><div class="graf" id="g-dias"></div></section>
+    <div class="ini-grid">
+      <section class="ini-card ini-hero s2" data-ir="caja" tabindex="0" role="link">
+        <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
+        <b class="ini-big" id="i-hoy">$0</b>
+        <div class="ini-split" id="i-split"></div>
+        <span class="ini-turno" id="i-turno"></span>
+      </section>
+      <section class="ini-card kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+      </section>
+      <section class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
+        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span>
+      </section>
+      <section class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
+        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span>
+      </section>
+      <section class="ini-card kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-persona"/></svg></span><span class="ini-k">Expedientes incompletos</span></div>
+        <b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span>
+      </section>
+      <section class="ini-card s2 acciones">
+        <span class="ini-k">Acciones rápidas</span>
+        <div class="acc-grid">
+          <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
+          <button type="button" class="accion" data-accion="transf" style="--c:#e879b6"><span class="ibadge"><svg><use href="#i-transf"/></svg></span>Agregar ingreso por transferencia</button>
+          <button type="button" class="accion" data-accion="tarea" style="--c:#64d2ff"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span>Nueva tarea</button>
+          <button type="button" class="accion" data-accion="compra" style="--c:#ffb86b"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span>Anotar compra</button>
+          <button type="button" class="accion" data-accion="incidencia" style="--c:#ff6961"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
+          <button type="button" class="accion" data-accion="evento" style="--c:#b69cff"><span class="ibadge"><svg><use href="#i-cal"/></svg></span>Agendar evento</button>
+        </div>
+      </section>
+      <section class="ini-card"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
+      <section class="ini-card"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
+      <section class="ini-card s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <section class="ini-card s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+      <section class="ini-card" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></section>
+      <section class="ini-card ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></section>
+      <section class="ini-card ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></section>
+      <section class="ini-card ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></section>
+      <section class="ini-card ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></section>
     </div>
     <p class="note ini-pie" id="i-pie"></p>
   </div>
@@ -432,7 +583,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     <button class="tab" role="tab" data-estado="historico" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-arch"/></svg><span class="tl">Histórico</span> <span class="n" id="n-historico">0</span></button>
   </div>
   <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
-  <button class="btn btn-line" id="recargar" type="button">Actualizar</button>
+  <button class="btn btn-line" id="recargar" type="button" hidden>Actualizar</button>
   <details class="export">
     <summary class="btn btn-line">Exportar a Excel</summary>
     <div class="export-box">
@@ -505,13 +656,27 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   </div>
   <button class="btn btn-primary" id="c-gasto" type="button">+ Agregar gasto</button>
   <button class="btn btn-line" id="c-transf" type="button">+ Agregar transferencia</button>
-  <button class="btn btn-line" id="c-sync" type="button">Actualizar ahora</button>
   <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
 </div>
 <main class="work" id="c-work">
   <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
 </main>
+</div>
+<div class="mod" id="mod-agenda" hidden>
+<div class="titlebar">
+  <h2 id="a-titulo">Agenda.</h2>
+  <p id="a-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Agenda" id="a-tabs">
+    <button class="ptab" role="tab" data-t="calendario" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Calendario</button>
+    <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
+    <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
+    <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
+  </div>
+</div>
+<div class="ag" id="ag-cuerpo"></div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
@@ -1081,10 +1246,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 
   // ---- Cambio de sección ----
   let personalCargado = false;
+  document.addEventListener("recargar-todo", () => { if (personalCargado) cargar(); });
   function mostrar(mod) {
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    for (const m of ["inicio", "facturacion", "personal", "caja"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos" }[mod] || "Facturación") + " · El Castaño";
+    for (const m of ["inicio", "facturacion", "personal", "caja", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos", agenda: "Agenda" }[mod] || "Facturación") + " · El Castaño";
     if (history.replaceState) history.replaceState(null, "", mod === "inicio" ? location.pathname : "#" + mod);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
@@ -1587,6 +1753,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   if (location.hash === "#personal") mostrar("personal");
   if (location.hash === "#caja") mostrar("caja");
   if (location.hash === "#facturacion") mostrar("facturacion");
+  if (location.hash === "#agenda") mostrar("agenda");
   window.irA = mostrar;
 })();
 </script>
@@ -1844,25 +2011,22 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   });
   for (const id of ["#c-desde", "#c-hasta"]) $(id).addEventListener("change", () => periodo($("#c-desde").value, $("#c-hasta").value, ""));
   $("#c-gasto").addEventListener("click", nuevoGasto);
-  $("#c-sync").addEventListener("click", async e => {
-    const b = e.currentTarget; b.disabled = true; b.textContent = "Leyendo la hoja…";
-    try { await api("caja/sincronizar", { method: "POST", body: "{}" }); toast("Ingresos actualizados"); await cargar(); if (st.actual) abrir(st.actual); }
-    catch (err) { if (err.message !== "sesion") toast(err.message); }
-    b.disabled = false; b.textContent = "Actualizar ahora";
-  });
   document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
+  document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { await cargar(); if (st.actual && !String(st.actual).startsWith("t:")) abrir(st.actual); } });
   if (location.hash === "#caja") cargar();
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
 })();
 </script>
 <script>
-// ---- Inicio: resumen del día ----
+// ---- Inicio: tablero del día ----
 (() => {
   const $ = q => document.querySelector(q);
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const COL = { bas: "#c08a00", pen: "#3d8fd6", tra: "#8e8e93" };
-  const dinero = (v, dec = 0) => "$" + (Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  // Colores validados (daltonismo y contraste sobre fondo oscuro). Cada entidad conserva su color en todas las gráficas.
+  const COL = { bas: "#c08a00", pen: "#3d8fd6", tra: "#d0559a", efe: "#1aa3a3", tar: "#6c74e8" };
+  const ESTADO = { pendiente: ["#fab219", "i-reloj", "Pendientes"], facturada: ["#0ca30c", "i-check", "Facturadas"], rechazada: ["#d03b3b", "i-x", "Rechazadas"] };
+  const dinero = (v, dec = 0) => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const compacto = v => v >= 1000 ? "$" + (v / 1000).toLocaleString("es-MX", { maximumFractionDigits: 1 }) + "k" : "$" + Math.round(v);
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   const reducido = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1873,13 +2037,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   }
   const ahoraMx = () => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date()).map(x => [x.type, x.value]));
   const sumar = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-  // Día de operación y turno en curso (mañana 6–14, tarde 14–22, noche 22–6)
   function turnoActual() {
     const p = ahoraMx(); const h = Number(p.hour) % 24; const hoy = `${p.year}-${p.month}-${p.day}`;
-    if (h < 6) return { dia: sumar(hoy, -1), turno: "NOCHE", h };
-    return { dia: hoy, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE", h };
+    if (h < 6) return { dia: sumar(hoy, -1), turno: "NOCHE", h, hoy };
+    return { dia: hoy, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE", h, hoy };
   }
-  // Números que cuentan hacia su valor
   const previos = new Map();
   function contar(el, valor, formato) {
     const desde = previos.get(el) ?? 0; previos.set(el, valor);
@@ -1888,143 +2050,371 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     const paso = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = formato(desde + (valor - desde) * e); if (k < 1) requestAnimationFrame(paso); };
     requestAnimationFrame(paso);
   }
-
-  // Columnas apiladas: datos = [{ etiqueta, partes: [{ k, nombre, v }], nota }]
   const tip = $("#gtip");
-  function tooltip(ev, d) {
-    tip.innerHTML = `<b>${esc(d.titulo)}</b>${d.partes.map(p => `<div class="r"><span><i class="sw ${p.k}"></i>${esc(p.nombre)}</span><span>${dinero(p.v, 2)}</span></div>`).join("")}<div class="r" style="border-top:1px solid #3a3a3c;padding-top:3px"><span>Total</span><b>${dinero(d.total, 2)}</b></div>`;
+  function tooltip(ev, titulo, filas, total) {
+    tip.innerHTML = `<b>${esc(titulo)}</b>${filas.map(p => `<div class="r"><span><i class="sw" style="background:${p.c}"></i>${esc(p.nombre)}</span><span>${p.txt ?? dinero(p.v, 2)}</span></div>`).join("")}${total !== undefined ? `<div class="r" style="border-top:1px solid #3a3a3c;padding-top:3px"><span>Total</span><b>${total}</b></div>` : ""}`;
     tip.hidden = false;
     const x = Math.min(innerWidth - tip.offsetWidth - 8, ev.clientX + 12), y = Math.max(8, ev.clientY - tip.offsetHeight - 12);
     tip.style.left = x + "px"; tip.style.top = y + "px";
   }
-  function columnas(cont, datos, { alto = 200 } = {}) {
-    const W = Math.max(280, cont.clientWidth || 320), H = alto, izq = 40, der = 4, arr = 18, abajo = 24;
-    const max = Math.max(1, ...datos.map(d => d.total));
+  const ocultarTip = () => { tip.hidden = true; };
+
+  // ---- Gráfica circular (dona) ----
+  function dona(cont, partes, { centro, etiqueta, formato = v => dinero(v, 2), iconos = false } = {}) {
+    const total = partes.reduce((a, p) => a + p.v, 0);
+    const R = 52, C = 2 * Math.PI * R, gap = total > 0 && partes.filter(p => p.v > 0).length > 1 ? 2.5 : 0;
+    let off = 0, arcos = "";
+    if (total > 0) partes.forEach((p, i) => {
+      if (p.v <= 0) return;
+      const largo = Math.max(0, C * p.v / total - gap);
+      arcos += `<circle class="arco" data-i="${i}" r="${R}" cx="64" cy="64" fill="none" stroke="${p.c}" stroke-width="16" stroke-dasharray="${largo} ${C - largo}" stroke-dashoffset="${-off}" transform="rotate(-90 64 64)"/>`;
+      off += C * p.v / total;
+    });
+    else arcos = `<circle r="${R}" cx="64" cy="64" fill="none" stroke="#2c2c2e" stroke-width="16"/>`;
+    cont.innerHTML = `<svg viewBox="0 0 128 128" role="img" aria-label="${esc(etiqueta)}: ${partes.map(p => `${p.nombre} ${formato(p.v)}`).join(", ")}">${arcos}
+      <text class="centro-v" x="64" y="66" text-anchor="middle">${esc(centro ?? formato(total))}</text><text class="centro-k" x="64" y="80" text-anchor="middle">${esc(etiqueta)}</text></svg>
+      <div class="ley">${partes.map(p => `<div>${iconos && p.ico ? `<span class="st-ico" style="background:${p.c}"><svg><use href="#${p.ico}"/></svg></span>` : `<i class="sw" style="background:${p.c}"></i>`}<span>${esc(p.nombre)}</span><b>${formato(p.v)}${total > 0 ? `<small>${Math.round(100 * p.v / total)}%</small>` : ""}</b></div>`).join("")}</div>`;
+    cont.querySelectorAll(".arco").forEach(a => {
+      const p = partes[a.dataset.i];
+      a.addEventListener("pointermove", ev => tooltip(ev, etiqueta, [{ c: p.c, nombre: p.nombre, txt: `${formato(p.v)} · ${Math.round(100 * p.v / total)}%` }]));
+      a.addEventListener("pointerleave", ocultarTip);
+      if (!reducido) { const L = a.getAttribute("stroke-dasharray").split(" ")[0]; a.animate([{ strokeDasharray: `0 ${C}` }, { strokeDasharray: `${L} ${C - L}` }], { duration: 800, easing: "cubic-bezier(.16,1,.3,1)" }); }
+    });
+  }
+
+  // ---- Columnas apiladas con línea de promedio ----
+  function columnas(cont, datos, { alto = 210, promedio } = {}) {
+    const W = Math.max(280, cont.clientWidth || 320), H = alto, izq = 42, der = 6, arr = 20, abajo = 24;
+    const max = Math.max(1, promedio || 0, ...datos.map(d => d.total));
     const paso = max > 20000 ? 10000 : max > 8000 ? 5000 : max > 4000 ? 2000 : max > 2000 ? 1000 : max > 800 ? 500 : 200;
     const tope = Math.ceil(max / paso) * paso;
     const y = v => arr + (H - arr - abajo) * (1 - v / tope);
-    const banda = (W - izq - der) / datos.length, ancho = Math.min(24 * (datos.length > 4 ? 1 : 1.5), banda * 0.6);
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(cont.dataset.titulo || "")}">`;
+    const banda = (W - izq - der) / datos.length, ancho = Math.min(28, banda * 0.55);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos de los últimos 7 días">`;
     for (let v = 0; v <= tope; v += paso) svg += `<line class="eje" x1="${izq}" x2="${W - der}" y1="${y(v)}" y2="${y(v)}"/><text x="${izq - 6}" y="${y(v) + 4}" text-anchor="end">${compacto(v)}</text>`;
     datos.forEach((d, i) => {
       const cx = izq + banda * i + banda / 2, x0 = cx - ancho / 2;
       let base = y(0), segs = "";
       const vivas = d.partes.filter(p => p.v > 0);
       vivas.forEach((p, j) => {
-        const alto = (H - arr - abajo) * (p.v / tope);
-        const yTop = base - alto;
-        const ultimo = j === vivas.length - 1, gap = j > 0 ? 2 : 0;
-        const hh = Math.max(0, alto - gap);
-        segs += ultimo && hh > 4
-          ? `<path class="seg-p" d="M${x0},${base - gap} V${yTop + 4} Q${x0},${yTop} ${x0 + 4},${yTop} H${x0 + ancho - 4} Q${x0 + ancho},${yTop} ${x0 + ancho},${yTop + 4} V${base - gap} Z" fill="${COL[p.k]}"/>`
-          : `<rect x="${x0}" y="${yTop}" width="${ancho}" height="${hh}" fill="${COL[p.k]}"/>`;
+        const alto = (H - arr - abajo) * (p.v / tope), yTop = base - alto, gap = j > 0 ? 2 : 0, hh = Math.max(0, alto - gap);
+        segs += j === vivas.length - 1 && hh > 4
+          ? `<path d="M${x0},${base - gap} V${yTop + 4} Q${x0},${yTop} ${x0 + 4},${yTop} H${x0 + ancho - 4} Q${x0 + ancho},${yTop} ${x0 + ancho},${yTop + 4} V${base - gap} Z" fill="${p.c}"/>`
+          : `<rect x="${x0}" y="${yTop}" width="${ancho}" height="${hh}" fill="${p.c}"/>`;
         base = yTop;
       });
-      const etq = `<text x="${cx}" y="${H - 6}" text-anchor="middle"${d.resaltar ? ' style="fill:#f5f5f7;font-weight:600"' : ""}>${esc(d.etiqueta)}</text>`;
       const val = d.total > 0 ? `<text class="val" x="${cx}" y="${base - 6}" text-anchor="middle">${compacto(d.total)}</text>` : "";
-      svg += `<g class="col" data-i="${i}"><g class="segs" style="transform-origin:${cx}px ${y(0)}px">${segs}</g>${val}${etq}<rect class="hit" x="${izq + banda * i}" y="${arr}" width="${banda}" height="${H - arr}"/></g>`;
+      svg += `<g class="col" data-i="${i}"><g class="segs" style="transform-origin:${cx}px ${y(0)}px">${segs}</g>${val}<text x="${cx}" y="${H - 6}" text-anchor="middle"${d.resaltar ? ' style="fill:#f5f5f7;font-weight:600"' : ""}>${esc(d.etiqueta)}</text><rect class="hit" x="${izq + banda * i}" y="${arr}" width="${banda}" height="${H - arr}"/></g>`;
     });
+    if (promedio > 0) svg += `<line x1="${izq}" x2="${W - der}" y1="${y(promedio)}" y2="${y(promedio)}" stroke="#c7c7cc" stroke-width="1.5" opacity=".8"/>`;
     svg += `<line class="eje" x1="${izq}" x2="${W - der}" y1="${y(0)}" y2="${y(0)}" style="stroke:#48484a"/></svg>`;
     cont.innerHTML = svg;
     cont.querySelectorAll(".col").forEach(g => {
       const d = datos[g.dataset.i];
-      g.addEventListener("pointermove", ev => tooltip(ev, d));
-      g.addEventListener("pointerdown", ev => tooltip(ev, d));
-      g.addEventListener("pointerleave", () => { tip.hidden = true; });
+      const mostrar = ev => tooltip(ev, d.titulo, d.partes.map(p => ({ c: p.c, nombre: p.nombre, v: p.v })), dinero(d.total, 2));
+      g.addEventListener("pointermove", mostrar); g.addEventListener("pointerdown", mostrar); g.addEventListener("pointerleave", ocultarTip);
     });
-    // Animación: cada columna crece desde la base
     if (!reducido) cont.querySelectorAll(".segs").forEach((g, i) => g.animate([{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }], { duration: 700, delay: i * 60, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
   }
 
+  // ---- Comparativo del turno en curso ----
+  function comparativo(cont, ta, porDiaTurno, dias7) {
+    const t = ta.turno, val = d => { const c = porDiaTurno[d + "|" + t]; return c ? c.efectivo + c.tarjeta : 0; };
+    const hoy = val(ta.dia), ayer = val(sumar(ta.dia, -1));
+    const previos = dias7.filter(d => d !== ta.dia).map(val);
+    const prom = previos.length ? previos.reduce((a, b) => a + b, 0) / previos.length : 0;
+    const max = Math.max(1, hoy, ayer, prom);
+    const delta = (a, b, enCurso) => { if (enCurso) return `<span class="delta igual">en curso</span>`; if (!b) return `<span class="delta igual">—</span>`; const p = Math.round(100 * (a - b) / b); return `<span class="delta ${p > 0 ? "sube" : p < 0 ? "baja" : "igual"}">${p > 0 ? "▲" : p < 0 ? "▼" : "="} ${Math.abs(p)}%</span>`; };
+    $("#cmp-sub").textContent = `Turno de la ${TURNO_TXT[t].toLowerCase()} en curso contra el mismo turno de ayer y su promedio de 7 días (efectivo + tarjeta). Los porcentajes salen al cerrar el turno.`;
+    const fila = (k, v, c, d) => `<div class="cmp-fila"><span class="k">${k}</span><div style="background:#1f1f21;border-radius:0 4px 4px 0"><div class="cmp-bar" style="--c:${c};width:${Math.max(1.5, 100 * v / max)}%"></div></div><span><b>${dinero(v)}</b> ${d || ""}</span></div>`;
+    const tTurnos = ["MAÑANA", "TARDE", "NOCHE"].map(x => {
+      const h = porDiaTurno[ta.dia + "|" + x], a = porDiaTurno[sumar(ta.dia, -1) + "|" + x];
+      const vh = h ? h.efectivo + h.tarjeta : 0, va = a ? a.efectivo + a.tarjeta : 0;
+      const orden = ["MAÑANA", "TARDE", "NOCHE"], futuro = orden.indexOf(x) > orden.indexOf(t);
+      return `<div class="${x === t ? "act" : ""}"><span>${TURNO_TXT[x]} hoy</span><b>${futuro ? "—" : dinero(vh)}</b><span style="font-weight:500">ayer ${dinero(va)} ${futuro ? "" : delta(vh, va, x === t)}</span></div>`;
+    }).join("");
+    cont.innerHTML = fila("Hoy", hoy, "#ffcc00", "") + fila("Ayer", ayer, "#8e8e93", "") + fila("Promedio 7 d", prom, "#5e5e63", "") + `<div class="cmp-turnos">${tTurnos}</div>`;
+    if (!reducido) cont.querySelectorAll(".cmp-bar").forEach((b, i) => b.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 700, delay: i * 80, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
+  }
+
   const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", timeZone: "UTC" });
+  const fCorto = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "UTC" });
   const fLargo = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-  let ultimo = null;
+  let firmaGraf = null;
 
   async function cargar() {
-    const ta = turnoActual();
-    const h = ta.h;
+    const ta = turnoActual(), h = ta.h;
     $("#i-saludo").textContent = h >= 6 && h < 12 ? "Buenos días." : h >= 12 && h < 19 ? "Buenas tardes." : "Buenas noches.";
     const fechaTxt = fLargo.format(new Date(ta.dia + "T12:00:00Z"));
     $("#i-fecha").textContent = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1) + ` · turno de la ${TURNO_TXT[ta.turno].toLowerCase()} en curso`;
-    const desde = sumar(ta.dia, -6);
-    const [fac, caja, per] = await Promise.allSettled([
-      api("solicitudes?estado=pendiente"),
-      api(`caja?desde=${desde}&hasta=${ta.dia}`),
-      api("colaboradores?tipo=colaborador&estatus=activo")
+    const [fac, caja, per, ag] = await Promise.allSettled([
+      api("solicitudes?estado=pendiente"), api(`caja?desde=${sumar(ta.dia, -7)}&hasta=${ta.dia}`),
+      api("colaboradores?tipo=colaborador&estatus=activo"), api("agenda/resumen")
     ]);
-    if ([fac, caja, per].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
+    if ([fac, caja, per, ag].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
 
-    // Facturas
     if (fac.status === "fulfilled") {
-      const n = fac.value.conteos.pendiente || 0;
+      const c = fac.value.conteos, n = c.pendiente || 0;
       contar($("#i-pend"), n, v => String(Math.round(v)));
-      const viejo = fac.value.solicitudes[0];
-      const horas = viejo ? (Date.now() - new Date(viejo.creado)) / 36e5 : 0;
-      $("#i-pend-nota").textContent = !n ? "Todo facturado" : horas < 1 ? "La más antigua llegó hace menos de una hora" : horas < 24 ? `La más antigua espera desde hace ${Math.round(horas)} h` : `La más antigua espera desde hace ${Math.floor(horas / 24)} ${Math.floor(horas / 24) === 1 ? "día" : "días"}`;
+      const viejo = fac.value.solicitudes[0], horas = viejo ? (Date.now() - new Date(viejo.creado)) / 36e5 : 0;
+      $("#i-pend-nota").textContent = !n ? "Todo facturado" : horas < 1 ? "La más antigua llegó hace menos de 1 h" : horas < 24 ? `La más antigua espera ${Math.round(horas)} h` : `La más antigua espera ${Math.floor(horas / 24)} ${Math.floor(horas / 24) === 1 ? "día" : "días"}`;
+      dona($("#d-fact"), ["pendiente", "facturada", "rechazada"].map(k => ({ nombre: ESTADO[k][2], v: c[k] || 0, c: ESTADO[k][0], ico: ESTADO[k][1] })), { etiqueta: "solicitudes", formato: v => String(Math.round(v)), iconos: true });
     }
-    // Personal
     if (per.status === "fulfilled") {
       const c = per.value.conteos;
       contar($("#i-exp"), c.incompletos || 0, v => String(Math.round(v)));
       $("#i-exp-nota").textContent = `de ${c.todos || 0} colaboradores activos`;
     }
-    // Ingresos
     if (caja.status === "fulfilled") {
       const j = caja.value;
+      const porDiaTurno = Object.fromEntries(j.cortes.map(c => [c.dia + "|" + c.turno, c]));
       const delDia = j.cortes.filter(c => c.dia === ta.dia);
-      const tHoy = j.transferencias.filter(t => t.fecha === ta.dia).reduce((a, t) => a + t.importe, 0);
+      const trHoy = j.transferencias.filter(t => t.fecha === ta.dia).reduce((a, t) => a + t.importe, 0);
       const ef = delDia.reduce((a, c) => a + c.efectivo, 0), tj = delDia.reduce((a, c) => a + c.tarjeta, 0);
-      contar($("#i-hoy"), ef + tj + tHoy, v => dinero(v));
-      $("#i-split").innerHTML = `<span>Efectivo <b>${dinero(ef, 2)}</b></span><span>Tarjeta <b>${dinero(tj, 2)}</b></span><span>Transferencias <b>${dinero(tHoy, 2)}</b></span>`;
-      const enCurso = delDia.find(c => c.turno === ta.turno);
+      const bas = delDia.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0), pen = delDia.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0);
+      contar($("#i-hoy"), ef + tj + trHoy, v => dinero(v));
+      $("#i-split").innerHTML = `<span><i class="sw efe"></i> Efectivo <b>${dinero(ef, 2)}</b></span><span><i class="sw tar"></i> Tarjeta <b>${dinero(tj, 2)}</b></span><span><i class="sw tra"></i> Transferencias <b>${dinero(trHoy, 2)}</b></span>`;
+      const enCurso = porDiaTurno[ta.dia + "|" + ta.turno];
       contar($("#i-caja"), enCurso ? enCurso.efectivo_caja : 0, v => dinero(v));
-      $("#i-caja-nota").textContent = enCurso ? `${TURNO_TXT[ta.turno]}: ${enCurso.registros} registros en la hoja` : `${TURNO_TXT[ta.turno]}: sin registros todavía`;
+      $("#i-caja-nota").textContent = `Turno de la ${TURNO_TXT[ta.turno].toLowerCase()}${enCurso ? ` · ${enCurso.registros} registros` : " · sin registros aún"}`;
       const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
       contar($("#i-gastos"), gHoy, v => dinero(v));
       $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto capturado" : "gastos capturados"}` : "Sin gastos capturados";
-      const s = j.sync;
-      const hace = s && s.at ? Math.round((Date.now() - new Date(s.at)) / 60000) : null;
-      $("#i-turno").textContent = !j.conectado ? "La hoja de ingresos no está conectada" : hace === null ? "" : `Datos de la hoja actualizados hace ${hace < 1 ? "un momento" : hace + " min"}`;
-      $("#i-pie").textContent = "Las gráficas suman solo efectivo y tarjeta de la hoja (más transferencias capturadas). Prepago no suma.";
+      const s = j.sync, hace = s && s.at ? Math.round((Date.now() - new Date(s.at)) / 60000) : null;
+      $("#i-turno").textContent = !j.conectado ? "La hoja de ingresos no está conectada" : hace === null ? "" : `Hoja de ingresos leída hace ${hace < 1 ? "un momento" : hace + " min"}`;
 
-      // Gráfica: hoy por turno
-      const turnos = ["MAÑANA", "TARDE", "NOCHE"].map(t => {
-        const c = delDia.find(x => x.turno === t);
-        const partes = [{ k: "bas", nombre: "Báscula", v: c ? c.bascula.EFECTIVO + c.bascula.TARJETA : 0 }, { k: "pen", nombre: "Pensión", v: c ? c.pension.EFECTIVO + c.pension.TARJETA : 0 }];
-        return { etiqueta: TURNO_TXT[t], titulo: `${TURNO_TXT[t]} · hoy`, partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: t === ta.turno };
-      });
-      $("#g-turnos").dataset.titulo = "Ingresos de hoy por turno";
-      // Gráfica: últimos 7 días
-      const dias = [];
-      for (let k = 6; k >= 0; k--) {
-        const d = sumar(ta.dia, -k), cs = j.cortes.filter(c => c.dia === d);
+      const dias7 = []; for (let k = 6; k >= 0; k--) dias7.push(sumar(ta.dia, -k));
+      const semana = dias7.map((d, i) => {
+        const cs = j.cortes.filter(c => c.dia === d);
         const partes = [
-          { k: "bas", nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) },
-          { k: "pen", nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) },
-          { k: "tra", nombre: "Transferencias", v: j.transferencias.filter(t => t.fecha === d).reduce((a, t) => a + t.importe, 0) }
+          { c: COL.bas, nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) },
+          { c: COL.pen, nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) },
+          { c: COL.tra, nombre: "Transferencias", v: j.transferencias.filter(t => t.fecha === d).reduce((a, t) => a + t.importe, 0) }
         ];
-        const et = fDia.format(new Date(d + "T12:00:00Z")).replace(".", "");
-        dias.push({ etiqueta: k === 0 ? "Hoy" : et, titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: k === 0 });
+        return { etiqueta: i === 6 ? "Hoy" : fDia.format(new Date(d + "T12:00:00Z")).replace(".", ""), titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: i === 6 };
+      });
+      const cerrados = semana.slice(0, 6), promedio = cerrados.reduce((a, d) => a + d.total, 0) / Math.max(1, cerrados.length);
+      const firma = JSON.stringify([ef, tj, trHoy, bas, pen, semana.map(d => d.total), Object.keys(porDiaTurno).length, innerWidth]);
+      if (firma !== firmaGraf) {
+        firmaGraf = firma;
+        dona($("#d-formas"), [{ nombre: "Efectivo", v: ef, c: COL.efe }, { nombre: "Tarjeta", v: tj, c: COL.tar }, { nombre: "Transferencias", v: trHoy, c: COL.tra }], { etiqueta: "hoy", centro: compacto(ef + tj + trHoy) });
+        dona($("#d-serv"), [{ nombre: "Báscula", v: bas, c: COL.bas }, { nombre: "Pensión", v: pen, c: COL.pen }, { nombre: "Transferencias", v: trHoy, c: COL.tra }], { etiqueta: "hoy", centro: compacto(bas + pen + trHoy) });
+        comparativo($("#cmp"), ta, porDiaTurno, dias7);
+        columnas($("#g-dias"), semana, { promedio });
+        $("#prom-txt").textContent = `Promedio diario ${dinero(promedio)} (6 días anteriores)`;
       }
-      $("#g-dias").dataset.titulo = "Ingresos de los últimos 7 días";
-      const firma = JSON.stringify([turnos, dias]);
-      if (firma !== ultimo) { ultimo = firma; columnas($("#g-turnos"), turnos); columnas($("#g-dias"), dias); }
-    } else {
-      $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
+      $("#i-pie").textContent = "Las gráficas suman efectivo y tarjeta de la hoja de ingresos más las transferencias capturadas; el prepago no suma.";
+    } else $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
+
+    if (ag.status === "fulfilled") {
+      const a = ag.value, d = x => fCorto.format(new Date(x + "T12:00:00Z"));
+      const lista = (filas, f, vacio) => `<div class="mini-l">${filas.length ? filas.map(f).join("") : `<div class="vacio">${vacio}</div>`}</div>`;
+      $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");
+      contar($("#n-tareas"), a.abiertos.tarea || 0, v => String(Math.round(v)));
+      $("#m-tareas").innerHTML = lista(a.tareas, x => `<div><span>${x.prioridad === "alta" ? "❗ " : ""}${esc(x.titulo)}</span><span class="m" ${x.fecha && x.fecha < a.hoy ? 'style="color:#ff6961"' : ""}>${x.fecha ? esc(d(x.fecha)) : ""}</span></div>`, "Nada pendiente");
+      contar($("#n-compras"), a.abiertos.compra || 0, v => String(Math.round(v)));
+      $("#m-compras").innerHTML = lista(a.compras, x => `<div><span>${x.prioridad === "alta" ? "❗ " : ""}${esc(x.titulo)}</span><span class="m">${esc(x.cantidad || "")}</span></div>`, "Sin compras pendientes");
+      contar($("#n-incid"), a.abiertos.incidencia || 0, v => String(Math.round(v)));
+      $("#m-incid").innerHTML = lista(a.incidencias, x => `<div><span>${esc(x.titulo)}</span><span class="m" style="color:${x.gravedad === "grave" ? "#ff6961" : x.gravedad === "media" ? "#ff9f0a" : "#8e8e93"}">${esc(x.gravedad)}</span></div>`, "Sin incidencias");
     }
   }
 
+  // Navegación desde las tarjetas y acciones rápidas
   document.querySelectorAll("#mod-inicio [data-ir]").forEach(el => {
     const ir = () => window.irA && window.irA(el.dataset.ir);
     el.addEventListener("click", ir);
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ir(); } });
   });
-  document.addEventListener("modulo", e => { if (e.detail === "inicio") { ultimo = null; cargar().catch(() => {}); } });
+  document.querySelectorAll("#mod-inicio [data-agenda]").forEach(el => {
+    const ir = () => window.agendaAbrir && window.agendaAbrir(el.dataset.agenda);
+    el.addEventListener("click", ir);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ir(); } });
+  });
+  document.querySelectorAll("#mod-inicio [data-accion]").forEach(b => b.addEventListener("click", () => {
+    const a = b.dataset.accion;
+    if (a === "gasto" || a === "transf") { window.irA && window.irA("caja"); setTimeout(() => { const x = document.getElementById(a === "gasto" ? "c-gasto" : "c-transf"); x && x.click(); }, 300); }
+    else window.agendaAbrir && window.agendaAbrir(a === "evento" ? "calendario" : a);
+  }));
+  document.addEventListener("modulo", e => { if (e.detail === "inicio") { firmaGraf = null; cargar().catch(() => {}); } });
   let ancho = innerWidth;
-  addEventListener("resize", () => { if (Math.abs(innerWidth - ancho) > 40 && !$("#mod-inicio").hidden) { ancho = innerWidth; ultimo = null; cargar().catch(() => {}); } });
+  addEventListener("resize", () => { if (Math.abs(innerWidth - ancho) > 40 && !$("#mod-inicio").hidden) { ancho = innerWidth; firmaGraf = null; cargar().catch(() => {}); } });
   if (!$("#mod-inicio").hidden) cargar().catch(() => {});
   setInterval(() => { if (!$("#mod-inicio").hidden && !document.hidden) cargar().catch(() => {}); }, 120000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("#mod-inicio").hidden) cargar().catch(() => {}); });
+})();
+</script>
+<script>
+// ---- Agenda: calendario, por hacer, compras e incidencias ----
+(() => {
+  const $ = q => document.querySelector(q);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
+  async function api(ruta, op = {}) {
+    const r = await fetch("/panel/api/" + ruta, { ...op, headers: { "X-Panel": "1", ...(op.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
+    const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida." }));
+    if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; throw e; }
+    return j;
+  }
+  const post = (ruta, c) => api(ruta, { method: "POST", body: JSON.stringify(c || {}) });
+  const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const fLargo = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const fMes = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric", timeZone: "UTC" });
+  const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
+  const mayus = t => t.charAt(0).toUpperCase() + t.slice(1);
+  const st = { tab: "calendario", items: [], hoy: "", mes: "", sel: "" };
+  const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
+  const AVISO_TXT = { 15: "15 min antes", 60: "1 hora antes", 1440: "1 día antes" };
+  const ico = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
+  const abierto = it => !["hecho", "comprado", "resuelta"].includes(it.estado);
+
+  async function cargar() {
+    try {
+      const j = await api("agenda");
+      st.items = j.items; st.hoy = j.hoy;
+      if (!st.mes) st.mes = j.hoy.slice(0, 7);
+      if (!st.sel) st.sel = j.hoy;
+      for (const t of ["tarea", "compra", "incidencia"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      const a = j.abiertos;
+      $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.compra || 0} compras · ${a.incidencia || 0} incidencias abiertas`;
+      pintar();
+    } catch (e) { if (e.message !== "sesion") $("#ag-cuerpo").innerHTML = `<p class="empty">No se pudo cargar la agenda: ${esc(e.message)}</p>`; }
+  }
+
+  function pintar() {
+    document.querySelectorAll("#a-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.tab ? "true" : "false"));
+    $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : vistaLista(st.tab);
+    conectar();
+  }
+
+  // ---- Formularios ----
+  const avisoSel = (v = "") => `<label>Recordarme<select name="aviso"><option value="">No</option>${[15, 60, 1440].map(m => `<option value="${m}" ${String(v) === String(m) ? "selected" : ""}>${AVISO_TXT[m]}</option>`).join("")}</select></label>`;
+  function formulario(tipo, fecha) {
+    if (tipo === "evento") return `<form class="aform" data-tipo="evento"><label class="w4">Nuevo evento<input name="titulo" maxlength="140" placeholder="Ej. Pago de luz, junta con proveedor" autocomplete="off"></label>
+      <label>Fecha<input type="date" name="fecha" value="${esc(fecha)}"></label><label>Hora<input type="time" name="hora"></label>${avisoSel(60)}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+    if (tipo === "tarea") return `<form class="aform" data-tipo="tarea"><label class="w4">Nueva tarea<input name="titulo" maxlength="140" placeholder="Ej. Pintar la caseta, renovar extintores" autocomplete="off"></label>
+      <label>Fecha límite<input type="date" name="fecha"></label><label>Prioridad<select name="prioridad"><option value="normal">Normal</option><option value="alta">Alta</option></select></label>${avisoSel()}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+    if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
+      <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+    return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
+      <label class="w4">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
+      <label>Fecha<input type="date" name="fecha" value="${esc(st.hoy)}"></label><label>Turno<select name="turno"><option value="">—</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+      <label>Gravedad<select name="gravedad"><option value="leve">Leve</option><option value="media" selected>Media</option><option value="grave">Grave</option></select></label><button class="btn btn-primary" type="submit">Reportar</button><span class="err"></span></form>`;
+  }
+
+  // ---- Elementos de lista ----
+  function item(it) {
+    const hecho = !abierto(it);
+    const del = `<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar">${ico("i-trash")}</button>`;
+    if (it.tipo === "incidencia") {
+      return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
+        <span class="tt">${esc(it.titulo)}</span>
+        <span class="acc"><select class="estado-sel" data-estado="${esc(it.id)}" aria-label="Estado">${[["abierta", "Abierta"], ["en_proceso", "En proceso"], ["resuelta", "Resuelta"]].map(([k, v]) => `<option value="${k}" ${it.estado === k ? "selected" : ""}>${v}</option>`).join("")}</select>${del}</span>
+        <span class="mm"><span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span><span>Gravedad ${esc(it.gravedad)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
+    }
+    const fin = it.tipo === "compra" ? "comprado" : "hecho";
+    const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
+    const meta = [
+      it.tipo === "evento" ? `<span class="tag evento" style="color:#111">Evento</span>` : "",
+      it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
+      vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
+      it.cantidad ? `<span>${esc(it.cantidad)}</span>` : "",
+      it.fecha && it.tipo !== "evento" ? `<span>${it.tipo === "tarea" ? "Límite " : ""}${esc(diaTxt(it.fecha))}</span>` : "",
+      it.hora ? `<span>${esc(it.hora)}</span>` : "",
+      it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : ""
+    ].filter(Boolean).join("");
+    return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
+      <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}</div>`;
+  }
+
+  function vistaLista(tipo) {
+    const todos = st.items.filter(x => x.tipo === tipo);
+    const ab = todos.filter(abierto), ce = todos.filter(x => !abierto(x));
+    if (tipo === "tarea") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta") || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+    if (tipo === "compra") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta"));
+    if (tipo === "incidencia") { const g = { grave: 0, media: 1, leve: 2 }; ab.sort((a, b) => g[a.gravedad] - g[b.gravedad] || b.fecha.localeCompare(a.fecha)); }
+    const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas." }[tipo];
+    const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas" }[tipo];
+    return `<section class="card">${formulario(tipo)}</section>
+      <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
+      ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
+  }
+
+  function vistaCalendario() {
+    const [a, m] = st.mes.split("-").map(Number);
+    const primero = new Date(Date.UTC(a, m - 1, 1));
+    const inicio = new Date(primero); inicio.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7)); // semana inicia en lunes
+    const porDia = {};
+    for (const it of st.items) if (it.fecha && abierto(it) || (it.fecha && it.tipo === "evento")) (porDia[it.fecha] = porDia[it.fecha] || []).push(it);
+    let celdas = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map(d => `<span class="dow">${d}</span>`).join("");
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(inicio); d.setUTCDate(inicio.getUTCDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      const its = porDia[iso] || [];
+      const tipos = [...new Set(its.map(x => x.tipo))].filter(t => t !== "compra");
+      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${its.length ? `, ${its.length} pendientes` : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span></button>`;
+      if (i >= 34 && d.getUTCMonth() !== m - 1 && d.getUTCDay() === 0) break;
+    }
+    const delDia = st.items.filter(x => x.fecha === st.sel).sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
+    return `<div class="ag-cal">
+      <section class="card"><div class="cal-head"><h3>${esc(mayus(fMes.format(primero)))}</h3><div class="cal-nav"><button type="button" data-mes="-1" aria-label="Mes anterior">‹</button><button type="button" data-mes="hoy" aria-label="Hoy" style="width:auto;padding:0 12px;font-size:14px">Hoy</button><button type="button" data-mes="1" aria-label="Mes siguiente">›</button></div></div>
+        <div class="cal">${celdas}</div>
+        <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span></div></section>
+      <section class="card"><h3>${esc(mayus(fLargo.format(new Date(st.sel + "T12:00:00Z"))))}</h3>
+        <div class="alist">${delDia.length ? delDia.map(item).join("") : `<p class="note">Nada programado este día.</p>`}</div>
+        ${formulario("evento", st.sel)}</section></div>`;
+  }
+
+  function conectar() {
+    const c = $("#ag-cuerpo");
+    c.querySelectorAll("form.aform").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const datos = { tipo: f.dataset.tipo };
+      for (const el of f.elements) if (el.name) datos[el.name] = el.value;
+      const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
+      try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }
+      catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    }));
+    c.querySelectorAll("[data-chk]").forEach(b => b.addEventListener("click", async () => {
+      const on = b.classList.contains("on");
+      b.classList.toggle("on");
+      try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
+    }));
+    c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
+      try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
+      try { await post(`agenda/${b.dataset.del}/eliminar`); toast("Eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelectorAll("[data-dia]").forEach(b => b.addEventListener("click", () => { st.sel = b.dataset.dia; if (b.classList.contains("fuera")) st.mes = st.sel.slice(0, 7); pintar(); }));
+    c.querySelectorAll("[data-mes]").forEach(b => b.addEventListener("click", () => {
+      if (b.dataset.mes === "hoy") { st.mes = st.hoy.slice(0, 7); st.sel = st.hoy; }
+      else { const [a, m] = st.mes.split("-").map(Number); const d = new Date(Date.UTC(a, m - 1 + Number(b.dataset.mes), 1)); st.mes = d.toISOString().slice(0, 7); }
+      pintar();
+    }));
+  }
+
+  $("#a-tabs").addEventListener("click", e => { const b = e.target.closest(".ptab[data-t]"); if (b) { st.tab = b.dataset.t; pintar(); } });
+  // Abrir la agenda en una pestaña y con el formulario listo (desde el Inicio)
+  window.agendaAbrir = tab => { st.tab = tab || "calendario"; if (window.irA) window.irA("agenda"); setTimeout(() => { const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }, 250); };
+  document.addEventListener("modulo", e => { if (e.detail === "agenda") cargar(); });
+  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden) cargar(); });
+  if (location.hash === "#agenda") cargar();
+
+  // ---- Un solo botón para sincronizar todo ----
+  $("#sync-todo").addEventListener("click", async e => {
+    const b = e.currentTarget; if (b.disabled) return;
+    b.disabled = true; b.classList.add("girando");
+    let error = null;
+    try { await post("caja/sincronizar"); } catch (err) { error = err; }
+    $("#recargar").click();                                   // facturación
+    document.dispatchEvent(new CustomEvent("recargar-todo")); // ingresos, personal, agenda
+    const m = ["inicio"].find(x => !$("#mod-" + x).hidden);
+    if (m) document.dispatchEvent(new CustomEvent("modulo", { detail: m }));
+    setTimeout(() => { b.disabled = false; b.classList.remove("girando"); }, 600);
+    if (error && error.message !== "sesion") toast("Hoja de ingresos: " + error.message); else if (!error) toast("Todo sincronizado");
+  });
 })();
 </script>
 </body>
