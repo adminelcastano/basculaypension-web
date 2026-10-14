@@ -208,6 +208,12 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { header.bar small { display: none; } header.bar h1 { display: none; } header.bar .modulos { margin-left: auto; } }
 
 /* Ingresos y gastos */
+.cper { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex-basis: 100%; }
+.cper .ptab { white-space: nowrap; }
+.cper .corto { display: none; }
+@media (max-width: 640px) { .cper .largo { display: none; } .cper .corto { display: inline; } .cper label { flex: 1 1 140px; } .cper input { flex: 1; min-width: 0; } }
+.cper label { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.cper input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; color: var(--fg); font: inherit; }
 .ctot { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
 .ctot .k { background: var(--surface); border-radius: 14px; padding: 10px 14px; min-width: 120px; display: grid; gap: 2px; }
 .ctot .k span { font-size: .8rem; color: var(--muted); font-weight: 600; }
@@ -412,8 +418,23 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
   <p id="c-subtitulo" class="note"></p>
 </div>
 <div class="tools">
+  <div class="cper" role="group" aria-label="Periodo">
+    <div class="ptabs" id="c-rapidos">
+      <button class="ptab" type="button" data-r="hoy">Hoy</button>
+      <button class="ptab" type="button" data-r="ayer">Ayer</button>
+      <button class="ptab" type="button" data-r="7"><span class="largo">Últimos 7 días</span><span class="corto">7 días</span></button>
+      <button class="ptab" type="button" data-r="mes" aria-selected="true">Mes</button>
+    </div>
+    <label>Desde<input type="date" id="c-desde"></label>
+    <label>Hasta<input type="date" id="c-hasta"></label>
+  </div>
   <div class="ctot" id="c-totales" aria-live="polite"></div>
+  <div class="ptabs" role="tablist" aria-label="Vista" id="c-vistas">
+    <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes de turno</button>
+    <button class="ptab" role="tab" data-v="transf" aria-selected="false">Transferencias <span class="n" id="c-ntransf">0</span></button>
+  </div>
   <button class="btn btn-primary" id="c-gasto" type="button">+ Agregar gasto</button>
+  <button class="btn btn-line" id="c-transf" type="button">+ Agregar transferencia</button>
   <button class="btn btn-line" id="c-sync" type="button">Actualizar ahora</button>
   <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
 </div>
@@ -1523,24 +1544,40 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     return { dia, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE" };
   }
 
-  const st = { datos: null, actual: null, cargado: false };
+  const st = { datos: null, actual: null, cargado: false, vista: "cortes", desde: "", hasta: "", rapido: "mes" };
+  const sumar = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const consulta = () => { const q = new URLSearchParams(); if (st.desde) q.set("desde", st.desde); if (st.hasta) q.set("hasta", st.hasta); const t = q.toString(); return t ? "?" + t : ""; };
   const clave = c => c.dia + "|" + c.turno;
 
   async function cargar() {
     const lista = $("#c-lista");
     try {
-      const j = await api("caja");
+      const j = await api("caja" + consulta());
       st.datos = j;
+      $("#c-excel").href = "/panel/api/caja/exportar" + consulta();
+      $("#c-ntransf").textContent = j.transferencias.length;
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
       const s = j.sync;
       const hace = s && s.at ? Math.max(0, Math.round((Date.now() - new Date(s.at)) / 60000)) : null;
+      const per = st.desde && st.desde === st.hasta ? diaTxt(st.desde) : st.desde || st.hasta ? `${st.desde ? diaTxt(st.desde) : "inicio del mes"} a ${st.hasta ? diaTxt(st.hasta) : "hoy"}` : `${esc(nomMes)} ${a}`;
       $("#c-subtitulo").innerHTML = !j.conectado ? `<span style="color:var(--bad)">La hoja de Google todavía no está conectada.</span>`
-        : `${esc(nomMes)} ${a} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
+        : `${esc(per)} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
       const t = j.totales;
-      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
+      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Transferencias", t.transferencias], [st.desde || st.hasta ? "Ingresos del periodo" : "Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
+      if (st.vista === "transf") {
+        lista.innerHTML = j.transferencias.length ? j.transferencias.map(x => `<button class="item citem" data-t="${esc(x.id)}" ${st.actual === "t:" + x.id ? 'aria-current="true"' : ""}>
+          <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+          <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:15px">${Number(x.fecha.slice(8))}</span>
+          <span class="t">${esc(x.cliente)}</span>
+          <span class="m"><span>${esc(diaTxt(x.fecha))}</span><span><b>${dinero(x.importe)}</b></span></span>
+          <span class="m"><span>${x.factura ? "Factura " + esc(x.factura) : "Sin factura"}</span></span>
+        </button>`).join("") : `<p class="empty">No hay transferencias ${st.desde || st.hasta ? "en este periodo" : "este mes"}. Agrégalas con "+ Agregar transferencia".</p>`;
+        return;
+      }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
       lista.innerHTML = j.cortes.map(c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
@@ -1646,7 +1683,94 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
     }));
   }
 
-  $("#c-lista").addEventListener("click", e => { const b = e.target.closest(".item[data-k]"); if (b) abrir(b.dataset.k); });
+  $("#c-lista").addEventListener("click", e => {
+    const b = e.target.closest(".item[data-k]"); if (b) return abrir(b.dataset.k);
+    const t = e.target.closest(".item[data-t]"); if (t) abrirTransf(t.dataset.t);
+  });
+
+  // ---- Transferencias ----
+  function formTransf() {
+    return `<form class="cform" id="c-ftransf" novalidate>
+      <label class="wide">Nombre del cliente<input name="cliente" maxlength="120" required autocomplete="off"></label>
+      <label>Importe<input name="importe" inputmode="decimal" placeholder="0.00" required></label>
+      <label>Fecha<input type="date" name="fecha" value="${esc(hoyMx())}" required></label>
+      <label class="wide">Factura <span style="font-weight:400">(opcional)</span><input name="factura" maxlength="60" placeholder="Número o folio de la factura" autocomplete="off"></label>
+      <span class="err" id="c-terr" style="grid-column:1/-1"></span>
+      <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar transferencia</button></div>
+    </form>`;
+  }
+  function nuevaTransf() {
+    st.actual = null;
+    $("#c-work").classList.add("ver-detalle");
+    $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>Nueva transferencia</h2></div>
+      <section class="card">${formTransf()}<p class="note">Las transferencias suman a los ingresos, pero no a la caja de ningún turno.</p></section>`;
+    $("#c-volver").addEventListener("click", () => $("#c-work").classList.remove("ver-detalle"));
+    $("#c-ftransf").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const f = ev.target, b = f.querySelector("button[type=submit]");
+      b.disabled = true; $("#c-terr").textContent = "";
+      try {
+        const r = await api("caja/transferencias", { method: "POST", body: JSON.stringify({ cliente: f.cliente.value, importe: f.importe.value.replace(/[$,\s]/g, ""), fecha: f.fecha.value, factura: f.factura.value }) });
+        toast("Transferencia guardada");
+        cambiarVista("transf", false);
+        await cargar(); abrirTransf(r.id);
+      } catch (e) { if (e.message !== "sesion") $("#c-terr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    });
+    $("#c-ftransf").cliente.focus();
+  }
+  function abrirTransf(id) {
+    const x = (st.datos && st.datos.transferencias || []).find(t => t.id === id);
+    if (!x) return;
+    st.actual = "t:" + id;
+    document.querySelectorAll("#c-lista .item").forEach(b => b.dataset.t === id ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current"));
+    $("#c-work").classList.add("ver-detalle");
+    $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
+      <div class="detail-head"><h2>${esc(x.cliente)}</h2><span class="note">Transferencia · ${esc(diaTxt(x.fecha))}</span></div>
+      <section class="card"><div class="fields">
+        <div class="field"><span class="k">Importe</span><span class="v">${dinero(x.importe)}</span><span></span></div>
+        <div class="field"><span class="k">Fecha</span><span class="v">${esc(diaTxt(x.fecha))}</span><span></span></div>
+        <div class="field"><span class="k">Factura</span><span class="v ${x.factura ? "" : "vacio"}">${x.factura ? esc(x.factura) : "Sin factura"}</span><span></span></div>
+        <div class="field"><span class="k">Capturó</span><span class="v">${esc(x.creado_por || "")}</span><span></span></div>
+      </div>
+      <div class="row"><button class="btn btn-bad" id="c-tdel" type="button">Eliminar transferencia</button></div></section>`;
+    $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
+    $("#c-tdel").addEventListener("click", async e => {
+      const b = e.currentTarget;
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar transferencia"; }, 3000); return; }
+      b.disabled = true;
+      try { await api(`caja/transferencias/${encodeURIComponent(id)}/eliminar`, { method: "POST", body: "{}" }); toast("Transferencia eliminada"); st.actual = null; $("#c-detalle").innerHTML = `<p class="empty">Elige una transferencia.</p>`; $("#c-work").classList.remove("ver-detalle"); cargar(); }
+      catch (err) { if (err.message !== "sesion") toast(err.message); b.disabled = false; }
+    });
+  }
+  $("#c-transf").addEventListener("click", nuevaTransf);
+
+  // ---- Vistas y periodo ----
+  function cambiarVista(v, recargar = true) {
+    st.vista = v; st.actual = null;
+    document.querySelectorAll("#c-vistas .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.v === v ? "true" : "false"));
+    $("#c-detalle").innerHTML = `<p class="empty">${v === "transf" ? "Elige una transferencia o agrega una nueva." : "Elige un corte de turno."}</p>`;
+    $("#c-work").classList.remove("ver-detalle");
+    if (recargar) cargar();
+  }
+  $("#c-vistas").addEventListener("click", e => { const b = e.target.closest(".ptab[data-v]"); if (b) cambiarVista(b.dataset.v); });
+  function periodo(desde, hasta, rapido) {
+    st.desde = desde; st.hasta = hasta; st.rapido = rapido;
+    $("#c-desde").value = desde; $("#c-hasta").value = hasta;
+    document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === rapido ? "true" : "false"));
+    st.actual = null; $("#c-work").classList.remove("ver-detalle");
+    $("#c-detalle").innerHTML = `<p class="empty">${st.vista === "transf" ? "Elige una transferencia o agrega una nueva." : "Elige un corte de turno."}</p>`;
+    cargar();
+  }
+  $("#c-rapidos").addEventListener("click", e => {
+    const b = e.target.closest(".ptab[data-r]"); if (!b) return;
+    const hoy = hoyMx();
+    if (b.dataset.r === "hoy") periodo(hoy, hoy, "hoy");
+    else if (b.dataset.r === "ayer") { const a = sumar(hoy, -1); periodo(a, a, "ayer"); }
+    else if (b.dataset.r === "7") periodo(sumar(hoy, -6), hoy, "7");
+    else periodo("", "", "mes");
+  });
+  for (const id of ["#c-desde", "#c-hasta"]) $(id).addEventListener("change", () => periodo($("#c-desde").value, $("#c-hasta").value, ""));
   $("#c-gasto").addEventListener("click", nuevoGasto);
   $("#c-sync").addEventListener("click", async e => {
     const b = e.currentTarget; b.disabled = true; b.textContent = "Leyendo la hoja…";
