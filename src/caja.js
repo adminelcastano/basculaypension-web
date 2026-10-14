@@ -72,7 +72,11 @@ export async function leerHoja(env, mes) {
   const r = await fetch(url.toString(), { redirect: "follow" });
   const t = await r.text();
   let d;
-  try { d = JSON.parse(t); } catch { throw new Error(`La hoja no respondió bien (HTTP ${r.status}).`); }
+  try { d = JSON.parse(t); } catch {
+    if (/\/dev(\?|$)/.test(env.INGRESOS_URL)) throw new Error("La URL guardada es la de prueba (/dev). Usa la de la implementación, que termina en /exec.");
+    if (/accounts\.google|ServiceLogin|signin/i.test(t + r.url)) throw new Error("Google pidió iniciar sesión: publica la aplicación web con acceso para «Cualquier persona», desde la cuenta dueña de la hoja.");
+    throw new Error(`La hoja no respondió bien (HTTP ${r.status}).`);
+  }
   if (!d.ok) throw new Error("La hoja rechazó la consulta: " + texto(d.error, 120));
   const limpiar = (lista, servicio) => (Array.isArray(lista) ? lista : []).map(x => {
     const turno = normTurno(x.turno);
