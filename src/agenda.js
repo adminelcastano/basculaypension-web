@@ -1,4 +1,5 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { asegurarEsquemaCaja } from "./caja.js";
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
 
@@ -12,6 +13,14 @@ const ESTADOS = {
   incidencia: ["abierta", "en_proceso", "resuelta"],
   aviso: ["activo", "archivado"]
 };
+// Día y turno de caja en este momento (hora de Tapachula; la noche después de medianoche es del día anterior)
+function turnoAhora(ahora = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(ahora).map(x => [x.type, x.value]));
+  const h = Number(p.hour), dia = `${p.year}-${p.month}-${p.day}`;
+  const turno = h >= 6 && h < 14 ? "MAÑANA" : h >= 14 && h < 22 ? "TARDE" : "NOCHE";
+  if (turno === "NOCHE" && h < 6) { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - 1); return { dia: d.toISOString().slice(0, 10), turno }; }
+  return { dia, turno };
+}
 export const AREAS = ["Báscula", "Caseta", "Patio", "Pluma / acceso", "Baños", "Iluminación", "Cámaras", "Otro"];
 const PRIORIDADES = ["normal", "alta"];
 const GRAVEDADES = ["leve", "media", "grave"];
@@ -41,7 +50,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   listo = true;
 }
@@ -208,6 +217,23 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
+    // Compras: al confirmarla se captura el importe y se registra como gasto en Ingresos y gastos;
+    // si se regresa a pendiente, ese gasto se borra.
+    if (fila.tipo === "compra" && d.estado === "comprado" && fila.estado !== "comprado" && !fila.gasto_id) {
+      const t = String(c.importe ?? "").replace(/[$,\s]/g, ""), importe = /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN;
+      const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
+      if (!(importe > 0)) return json({ ok: false, error: "Escribe el importe de la compra.", errores: { importe: "Importe inválido." } }, 422);
+      await asegurarEsquemaCaja(env);
+      const { dia, turno } = turnoAhora();
+      const gid = crypto.randomUUID();
+      const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
+      await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(gid, dia.slice(0, 7), dia, turno, concepto, importe, forma, ahora, usuario && usuario.email || null).run();
+      await env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id).run();
+    } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
+      await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).run();
+      await env.DB.prepare("UPDATE agenda_items SET importe = NULL, gasto_id = NULL WHERE id = ?").bind(id).run();
+    }
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
     return json({ ok: true });

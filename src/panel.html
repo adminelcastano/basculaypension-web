@@ -362,6 +362,10 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .aitem.hecho .tt { text-decoration: line-through; color: var(--muted); }
 .chk { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #48484a; background: transparent; cursor: pointer; display: grid; place-items: center; color: transparent; padding: 0; grid-row: 1 / span 2; }
 .chk svg { width: 16px; height: 16px; }
+.compra-conf { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; padding: 12px; border-radius: 14px; background: #1f1f21; }
+.compra-conf label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); }
+.compra-conf input, .compra-conf select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; min-width: 9em; }
+.compra-conf .err { color: var(--bad); font-size: .85rem; align-self: center; }
 .chk.on { background: var(--ok); border-color: var(--ok); color: #04210f; }
 .chk:hover:not(.on) { border-color: var(--ok); }
 .del { width: 40px; height: 40px; border-radius: 999px; border: 0; background: transparent; color: #98989d; cursor: pointer; display: grid; place-items: center; }
@@ -2740,6 +2744,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
       it.cantidad ? `<span>${esc(it.cantidad)}</span>` : "",
+      it.tipo === "compra" && it.importe != null ? `<span>$${Number(it.importe).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${it.gasto_id ? " · en gastos" : ""}</span>` : "",
       it.fecha && it.tipo !== "evento" ? `<span>${it.tipo === "tarea" ? "Límite " : ""}${esc(diaTxt(it.fecha))}</span>` : "",
       it.hora ? `<span>${esc(it.hora)}</span>` : "",
       it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : "",
@@ -2748,7 +2753,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     ].filter(Boolean).join("");
     const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
     const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${avP(r.persona)}${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
-    return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
+    return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}"${it.gasto_id ? ' data-gasto="1"' : ""} data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
       <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${it.tipo === "tarea" && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
@@ -2931,6 +2936,22 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     }));
     c.querySelectorAll("[data-chk]").forEach(b => b.addEventListener("click", async () => {
       const on = b.classList.contains("on");
+      // Compra: antes de marcarla comprada se pide el importe (se registra como gasto)
+      if (!on && b.dataset.fin === "comprado") {
+        const fila = b.closest(".aitem");
+        if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
+        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma"><option value="EFECTIVO">Efectivo (caja)</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se registra como gasto en Ingresos y gastos, en el turno de ahora.</span></form>`);
+        const f = fila.querySelector(".compra-conf");
+        f.importe.focus();
+        f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());
+        f.addEventListener("submit", async ev => {
+          ev.preventDefault(); const bt = f.querySelector("[type=submit]"); bt.disabled = true; f.querySelector(".err").textContent = "";
+          try { await post("agenda/" + b.dataset.chk, { estado: "comprado", importe: f.importe.value, forma: f.forma.value }); toast("Compra registrada como gasto"); await cargar(); }
+          catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.message; bt.disabled = false; }
+        });
+        return;
+      }
+      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se borrará su gasto de Ingresos y gastos.")) return;
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
