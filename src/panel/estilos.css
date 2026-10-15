@@ -522,6 +522,7 @@ header.bar .sync { flex: none; }
 .cmovs th { text-align: left; font-size: var(--t-xs); color: var(--muted); font-weight: 600; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
 .cmovs td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cmovs td.n, .cmovs th.n { text-align: right; padding-right: 0; }
+.cmovs.cimp td.n, .cmovs.cimp th.n { padding-right: 18px; }
 .cmovs tr.no td { color: #98989d; }
 .cmovs tr.mov td { color: var(--muted); font-style: italic; }
 .cmovs .svc { width: 24px; height: 24px; border-radius: 7px; }

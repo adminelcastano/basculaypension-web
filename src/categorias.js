@@ -18,6 +18,7 @@ const CLAVES = [
   ["Sueldos", /sueldo|n[oó]mina|salario|aguinaldo|prima vac|finiquito|pago a /],
   ["Renta", /\brenta\b|arrendamiento|alquiler/],
   ["Mantenimiento y refacciones", /refacci|manten|reparaci|pintura|soldad|plomer|electric|herramient|mec[aá]nic|llanta|pluma|b[aá]scula/],
+  ["Transporte", /\btaxi|uber|didi|pasaje|cami[oó]n|colectivo|transporte/],
   ["Combustible", /gasolin|di[eé]sel|combustible|magna|premium/],
   ["Impuestos y contador", /\bsat\b|impuesto|contador|contabilidad|imss|infonavit|isr|iva\b|declaraci/],
   ["Tarjetas y créditos", /tarjeta|cr[eé]dito|elektra|coppel|banco|bbva|banamex|santander|banorte|hsbc|pr[eé]stamo|abono/],

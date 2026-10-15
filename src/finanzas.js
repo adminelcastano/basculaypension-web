@@ -5,7 +5,7 @@
 // - Comisión de la terminal (Mercado Pago) por cada cobro con tarjeta: es egreso y a la cuenta entra el neto.
 // Saldos: el de cada cuenta y el de los sobres pasa solo de un mes al siguiente; capturarlo es opcional (conteo real)
 // y, si se captura, se muestra cuánto se desvió de lo calculado.
-import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, mesesAbiertos, sumarMesesCaja, montoUsuario, leerRetiros, transferenciasMes, cambiosEntreTurnos, turnoAnterior } from "./caja.js";
+import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, mesesAbiertos, sumarMesesCaja, montoUsuario, leerRetiros, transferenciasMes, cambiosEntreTurnos, turnoAnterior, claseHoja, conceptoHoja } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from "./categorias.js";
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionDe } from "./cuentas.js";
@@ -14,7 +14,7 @@ import { asegurarEsquemaBitacora, stmtBitacora, listaBitacora, ACCIONES } from "
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
 const RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
-export const CAT_COMISION = "Comisiones bancarias", CAT_FALTANTE = "Faltantes de caja", CAT_SUELDOS = "Sueldos";
+export const CAT_COMISION = "Comisiones bancarias", CAT_FALTANTE = "Faltantes de caja", CAT_SUELDOS = "Sueldos", CAT_TRANSPORTE = "Transporte";
 
 let esquemaListo = false;
 export async function asegurarEsquemaFinanzas(env) {
@@ -32,7 +32,8 @@ export async function asegurarEsquemaFinanzas(env) {
   const ahora = new Date().toISOString();
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO categorias (nombre, icono, color, orden, creado) VALUES (?, 'tarjetas', '#6c74e8', 60, ?)").bind(CAT_COMISION, ahora),
-    env.DB.prepare("INSERT OR IGNORE INTO categorias (nombre, icono, color, orden, creado) VALUES (?, 'otros', '#ff7a70', 61, ?)").bind(CAT_FALTANTE, ahora)
+    env.DB.prepare("INSERT OR IGNORE INTO categorias (nombre, icono, color, orden, creado) VALUES (?, 'otros', '#ff7a70', 61, ?)").bind(CAT_FALTANTE, ahora),
+    env.DB.prepare("INSERT OR IGNORE INTO categorias (nombre, icono, color, orden, creado) VALUES (?, 'transporte', '#3d8fd6', 12, ?)").bind(CAT_TRANSPORTE, ahora)
   ]);
   esquemaListo = true;
 }
@@ -72,8 +73,22 @@ export function diferenciasCaja(cortes, cambios) {
 // Retiros del corte (taxi, compras, sueldos…): egresos del día del corte
 export function retirosDeCortes(conteos) {
   const l = [];
-  for (const c of conteos) for (const r of leerRetiros(c.retiros)) l.push({ dia: c.dia, turno: c.turno, persona: c.persona, concepto: r.concepto, monto: r.monto, categoria: adivinarCategoria(r.concepto) });
+  for (const c of conteos) for (const r of leerRetiros(c.retiros)) l.push({ dia: c.dia, turno: c.turno, persona: c.admin ? "Encargado del turno" : c.persona, concepto: r.concepto, monto: r.monto, categoria: adivinarCategoria(r.concepto) });
   return l;
+}
+
+// Renglones de caja de la hoja que son gasto del negocio (TIENDA, GARRAFÓN, SUELDO…) o ingreso sin ticket.
+// Los que son dinero de la administración (SE LLEVÓ, RETIRO, INGRESO DE ADM) no son egreso ni ingreso: mueven los sobres.
+export function renglonesHoja(movs) {
+  const gastos = [], ingresos = [], admin = [];
+  for (const m of movs) {
+    const k = claseHoja(m); if (!k || k === "cambio") continue;
+    const concepto = conceptoHoja(m);
+    if (k === "gasto") { const t = concepto.toUpperCase(); gastos.push({ dia: m.dia, turno: m.turno, concepto, monto: r2(-m.importe), categoria: adivinarCategoria(concepto), persona: /SUELDO|NOMINA|SALARIO/.test(t) ? concepto.replace(/^(SUELDO|N[OÓ]MINA|SALARIO)\s*(DE\s+)?/i, "").trim() || null : null, hoja: true }); }
+    else if (k === "ingreso") ingresos.push({ dia: m.dia, turno: m.turno, concepto, monto: r2(m.importe) });
+    else admin.push({ dia: m.dia, turno: m.turno, concepto, clase: k, monto: r2(Math.abs(m.importe)), fecha: m.fecha });
+  }
+  return { gastos, ingresos, admin };
 }
 
 // Sueldos del mes: lo que los encargados se cobran del turno (gastos de caja o retiros con categoría Sueldos)
@@ -92,20 +107,21 @@ export function resumenSueldos(gastosCaja, retiros, admin) {
 // Registros de dinero de varios meses (para los saldos encadenados), agrupados por mes
 async function leerFlujos(env, meses, cuentas) {
   const q = meses.map(() => "?").join(","), todos = sql => env.DB.prepare(sql).bind(...meses).all().then(r => r.results);
-  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs] = await Promise.all([
+  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs, hojaCaja] = await Promise.all([
     todos(`SELECT mes, dia, importe FROM caja_mov WHERE tipo = 'ticket' AND forma = 'TARJETA' AND mes IN (${q})`),
     todos(`SELECT mes, dia, fecha, servicio, folio, importe, forma, tipo FROM caja_mov WHERE tipo = 'ticket' AND forma LIKE 'TRANSF%' AND mes IN (${q})`),
     todos(`SELECT * FROM caja_transf WHERE mes IN (${q})`),
     todos(`SELECT id, mes, dia, forma, cuenta, monto, concepto, creado FROM caja_gastos WHERE origen = 'admin' AND mes IN (${q})`),
     todos(`SELECT mes, dia, turno, persona, sobre FROM turno_cortes WHERE sobre > 0 AND mes IN (${q})`),
     todos(`SELECT mes, dia, turno, monto, persona, creado FROM caja_extra WHERE ingreso = 0 AND mes IN (${q})`),
-    todos(`SELECT * FROM fin_movs WHERE mes IN (${q})`)
+    todos(`SELECT * FROM fin_movs WHERE mes IN (${q})`),
+    todos(`SELECT mes, dia, turno, fecha, folio, cliente, matricula, forma, importe, tipo FROM caja_mov WHERE tipo = 'caja' AND mes IN (${q})`)
   ]);
   const defTransf = (cuentas.find(c => c.def_transf && c.activa) || cuentas.find(c => c.def_transf) || {}).id || null;
   const por = {};
   for (const m of meses) {
     const delMes = l => l.filter(x => x.mes === m);
-    por[m] = { tarjeta: delMes(tarjeta), transf: transfConCuenta(delMes(ticketsTransf), delMes(transf), defTransf), admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), movs: delMes(movs) };
+    por[m] = { tarjeta: delMes(tarjeta), transf: transfConCuenta(delMes(ticketsTransf), delMes(transf), defTransf), admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), movs: delMes(movs), hojaAdmin: renglonesHoja(delMes(hojaCaja)).admin };
   }
   return por;
 }
@@ -138,12 +154,14 @@ export async function datosFinanzas(env, mes) {
   const ticketsTarjeta = movs.filter(m => m.tipo === "ticket" && m.forma === "TARJETA");
   const comision = r2(ticketsTarjeta.reduce((a, m) => a + comisionDe(m.importe, tj), 0));
   const retiros = retirosDeCortes(conteos);
+  const hoja = renglonesHoja(movs);
+  const gastosCaja = [...gastos, ...hoja.gastos];
   const cambios = [...cambiosEntreTurnos([...conteos, ...conteoAnt], inicios).values()].filter(x => x.dia.slice(0, 7) === mes);
   const dif = diferenciasCaja(cortes, cambios);
 
-  const ingresos = { efectivo: r2(t.efectivo), tarjeta: r2(t.tarjeta), transferencias: r2(t.transferencias), transf_hoja: r2(t.transf_hoja), transf_manual: r2(t.transf_manual), otros: r2(t.otros), sobrantes: dif.sobrantes, bascula: r2(t.bascula), pension: r2(t.pension) };
+  const ingresos = { efectivo: r2(t.efectivo), tarjeta: r2(t.tarjeta), transferencias: r2(t.transferencias), transf_hoja: r2(t.transf_hoja), transf_manual: r2(t.transf_manual), otros: r2(t.otros + suma(hoja.ingresos)), sobrantes: dif.sobrantes, bascula: r2(t.bascula), pension: r2(t.pension) };
   ingresos.total = r2(ingresos.efectivo + ingresos.tarjeta + ingresos.transferencias + ingresos.otros + ingresos.sobrantes);
-  const egresos = { caja: suma(gastos), retiros: suma(retiros), programado: suma(admin, x => x.cat === "programado"), no_programado: suma(admin, x => x.cat === "no_programado"), compra: suma(admin, x => x.cat === "compra"), otro: suma(admin, x => x.cat === "otro"), comision, faltantes: dif.faltantes };
+  const egresos = { caja: suma(gastosCaja), caja_hoja: suma(hoja.gastos), retiros: suma(retiros), programado: suma(admin, x => x.cat === "programado"), no_programado: suma(admin, x => x.cat === "no_programado"), compra: suma(admin, x => x.cat === "compra"), otro: suma(admin, x => x.cat === "otro"), comision, faltantes: dif.faltantes };
   egresos.total = r2(egresos.caja + egresos.retiros + egresos.programado + egresos.no_programado + egresos.compra + egresos.otro + egresos.comision + egresos.faltantes);
 
   // ---- Saldos encadenados (sobres y cada cuenta) ----
@@ -198,7 +216,8 @@ export async function datosFinanzas(env, mes) {
   for (const c of cortes) d(c.dia).ingresos += c.efectivo + c.tarjeta + c.extra.ingreso;
   for (const h of tr.hoja) d(h.dia).ingresos += h.importe;
   for (const x of tr.contadas) d(x.fecha).ingresos += x.importe;
-  for (const g of gastos) d(g.dia).egresos += g.monto;
+  for (const g of gastosCaja) d(g.dia).egresos += g.monto;
+  for (const x of hoja.ingresos) d(x.dia).ingresos += x.monto;
   for (const g of admin) d(g.dia).egresos += g.monto;
   for (const r of retiros) d(r.dia).egresos += r.monto;
   for (const m of ticketsTarjeta) d(m.dia).egresos += comisionDe(m.importe, tj);
@@ -209,7 +228,7 @@ export async function datosFinanzas(env, mes) {
   const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
   const pc = {};
   const add = (k, v, caja) => { k = k || "Otros"; pc[k] = pc[k] || { nombre: k, total: 0, caja: 0 }; pc[k].total += v; if (caja) pc[k].caja += v; };
-  for (const g of gastos) add(g.categoria, g.monto, true);
+  for (const g of gastosCaja) add(g.categoria, g.monto, true);
   for (const r of retiros) add(r.categoria, r.monto, true);
   for (const x of admin) add(x.categoria, x.monto, false);
   if (comision) add(CAT_COMISION, comision, false);
@@ -218,7 +237,7 @@ export async function datosFinanzas(env, mes) {
 
   return {
     mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, retiros,
-    diferencias: dif, sueldos: resumenSueldos(gastos, retiros, admin),
+    diferencias: dif, sueldos: resumenSueldos(gastosCaja, retiros, admin), renglones_hoja: hoja,
     gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles, por_dia: porDia, cortes
   };
 }

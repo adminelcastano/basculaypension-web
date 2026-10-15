@@ -10,7 +10,7 @@
   const api = EC.api;
   const post = EC.post;
   const CAT = { caja: "Gastos de caja (turnos)", retiros: "Retiros del corte (taxi, compras, sueldos)", programado: "Pagos programados", no_programado: "Pagos no programados", compra: "Compras", otro: "Otros gastos", comision: "Comisión de tarjeta (Mercado Pago)", faltantes: "Faltantes de caja" };
-  const CAT1 = { programado: "Pago programado", no_programado: "Pago no programado", compra: "Compra", otro: "Otro gasto", sobre: "Sobre recibido", cambio: "Aumento de cambio", deposito: "Depósito al banco", retiro: "Retiro del banco", pago_tarjeta: "Pago de tarjeta", traspaso: "Traspaso" };
+  const CAT1 = { programado: "Pago programado", no_programado: "Pago no programado", compra: "Compra", otro: "Otro gasto", sobre: "Sobre recibido", llevo: "Tomado de la caja", cambio: "Puesto en la caja", deposito: "Depósito al banco", retiro: "Retiro del banco", pago_tarjeta: "Pago de tarjeta", traspaso: "Traspaso" };
   const FORMA = { EFECTIVO: "Sobres", TRANSFERENCIA: "Banco · transferencia", TARJETA: "Banco · tarjeta" };
   const TURNO_TXT = { "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" };
   const SVC = { bascula: "Báscula", pension: "Pensión" };

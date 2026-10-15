@@ -23,6 +23,25 @@ export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
 export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO").replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
 
+// Renglones de caja de la hoja (sin folio de ticket), según quién se queda con el dinero:
+//   "cambio"  → cambio inicial (no es movimiento)
+//   "a_admin" → la administración tomó efectivo de la caja antes del corte (SE LLEVÓ, RETIRO): entra a los sobres
+//   "de_admin"→ la administración puso efectivo en la caja (INGRESO DE ADM, SE AGREGÓ AL CAMBIO): sale de los sobres
+//   "gasto"   → salió de la caja para pagar algo (TIENDA, GARRAFÓN, SUELDO…): egreso del negocio
+//   "ingreso" → otro efectivo que entró a la caja sin ticket: ingreso del negocio
+const sinAcento = t => String(t || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+export function claseHoja(m) {
+  if (m.tipo !== "caja") return null;
+  const t = sinAcento([m.folio, m.cliente, m.matricula].join(" "));
+  // "SE AGREGÓ AL CAMBIO": la administración puso dinero (aunque diga CAMBIO, sale de los sobres)
+  if (m.importe > 0 && /\bADM|AGREG|AUMENT/.test(t)) return "de_admin";
+  if (esCambio(m)) return "cambio";
+  if (!m.importe) return null;
+  if (m.importe < 0) return /SE LLEV|\bLLEVO\b|\bRETIR|\bADMIN|\bADM\b/.test(t) ? "a_admin" : "gasto";
+  return /\bADM|AGREG|AUMENT/.test(t) ? "de_admin" : "ingreso";
+}
+export const conceptoHoja = m => [m.folio, m.cliente].map(x => String(x || "").trim()).filter((x, i, l) => x && !/^(0|S|SN|N\/?A)$/i.test(x) && (i === 0 || !l[0].toUpperCase().includes(x.toUpperCase()))).join(" · ") || "Movimiento de caja";
+
 // Tickets pagados por transferencia en la hoja (FORBAS/FORPEN): suman a los ingresos y entran al banco.
 // Si también se capturó la transferencia a mano en Finanzas, se liga al ticket (ticket_ref) para no contarla dos veces.
 export const esTransf = f => String(f || "").startsWith("TRANSF");
@@ -72,7 +91,16 @@ const normTurno = t => {
   return s.startsWith("MAN") ? "MAÑANA" : s.startsWith("TAR") ? "TARDE" : s.startsWith("NOC") ? "NOCHE" : "";
 };
 const normForma = f => String(f || "").trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-const numero = v => { const n = Number(String(v ?? "").replace(/[$,\s]/g, "")); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+// Importes de la hoja: "1,500", "$-51", "MENOS 55" (= −55), "- 200"
+export const numero = v => {
+  let t = String(v ?? "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[$,\s]/g, "");
+  let neg = false;
+  const m = /^(MENOS|-|−)+/.exec(t);
+  if (m) { neg = true; t = t.slice(m[0].length); }
+  if (!/^\d+(\.\d+)?$/.test(t)) return 0;
+  const n = Math.round(Number(t) * 100) / 100;
+  return neg ? -n : n;
+};
 // Montos que captura una persona: solo dígitos y hasta 2 decimales (no "1e4", no negativos)
 export const montoUsuario = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
 const texto = (v, n = 80) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -107,6 +135,8 @@ export async function asegurarEsquemaCaja(env) {
   if (!colsC.has("con_cambio")) await env.DB.prepare("ALTER TABLE turno_cortes ADD COLUMN con_cambio INTEGER NOT NULL DEFAULT 0").run();
   // Informe final: cómo se repartió el efectivo contado (sobre para la administración, retiros y cambio para el siguiente turno)
   for (const [c, t] of [["sobre", "REAL"], ["cambio_sig", "REAL"], ["retiros", "TEXT"]]) if (!colsC.has(c)) await env.DB.prepare(`ALTER TABLE turno_cortes ADD COLUMN ${c} ${t}`).run();
+  // Entrega capturada por la administración (turnos anteriores a la tablet): sobre, retiros y cambio, sin conteo ciego
+  if (!colsC.has("admin")) await env.DB.prepare("ALTER TABLE turno_cortes ADD COLUMN admin INTEGER NOT NULL DEFAULT 0").run();
   // Cada entrega o corrección del corte queda registrada (no se pierde lo que se entregó antes)
   // Cambio inicial que el encargado declara al empezar su turno en la tablet (sustituye al "cambio" de la hoja)
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_inicio (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, cambio REAL NOT NULL, creado TEXT NOT NULL, actualizado TEXT NOT NULL, PRIMARY KEY (dia, turno))").run();
@@ -331,6 +361,9 @@ export function leerRetiros(v) {
 }
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;
+  // Capturada por la administración: no hubo conteo ciego, así que no hay diferencia que calcular
+  if (x.admin) return { persona: x.persona, admin: true, efectivo: x.efectivo, tarjeta: null, notas: x.notas, actualizado: x.actualizado, veces: x.veces, con_cambio: true,
+    sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros), esperado: c ? r2(c.efectivo_caja) : null, dif_efectivo: null, dif_tarjeta: null };
   return { persona: x.persona, efectivo: x.efectivo, tarjeta: x.tarjeta, notas: x.notas, actualizado: x.actualizado, veces: x.veces,
     // Antes el encargado contaba sin el fondo de cambio; desde el 14 oct 2026 cuenta todo (con_cambio = 1)
     con_cambio: !!x.con_cambio,
@@ -353,7 +386,7 @@ export function movimientosCaja({ movs = [], gastos = [], extras = [], conteos =
   const vistos = new Map();
   for (const m of movs.filter(m => m.tipo === "caja" && !esCambio(m)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || (a.id || 0) - (b.id || 0))) {
     const f = firmaMov(m), k = vistos.get(f) || 0; vistos.set(f, k + 1);
-    lista.push({ ref: "m:" + f + "#" + k, tipo: "hoja", mes: m.mes, dia: m.dia, turno: m.turno, cuando: String(m.fecha).slice(0, 16), concepto: [m.folio, m.cliente].map(x => String(x || "").trim()).filter((x, i, l) => x && !/^(0|S|SN|N\/?A)$/i.test(x) && (i === 0 || !l[0].toUpperCase().includes(x.toUpperCase()))).join(" · ") || "Movimiento de caja", detalle: /^(0|S|SN)?$/i.test(String(m.matricula || "").trim()) ? "" : m.matricula, monto: m.importe, forma: m.forma, persona: null, foto: null, servicio: m.servicio });
+    lista.push({ ref: "m:" + f + "#" + k, tipo: "hoja", mes: m.mes, dia: m.dia, turno: m.turno, cuando: String(m.fecha).slice(0, 16), concepto: conceptoHoja(m), clase: claseHoja(m), detalle: /^(0|S|SN)?$/i.test(String(m.matricula || "").trim()) ? "" : m.matricula, monto: m.importe, forma: m.forma, persona: null, foto: null, servicio: m.servicio });
   }
   return lista.sort((a, b) => b.dia.localeCompare(a.dia) || String(b.cuando).localeCompare(String(a.cuando)));
 }
@@ -461,6 +494,70 @@ export async function cierreMensualCaja(env, h) {
   return { cerrado: mes };
 }
 
+// ---- Entregas capturadas por la administración (turnos sin corte en la tablet) ----
+// Se pega una tabla con: día, turno, sobre, taxi, sueldo y cambio que dejó (separada por tabuladores, | o ;).
+// "—" o vacío = no hubo dato; "$0" = cero. El día puede ser "01/oct", "1 oct" o "2026-10-01".
+const MESES_TXT = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, sept: 9, set: 9, oct: 10, nov: 11, dic: 12 };
+const celdaMonto = v => { const t = String(v ?? "").replace(/[*\s$,]/g, ""); if (!t || /^[—–\-]+$/.test(t)) return null; return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
+export function leerTablaEntregas(textoTabla, anio) {
+  const filas = [], errores = [];
+  String(textoTabla || "").split(/\r?\n/).forEach((linea, i) => {
+    if (!linea.trim()) return;
+    const c = linea.split(/\t|\||;/).map(x => x.trim());
+    if (c.length < 3) { errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "Faltan columnas." }); return; }
+    let dia = null, m;
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(c[0]))) dia = c[0];
+    else if ((m = /^(\d{1,2})\s*[\/\- ]\s*([a-záéíóú]{3,4})\.?$/i.exec(c[0])) && MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")])
+      dia = `${anio}-${String(MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    const turno = normTurno(c[1]);
+    if (!dia || !turno) { if (i === 0 || /d[ií]a|turno/i.test(linea)) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
+    const [sobre, taxi, sueldo, cambio] = [c[2], c[3], c[4], c[5]].map(celdaMonto);
+    if ([sobre, taxi, sueldo, cambio].some(v => Number.isNaN(v))) { errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "Hay un monto que no es número." }); return; }
+    filas.push({ linea: i + 1, dia, turno, sobre, taxi, sueldo, cambio });
+  });
+  return { filas, errores };
+}
+// Hora de fin del turno (UTC) para ordenar la entrega como si se hubiera hecho al terminar
+const finTurnoIso = (dia, turno) => new Date(Date.parse(dia + "T00:00:00Z") + ((VENTANA[turno] || [0, 24])[1] + 6) * 3600e3).toISOString();
+// Revisa (y si aplicar = true, guarda) las entregas. No toca los cortes entregados en la tablet; el sueldo o taxi
+// que ya está como renglón en la hoja de ese turno no se vuelve a contar.
+export async function entregasAdmin(env, textoTabla, { aplicar = false, meses, hoy, quien = null }) {
+  const { filas, errores } = leerTablaEntregas(textoTabla, meses[meses.length - 1].slice(0, 4));
+  const r2 = v => Math.round(v * 100) / 100;
+  const dias = [...new Set(filas.map(f => f.dia))];
+  const q = dias.map(() => "?").join(",") || "''";
+  const cortes = new Map((dias.length ? (await env.DB.prepare(`SELECT dia, turno, admin FROM turno_cortes WHERE dia IN (${q})`).bind(...dias).all()).results : []).map(x => [x.dia + "|" + x.turno, x]));
+  const hojaCaja = dias.length ? (await env.DB.prepare(`SELECT * FROM caja_mov WHERE tipo = 'caja' AND dia IN (${q})`).bind(...dias).all()).results : [];
+  const enHoja = (dia, turno, re) => hojaCaja.filter(m => m.dia === dia && m.turno === turno && m.importe < 0 && re.test(sinAcento(m.folio + " " + m.cliente)));
+  const vistas = new Set(), lista = [];
+  for (const f of filas) {
+    const k = f.dia + "|" + f.turno, x = { ...f, retiros: [], avisos: [] };
+    if (vistas.has(k)) { x.estado = "repetida"; x.avisos.push("Este turno ya venía en otra línea; se toma la primera."); lista.push(x); continue; }
+    vistas.add(k);
+    if (!meses.includes(f.dia.slice(0, 7)) || f.dia > hoy) { x.estado = "fuera"; x.avisos.push("El día no está en el mes abierto."); lista.push(x); continue; }
+    const ya = cortes.get(k);
+    if (ya && !ya.admin) { x.estado = "tablet"; x.avisos.push("Este turno ya entregó su corte en la tablet; no se cambia."); lista.push(x); continue; }
+    if (f.taxi > 0) { const h = enHoja(f.dia, f.turno, /TAXI/); if (h.length) x.avisos.push(`Taxi ${r2(-h[0].importe)} ya está en la hoja; no se cuenta otra vez.`); else x.retiros.push({ concepto: "Taxi", monto: f.taxi }); }
+    if (f.sueldo > 0) { const h = enHoja(f.dia, f.turno, /SUELDO|NOMINA|SALARIO/); if (h.length) { x.avisos.push(`El sueldo ya está en la hoja (${conceptoHoja(h[0])} ${r2(-h[0].importe)}); no se cuenta otra vez.`); if (Math.abs(-h[0].importe - f.sueldo) >= 0.01) x.avisos.push(`Ojo: en la hoja dice ${r2(-h[0].importe)} y aquí ${f.sueldo}. Corrige el renglón de la hoja.`); } else x.retiros.push({ concepto: "Sueldo", monto: f.sueldo }); }
+    if (f.sobre == null && !x.retiros.length && f.cambio == null) { x.estado = "vacia"; lista.push(x); continue; }
+    x.estado = ya ? "reemplaza" : "nueva";
+    x.efectivo = r2((f.sobre || 0) + x.retiros.reduce((a, r) => a + r.monto, 0) + (f.cambio || 0));
+    lista.push(x);
+  }
+  const guardar = lista.filter(x => x.estado === "nueva" || x.estado === "reemplaza");
+  if (aplicar && guardar.length) {
+    const st = guardar.map(x => { const t = finTurnoIso(x.dia, x.turno); return env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros, admin)
+      VALUES (?, ?, ?, 'Administración', ?, NULL, ?, ?, ?, 1, 1, ?, ?, ?, 1)
+      ON CONFLICT (dia, turno) DO UPDATE SET efectivo = excluded.efectivo, notas = excluded.notas, sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros, veces = turno_cortes.veces + 1 WHERE turno_cortes.admin = 1`)
+      .bind(x.dia, x.turno, x.dia.slice(0, 7), x.efectivo, "Capturado por la administración", t, t, x.sobre, x.cambio, JSON.stringify(x.retiros)); });
+    st.push(stmtBitacora(env, { quien, accion: "crear", que: "Entregas de turnos (captura de administración)", ref: "entregas", mes: meses[meses.length - 1], detalle: { turnos: guardar.length, sobres: r2(guardar.reduce((a, x) => a + (x.sobre || 0), 0)), retiros: r2(guardar.reduce((a, x) => a + x.retiros.reduce((b, r) => b + r.monto, 0), 0)) } }));
+    for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+    await numerarMovimientos(env, meses).catch(() => {});
+  }
+  const suma = k => r2(guardar.reduce((a, x) => a + (k === "retiros" ? x.retiros.reduce((b, r) => b + r.monto, 0) : x[k] || 0), 0));
+  return { filas: lista, errores, totales: { turnos: guardar.length, sobre: suma("sobre"), retiros: suma("retiros"), taxi: r2(guardar.reduce((a, x) => a + x.retiros.filter(r => r.concepto === "Taxi").reduce((b, r) => b + r.monto, 0), 0)), sueldo: r2(guardar.reduce((a, x) => a + x.retiros.filter(r => r.concepto === "Sueldo").reduce((b, r) => b + r.monto, 0), 0)) }, aplicado: !!aplicar };
+}
+
 // ticket_ref "servicio:folio" de un ticket de la hoja del mes pagado por transferencia y sin otra transferencia ligada
 async function validarTicketRef(env, valor, mes, excepto) {
   const v = String(valor ?? "").trim();
@@ -556,6 +653,24 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     ]))[0];
     if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
+  }
+
+  // Entregas de turnos capturadas por la administración: revisar (aplicar: false) o guardar
+  if (partes[1] === "entregas-admin" && partes.length === 2 && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    if (String(c.texto || "").length > 20000) return json({ ok: false, error: "La tabla es demasiado larga." }, 413);
+    return json({ ok: true, ...(await entregasAdmin(env, c.texto, { aplicar: c.aplicar === true, meses, hoy, quien: usuario && usuario.email })) });
+  }
+  if (partes[1] === "entregas-admin" && partes[2] === "eliminar" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const x = await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(String(c.dia || ""), String(c.turno || "")).first();
+    if (!x) return json({ ok: true, borrados: 0 });
+    if (!meses.includes(x.mes)) return json({ ok: false, error: "Esa entrega es de un mes ya cerrado." }, 409);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(x.dia, x.turno),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Entrega de turno (captura de administración)", ref: x.dia + "|" + x.turno, mes: x.mes, detalle: { sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros) } })
+    ]);
+    return json({ ok: true, borrados: 1 });
   }
 
   // Ingresos extra capturados desde el panel
