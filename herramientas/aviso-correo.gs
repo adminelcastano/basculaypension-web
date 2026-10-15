@@ -5,6 +5,7 @@
  * - Envía a colaboradores y al encargado de turno los correos con su enlace de expediente.
  * - Guarda una copia de los documentos del personal en Google Drive:
  *   COLABORADORES / EXTERNOS → carpeta de cada persona (la busca por su número) → documentos.
+ * - Crea cada mes una hoja de Google Sheets con el reporte detallado (carpeta "El Castaño · Reportes mensuales").
  * - Es el almacén de fotos y PDFs del panel y la tablet: carpeta dedicada "El Castaño · Archivos del panel"
  *   en el Drive de esta cuenta (tickets y constancias, expedientes, fotos de la tablet). No la renombres;
  *   puedes moverla de lugar dentro de tu Drive.
@@ -124,6 +125,7 @@ function archivos(d) {
     const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'archivo'));
     return { ok: true, id: carpeta.createFile(blob).getId() };
   }
+  if (d.op === 'hoja') return hojaMensual(d);
   if (!d.id || !/^[A-Za-z0-9_-]{10,}$/.test(String(d.id))) return { ok: false, error: 'id inválido' };
   const archivo = DriveApp.getFileById(String(d.id));
   // Solo archivos que están dentro de la carpeta dedicada
@@ -132,6 +134,41 @@ function archivos(d) {
   if (d.op === 'borrar') { archivo.setTrashed(true); return { ok: true }; }
   return { ok: false, error: 'operación' };
 }
+// ---- Reporte mensual en Google Sheets ----
+// Carpeta "El Castaño · Reportes mensuales" / AAAA. Si ya existe la hoja de ese mes, la anterior va a la papelera.
+function carpetaReportes(nombre, anio) {
+  const props = PropertiesService.getScriptProperties();
+  let raiz = null;
+  const id = props.getProperty('raiz_reportes');
+  if (id) { try { raiz = DriveApp.getFolderById(id); if (raiz.isTrashed()) raiz = null; } catch (err) { raiz = null; } }
+  if (!raiz) { const it = DriveApp.getFoldersByName(nombre); raiz = it.hasNext() ? it.next() : DriveApp.createFolder(nombre); props.setProperty('raiz_reportes', raiz.getId()); }
+  if (!anio) return raiz;
+  const it = raiz.getFoldersByName(String(anio));
+  return it.hasNext() ? it.next() : raiz.createFolder(String(anio));
+}
+function hojaMensual(d) {
+  const nombre = String(d.nombre || 'Reporte').slice(0, 150);
+  const carpeta = carpetaReportes(String(d.raiz || 'El Castaño · Reportes mensuales'), (d.carpeta || [])[0]);
+  const viejos = carpeta.getFilesByName(nombre);
+  while (viejos.hasNext()) viejos.next().setTrashed(true);
+  const ss = SpreadsheetApp.create(nombre);
+  const hojas = d.hojas || [];
+  hojas.forEach(function (h, i) {
+    const sh = i === 0 ? ss.getSheets()[0].setName(String(h.nombre).slice(0, 90)) : ss.insertSheet(String(h.nombre).slice(0, 90));
+    const filas = h.filas || [];
+    if (!filas.length) return;
+    const ancho = filas.reduce(function (m, f) { return Math.max(m, f.length); }, 1);
+    const datos = filas.map(function (f) { const r = f.slice(); while (r.length < ancho) r.push(''); return r; });
+    sh.getRange(1, 1, datos.length, ancho).setValues(datos);
+    sh.getRange(1, 1, 1, ancho).setFontWeight('bold').setBackground('#fff4c2');
+    sh.setFrozenRows(1);
+    if (datos.length < 2000) sh.autoResizeColumns(1, ancho);
+  });
+  const archivo = DriveApp.getFileById(ss.getId());
+  archivo.moveTo(carpeta);
+  return { ok: true, id: ss.getId(), url: ss.getUrl() };
+}
+
 function dentroDeRaiz(archivo) {
   const raiz = PropertiesService.getScriptProperties().getProperty('raiz_archivos');
   const vistos = {};
@@ -149,5 +186,7 @@ function probar() {
   raizArchivos('El Castaño · Archivos del panel');
   DriveApp.getFolderById(CARPETA_COLABORADORES).getName();
   DriveApp.getFolderById(CARPETA_EXTERNOS).getName();
+  carpetaReportes('El Castaño · Reportes mensuales');
+  SpreadsheetApp.getActiveSpreadsheet(); // pide el permiso de Google Sheets
   GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'Prueba de aviso · El Castaño', 'Si recibes esto, el aviso de solicitudes y la carpeta de Drive están listos.');
 }

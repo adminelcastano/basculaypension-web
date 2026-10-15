@@ -67,7 +67,10 @@ export async function asegurarEsquemaAgenda(env) {
   for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su gasto en Ingresos y gastos)
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_pagos (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, fecha TEXT NOT NULL, programado TEXT, importe REAL NOT NULL, forma TEXT NOT NULL, gasto_id TEXT, creado TEXT NOT NULL, creado_por TEXT)").run();
+  // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_pagos (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, fecha TEXT NOT NULL, programado TEXT, importe REAL NOT NULL, forma TEXT NOT NULL, gasto_id TEXT, creado TEXT NOT NULL, creado_por TEXT, titulo TEXT)").run();
+  const colsP = new Set((await env.DB.prepare("PRAGMA table_info(agenda_pagos)").all()).results.map(r => r.name));
+  if (!colsP.has("titulo")) await env.DB.prepare("ALTER TABLE agenda_pagos ADD COLUMN titulo TEXT").run();
   listo = true;
 }
 
@@ -148,7 +151,6 @@ async function borrarItems(env, items) {
     for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
     stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_reportes WHERE item_id IN (${q})`).bind(...lote));
-    stmts.push(env.DB.prepare(`DELETE FROM agenda_pagos WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...lote));
   }
   for (const v of items) if (v.foto) await borrarArchivo(env, v.foto).catch(() => {});
@@ -164,7 +166,10 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   const tresDias = new Date(ahora.getTime() - 3 * 864e5).toISOString();
   await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE tipo = 'aviso' AND estado = 'activo' AND autor IS NOT NULL AND autor != 'admin' AND creado < ?")
     .bind(ahora.toISOString(), ahora.toISOString(), tresDias).run();
-  const limite = new Date(ahora.getTime() - 30 * 864e5).toISOString();
+  // Historial de pagos hechos: 13 meses
+  await env.DB.prepare("DELETE FROM agenda_pagos WHERE fecha < ?").bind(sumarMeses(hoyMx(), -13)).run();
+  // 40 días (y no 30) para que el reporte mensual incluya todo lo cerrado durante el mes
+  const limite = new Date(ahora.getTime() - 40 * 864e5).toISOString();
   const diaLimite = limite.slice(0, 10);
   const viejos = (await env.DB.prepare(`SELECT id, foto FROM agenda_items
     WHERE (NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
@@ -229,7 +234,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const hoy = hoyMx(), mes = hoy.slice(0, 7);
     const finMes = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const abiertos = (await env.DB.prepare(`SELECT id, titulo, fecha, importe, frecuencia, forma FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha`).all()).results;
-    const hechos = (await env.DB.prepare("SELECT p.fecha, p.importe, i.titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha").bind(sumarMeses(mes + "-01", -5)).all()).results;
+    const hechos = (await env.DB.prepare("SELECT p.fecha, p.importe, COALESCE(p.titulo, i.titulo) AS titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha").bind(sumarMeses(mes + "-01", -5)).all()).results;
     const porMes = []; for (let k = 5; k >= 0; k--) { const m = sumarMeses(mes + "-01", -k).slice(0, 7); porMes.push({ mes: m, total: hechos.filter(x => x.fecha.slice(0, 7) === m).reduce((a, x) => a + x.importe, 0) }); }
     const delMes = hechos.filter(x => x.fecha.slice(0, 7) === mes);
     const conceptos = {}; for (const x of delMes) conceptos[x.titulo || "Otro"] = (conceptos[x.titulo || "Otro"] || 0) + x.importe;
@@ -302,8 +307,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const gid = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(gid, fecha.slice(0, 7), fecha, turno, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo).run();
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
     else {

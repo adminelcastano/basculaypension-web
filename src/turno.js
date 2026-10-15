@@ -19,8 +19,8 @@ const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
-// Las fotos se guardan 100 días como máximo (KV incluye 1 GB; lo que pase de ahí se cobra aparte)
-const FOTO_MAX = 1_500_000, FOTO_TTL = 100 * 86400;
+// Fotos de la tablet: máximo 1.5 MB; pasan a Drive y viven lo mismo que su registro
+const FOTO_MAX = 1_500_000;
 // Avatares que la administración asigna a cada encargado (sección Turno del panel)
 const AVATARES = { a1: AV1, a2: AV2, a3: AV3, a4: AV4, a5: AV5 };
 const avatarValido = v => (Object.hasOwn(AVATARES, v) || v === "foto" ? v : null);
@@ -194,7 +194,8 @@ async function guardarFoto(env, dataUrl, prefijo) {
   if (bin.length > FOTO_MAX || bin.length < 500) throw new Error("foto");
   const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const llave = `tf:${prefijo}:${crypto.randomUUID()}`;
-  await env.FILES.put(llave, bytes, { expirationTtl: FOTO_TTL, metadata: { tipo: "image/" + m[1] } });
+  // Sin vencimiento: la foto vive lo mismo que su registro (incidencia, tarea, gasto) y se borra con él
+  await env.FILES.put(llave, bytes, { metadata: { tipo: "image/" + m[1] } });
   return llave;
 }
 export async function servirFoto(env, llave) {

@@ -362,6 +362,10 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .aitem.hecho .tt { text-decoration: line-through; color: var(--muted); }
 .chk { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #48484a; background: transparent; cursor: pointer; display: grid; place-items: center; color: transparent; padding: 0; grid-row: 1 / span 2; }
 .chk svg { width: 16px; height: 16px; }
+.crep { flex-basis: 100%; background: var(--surface); border-radius: 16px; padding: 14px 16px; }
+.crep select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
+.crep .rl { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .9rem; }
+.crep .rl a { color: #64d2ff; }
 .compra-conf { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; padding: 12px; border-radius: 14px; background: #1f1f21; }
 .compra-conf label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); }
 .compra-conf input, .compra-conf select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; min-width: 9em; }
@@ -912,6 +916,12 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   <button class="btn btn-primary" id="c-gasto" type="button">+ Agregar gasto</button>
   <button class="btn btn-line" id="c-transf" type="button">+ Agregar transferencia</button>
   <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
+  <button class="btn btn-line" id="c-sheets" type="button" aria-expanded="false" aria-controls="c-rep">Reporte en Google Sheets</button>
+  <section class="crep" id="c-rep" hidden aria-label="Reporte mensual en Google Sheets">
+    <p class="note" style="margin:0 0 8px">Cada mes, al cerrar, se crea solo en tu Drive (carpeta <b>El Castaño · Reportes mensuales</b>) con todo el detalle: cortes, tickets, gastos, ingresos extra, transferencias, cambio inicial, retiros, pagos, compras, incidencias, tareas, avisos, facturas y personal. También puedes generarlo ahora para cualquiera de los últimos 13 meses (si ya existe, se reemplaza).</p>
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="c-rep-mes" aria-label="Mes del reporte"></select><button class="btn btn-primary" id="c-rep-gen" type="button">Generar</button><span class="note" id="c-rep-estado" role="status"></span></div>
+    <div id="c-rep-lista"></div>
+  </section>
 </div>
 <div class="work" id="c-work">
   <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
@@ -2040,6 +2050,29 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   if (location.hash === "#facturacion") mostrar("facturacion");
   if (location.hash === "#agenda") mostrar("agenda");
   if (location.hash === "#turno") mostrar("turno");
+  // Reporte mensual en Google Sheets (Ingresos y gastos)
+  (() => {
+    const btn = $("#c-sheets"), caja = $("#c-rep"), sel = $("#c-rep-mes"), est = $("#c-rep-estado");
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    const menos = (m, n) => { const [a, b] = m.split("-").map(Number), t = a * 12 + b - 1 - n; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`; };
+    const nom = m => { const t = new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+    sel.innerHTML = Array.from({ length: 13 }, (_, i) => menos(hoy, i)).map((m, i) => `<option value="${m}" ${i === 1 ? "selected" : ""}>${nom(m)}${i === 0 ? " (en curso)" : ""}</option>`).join("");
+    async function lista() {
+      try {
+        const j = await api("caja/reporte");
+        $("#c-rep-lista").innerHTML = j.reportes.length ? `<div class="rl">${j.reportes.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(nom(r.mes))} ↗</a>`).join("")}</div>` : `<p class="note" style="margin:10px 0 0">Todavía no hay reportes generados.</p>`;
+      } catch {}
+    }
+    btn.addEventListener("click", () => { caja.hidden = !caja.hidden; btn.setAttribute("aria-expanded", String(!caja.hidden)); if (!caja.hidden) lista(); });
+    $("#c-rep-gen").addEventListener("click", async e => {
+      const b = e.currentTarget; b.disabled = true; est.textContent = "Generando… puede tardar un minuto.";
+      try {
+        const r = await api("caja/reporte", { method: "POST", body: JSON.stringify({ mes: sel.value }) });
+        est.innerHTML = `Listo: <a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">abrir la hoja ↗</a>`; lista();
+      } catch (er) { if (er.message !== "sesion") est.textContent = er.message; }
+      b.disabled = false;
+    });
+  })();
   window.irA = (mod, opciones = { historia: "push" }) => mostrar(mod, opciones);
 })();
 </script>

@@ -1,5 +1,5 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
-import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos } from "./fotos.js";
+import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
 // Los datos del ticket ya no se leen con IA: el administrador los captura a mano viendo la foto.
@@ -12,6 +12,7 @@ import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
 import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda, limpiarAgenda } from "./agenda.js";
 import TURNO_HTML from "./turno.html";
 import { turnoRuta, turnoAdmin } from "./turno.js";
+import { reporteMes } from "./reporte.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -80,7 +81,7 @@ export default {
         // Cada hora: revisar el consumo del mes (avisos y modo ahorro)
         if (enPuntoDeHora) await revisarConsumo(env, llamarScript).catch(e => console.error("consumo", e && e.message));
         if (!env.INGRESOS_URL) return;
-        await cierreMensualCaja(env, { crearLibro, llamarScript, aBase64 }).catch(e => console.error("cierre caja", e && e.message));
+        await cierreMensualCaja(env, { crearLibro, llamarScript, aBase64, reporteMes: (e, mes) => reporteMes(e, mes, hReporte) }).catch(e => console.error("cierre caja", e && e.message));
         // En modo ahorro la hoja se lee cada hora en vez de cada 10 minutos
         if (!enPuntoDeHora && await enAhorro(env)) return;
         await sincronizarCaja(env);
@@ -405,6 +406,8 @@ async function exportarXlsx(env, url) {
   });
 }
 
+// Para el reporte mensual en Sheets
+const hReporte = { script: scriptArchivos, filasFacturas: filasExcel };
 function crearXlsx(filas) {
   return crearLibro([{ nombre: "Facturas", filas, anchos: [16, 17, 11, 16, 14, 12, 30, 24, 16, 36, 13, 40, 26, 30, 13, 13, 22, 17, 30] }]);
 }
@@ -501,6 +504,22 @@ async function panel(request, env, url) {
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "exportar" && request.method === "GET") return await exportarXlsx(env, url);
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
+  // Reporte mensual en Google Sheets: estado de los meses y generación a demanda
+  if (partes[0] === "caja" && partes[1] === "reporte") {
+    if (request.method === "GET") {
+      const l = await env.FILES.list({ prefix: "reporte:" });
+      const hechos = (await Promise.all(l.keys.map(k => env.FILES.get(k.name, { type: "json" })))).filter(Boolean).sort((a, b) => b.mes.localeCompare(a.mes));
+      return json({ ok: true, reportes: hechos, script: !!(env.AVISO_URL && env.AVISO_TOKEN) });
+    }
+    if (request.method === "POST") {
+      const c = await request.json().catch(() => ({}));
+      const mes = String(c.mes || "");
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return json({ ok: false, error: "Elige el mes." }, 422);
+      if (!env.AVISO_URL || !env.AVISO_TOKEN) return json({ ok: false, error: "Falta conectar el script de Google." }, 503);
+      try { return json({ ok: true, ...(await reporteMes(env, mes, hReporte)) }); }
+      catch (e) { return json({ ok: false, error: String(e && e.message || e).slice(0, 300) }, 502); }
+    }
+  }
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, { crearLibro });
   if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
   if (partes[0] === "turno") return await turnoAdmin(request, env, url, partes);

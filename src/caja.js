@@ -32,6 +32,10 @@ export async function mesesAbiertos(env) {
 export function mesActual(ahora = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(ahora).slice(0, 7);
 }
+export function sumarMesesCaja(mes, n) {
+  const [a, m] = mes.split("-").map(Number), t = a * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
 function mesAnterior(mes) {
   const [a, m] = mes.split("-").map(Number);
   return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
@@ -212,7 +216,7 @@ export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   }).sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
 
-function totalesMes(cortes, transf = []) {
+export function totalesMes(cortes, transf = []) {
   const t = { efectivo: 0, tarjeta: 0, transferencias: 0, ingresos: 0, gastos: 0, caja: 0, bascula: 0, pension: 0, extras: 0, otros: 0, n_transferencias: transf.length };
   for (const x of transf) { t.transferencias += x.importe; t.ingresos += x.importe; }
   for (const c of cortes) {
@@ -259,8 +263,10 @@ function leerPeriodo(url) {
 async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   meses = [].concat(meses);
   const rango = (col) => `${desde ? ` AND ${col} >= ?` : ""}${hasta ? ` AND ${col} <= ?` : ""}`;
-  const args = [...meses, ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
-  const enMes = `mes IN (${meses.map(() => "?").join(",")})`;
+  // Con periodo (desde/hasta) se busca por fechas en todo lo conservado (13 meses); sin periodo, los meses abiertos
+  const porRango = !!(desde || hasta);
+  const args = [...(porRango ? [] : meses), ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
+  const enMes = porRango ? "1 = 1" : `mes IN (${meses.map(() => "?").join(",")})`;
   const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
   const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
   const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
@@ -327,23 +333,27 @@ export async function cierreMensualCaja(env, h) {
   try {
     await h.llamarScript(env, {
       asunto: `Respaldo de ingresos y gastos ${mes}`,
-      texto: `Respaldo de ingresos y gastos de ${mes} de Báscula y Pensión El Castaño.\n\nIngresos en efectivo: ${dinero(t.efectivo)}\nIngresos con tarjeta: ${dinero(t.tarjeta)}\nIngresos por transferencia: ${dinero(t.transferencias)}\nOtros ingresos (rentas): ${dinero(t.otros)}\nGastos: ${dinero(t.gastos)}\nMovimientos de caja (cambio, retiros): ${dinero(t.caja)}\n\nEl detalle por corte de turno va en el Excel adjunto. Estos datos ya se borraron del panel.`,
+      texto: `Respaldo de ingresos y gastos de ${mes} de Báscula y Pensión El Castaño.\n\nIngresos en efectivo: ${dinero(t.efectivo)}\nIngresos con tarjeta: ${dinero(t.tarjeta)}\nIngresos por transferencia: ${dinero(t.transferencias)}\nOtros ingresos (rentas): ${dinero(t.otros)}\nGastos: ${dinero(t.gastos)}\nMovimientos de caja (cambio, retiros): ${dinero(t.caja)}\n\nEl detalle por corte de turno va en el Excel adjunto y en la hoja de Google Sheets del mes (carpeta "El Castaño · Reportes mensuales" en Drive). Estos datos se conservan 13 meses en el panel.`,
       adjunto: { nombre: `ingresos-gastos-${mes}.xlsx`, tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: h.aBase64(xlsx) }
     });
   } catch (e) { console.error("cierre caja: correo", e.message); return { error: e.message }; }
-  // Fotos de comprobantes de la tablet del mes que se cierra
-  const fotos = [...(await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results,
-    ...(await env.DB.prepare("SELECT foto FROM caja_extra WHERE mes < ? AND foto IS NOT NULL").bind(actual).all()).results];
+  // Lo del mes que se cierra queda en el panel tal como quedó en la hoja (por si hubo cambios después de la última lectura)
+  const filasMes = movs.map(f => ({ ...f, mes }));
+  const POR = 9, st = [env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes)];
+  for (let i = 0; i < filasMes.length; i += POR) {
+    const lote = filasMes.slice(i, i + POR);
+    st.push(env.DB.prepare(`INSERT INTO caja_mov (${COLS_MOV.join(", ")}) VALUES ${lote.map(() => "(" + COLS_MOV.map(() => "?").join(",") + ")").join(",")}`).bind(...lote.flatMap(f => COLS_MOV.map(c => f[c] ?? null))));
+  }
+  await env.DB.batch(st);
+  // Reporte detallado del mes en Google Sheets (Drive de la administración); si falla, el cierre sigue
+  if (h.reporteMes) { try { await h.reporteMes(env, mes); } catch (e) { console.error("cierre caja: reporte Sheets", e && e.message); } }
+  // Se conservan 13 meses (el actual y los 12 anteriores); lo más viejo se borra con sus fotos
+  const limite = sumarMesesCaja(actual, -12);
+  const fotos = [...(await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(limite).all()).results,
+    ...(await env.DB.prepare("SELECT foto FROM caja_extra WHERE mes < ? AND foto IS NOT NULL").bind(limite).all()).results];
   for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM caja_gastos WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM caja_transf WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM caja_extra WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM caja_mov WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM turno_cortes WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM turno_cortes_hist WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM turno_inicio WHERE mes < ?").bind(actual)
-  ]);
+  await env.DB.batch(["caja_gastos", "caja_transf", "caja_extra", "caja_mov", "turno_cortes", "turno_cortes_hist", "turno_inicio"]
+    .map(t => env.DB.prepare(`DELETE FROM ${t} WHERE mes < ?`).bind(limite)));
   await env.FILES.put("caja:mes", actual);
   return { cerrado: mes };
 }

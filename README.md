@@ -55,6 +55,14 @@ Copia en Google Drive: el Apps Script (`herramientas/aviso-correo.gs`, acción `
 
 Navegación del panel: en cada detalle (factura, colaborador, corte) hay una barra fija con «‹ Lista», la posición («3 de 12») y flechas ‹ › para pasar al anterior o siguiente sin volver a la lista; en computadora también con las teclas ← → (Esc vuelve a la lista). En el celular el botón atrás cierra el detalle y luego regresa a la sección anterior, deslizar el detalle a la derecha vuelve a la lista y el menú de secciones va abajo. Las fichas largas traen un índice de secciones y hay un botón ↑ para subir. Código en el último `<script>` de `src/panel.html`.
 
+## Retención de datos y reporte mensual
+
+- **Ingresos y gastos**: se conservan 13 meses en el panel (el actual y los 12 anteriores); con Desde/Hasta se consulta cualquier fecha conservada. Al cerrar el mes (día 1, 7:00) se manda el Excel por correo, el mes cerrado se deja en la base tal como quedó en la hoja y se borra lo de hace más de 13 meses (con sus fotos).
+- **Reporte mensual en Google Sheets**: al cerrar el mes se crea en el Drive de administracion@ (carpeta "El Castaño · Reportes mensuales/AAAA") una hoja con todas las pestañas: resumen, cortes, tickets de báscula y pensión, gastos, ingresos extra, transferencias, cambio inicial, retiros extra, historial de cortes, pagos programados, compras, incidencias, tareas e informes, avisos, eventos, facturas y personal (`src/reporte.js`, acción `hoja` del script). También se genera a demanda en Ingresos y gastos → "Reporte en Google Sheets" (si ya existe, se reemplaza).
+- **Fotos de la tablet**: ya no vencen; viven lo mismo que su registro (incidencia, tarea, gasto) y se borran con él.
+- **Pagos hechos** (`agenda_pagos`): 13 meses, aunque el pago programado se borre. La agenda borra lo terminado a los 40 días (para que el reporte mensual lo incluya).
+- **Expedientes del personal**: permanentes; los documentos quedan en Drive.
+
 ## Compras y pagos programados (Agenda)
 
 - **Compras**: al marcar una compra como comprada se pide el importe y la forma de pago; se registra como gasto en Ingresos y gastos (día y turno de ese momento) y la compra guarda `importe` y `gasto_id`. Si se regresa a pendiente, ese gasto se borra.

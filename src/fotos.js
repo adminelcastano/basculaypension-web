@@ -19,7 +19,9 @@ async function esquema(env) {
       tam INTEGER, carpeta TEXT, creado TEXT NOT NULL, vence TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS archivos_vence ON archivos (vence)"),
     // Archivos de Drive que no se pudieron mandar a la papelera: se reintenta después
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_borrar (drive_id TEXT PRIMARY KEY, creado TEXT NOT NULL)")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_borrar (drive_id TEXT PRIMARY KEY, creado TEXT NOT NULL)"),
+    // Las fotos de la tablet ya no vencen: viven lo mismo que su registro
+    env.DB.prepare("UPDATE archivos SET vence = NULL WHERE llave LIKE 'tf:%' AND vence IS NOT NULL")
   ]);
   listo = true;
 }
@@ -37,6 +39,7 @@ function deBase64(b64) {
   return u.buffer;
 }
 
+export async function scriptArchivos(env, datos, ms) { return script(env, datos, ms); }
 async function script(env, datos, ms = 45000) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
   try {
@@ -163,7 +166,7 @@ export async function mantenerArchivos(env, max = 20) {
       const sigue = await env.FILES.get(k.name, { type: "stream" });
       if (!sigue) { await mandarAPapelera(env, id); continue; }
       try { await sigue.cancel(); } catch {}
-      const vence = k.expiration ? new Date(k.expiration * 1000).toISOString() : null;
+      const vence = k.expiration && !k.name.startsWith("tf:") ? new Date(k.expiration * 1000).toISOString() : null;
       const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(k.name).first();
       await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (llave) DO UPDATE SET drive_id = excluded.drive_id, tipo = excluded.tipo, nombre = excluded.nombre, tam = excluded.tam, carpeta = excluded.carpeta, creado = excluded.creado, vence = excluded.vence`)

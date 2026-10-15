@@ -621,7 +621,7 @@ async function enviarEnlacePorCorreo(env, fila, enviar) {
 // ---------------------------------------------------------------------------
 // Panel: /panel/api/colaboradores...
 // ---------------------------------------------------------------------------
-function resumenFila(f) {
+export function resumenFila(f) {
   const docs = docsResumen(parse(f.docs), parse(f.admin), f.tipo);
   const admin = parse(f.admin);
   return {
