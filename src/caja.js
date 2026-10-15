@@ -18,7 +18,7 @@ export const CONCEPTOS_EXTRA = ["Renta", "Aumento de cambio", "Otro ingreso"];
 export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
 // Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
-export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO").replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
