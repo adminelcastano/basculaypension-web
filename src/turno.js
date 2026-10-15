@@ -476,7 +476,7 @@ function correoTarea(t, resultado, nota, conFoto, s) {
   };
 }
 
-const SW = `const C = "turno-v1";
+const SW = `const C = "turno-v2";
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(["/turno", "/img/logo.png", "/img/turno-192.png"])).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {
@@ -485,7 +485,7 @@ self.addEventListener("fetch", e => {
   // La página: primero internet; sin conexión, la copia guardada
   if (e.request.mode === "navigate" && u.pathname === "/turno") {
     e.respondWith(fetch(e.request).then(r => { if (r.ok && r.type === "basic") { const c = r.clone(); caches.open(C).then(x => x.put("/turno", c)); } return r; }).catch(() => caches.match("/turno")));
-  } else if (u.pathname.startsWith("/img/")) {
+  } else if (u.pathname.startsWith("/img/") || u.pathname.startsWith("/turno/avatar/")) {
     e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
   }
 });`;
