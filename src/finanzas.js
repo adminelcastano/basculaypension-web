@@ -66,9 +66,9 @@ export async function datosFinanzas(env, mes) {
   const recibido = r2(movsEf.reduce((a, m) => a + m.entrada, 0)), gastado = r2(movsEf.reduce((a, m) => a + m.salida, 0));
   const efectivo = { inicial: ini ? ini.efectivo : null, inicial_actualizado: ini ? ini.actualizado : null, recibido, gastado, saldo: ini ? r2(ini.efectivo + recibido - gastado) : null, movimientos: movsEf.reverse() };
 
-  // Banco: entradas (transferencias de clientes) y salidas (pagos con transferencia o tarjeta)
+  // Banco: entradas (transferencias de clientes y cobros con tarjeta, que caen en Mercado Pago) y salidas (pagos con transferencia o tarjeta)
   const cuentas = await env.DB.prepare("SELECT valor, actualizado FROM fin_config WHERE clave = 'cuentas'").first();
-  const banco = { entradas: r2(t.transferencias), salidas: suma(admin, x => x.forma !== "EFECTIVO"), cuentas: cuentas ? cuentas.valor || "" : "", cuentas_actualizado: cuentas ? cuentas.actualizado : null };
+  const banco = { entradas: r2(t.transferencias + t.tarjeta), transferencias: r2(t.transferencias), tarjeta: r2(t.tarjeta), salidas: suma(admin, x => x.forma !== "EFECTIVO"), cuentas: cuentas ? cuentas.valor || "" : "", cuentas_actualizado: cuentas ? cuentas.actualizado : null };
 
   // Por día (para la gráfica): ingresos contra egresos
   const dias = {};

@@ -107,7 +107,7 @@ async function hojasFinanzas(env, mes) {
       ["EGRESOS", ""], ["Gastos de caja (turnos)", g.caja], ["Pagos programados", g.programado], ["Pagos no programados", g.no_programado], ["Compras", g.compra], ["Otros gastos", g.otro], ["Total de egresos", g.total],
       ["RESULTADO (ingresos − egresos)", d.resultado],
       ["EFECTIVO EN SOBRES", ""], ["Saldo inicial del mes", e.inicial ?? "Sin capturar"], ["Recibido en sobres", e.recibido], ["Gastado en efectivo", e.gastado], ["Saldo final", e.saldo ?? "Sin saldo inicial"],
-      ["BANCO", ""], ["Entradas (transferencias de clientes)", d.banco.entradas], ["Salidas (pagos con transferencia o tarjeta)", d.banco.salidas], ["Cuentas", d.banco.cuentas || ""]
+      ["BANCO", ""], ["Cobros con tarjeta (Mercado Pago)", d.banco.tarjeta], ["Transferencias de clientes", d.banco.transferencias], ["Total de entradas", d.banco.entradas], ["Salidas (pagos con transferencia o tarjeta)", d.banco.salidas], ["Cuentas", d.banco.cuentas || ""]
     ]),
     hoja("Efectivo en sobres", ["Día", "Movimiento", "Concepto", "Encargado", "Entrada", "Salida", "Saldo"],
       [["", "Saldo inicial", "", "", e.inicial ?? "", "", e.inicial ?? ""], ...e.movimientos.slice().reverse().map(m => [m.dia, m.tipo === "sobre" ? "Sobre recibido" : CAT_TXT[m.tipo] || "Gasto", m.concepto, m.persona || "", m.entrada || "", m.salida || "", m.saldo ?? ""])]),
