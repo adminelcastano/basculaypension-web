@@ -401,7 +401,7 @@
       try { await post("turno/personas" + (clave ? "/" + encodeURIComponent(clave) : ""), datos); toast(msg); st.personas = null; vistaTablet(); return true; }
       catch (er) { if (er.message !== "sesion") { if (e) e.textContent = er.message; else toast(er.message); } return false; }
     };
-    if (modo === "curso") { const cerr = $("#t-cerrar"); if (cerr) cerr.addEventListener("click", async () => { if (!confirm(`¿Cerrar el turno de ${act.persona} sin corte? Su sesión se cierra y la tablet queda libre.`)) return; try { await post("turno/cerrar", {}); toast("Turno cerrado"); vistaTablet("curso"); } catch (e) { if (e.message !== "sesion") toast(e.message); } }); return; }
+    if (modo === "curso") { const cerr = $("#t-cerrar"); if (cerr) cerr.addEventListener("click", async () => { if (!(await EC.confirmar(`¿Cerrar el turno de ${act.persona} sin corte?`, "Su sesión se cierra y la tablet queda libre.", "Cerrar turno", true))) return; try { await post("turno/cerrar", {}); toast("Turno cerrado"); vistaTablet("curso"); } catch (e) { if (e.message !== "sesion") toast(e.message); } }); return; }
     c.querySelectorAll("form[data-nombre]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardar(f.dataset.nombre, { nombre: f.nombre.value }, "Nombre guardado"); }));
     c.querySelectorAll("form[data-pin]").forEach(f => f.addEventListener("submit", ev => {
       ev.preventDefault();
@@ -494,7 +494,7 @@
         });
         return;
       }
-      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se quita de los egresos en Dinero.")) return;
+      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !(await EC.confirmar("¿Regresar la compra a pendiente?", "Se quita de los egresos en Dinero.", "Regresar", true))) return;
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
@@ -503,7 +503,7 @@
     c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
     c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
       const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
-      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`)) return;
+      if (!(await EC.confirmar(`¿Eliminar el pago de «${p.titulo || "Pago"}»?`, `Del ${diaTxt(p.fecha)} por ${MXN(p.importe)}. También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`, "Eliminar", true))) return;
       try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {

@@ -58,3 +58,41 @@
   const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "pagos" ? "#dinero/pagos" : mod === "finanzas" ? "#dinero" + (vista && vista !== "resumen" ? "/" + vista : "") : "#" + mod;
   window.EC = { $, $$, esc, toast, api, post, TZ, hoyMx, dinero, ruta, seccionDe, hashDe, VISTAS_DINERO, finVista: ruta().vista && ruta().vista !== "pagos" ? ruta().vista : "resumen" };
 })();
+
+// ---- Confirmación con el diseño del panel (en vez de la ventana del navegador) ----
+// EC.confirmar("¿Eliminar el pago?", "Se quita también de Dinero.", "Eliminar", true) → Promise<boolean>
+(() => {
+  let dlg = null;
+  function crear() {
+    dlg = document.createElement("dialog");
+    dlg.className = "confirmar";
+    dlg.innerHTML = `<form method="dialog"><h2 class="cf-t"></h2><p class="cf-x"></p><div class="cf-b"><button class="btn btn-line" value="no" type="submit">Cancelar</button><button class="btn btn-primary cf-si" value="si" type="submit"></button></div></form>`;
+    document.body.appendChild(dlg);
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close("no"); }); // tocar fuera = cancelar
+  }
+  window.EC.confirmar = (titulo, texto = "", si = "Aceptar", peligro = false) => new Promise(res => {
+    if (!dlg) crear();
+    dlg.querySelector(".cf-t").textContent = titulo;
+    dlg.querySelector(".cf-x").textContent = texto; dlg.querySelector(".cf-x").hidden = !texto;
+    const b = dlg.querySelector(".cf-si"); b.textContent = si; b.className = "btn cf-si " + (peligro ? "btn-bad-lleno" : "btn-primary");
+    dlg.returnValue = "no";
+    dlg.onclose = () => res(dlg.returnValue === "si");
+    // En lo que borra o cierra, el foco queda en Cancelar (un Enter por error no borra nada)
+    dlg.showModal(); (peligro ? dlg.querySelector('[value="no"]') : b).focus();
+  });
+})();
+
+// ---- Tablas: en el celular cada renglón se ve como tarjeta (cada celda lleva el nombre de su columna) ----
+(() => {
+  function etiquetar(t) {
+    if (t.dataset.tarjetas) return;
+    const ths = [...t.querySelectorAll("thead th")].map(th => th.textContent.trim());
+    if (!ths.length) return;
+    t.dataset.tarjetas = "1";
+    t.querySelectorAll("tbody tr").forEach(tr => [...tr.children].forEach((td, i) => { if (ths[i] && !td.dataset.k) td.dataset.k = ths[i]; }));
+  }
+  const revisar = raiz => raiz.querySelectorAll && raiz.querySelectorAll("table.cmovs, table.tcortes").forEach(etiquetar);
+  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches && n.matches("table.cmovs, table.tcortes")) etiquetar(n); else revisar(n); } })
+    .observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener("DOMContentLoaded", () => revisar(document));
+})();

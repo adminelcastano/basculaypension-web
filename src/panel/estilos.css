@@ -818,3 +818,37 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
 .cf-tot .cf-l b { font-size: var(--t-lg); }
 .cf-tot .cf-m { visibility: hidden; }
 .cf .rojo { color: #ff8a80; }
+
+/* ---- Repaso para el celular y accesibilidad (15 oct 2026) ---- */
+.btn-bad-lleno { background: var(--bad); color: #fff; }
+dialog.confirmar { border: 0; border-radius: var(--r-lg); background: var(--surface); color: var(--fg); padding: 22px 20px 18px; width: min(420px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+dialog.confirmar::backdrop { background: rgba(0,0,0,.65); }
+dialog.confirmar .cf-t { font-size: var(--t-lg); margin: 0 0 8px; line-height: 1.25; }
+dialog.confirmar .cf-x { color: var(--muted); margin: 0 0 18px; font-size: var(--t-md); }
+dialog.confirmar .cf-b { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+dialog.confirmar .btn { min-height: var(--tap); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+@media (max-width: 640px) {
+  /* Tamaños táctiles: nada que se toque por debajo de 44 px */
+  .btn, .ptab, .tab, .dsub .ptab { min-height: var(--tap); }
+  .del { width: var(--tap); height: var(--tap); }
+  /* Los campos con letra de 16 px evitan que el iPhone acerque la pantalla al escribir */
+  input, select, textarea { font-size: 16px !important; }
+  /* Pestañas en una sola fila que se desliza, en vez de varias filas */
+  .tools .ptabs:not(.pest):not(.pfil), #c-vistas, #pg-tabs, #a-tabs { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .tools .ptabs::-webkit-scrollbar { display: none; }
+  /* Tablas: cada renglón es una tarjeta con el nombre de cada dato */
+  .tabla-scroll { overflow: visible; }
+  table[data-tarjetas] { display: block; width: 100%; border: 0; }
+  table[data-tarjetas] thead { display: none; }
+  table[data-tarjetas] tbody { display: grid; gap: 8px; }
+  table[data-tarjetas] tr { display: grid; gap: 2px; background: var(--bg-2); border-radius: var(--r-md); padding: 10px 12px; border: 1px solid var(--line); }
+  table[data-tarjetas] td { display: block; padding: 4px 0 !important; border: 0 !important; text-align: right !important; min-width: 0; overflow-wrap: anywhere; }
+  table[data-tarjetas] td::after { content: ""; display: block; clear: both; }
+  table[data-tarjetas] td::before { content: attr(data-k); float: left; margin-right: 12px; color: var(--muted); font-size: var(--t-xs); font-weight: 600; text-align: left; max-width: 45%; line-height: 1.9; }
+  table[data-tarjetas] td:not([data-k])::before, table[data-tarjetas] td[data-k=""]::before { content: none; }
+  table[data-tarjetas] td:first-child { font-weight: 600; }
+  table[data-tarjetas] td:empty { display: none; }
+  table[data-tarjetas] .fsaldo-c { width: 140px; }
+}

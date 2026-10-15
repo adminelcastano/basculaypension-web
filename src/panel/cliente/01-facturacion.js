@@ -603,7 +603,8 @@
   };
   const cargarRepFact = window.reporteWidget({ tipos: ["facturacion"], sel: $("#fa-rep-mes"), btn: $("#fa-rep-gen"), est: $("#fa-rep-estado"), lista: $("#fa-rep-lista") });
   $("#fa-rep").addEventListener("toggle", e => { if (e.currentTarget.open) cargarRepFact(); });
-  setInterval(() => { if (!document.hidden) cargarLista(); }, 60000);
+  setInterval(() => { if (!document.hidden && !$("#mod-facturacion").hidden) cargarLista(); }, 60000);
+  document.addEventListener("modulo", e => { if (e.detail === "facturacion") cargarLista(); });
   api("yo").then(j => { $("#yo").textContent = j.email; }).catch(() => {});
   cargarLista();
 })();

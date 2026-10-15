@@ -62,6 +62,12 @@ El panel ya no es un solo archivo: `src/panel/pagina.html` (HTML), `src/panel/es
 - **Herramientas comunes** (`00-base.js`, `window.EC`): `$`, `$$`, `esc`, `toast`, `api`, `post`, `hoyMx`, `dinero`. Cada sección las toma de ahí en vez de copiarlas.
 - **Base de diseño** (`:root` de `estilos.css`): escala de letra `--t-2xs` (12 px) a `--t-2xl` (30 px), neutros con nombre (`--bg-2`, `--surface-2`, `--fill`, `--line-2`, `--fg-2`, `--muted-2`), `--warn`, radios y `--tap` (44 px, tamaño mínimo táctil). Lo nuevo usa estos tokens.
 
+**Hoy** (`src/hoy.js`, `/panel/api/hoy`): el servidor consulta por dentro facturas, caja (8 días), turno activo, agenda, pagos, Dinero, personal y consumo, y arma la lista **Pide atención** por urgencia (`armarHoy`, con pruebas en `pruebas/hoy.test.js`). El turno que acaba de terminar tiene una hora de gracia antes de marcarse «corte sin entregar». En el navegador, Hoy solo se actualiza mientras está a la vista.
+
+**Caja · ficha de conciliación**: el detalle de un corte se lee de arriba abajo (cambio recibido → ventas → gastos → debería haber → contado → reparto → cambio dejado) con ✓ o ! en cada paso y un resumen arriba. `window.cajaAbrirCorte("AAAA-MM-DD|TURNO")` abre un corte desde cualquier sección.
+
+**Celular**: menú inferior de 6 secciones, botones y pestañas de 44 px, campos de 16 px (el iPhone no acerca la pantalla), pestañas en una fila deslizable y las tablas (`table.cmovs`, `table.tcortes`) como tarjetas: `00-base.js` pone a cada celda el nombre de su columna (`data-k`). Las confirmaciones usan `EC.confirmar(título, texto, botón, peligro)` en lugar de la ventana del navegador.
+
 ## Panel: Facturación y Personal
 
 `/panel` (protegido con Cloudflare Access) tiene dos secciones:
