@@ -231,7 +231,7 @@ async function estado(env, s) {
   // Incidencias abiertas de todos los turnos, hasta que la administración las resuelva
   const incidencias = (await env.DB.prepare(`SELECT id, titulo, detalle, area, gravedad, estado, fecha, reporto, quien, turno, creado, foto FROM agenda_items
     WHERE tipo = 'incidencia' AND ${ABIERTO} ORDER BY CASE gravedad WHEN 'grave' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, creado DESC LIMIT 100`).all()).results;
-  const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
+  const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja' ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
   const inicio = await env.DB.prepare("SELECT cambio, persona, actualizado FROM turno_inicio WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
@@ -585,7 +585,7 @@ export async function turnoAdmin(request, env, url, partes) {
       const dias = [...new Set(conteos.map(x => x.dia))];
       const q = dias.map(() => "?").join(",");
       const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE dia IN (${q})`).bind(...dias).all()).results;
-      const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia IN (${q})`).bind(...dias).all()).results;
+      const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia IN (${q}) AND COALESCE(origen, 'caja') = 'caja'`).bind(...dias).all()).results;
       const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE dia IN (${q})`).bind(...dias).all()).results;
       const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE dia IN (${q})`).bind(...dias).all()).results;
       const claves = new Set(conteos.map(x => x.dia + "|" + x.turno));

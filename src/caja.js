@@ -1,8 +1,8 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
-// Ingresos y gastos por corte de turno.
+// Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
-// el respaldo en Excel por correo y se borra el mes anterior.
+// los reportes en Google Sheets (Turnos, Finanzas y Facturación) y se borra lo de hace más de 13 meses.
 
 const TZ = "America/Mexico_City";
 export const TURNOS = ["MAÑANA", "TARDE", "NOCHE"];
@@ -103,8 +103,26 @@ export async function asegurarEsquemaCaja(env) {
   // Cambio inicial que el encargado declara al empezar su turno en la tablet (sustituye al "cambio" de la hoja)
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_inicio (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, cambio REAL NOT NULL, creado TEXT NOT NULL, actualizado TEXT NOT NULL, PRIMARY KEY (dia, turno))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_cortes_hist (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, datos TEXT NOT NULL, creado TEXT NOT NULL)").run();
+  // Origen del gasto (15 oct 2026): 'caja' = salió de la caja del turno (resta al corte);
+  // 'admin' = pago, compra u otro gasto de la administración (sale de los sobres o del banco, no toca ningún turno).
+  if (!cols.has("origen")) {
+    await env.DB.prepare("ALTER TABLE caja_gastos ADD COLUMN origen TEXT").run();
+    // Los pagos y compras registrados antes pasan a la administración
+    const ligados = [];
+    for (const sql of ["SELECT gasto_id FROM agenda_pagos WHERE gasto_id IS NOT NULL", "SELECT gasto_id FROM agenda_items WHERE gasto_id IS NOT NULL"])
+      try { ligados.push(...(await env.DB.prepare(sql).all()).results.map(r => r.gasto_id)); } catch {}
+    for (let i = 0; i < ligados.length; i += 90) {
+      const l = ligados.slice(i, i + 90);
+      await env.DB.prepare(`UPDATE caja_gastos SET origen = 'admin', turno = '' WHERE id IN (${l.map(() => "?").join(",")})`).bind(...l).run();
+    }
+  }
+  // Folio único de cada movimiento de caja (gastos de caja, ingresos extra, retiros del corte y renglones sin folio de la hoja)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_folios (ref TEXT PRIMARY KEY, folio TEXT NOT NULL UNIQUE, mes TEXT NOT NULL, n INTEGER NOT NULL, creado TEXT NOT NULL)").run();
   esquemaListo = true;
 }
+// Gastos que salen de la caja de un turno (los de la administración no cuentan en los cortes)
+export const DE_CAJA = "COALESCE(origen, 'caja') = 'caja'";
+export const esDeCaja = g => (g.origen || "caja") === "caja";
 
 // Pide al script de la hoja los registros de un mes
 export async function leerHoja(env, mes) {
@@ -141,7 +159,7 @@ export async function leerHoja(env, mes) {
 // (100 000 filas al día). Se comparan los registros y solo se insertan o borran las diferencias;
 // con Workers Paid (50 millones al mes incluidas) se conserva así para no gastar de más.
 const COLS_MOV = ["servicio", "fecha", "dia", "turno", "folio", "matricula", "cliente", "importe", "forma", "mes", "tipo"];
-const firmaMov = f => COLS_MOV.map(c => String(f[c] ?? "")).join("\u0001");
+export const firmaMov = f => COLS_MOV.map(c => String(f[c] ?? "")).join("\u0001");
 export function diferenciasCaja(actuales, nuevas) {
   const libres = new Map();
   for (const f of actuales) { const k = firmaMov(f); if (!libres.has(k)) libres.set(k, []); libres.get(k).push(f.id); }
@@ -172,6 +190,8 @@ export async function sincronizarCaja(env) {
         .bind(...lote.flatMap(f => COLS_MOV.map(c => f[c]))));
     }
     if (stmts.length) await env.DB.batch(stmts);
+    // Folios de los movimientos de caja nuevos (si falla, se numeran la próxima vez)
+    await numerarMovimientos(env, meses).catch(e => console.error("folios caja", e && e.message));
     const previo = await env.FILES.get("caja:sync", { type: "json" }) || {};
     const estado = { at: new Date().toISOString(), n: filas.length, error: null, cambios: insertar.length + borrar.length };
     // Solo se guarda el estado si hubo cambios o pasó 1 hora (ahorra escrituras de KV)
@@ -253,6 +273,59 @@ function conteo(x, c) {
     dif_efectivo: c ? r2(x.efectivo - (c.efectivo_caja - (x.con_cambio || !c.cambio ? 0 : c.cambio.importe))) : null, dif_tarjeta: c && x.tarjeta != null ? r2(x.tarjeta - c.tarjeta) : null };
 }
 
+// ---- Movimientos de caja con folio único (MC-AAMM-NNN) ----
+// Todo lo que mueve la caja de un turno, salvo el cambio inicial: gastos de caja, ingresos extra,
+// retiros del corte ciego y renglones de la hoja sin folio de ticket. El folio se asigna una sola vez
+// (por orden de llegada) y no cambia; si el movimiento se borra, su número no se vuelve a usar.
+const horaLocal = iso => { const d = new Date(Date.parse(iso) - 6 * 3600e3); return isNaN(d) ? "" : d.toISOString().slice(0, 16); };
+export function movimientosCaja({ movs = [], gastos = [], extras = [], conteos = [] }) {
+  const lista = [];
+  for (const g of gastos) if (esDeCaja(g)) lista.push({ ref: "g:" + g.id, tipo: "gasto", id: g.id, mes: g.mes, dia: g.dia, turno: g.turno, cuando: horaLocal(g.creado), concepto: g.concepto, detalle: "", monto: -g.monto, forma: g.forma, persona: g.persona || null, por: g.persona ? null : g.creado_por || null, foto: g.foto || null });
+  for (const x of extras) lista.push({ ref: "x:" + x.id, tipo: "ingreso", id: x.id, mes: x.mes, dia: x.dia, turno: x.turno, cuando: horaLocal(x.creado), concepto: x.concepto, detalle: x.detalle || "", monto: x.monto, forma: "EFECTIVO", persona: x.persona || null, por: x.persona ? null : x.creado_por || null, foto: x.foto || null, ingreso: !!x.ingreso });
+  for (const c of conteos) leerRetiros(c.retiros).forEach((r, i) => lista.push({ ref: `r:${c.dia}|${c.turno}|${i}`, tipo: "retiro", mes: c.mes, dia: c.dia, turno: c.turno, cuando: horaLocal(c.actualizado), concepto: r.concepto, detalle: "Retiro en el corte", monto: -r.monto, forma: "EFECTIVO", persona: c.persona, foto: null }));
+  // Renglones de la hoja sin folio de ticket (retiros, sueldos, compras); el cambio inicial no lleva folio
+  const vistos = new Map();
+  for (const m of movs.filter(m => m.tipo === "caja" && !esCambio(m)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || (a.id || 0) - (b.id || 0))) {
+    const f = firmaMov(m), k = vistos.get(f) || 0; vistos.set(f, k + 1);
+    lista.push({ ref: "m:" + f + "#" + k, tipo: "hoja", mes: m.mes, dia: m.dia, turno: m.turno, cuando: String(m.fecha).slice(0, 16), concepto: [m.folio, m.cliente].map(x => String(x || "").trim()).filter((x, i, l) => x && !/^(0|S|SN|N\/?A)$/i.test(x) && (i === 0 || !l[0].toUpperCase().includes(x.toUpperCase()))).join(" · ") || "Movimiento de caja", detalle: /^(0|S|SN)?$/i.test(String(m.matricula || "").trim()) ? "" : m.matricula, monto: m.importe, forma: m.forma, persona: null, foto: null, servicio: m.servicio });
+  }
+  return lista.sort((a, b) => b.dia.localeCompare(a.dia) || String(b.cuando).localeCompare(String(a.cuando)));
+}
+export const textoFolio = (mes, n) => `MC-${mes.slice(2, 4)}${mes.slice(5, 7)}-${String(n).padStart(3, "0")}`;
+// Pone el folio a cada movimiento; los que no tienen se numeran en orden cronológico dentro de su mes
+export async function conFolios(env, lista) {
+  if (!lista.length) return lista;
+  const meses = [...new Set(lista.map(x => x.mes))];
+  const q = meses.map(() => "?").join(",");
+  const hechos = new Map((await env.DB.prepare(`SELECT ref, folio FROM caja_folios WHERE mes IN (${q})`).bind(...meses).all()).results.map(r => [r.ref, r.folio]));
+  const faltan = lista.filter(x => !hechos.has(x.ref)).sort((a, b) => a.dia.localeCompare(b.dia) || String(a.cuando).localeCompare(String(b.cuando)));
+  if (faltan.length) {
+    const tope = new Map((await env.DB.prepare(`SELECT mes, MAX(n) n FROM caja_folios WHERE mes IN (${q}) GROUP BY mes`).bind(...meses).all()).results.map(r => [r.mes, r.n || 0]));
+    const ahora = new Date().toISOString(), st = [];
+    for (const x of faltan) {
+      const n = (tope.get(x.mes) || 0) + 1; tope.set(x.mes, n);
+      st.push(env.DB.prepare("INSERT OR IGNORE INTO caja_folios (ref, folio, mes, n, creado) VALUES (?, ?, ?, ?, ?)").bind(x.ref, textoFolio(x.mes, n), x.mes, n, ahora));
+    }
+    for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+    for (const r of (await env.DB.prepare(`SELECT ref, folio FROM caja_folios WHERE mes IN (${q})`).bind(...meses).all()).results) hechos.set(r.ref, r.folio);
+  }
+  for (const x of lista) x.folio = hechos.get(x.ref) || null;
+  return lista;
+}
+// Numera lo que entró desde la última vez (se llama después de cada sincronización)
+export async function numerarMovimientos(env, meses) {
+  const q = meses.map(() => "?").join(",");
+  const leer = sql => env.DB.prepare(sql.replace("(?)", `(${q})`)).bind(...meses).all().then(r => r.results);
+  const lista = movimientosCaja({
+    movs: await leer("SELECT * FROM caja_mov WHERE tipo = 'caja' AND mes IN (?)"),
+    gastos: await leer(`SELECT * FROM caja_gastos WHERE ${DE_CAJA} AND mes IN (?)`),
+    extras: await leer("SELECT * FROM caja_extra WHERE mes IN (?)"),
+    conteos: await leer("SELECT * FROM turno_cortes WHERE mes IN (?)")
+  });
+  await conFolios(env, lista);
+  return lista.length;
+}
+
 // Periodo opcional: desde/hasta (AAAA-MM-DD, por día del corte o fecha de la transferencia)
 function leerPeriodo(url) {
   const f = k => { const v = url && url.searchParams.get(k) || ""; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ""; };
@@ -260,7 +333,7 @@ function leerPeriodo(url) {
   if (desde && hasta && desde > hasta) [desde, hasta] = [hasta, desde];
   return { desde, hasta };
 }
-async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
+export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   meses = [].concat(meses);
   const rango = (col) => `${desde ? ` AND ${col} >= ?` : ""}${hasta ? ` AND ${col} <= ?` : ""}`;
   // Con periodo (desde/hasta) se busca por fechas en todo lo conservado (13 meses); sin periodo, los meses abiertos
@@ -268,45 +341,18 @@ async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   const args = [...(porRango ? [] : meses), ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
   const enMes = porRango ? "1 = 1" : `mes IN (${meses.map(() => "?").join(",")})`;
   const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
-  const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  const todos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  const gastos = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
   const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
   const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
   const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
   const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
-  return { movs, gastos, transf, conteos, extras, inicios };
+  return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios };
 }
 
-const NOMBRE_SERV = { bascula: "Báscula", pension: "Pensión" };
-export function hojasExcel(mes, movs, gastos, transf = [], conteos = [], extras = [], inicios = []) {
-  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).slice().reverse();
-  return [
-    { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14, 14, 14, 30, 16], filas: [
-      ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Cambio inicial", "Ingresos extra", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta", "Efectivo en sobre", "Retiros extra", "Detalle de retiros", "Cambio para el siguiente turno"],
-      ...cortes.map(c => [c.dia, c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.cambio.importe, c.extra.importe, c.caja.importe, c.efectivo_caja, c.fuera.importe,
-        c.conteo ? c.conteo.persona : "", c.conteo ? c.conteo.efectivo : "", c.conteo ? c.conteo.dif_efectivo : "", c.conteo && c.conteo.tarjeta != null ? c.conteo.tarjeta : "", c.conteo && c.conteo.dif_tarjeta != null ? c.conteo.dif_tarjeta : "",
-        c.conteo && c.conteo.sobre != null ? c.conteo.sobre : "", c.conteo ? c.conteo.retiros.reduce((a, r) => a + r.monto, 0) || "" : "", c.conteo ? c.conteo.retiros.map(r => `${r.concepto} ${r.monto}`).join("; ") : "", c.conteo && c.conteo.cambio_sig != null ? c.conteo.cambio_sig : ""])
-    ] },
-    ...["bascula", "pension"].map(sv => ({ nombre: NOMBRE_SERV[sv], anchos: [19, 12, 10, 12, 14, 30, 12, 15, 12], filas: [
-      ["Fecha y hora", "Día del corte", "Turno", "Folio", "Matrícula", "Cliente", sv === "bascula" ? "Tarifa" : "Recibido", "Forma de pago", "En el corte"],
-      ...movs.filter(m => m.servicio === sv).slice().reverse().map(m => [m.fecha.replace("T", " "), m.dia, m.turno, m.folio, m.matricula, m.cliente, m.importe, m.forma, m.tipo === "caja" ? "Movimiento de caja" : FORMAS_CONTADAS.includes(m.forma) ? "Sí" : "No"])
-    ] })),
-    { nombre: "Gastos", anchos: [12, 10, 40, 12, 15, 30], filas: [
-      ["Día", "Turno", "Concepto", "Monto", "Forma de pago", "Capturado por"],
-      ...gastos.slice().reverse().map(g => [g.dia, g.turno, g.concepto, g.monto, g.forma, g.persona ? g.persona + " (tablet)" : g.creado_por || ""])
-    ] },
-    { nombre: "Ingresos extra", anchos: [12, 10, 20, 34, 12, 14, 30], filas: [
-      ["Día", "Turno", "Concepto", "Detalle", "Monto", "Cuenta como ingreso", "Capturado por"],
-      ...extras.slice().reverse().map(x => [x.dia, x.turno, x.concepto, x.detalle || "", x.monto, x.ingreso ? "Sí" : "No (solo caja)", x.persona ? x.persona + " (tablet)" : x.creado_por || ""])
-    ] },
-    { nombre: "Transferencias", anchos: [12, 40, 14, 20, 30], filas: [
-      ["Fecha", "Cliente", "Importe", "Factura", "Capturado por"],
-      ...transf.slice().reverse().map(x => [x.fecha, x.cliente, x.importe, x.factura || "", x.creado_por || ""])
-    ] }
-  ];
-}
-
-// Cambio de mes: respaldo del mes anterior por correo (leído completo de la hoja) y borrado.
-// Si el correo falla, no se borra nada y se reintenta en la siguiente ejecución.
+// Cambio de mes: el mes anterior se deja en la base tal como quedó en la hoja y se crean sus reportes
+// en Google Sheets (Turnos, Finanzas y Facturación, cada uno en su carpeta de Drive). Si los reportes no
+// se crean, no se borra nada y se reintenta cada hora.
 export async function cierreMensualCaja(env, h) {
   await asegurarEsquemaCaja(env);
   const actual = mesActual();
@@ -315,6 +361,9 @@ export async function cierreMensualCaja(env, h) {
   if (guardado >= actual) return { nada: true };
   // Se espera a que termine el turno de noche del último día del mes (7:00 del día 1, hora de Tapachula)
   if (mesActual(new Date(Date.now() - 7 * 3600e3)) !== actual) return { esperando: true };
+  const intento = await env.FILES.get("caja:cierre_intento");
+  if (intento && Date.now() - Date.parse(intento) < 3600e3) return { esperando: true };
+  await env.FILES.put("caja:cierre_intento", new Date().toISOString(), { expirationTtl: 7200 });
   const mes = guardado;
   let movs;
   try {
@@ -322,21 +371,6 @@ export async function cierreMensualCaja(env, h) {
     const sig = (await leerHoja(env, actual)).filter(f => String(f.dia).slice(0, 7) === mes);
     movs = [...(await leerHoja(env, mes)).filter(f => String(f.dia).slice(0, 7) === mes), ...sig];
   } catch (e) { console.error("cierre caja: hoja", e.message); return { error: e.message }; }
-  const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
-  const transf = (await env.DB.prepare("SELECT * FROM caja_transf WHERE mes = ? ORDER BY fecha, creado").bind(mes).all()).results;
-  const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE mes = ?").bind(mes).all()).results;
-  const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
-  const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE mes = ?").bind(mes).all()).results;
-  const t = totalesMes(calcularCortes(movs, gastos, extras, inicios), transf);
-  const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras, inicios));
-  const dinero = v => "$" + v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  try {
-    await h.llamarScript(env, {
-      asunto: `Respaldo de ingresos y gastos ${mes}`,
-      texto: `Respaldo de ingresos y gastos de ${mes} de Báscula y Pensión El Castaño.\n\nIngresos en efectivo: ${dinero(t.efectivo)}\nIngresos con tarjeta: ${dinero(t.tarjeta)}\nIngresos por transferencia: ${dinero(t.transferencias)}\nOtros ingresos (rentas): ${dinero(t.otros)}\nGastos: ${dinero(t.gastos)}\nMovimientos de caja (cambio, retiros): ${dinero(t.caja)}\n\nEl detalle por corte de turno va en el Excel adjunto y en la hoja de Google Sheets del mes (carpeta "El Castaño · Reportes mensuales" en Drive). Estos datos se conservan 13 meses en el panel.`,
-      adjunto: { nombre: `ingresos-gastos-${mes}.xlsx`, tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: h.aBase64(xlsx) }
-    });
-  } catch (e) { console.error("cierre caja: correo", e.message); return { error: e.message }; }
   // Lo del mes que se cierra queda en el panel tal como quedó en la hoja (por si hubo cambios después de la última lectura)
   const filasMes = movs.map(f => ({ ...f, mes }));
   const POR = 9, st = [env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes)];
@@ -345,16 +379,19 @@ export async function cierreMensualCaja(env, h) {
     st.push(env.DB.prepare(`INSERT INTO caja_mov (${COLS_MOV.join(", ")}) VALUES ${lote.map(() => "(" + COLS_MOV.map(() => "?").join(",") + ")").join(",")}`).bind(...lote.flatMap(f => COLS_MOV.map(c => f[c] ?? null))));
   }
   await env.DB.batch(st);
-  // Reporte detallado del mes en Google Sheets (Drive de la administración); si falla, el cierre sigue
-  if (h.reporteMes) { try { await h.reporteMes(env, mes); } catch (e) { console.error("cierre caja: reporte Sheets", e && e.message); } }
+  await numerarMovimientos(env, [mes]).catch(() => {});
+  // Reportes del mes en Google Sheets: son el respaldo, así que sin ellos no se borra nada
+  try { await h.reportes(env, mes); }
+  catch (e) { console.error("cierre caja: reportes Sheets", e && e.message); return { error: "reportes: " + (e && e.message) }; }
   // Se conservan 13 meses (el actual y los 12 anteriores); lo más viejo se borra con sus fotos
   const limite = sumarMesesCaja(actual, -12);
   const fotos = [...(await env.DB.prepare("SELECT foto FROM caja_gastos WHERE mes < ? AND foto IS NOT NULL").bind(limite).all()).results,
     ...(await env.DB.prepare("SELECT foto FROM caja_extra WHERE mes < ? AND foto IS NOT NULL").bind(limite).all()).results];
   for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
-  await env.DB.batch(["caja_gastos", "caja_transf", "caja_extra", "caja_mov", "turno_cortes", "turno_cortes_hist", "turno_inicio"]
+  await env.DB.batch(["caja_gastos", "caja_transf", "caja_extra", "caja_mov", "turno_cortes", "turno_cortes_hist", "turno_inicio", "caja_folios"]
     .map(t => env.DB.prepare(`DELETE FROM ${t} WHERE mes < ?`).bind(limite)));
   await env.FILES.put("caja:mes", actual);
+  await env.FILES.delete("caja:cierre_intento");
   return { cerrado: mes };
 }
 
@@ -370,23 +407,31 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
     const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
+    const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, gastos_recientes: gastosRecientes, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, totales: totalesMes(cortes, transf), cortes, movimientos, transferencias: transf, gastos_recientes: gastosRecientes, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
     const dia = url.searchParams.get("dia") || "", turno = url.searchParams.get("turno") || "";
     const movs = (await env.DB.prepare("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC").bind(dia, turno).all()).results;
-    const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
+    const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`).bind(dia, turno).all()).results;
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
     const historial = (await env.DB.prepare("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results
       .map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
-    return json({ ok: true, corte, movs, gastos, extras, historial, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
+    // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
+    const folios = Object.fromEntries((await conFolios(env, movimientosCaja({ movs: movs.map(m => ({ ...m, mes: m.mes || dia.slice(0, 7) })), gastos, extras, conteos }))).map(x => [x.ref, x.folio]));
+    const vistos = new Map();
+    for (const m of movs.filter(m => m.tipo === "caja" && !esCambio(m)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || (a.id || 0) - (b.id || 0))) { const f = firmaMov(m), k = vistos.get(f) || 0; vistos.set(f, k + 1); m.folio_mc = folios["m:" + f + "#" + k] || null; }
+    for (const g of gastos) g.folio_mc = folios["g:" + g.id] || null;
+    for (const x of extras) x.folio_mc = folios["x:" + x.id] || null;
+    const folRet = conteos[0] ? leerRetiros(conteos[0].retiros).map((r, i) => folios[`r:${dia}|${turno}|${i}`] || null) : [];
+    return json({ ok: true, corte, movs, gastos, extras, historial, folios_retiros: folRet, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
@@ -395,20 +440,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     return json({ ok: true, sync: estado });
   }
 
-  if (partes[1] === "exportar" && request.method === "GET") {
-    const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
-    const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras, inicios));
-    const nombre = periodo.desde || periodo.hasta ? `ingresos-gastos-${periodo.desde || mes + "-01"}-a-${periodo.hasta || "hoy"}` : `ingresos-gastos-${mes}`;
-    return new Response(xlsx, { headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${nombre}.xlsx"`, "Cache-Control": "no-store"
-    } });
-  }
-
   if (partes[1] === "gastos" && partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = texto(c.concepto, 120), monto = montoUsuario(c.monto), forma = normForma(c.forma) || "EFECTIVO";
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), concepto = texto(c.concepto, 120), monto = montoUsuario(c.monto), forma = "EFECTIVO"; // gasto de caja: sale del efectivo del turno
     const errores = {};
     if (!diaValido(dia)) errores.dia = "Elige un día del mes actual (no futuro).";
     if (!turno) errores.turno = "Elige el turno.";
@@ -417,7 +451,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!FORMAS_GASTO.includes(forma)) errores.forma = "Forma de pago inválida.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja')")
       .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null).run();
     return json({ ok: true, id });
   }
@@ -425,7 +459,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   if (partes[1] === "gastos" && partes[3] === "eliminar" && request.method === "POST") {
     const g = await env.DB.prepare("SELECT foto FROM caja_gastos WHERE id = ?").bind(partes[2]).first();
     if (g && g.foto) await borrarArchivo(env, g.foto).catch(() => {});
-    const r = await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(partes[2]).run();
+    const r = await env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(partes[2]).run();
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 

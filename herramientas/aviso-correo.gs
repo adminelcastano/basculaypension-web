@@ -1,11 +1,11 @@
 /**
  * Script de Báscula y Pensión El Castaño (script.google.com, cuenta administracion@basculaypension.com).
  * - Te avisa por correo de nuevas solicitudes de factura y de expedientes del personal.
- * - Recibe el respaldo en Excel antes de borrar registros con más de 90 días.
  * - Envía a colaboradores y al encargado de turno los correos con su enlace de expediente.
  * - Guarda una copia de los documentos del personal en Google Drive:
  *   COLABORADORES / EXTERNOS → carpeta de cada persona (la busca por su número) → documentos.
- * - Crea cada mes una hoja de Google Sheets con el reporte detallado (carpeta "El Castaño · Reportes mensuales").
+ * - Crea cada mes los reportes en Google Sheets, uno por área y cada uno en su carpeta: TURNOS, ADMIN FINANZAS y
+ *   FACTURACION (constante CARPETAS_REPORTES). También guarda ahí el respaldo de las facturas que se borran a los 90 días.
  * - Es el almacén de fotos y PDFs del panel y la tablet: carpeta dedicada "El Castaño · Archivos del panel"
  *   en el Drive de esta cuenta (tickets y constancias, expedientes, fotos de la tablet). No la renombres;
  *   puedes moverla de lugar dentro de tu Drive.
@@ -52,6 +52,13 @@ function doPost(e) {
 // Si alguien nuevo aún no tiene carpeta, la crea una sola vez al subir su primer documento.
 const CARPETA_COLABORADORES = '1erpAnbQmscqHW_JiwtRMTOX_K6o12vhB';
 const CARPETA_EXTERNOS = '1IoBUDd1YET3ZlvK7YyHNmtgSo9OCedQi';
+// Carpetas de los reportes mensuales (las de 2026). Para otro año se usa (o se crea) una carpeta hermana con el
+// mismo nombre y el año cambiado, por ejemplo "TURNOS 2027" junto a "TURNOS 2026".
+const CARPETAS_REPORTES = {
+  turnos: '1SaOmOySTHHSg2Yh6rk6yM5E-JCIS3rkZ',      // TURNOS 2026
+  finanzas: '1o66iaZDsvCumHzyUGX2sSW78SlXxw4Om',    // ADMIN FINANZAS 2026
+  facturacion: '10UnjBm4XAiOB3zhm6510ocrgl6UZz8P6'  // FACTURACION 2026
+};
 
 function carpetaDePersona(d) {
   const props = PropertiesService.getScriptProperties();
@@ -146,9 +153,25 @@ function carpetaReportes(nombre, anio) {
   const it = raiz.getFoldersByName(String(anio));
   return it.hasNext() ? it.next() : raiz.createFolder(String(anio));
 }
+// Carpeta del área para un año: la de la constante, o su hermana con el año cambiado (se crea si no existe)
+function carpetaArea(destino, anio) {
+  const base = DriveApp.getFolderById(CARPETAS_REPORTES[destino]);
+  const nombre = base.getName(), m = nombre.match(/(19|20)\d{2}/);
+  if (!anio || !m || m[0] === String(anio)) return base;
+  const props = PropertiesService.getScriptProperties(), llave = 'rep_' + destino + '_' + anio;
+  const id = props.getProperty(llave);
+  if (id) { try { const c = DriveApp.getFolderById(id); if (!c.isTrashed()) return c; } catch (err) {} }
+  const otro = nombre.replace(m[0], String(anio));
+  const padres = base.getParents(), padre = padres.hasNext() ? padres.next() : DriveApp.getRootFolder();
+  const it = padre.getFoldersByName(otro);
+  const c = it.hasNext() ? it.next() : padre.createFolder(otro);
+  props.setProperty(llave, c.getId());
+  return c;
+}
 function hojaMensual(d) {
   const nombre = String(d.nombre || 'Reporte').slice(0, 150);
-  const carpeta = carpetaReportes(String(d.raiz || 'El Castaño · Reportes mensuales'), (d.carpeta || [])[0]);
+  const destino = CARPETAS_REPORTES[d.destino] ? String(d.destino) : '';
+  const carpeta = destino ? carpetaArea(destino, String(d.anio || '')) : carpetaReportes(String(d.raiz || 'El Castaño · Reportes mensuales'), (d.carpeta || [])[0]);
   const viejos = carpeta.getFilesByName(nombre);
   while (viejos.hasNext()) viejos.next().setTrashed(true);
   const ss = SpreadsheetApp.create(nombre);
@@ -166,7 +189,7 @@ function hojaMensual(d) {
   });
   const archivo = DriveApp.getFileById(ss.getId());
   archivo.moveTo(carpeta);
-  return { ok: true, id: ss.getId(), url: ss.getUrl() };
+  return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null };
 }
 
 function dentroDeRaiz(archivo) {
@@ -186,7 +209,7 @@ function probar() {
   raizArchivos('El Castaño · Archivos del panel');
   DriveApp.getFolderById(CARPETA_COLABORADORES).getName();
   DriveApp.getFolderById(CARPETA_EXTERNOS).getName();
-  carpetaReportes('El Castaño · Reportes mensuales');
+  Object.keys(CARPETAS_REPORTES).forEach(function (k) { DriveApp.getFolderById(CARPETAS_REPORTES[k]).getName(); });
   SpreadsheetApp.getActiveSpreadsheet(); // pide el permiso de Google Sheets
   GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'Prueba de aviso · El Castaño', 'Si recibes esto, el aviso de solicitudes y la carpeta de Drive están listos.');
 }

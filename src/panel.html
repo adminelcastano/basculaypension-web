@@ -254,7 +254,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .sec-ir { font: inherit; font-size: .82rem; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--cat); background: none; border: 0; padding: 6px 2px; cursor: pointer; white-space: nowrap; border-radius: 8px; }
 .sec-ir:hover { text-decoration: underline; }
 .cat-a { --cat: #ffcc00; } .cat-b { --cat: #2dd4bf; } .cat-c { --cat: #ff9f0a; } .cat-d { --cat: #b69cff; } .cat-e { --cat: #8e8e93; } .cat-f { --cat: #30d158; }
-.ini-grid > .ini-card { border: 1.5px solid #3a3a3c; border: 1.5px solid color-mix(in srgb, var(--cat, #3a3a3c) 55%, transparent); }
+.ini-grid > .ini-card, .ini-agcol > .ini-card { border: 1.5px solid #3a3a3c; border: 1.5px solid color-mix(in srgb, var(--cat, #3a3a3c) 55%, transparent); }
 .acciones > .ini-k { display: none; }
 @media (min-width: 1001px) { .acciones .acc-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .acc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
@@ -331,7 +331,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { .sync span { display: none; } .sync { padding: 7px; margin-left: 4px; } }
 
 /* Agenda */
-#mod-agenda, #mod-turno { overflow-y: auto; }
+#mod-agenda, #mod-pagos, #mod-finanzas { overflow-y: auto; }
 .aico { width: 17px; height: 17px; flex: none; }
 .ag { width: 100%; padding: 4px 24px 40px; display: grid; gap: 16px; }
 .ag-cal { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
@@ -477,7 +477,7 @@ details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted);
   html, body { height: auto; }
   body { display: block; min-height: 100%; }
   .mod { display: block; min-height: 0; }
-  #mod-inicio, #mod-agenda, #mod-turno { overflow: visible; }
+  #mod-inicio, #mod-agenda, #mod-pagos, #mod-finanzas { overflow: visible; }
   div.work { min-height: 0; align-items: start; }
   .list, .detail { overflow: visible; }
 }
@@ -722,6 +722,46 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   .aitem .acc { grid-row: auto; order: 9; grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
   .aitem > .grav, .aitem > .chk { grid-row: 1 / span 2; align-self: start; }
 }
+
+/* ---- Reorganización (15 oct 2026): Turnos, Pagos y compras, Finanzas e Inicio por secciones ---- */
+.cat-g { --cat: #7ee2a0; }
+#c-full { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
+#c-full > div:empty { display: none; }
+#c-full > div { display: grid; gap: 16px; }
+.folio-mc { display: inline-block; font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; color: #ffcc00; background: rgba(255,204,0,.1); border: 1px solid rgba(255,204,0,.28); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
+.tmov { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; }
+.tmov::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.lnk-corte { background: none; border: 0; padding: 0; color: #64d2ff; font: inherit; cursor: pointer; text-align: left; white-space: nowrap; }
+.lnk-corte:hover { text-decoration: underline; }
+.tmovs td { vertical-align: top; }
+.mfil { flex-wrap: wrap; }
+.fmes { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.fmes select { min-height: 40px; }
+.fkpi { margin: 8px 0 14px; }
+.fkpi .k b { font-size: 1.35rem; }
+.fcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.fcols h4 { margin: 0 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: #a1a1a6; }
+.frow { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.frow.tot { border-bottom: 0; font-weight: 700; }
+.fgraf { margin-top: 14px; } .fgraf svg { width: 100%; height: auto; display: block; }
+.fsaldo { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.fsaldo label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
+.fsaldo input, .fcuentas textarea, .fmes select, #f-rep-mes, #fa-rep-mes { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
+.fsaldo input { min-height: 44px; max-width: 220px; }
+.fcuentas { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+.fcuentas textarea { width: 100%; resize: vertical; font: inherit; }
+.rl-mes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.rl-mes b { min-width: 150px; }
+.pg-res .k small { display: block; color: #a1a1a6; font-size: 12px; margin-top: 2px; }
+.ini-agcol { grid-column: span 2; display: grid; gap: 12px; align-content: start; }
+.ini-exp { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid #3a3a3c; background: #1f1f21; color: #d2d2d7; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.ini-exp svg { width: 18px; height: 18px; flex: none; color: #b69cff; }
+.ini-exp b { color: #f5f5f7; }
+.ini-cal .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ini-cal .cal-head h3 { margin: 0; }
+.ini-cal .cal .d { min-height: 46px; }
+@media (max-width: 1000px) { .ini-agcol { grid-column: 1 / -1; } .ini-cal { grid-column: 1 / -1 !important; } }
+@media (max-width: 640px) { .fcols { grid-template-columns: 1fr; } .ini-cal .cal .d { min-height: 38px; } header.bar .modulos { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } header.bar .modulos button { font-size: 10px !important; padding: 4px 0 !important; } header.bar .modulos .mi { width: 22px !important; height: 22px !important; } }
 </style>
 </head>
 <body>
@@ -750,11 +790,12 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   <h1>El Castaño</h1>
   <nav class="modulos" aria-label="Sección">
     <button type="button" data-mod="inicio" aria-current="page"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
+    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-tablet"/></svg><span>Turnos</span></button>
+    <button type="button" data-mod="pagos"><svg class="mi" aria-hidden="true"><use href="#i-carrito"/></svg><span class="largo">Pagos y compras</span><span class="corto">Pagos</span></button>
+    <button type="button" data-mod="finanzas"><svg class="mi" aria-hidden="true"><use href="#i-tendencia"/></svg><span>Finanzas</span></button>
     <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
     <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
-    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
     <button type="button" data-mod="agenda"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Agenda</span></button>
-    <button type="button" data-mod="turno"><svg class="mi" aria-hidden="true"><use href="#i-tablet"/></svg><span>Turno</span></button>
   </nav>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
@@ -800,15 +841,18 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <section class="ini-card cat-a full s2 acciones">
         <span class="ini-k">Acciones rápidas</span>
         <div class="acc-grid">
-          <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
-          <button type="button" class="accion" data-accion="transf" style="--c:#e879b6"><span class="ibadge"><svg><use href="#i-transf"/></svg></span>Agregar ingreso por transferencia</button>
-          <button type="button" class="accion" data-accion="tarea" style="--c:#64d2ff"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span>Nueva tarea</button>
+          <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Gasto de caja</button>
+          <button type="button" class="accion" data-accion="pagohecho" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-billete"/></svg></span>Registrar pago o gasto</button>
+          <button type="button" class="accion" data-accion="programar" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span>Programar un pago</button>
           <button type="button" class="accion" data-accion="compra" style="--c:#ffb86b"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span>Anotar compra</button>
+          <button type="button" class="accion" data-accion="transf" style="--c:#e879b6"><span class="ibadge"><svg><use href="#i-transf"/></svg></span>Transferencia de cliente</button>
+          <button type="button" class="accion" data-accion="tarea" style="--c:#64d2ff"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span>Nueva tarea</button>
           <button type="button" class="accion" data-accion="incidencia" style="--c:#ff6961"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
           <button type="button" class="accion" data-accion="evento" style="--c:#b69cff"><span class="ibadge"><svg><use href="#i-cal"/></svg></span>Agendar evento</button>
         </div>
       </section>
-      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Ingresos y caja de hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Ingresos y gastos ›</button></h3>
+
+      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Turno hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Turnos ›</button></h3>
       <div class="ini-card cat-b ini-hero s2" data-ir="caja" tabindex="0" role="link">
         <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
         <b class="ini-big" id="i-hoy">$0</b>
@@ -820,42 +864,64 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span><span class="ini-act" id="ini-activo" hidden></span>
       </div>
       <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de caja hoy</span></div>
         <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span><div class="ini-gl" id="ini-gastos-l" hidden></div>
       </div>
       <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
       <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
-      <section class="ini-card cat-b s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
-      <section class="ini-card cat-b full s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
-      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturación y personal</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturación ›</button></h3>
-      <div class="ini-card cat-c kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
-        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
-      </div>
-      <div class="ini-card cat-c kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-persona"/></svg></span><span class="ini-k">Expedientes incompletos</span></div>
-        <b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span>
-      </div>
-      <div class="ini-card cat-c s2" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
-      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda y operación</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
-      <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
-      <div class="ini-card cat-d ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
-      <div class="ini-card cat-d ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
-      <div class="ini-card cat-d ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
-      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos programados</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-agenda="pago">Ir a Pagos ›</button></h3>
+      <div class="ini-card cat-b s2 ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
+      <section class="ini-card cat-b full s3"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+
+      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos y compras</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos y compras ›</button></h3>
       <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
         <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
       </div>
-      <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
+      <div class="ini-card cat-f kpi" data-agenda="hechos" tabindex="0" role="link" style="--c:#30d158">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Pagado este mes</span></div>
         <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
       </div>
-      <div class="ini-card cat-f s2 ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos pagos</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
-      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos registrados (programados y no programados) en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <div class="ini-card cat-f s2 ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
+      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos y gastos de la administración registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
       <section class="ini-card cat-f s2"><h3>Este mes por concepto</h3><div class="dona" id="d-pagos"></div></section>
+
+      <h3 class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><span>Finanzas</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Finanzas ›</button></h3>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#7ee2a0">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Entró este mes</span></div>
+        <b class="ini-num" id="i-f-ing">$0</b><span class="note" id="i-f-ing-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ff8a80">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Salió este mes</span></div>
+        <b class="ini-num" id="i-f-egr">$0</b><span class="note" id="i-f-egr-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ffcc00">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Resultado del mes</span></div>
+        <b class="ini-num" id="i-f-res">$0</b><span class="note">Entró − salió</span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en sobres</span></div>
+        <b class="ini-num" id="i-f-sob">—</b><span class="note" id="i-f-sob-nota"></span>
+      </div>
+      <section class="ini-card cat-g full s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+
+      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturación</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturación ›</button></h3>
+      <div class="ini-card cat-c kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+        <button type="button" class="ini-exp" data-ir="personal"><svg aria-hidden="true"><use href="#i-persona"/></svg><span><b id="i-exp">0</b> expedientes incompletos <span id="i-exp-nota"></span></span></button>
+      </div>
+      <div class="ini-card cat-c s3" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
+
+      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
+      <section class="ini-card cat-d s2 ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
+      <div class="ini-agcol">
+        <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+        <div class="ini-card cat-d ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Pagos programados</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
+        <div class="ini-card cat-d ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
+      </div>
+
       <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
-      <section class="ini-card cat-e s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
+      <section class="ini-card cat-e full s3" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
     </div>
     <p class="note ini-pie" id="i-pie"></p>
   </div>
@@ -875,13 +941,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   </div>
   <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
   <button class="btn btn-line" id="recargar" type="button" hidden>Actualizar</button>
-  <details class="export">
-    <summary class="btn btn-line">Exportar a Excel</summary>
+  <details class="export" id="fa-rep">
+    <summary class="btn btn-line">Reporte en Google Sheets</summary>
     <div class="export-box">
-      <label>Mes<input type="month" id="exp-mes"></label>
-      <label>Estado<select id="exp-estado"><option value="facturada">Facturadas</option><option value="pendiente">Pendientes</option><option value="rechazada">Rechazadas</option><option value="historico">Histórico</option><option value="todas">Todas</option></select></label>
-      <a class="btn btn-primary" id="exp-ir" href="#">Descargar</a>
-      <span class="note">Facturadas, rechazadas e histórico se filtran por la fecha en que las resolviste; pendientes, por la fecha de llegada.</span>
+      <label>Mes<select id="fa-rep-mes"></select></label>
+      <button class="btn btn-primary" id="fa-rep-gen" type="button">Generar</button>
+      <span class="note" id="fa-rep-estado" role="status">Se guarda en tu Drive, carpeta FACTURACION. Al cerrar cada mes se crea solo.</span>
+      <div id="fa-rep-lista"></div>
     </div>
   </details>
 </div>
@@ -927,11 +993,18 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 </main>
 <main class="mod" id="mod-caja" hidden>
 <div class="titlebar">
-  <h2 id="c-titulo">Ingresos y gastos.</h2>
+  <h2 id="c-titulo">Turnos.</h2>
   <p id="c-subtitulo" class="note"></p>
 </div>
 <div class="tools">
-  <div class="cper" role="group" aria-label="Periodo">
+  <div class="ptabs" role="tablist" aria-label="Turnos" id="c-vistas">
+    <button class="ptab" role="tab" data-v="curso" aria-selected="false">En curso</button>
+    <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes</button>
+    <button class="ptab" role="tab" data-v="movs" aria-selected="false">Movimientos de caja <span class="n" id="c-nmovs">0</span></button>
+    <button class="ptab" role="tab" data-v="entregas" aria-selected="false">Entregas</button>
+    <button class="ptab" role="tab" data-v="encargados" aria-selected="false">Encargados</button>
+  </div>
+  <div class="cper" role="group" aria-label="Periodo" id="c-per">
     <div class="ptabs" id="c-rapidos" role="tablist" aria-label="Periodo rápido">
       <button class="ptab" type="button" role="tab" data-r="hoy">Hoy</button>
       <button class="ptab" type="button" role="tab" data-r="ayer">Ayer</button>
@@ -942,31 +1015,37 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     <label>Hasta<input type="date" id="c-hasta"></label>
   </div>
   <div class="ctot" id="c-totales" aria-live="polite"></div>
-  <div class="ptabs" role="tablist" aria-label="Vista" id="c-vistas">
-    <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes de turno</button>
-    <button class="ptab" role="tab" data-v="transf" aria-selected="false">Transferencias <span class="n" id="c-ntransf">0</span></button>
-  </div>
-  <button class="btn btn-primary" id="c-gasto" type="button">+ Agregar gasto</button>
-  <button class="btn btn-line" id="c-transf" type="button">+ Agregar transferencia</button>
-  <a class="btn btn-line" id="c-excel" href="/panel/api/caja/exportar">Exportar a Excel</a>
-  <button class="btn btn-line" id="c-sheets" type="button" aria-expanded="false" aria-controls="c-rep">Reporte en Google Sheets</button>
-  <section class="crep" id="c-rep" hidden aria-label="Reporte mensual en Google Sheets">
-    <p class="note" style="margin:0 0 8px">Cada mes, al cerrar, se crea solo en tu Drive (carpeta <b>El Castaño · Reportes mensuales</b>) con todo el detalle: cortes, tickets, gastos, ingresos extra, transferencias, cambio inicial, retiros, pagos, compras, incidencias, tareas, avisos, facturas y personal. También puedes generarlo ahora para cualquiera de los últimos 13 meses (si ya existe, se reemplaza).</p>
-    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="c-rep-mes" aria-label="Mes del reporte"></select><button class="btn btn-primary" id="c-rep-gen" type="button">Generar</button><span class="note" id="c-rep-estado" role="status"></span></div>
-    <div id="c-rep-lista"></div>
-  </section>
+  <button class="btn btn-primary" id="c-gasto" type="button">+ Gasto de caja</button>
 </div>
 <div class="work" id="c-work">
   <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
 </div>
+<div class="ag" id="c-full" hidden><div id="t-cuerpo"></div><div id="c-curso"></div></div>
 </main>
-<main class="mod" id="mod-turno" hidden>
+<main class="mod" id="mod-pagos" hidden>
 <div class="titlebar">
-  <h2>Turno.</h2>
-  <p class="note">Turno activo, encargados de la tablet y cortes ciegos.</p>
+  <h2>Pagos y compras.</h2>
+  <p id="pg-subtitulo" class="note">Lo que paga y compra la administración: sale de los sobres (efectivo) o del banco, nunca de la caja de un turno.</p>
 </div>
-<div class="ag" id="t-cuerpo"></div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Pagos y compras" id="pg-tabs">
+    <button class="ptab" role="tab" data-t="pago" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Programados <span class="n" id="an-pago">0</span></button>
+    <button class="ptab" role="tab" data-t="hechos" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-check"/></svg>Pagos y gastos hechos</button>
+    <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
+  </div>
+</div>
+<div class="ag" id="pg-cuerpo"></div>
+</main>
+<main class="mod" id="mod-finanzas" hidden>
+<div class="titlebar">
+  <h2>Finanzas.</h2>
+  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale y dónde está el efectivo.</p>
+</div>
+<div class="tools">
+  <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
+</div>
+<div class="ag" id="f-cuerpo"><p class="empty">Cargando…</p></div>
 </main>
 <main class="mod" id="mod-agenda" hidden>
 <div class="titlebar">
@@ -977,8 +1056,6 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   <div class="ptabs" role="tablist" aria-label="Agenda" id="a-tabs">
     <button class="ptab" role="tab" data-t="calendario" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Calendario</button>
     <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
-    <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
-    <button class="ptab" role="tab" data-t="pago" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-billete"/></svg>Pagos <span class="n" id="an-pago">0</span></button>
     <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
     <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
   </div>
@@ -1050,7 +1127,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         return;
       }
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
-      const aviso = estadoState.estado === "historico" ? `<p class="note" style="padding:10px 16px;margin:0;border-bottom:1px solid var(--line)">Se eliminan ${dias} días después de facturar o rechazar. Antes te llega un respaldo en Excel a tu correo.</p>` : "";
+      const aviso = estadoState.estado === "historico" ? `<p class="note" style="padding:10px 16px;margin:0;border-bottom:1px solid var(--line)">Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Sheets, en tu carpeta FACTURACION de Drive.</p>` : "";
       const deslizable = estadoState.estado === "rechazada";
       lista.innerHTML = aviso + j.solicitudes.filter(s => !borrandoIds.has(s.id)).map(s => `${deslizable ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
@@ -1540,10 +1617,37 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   });
   let h; $("#q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { estadoState.q = e.target.value.trim(); cargarLista(); }, 300); });
   $("#recargar").addEventListener("click", cargarLista);
-  const hoy = new Date(Date.now() - 6 * 3600e3);
-  $("#exp-mes").value = hoy.toISOString().slice(0, 7);
-  const urlExport = () => `/panel/api/exportar?${new URLSearchParams({ mes: $("#exp-mes").value, estado: $("#exp-estado").value })}`;
-  $("#exp-ir").addEventListener("click", e => { e.currentTarget.href = urlExport(); });
+  // ---- Reportes en Google Sheets (uno por área, cada uno en su carpeta de Drive) ----
+  // Se usa aquí (Facturación) y en Finanzas (los tres reportes)
+  window.reporteWidget = ({ tipos, sel, btn, est, lista }) => {
+    const NOM = { turnos: "Turnos", finanzas: "Finanzas", facturacion: "Facturación", anterior: "Reporte completo (anterior)" };
+    const hoyM = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+    const menos = (m, n) => { const [a, b] = m.split("-").map(Number), t = a * 12 + b - 1 - n; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`; };
+    const nom = m => { const t = new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+    sel.innerHTML = Array.from({ length: 13 }, (_, i) => menos(hoyM, i)).map((m, i) => `<option value="${m}" ${i === 1 ? "selected" : ""}>${nom(m)}${i === 0 ? " (en curso)" : ""}</option>`).join("");
+    async function cargar() {
+      try {
+        const j = await api("reportes" + (tipos.length === 1 ? "?tipo=" + tipos[0] : ""));
+        const rs = j.reportes.filter(r => tipos.includes(r.tipo) || (tipos.length > 1 && r.tipo === "anterior"));
+        const meses = [...new Set(rs.map(r => r.mes))];
+        lista.innerHTML = rs.length ? `<div class="rl">${meses.map(m => `<div class="rl-mes"><b>${esc(nom(m))}</b>${rs.filter(r => r.mes === m).map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(NOM[r.tipo] || r.tipo)} ↗</a>`).join("")}</div>`).join("")}</div>` : `<p class="note" style="margin:10px 0 0">Todavía no hay reportes generados.</p>`;
+        if (!j.script) est.textContent = "Falta conectar el script de Google.";
+      } catch {}
+    }
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; est.textContent = "Generando… puede tardar un minuto por reporte.";
+      const hechos = [], errores = [];
+      for (const t of tipos) {
+        try { const r = await api("reportes", { method: "POST", body: JSON.stringify({ tipo: t, mes: sel.value }) }); hechos.push(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">${esc(NOM[t])} ↗</a>`); }
+        catch (er) { if (er.message === "sesion") break; errores.push(`${NOM[t]}: ${er.message}`); }
+      }
+      est.innerHTML = (hechos.length ? "Listo: " + hechos.join(" · ") : "") + (errores.length ? `<span style="color:var(--bad);display:block">${esc(errores.join(" · "))}</span>` : "");
+      btn.disabled = false; cargar();
+    });
+    return cargar;
+  };
+  const cargarRepFact = window.reporteWidget({ tipos: ["facturacion"], sel: $("#fa-rep-mes"), btn: $("#fa-rep-gen"), est: $("#fa-rep-estado"), lista: $("#fa-rep-lista") });
+  $("#fa-rep").addEventListener("toggle", e => { if (e.currentTarget.open) cargarRepFact(); });
   setInterval(() => { if (!document.hidden) cargarLista(); }, 60000);
   api("yo").then(j => { $("#yo").textContent = j.email; }).catch(() => {});
   cargarLista();
@@ -1571,9 +1675,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   document.addEventListener("recargar-todo", () => { if (personalCargado) cargar(); });
   // opciones.historia === "push": el cambio queda en el historial (el botón atrás del celular regresa)
   function mostrar(mod, opciones = {}) {
+    if (mod === "turno") mod = "caja";
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    for (const m of ["inicio", "facturacion", "personal", "caja", "agenda", "turno"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos", agenda: "Agenda", turno: "Turno" }[mod] || "Facturación") + " · El Castaño";
+    for (const m of ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Turnos", pagos: "Pagos y compras", finanzas: "Finanzas", agenda: "Agenda" }[mod] || "Facturación") + " · El Castaño";
     const url = mod === "inicio" ? location.pathname : "#" + mod;
     if (opciones.historia === "push" && (history.state || {}).mod !== mod) history.pushState({ mod }, "", url);
     else history.replaceState({ mod }, "", url);
@@ -2237,34 +2342,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   let h; $("#p-q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { st.q = e.target.value.trim(); cargar(); }, 300); });
   $("#p-nuevo").addEventListener("click", () => CAMP() ? nuevaCampana() : nuevo());
 
-  if (location.hash === "#personal") mostrar("personal");
-  if (location.hash === "#caja") mostrar("caja");
-  if (location.hash === "#facturacion") mostrar("facturacion");
-  if (location.hash === "#agenda") mostrar("agenda");
-  if (location.hash === "#turno") mostrar("turno");
-  // Reporte mensual en Google Sheets (Ingresos y gastos)
-  (() => {
-    const btn = $("#c-sheets"), caja = $("#c-rep"), sel = $("#c-rep-mes"), est = $("#c-rep-estado");
-    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
-    const menos = (m, n) => { const [a, b] = m.split("-").map(Number), t = a * 12 + b - 1 - n; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`; };
-    const nom = m => { const t = new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }); return t.charAt(0).toUpperCase() + t.slice(1); };
-    sel.innerHTML = Array.from({ length: 13 }, (_, i) => menos(hoy, i)).map((m, i) => `<option value="${m}" ${i === 1 ? "selected" : ""}>${nom(m)}${i === 0 ? " (en curso)" : ""}</option>`).join("");
-    async function lista() {
-      try {
-        const j = await api("caja/reporte");
-        $("#c-rep-lista").innerHTML = j.reportes.length ? `<div class="rl">${j.reportes.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(nom(r.mes))} ↗</a>`).join("")}</div>` : `<p class="note" style="margin:10px 0 0">Todavía no hay reportes generados.</p>`;
-      } catch {}
-    }
-    btn.addEventListener("click", () => { caja.hidden = !caja.hidden; btn.setAttribute("aria-expanded", String(!caja.hidden)); if (!caja.hidden) lista(); });
-    $("#c-rep-gen").addEventListener("click", async e => {
-      const b = e.currentTarget; b.disabled = true; est.textContent = "Generando… puede tardar un minuto.";
-      try {
-        const r = await api("caja/reporte", { method: "POST", body: JSON.stringify({ mes: sel.value }) });
-        est.innerHTML = `Listo: <a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">abrir la hoja ↗</a>`; lista();
-      } catch (er) { if (er.message !== "sesion") est.textContent = er.message; }
-      b.disabled = false;
-    });
-  })();
+  const inicial = location.hash.slice(1);
+  if (["personal", "caja", "facturacion", "agenda", "turno", "pagos", "finanzas"].includes(inicial)) mostrar(inicial);
   window.irA = (mod, opciones = { historia: "push" }) => mostrar(mod, opciones);
 })();
 </script>
@@ -2308,8 +2387,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     try {
       const j = await api("caja" + consulta());
       st.datos = j;
-      $("#c-excel").href = "/panel/api/caja/exportar" + consulta();
-      $("#c-ntransf").textContent = j.transferencias.length;
+      $("#c-nmovs").textContent = (j.movimientos || []).length;
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
       const s = j.sync;
@@ -2318,19 +2396,14 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       $("#c-subtitulo").innerHTML = !j.conectado ? `<span style="color:var(--bad)">La hoja de Google todavía no está conectada.</span>`
         : `${esc(per)} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
       const t = j.totales;
-      $("#c-totales").innerHTML = [["Efectivo", t.efectivo], ["Tarjeta", t.tarjeta], ["Transferencias", t.transferencias], ...(t.otros ? [["Otros ingresos", t.otros]] : []), [st.desde || st.hasta ? "Ingresos del periodo" : "Ingresos del mes", t.ingresos, "dest"], ["Gastos", t.gastos]]
+      const sobres = j.cortes.reduce((a, c) => a + (c.conteo && c.conteo.sobre || 0), 0);
+      $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tickets con tarjeta", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Sobres entregados", sobres, "dest"]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
-      if (st.vista === "transf") {
-        lista.innerHTML = j.transferencias.length ? j.transferencias.map(x => `<button class="item citem" data-t="${esc(x.id)}" ${st.actual === "t:" + x.id ? 'aria-current="true"' : ""}>
-          <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
-          <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:15px">${Number(x.fecha.slice(8))}</span>
-          <span class="t">${esc(x.cliente)}</span>
-          <span class="m"><span>${esc(diaTxt(x.fecha))}</span><span><b>${dinero(x.importe)}</b></span></span>
-          <span class="m"><span>${x.factura ? "Factura " + esc(x.factura) : "Sin factura"}</span></span>
-        </button>`).join("") : `<p class="empty">No hay transferencias ${st.desde || st.hasta ? "en este periodo" : "este mes"}. Agrégalas con "+ Agregar transferencia".</p>`;
-        return;
-      }
+      if (st.vista === "movs") { vistaMovs(j); return; }
+      if (st.vista === "entregas") { vistaEntregas(j); return; }
+      if (st.vista === "curso") { vistaCurso(j); return; }
+      if (st.vista === "encargados") return;
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
       const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
@@ -2354,22 +2427,23 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     return `<form class="cform" id="c-fgasto" novalidate>
       <label>Día<input type="date" name="dia" value="${esc(dia)}" required></label>
       <label>Turno<select name="turno">${["MAÑANA", "TARDE", "NOCHE"].map(t => `<option value="${t}" ${t === turno ? "selected" : ""}>${TURNO_TXT[t]}</option>`).join("")}</select></label>
-      <label class="wide">Concepto<input name="concepto" maxlength="120" placeholder="Ej. garrafón de agua, sueldo, papelería" required></label>
+      <label class="wide">Concepto<input name="concepto" maxlength="120" placeholder="Ej. garrafón de agua, papelería" required></label>
       <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
-      <label>Forma de pago<select name="forma"><option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label>
+      <p class="note wide" style="grid-column:1/-1;margin:0">Solo lo que salió del efectivo de la caja de ese turno (resta al corte). Los pagos y compras de la administración van en Pagos y compras.</p>
       <span class="err wide" id="c-ferr" style="grid-column:1/-1"></span>
-      <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar gasto</button></div>
+      <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar gasto de caja</button></div>
     </form>`;
   }
   function conectarForm(despues) {
     $("#c-fgasto").addEventListener("submit", async ev => {
       ev.preventDefault();
       const f = ev.target, b = f.querySelector("button[type=submit]");
-      const cuerpo = { dia: f.dia.value, turno: f.turno.value, concepto: f.concepto.value, monto: f.monto.value.replace(/[$,\s]/g, ""), forma: f.forma.value };
+      const cuerpo = { dia: f.dia.value, turno: f.turno.value, concepto: f.concepto.value, monto: f.monto.value.replace(/[$,\s]/g, ""), forma: "EFECTIVO" };
       b.disabled = true; $("#c-ferr").textContent = "";
       try {
         await api("caja/gastos", { method: "POST", body: JSON.stringify(cuerpo) });
-        toast("Gasto guardado");
+        toast("Gasto de caja guardado");
+        if (st.vista !== "cortes") cambiarVista("cortes", false);
         await cargar();
         abrir(cuerpo.dia + "|" + cuerpo.turno);
       } catch (e) { if (e.message !== "sesion") $("#c-ferr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
@@ -2381,7 +2455,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     st.actual = null;
     $("#c-work").classList.add("ver-detalle");
     $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head"><h2>Nuevo gasto</h2></div>
+      <div class="detail-head"><h2>Nuevo gasto de caja</h2></div>
       <section class="card">${formGasto(a.dia, a.turno)}</section>`;
     $("#c-volver").addEventListener("click", () => $("#c-work").classList.remove("ver-detalle"));
     conectarForm();
@@ -2414,8 +2488,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
               ${c.cambio && c.cambio.n ? fila(c.cambio.fuente === "tablet" ? `Cambio inicial (${avP(c.cambio.persona)}${esc(c.cambio.persona)}, tablet)` : "Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
               ${c.extra && c.extra.n ? fila(`Ingresos extra (${c.extra.n})`, "+" + dinero(c.extra.importe), "") : ""}
-              ${fila("Gastos", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
-              ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
+              ${fila("Gastos de caja", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
+              ${c.caja.n ? fila(`Renglones de caja de la hoja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
               <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
             </div>
             ${c.conteo ? `<div class="conteo"><h4>Corte ciego de la tablet</h4>
@@ -2428,7 +2502,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               ${c.conteo.sobre != null ? `<h4 style="margin-top:14px">Reparto del efectivo (informe final)</h4>
               <div class="cres">
                 ${fila("Efectivo en sobre", dinero(c.conteo.sobre || 0), "")}
-                ${(c.conteo.retiros || []).map(r => fila("Retiro: " + esc(r.concepto), dinero(r.monto), "")).join("")}
+                ${(c.conteo.retiros || []).map((r, i) => fila(`${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}Retiro: ${esc(r.concepto)}`, dinero(r.monto), "")).join("")}
                 ${fila("Cambio para el siguiente turno", dinero(c.conteo.cambio_sig || 0), "")}
                 ${(() => { const rep = (c.conteo.sobre || 0) + (c.conteo.retiros || []).reduce((x, r) => x + r.monto, 0) + (c.conteo.cambio_sig || 0), d = Math.round((c.conteo.efectivo - rep) * 100) / 100; return `<span class="fin">Repartido</span><span class="n fin">${dinero(rep)}</span><span class="n">${Math.abs(d) < 0.01 ? "✓ cuadra" : d > 0 ? "faltan " + dinero(d) : "sobran " + dinero(-d)}</span>`; })()}
               </div>` : ""}
@@ -2439,17 +2513,17 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
               <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
             ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
-            ${c.caja.n ? `<p class="note">Movimientos de caja: registros de la hoja sin folio de ticket (retiros, sueldos o compras). Se ven aparte y no cuentan como ingresos.</p>` : ""}
+            ${c.caja.n ? `<p class="note">Renglones de caja de la hoja: registros sin folio de ticket (retiros, sueldos o compras). Llevan folio de movimiento y no cuentan como ingresos.</p>` : ""}
             ${c.cambio && c.cambio.n ? `<p class="note">El cambio inicial se suma al efectivo en caja y no cuenta como ingreso.${c.conteo && !c.conteo.con_cambio ? " Este corte se contó sin el fondo de cambio (antes del 14 oct), así que se compara sin él." : ""}</p>` : ""}
             ${c.extra && c.extra.n ? `<p class="note">Ingresos extra: rentas y otros ingresos suman a la caja y a los ingresos${c.extra.importe - c.extra.ingreso ? `; el aumento de cambio (${dinero(c.extra.importe - c.extra.ingreso)}) solo suma a la caja` : ""}.</p>` : ""}
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
-          <section class="card"><h3>Gastos del turno</h3>
-            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
-            <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
+          <section class="card"><h3>Gastos de caja del turno</h3>
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${g.folio_mc ? `<span class="folio-mc">${esc(g.folio_mc)}</span> ` : ""}${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto de caja a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
           <section class="card"><h3>Ingresos extra del turno</h3>
-            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
+            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${x.folio_mc ? `<span class="folio-mc">${esc(x.folio_mc)}</span> ` : ""}${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
             <details><summary class="note" style="cursor:pointer;font-weight:600">Agregar ingreso extra a este turno</summary><div style="margin-top:12px">
               <form class="cform" id="c-fextra" novalidate>
                 <label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
@@ -2462,8 +2536,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       </div>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
           ${j.movs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Registros de la hoja"><table class="cmovs"><thead><tr><th><span class="sr">Servicio</span></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
-            ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
-          </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: movimientos de caja.</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
+            ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${m.folio_mc ? `<span class="folio-mc">${esc(m.folio_mc)}</span> ` : ""}${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
+          </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: renglones de caja (con su folio de movimiento MC).</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
         </section>
       </div>`;
     $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
@@ -2491,83 +2565,77 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     }));
   }
 
-  $("#c-lista").addEventListener("click", e => {
-    const b = e.target.closest(".item[data-k]"); if (b) return abrir(b.dataset.k);
-    const t = e.target.closest(".item[data-t]"); if (t) abrirTransf(t.dataset.t);
-  });
+  $("#c-lista").addEventListener("click", e => { const b = e.target.closest(".item[data-k]"); if (b) abrir(b.dataset.k); });
 
-  // ---- Transferencias ----
-  function formTransf() {
-    return `<form class="cform" id="c-ftransf" novalidate>
-      <label class="wide">Nombre del cliente<input name="cliente" maxlength="120" required autocomplete="off"></label>
-      <label>Importe<input name="importe" inputmode="decimal" placeholder="0.00" required></label>
-      <label>Fecha<input type="date" name="fecha" value="${esc(hoyMx())}" required></label>
-      <label class="wide">Factura <span style="font-weight:400">(opcional)</span><input name="factura" maxlength="60" placeholder="Número o folio de la factura" autocomplete="off"></label>
-      <span class="err" id="c-terr" style="grid-column:1/-1"></span>
-      <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar transferencia</button></div>
-    </form>`;
-  }
-  function nuevaTransf() {
-    st.actual = null;
-    $("#c-work").classList.add("ver-detalle");
-    $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head"><h2>Nueva transferencia</h2></div>
-      <section class="card">${formTransf()}<p class="note">Las transferencias suman a los ingresos, pero no a la caja de ningún turno.</p></section>`;
-    $("#c-volver").addEventListener("click", () => $("#c-work").classList.remove("ver-detalle"));
-    $("#c-ftransf").addEventListener("submit", async ev => {
-      ev.preventDefault();
-      const f = ev.target, b = f.querySelector("button[type=submit]");
-      b.disabled = true; $("#c-terr").textContent = "";
-      try {
-        const r = await api("caja/transferencias", { method: "POST", body: JSON.stringify({ cliente: f.cliente.value, importe: f.importe.value.replace(/[$,\s]/g, ""), fecha: f.fecha.value, factura: f.factura.value }) });
-        toast("Transferencia guardada");
-        cambiarVista("transf", false);
-        await cargar(); abrirTransf(r.id);
-      } catch (e) { if (e.message !== "sesion") $("#c-terr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
-    });
-    $("#c-ftransf").cliente.focus();
-  }
-  function abrirTransf(id) {
-    const x = (st.datos && st.datos.transferencias || []).find(t => t.id === id);
-    if (!x) return;
-    st.actual = "t:" + id;
-    document.querySelectorAll("#c-lista .item").forEach(b => b.dataset.t === id ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current"));
-    $("#c-work").classList.add("ver-detalle");
-    $("#c-detalle").innerHTML = `<button class="btn btn-line back" id="c-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head"><h2>${esc(x.cliente)}</h2><span class="note">Transferencia · ${esc(diaTxt(x.fecha))}</span></div>
-      <section class="card"><div class="fields">
-        <div class="field"><span class="k">Importe</span><span class="v">${dinero(x.importe)}</span><span></span></div>
-        <div class="field"><span class="k">Fecha</span><span class="v">${esc(diaTxt(x.fecha))}</span><span></span></div>
-        <div class="field"><span class="k">Factura</span><span class="v ${x.factura ? "" : "vacio"}">${x.factura ? esc(x.factura) : "Sin factura"}</span><span></span></div>
-        <div class="field"><span class="k">Capturó</span><span class="v">${esc(x.creado_por || "")}</span><span></span></div>
+  // ---- Movimientos de caja con folio ----
+  const TIPO_MOV = { gasto: ["Gasto de caja", "#ff7a70"], ingreso: ["Ingreso extra", "#30d158"], retiro: ["Retiro en el corte", "#ff9f0a"], hoja: ["Renglón de la hoja", "#64d2ff"] };
+  function vistaMovs(j) {
+    const c = $("#c-curso"), ms = j.movimientos || [];
+    $("#t-cuerpo").innerHTML = "";
+    const filtro = st.filtroMov || "";
+    const lista = ms.filter(m => !filtro || m.tipo === filtro);
+    const suma = t => ms.filter(m => m.tipo === t).reduce((a, m) => a + m.monto, 0);
+    c.innerHTML = `<section class="card"><h3>Movimientos de caja</h3>
+      <p class="note" style="margin:4px 0 10px">Todo lo que entra o sale de la caja de un turno, salvo los tickets y el cambio inicial. Cada movimiento tiene un folio único (MC-AAMM-número) que no cambia.</p>
+      <div class="ptabs mfil" role="tablist" aria-label="Tipo de movimiento">
+        <button class="ptab" type="button" data-f="" aria-selected="${!filtro}">Todos <span class="n">${ms.length}</span></button>
+        ${Object.entries(TIPO_MOV).map(([k, [t]]) => `<button class="ptab" type="button" data-f="${k}" aria-selected="${filtro === k}">${t} <span class="n">${ms.filter(m => m.tipo === k).length}</span></button>`).join("")}
       </div>
-      <div class="row"><button class="btn btn-bad" id="c-tdel" type="button">Eliminar transferencia</button></div></section>`;
-    $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
-    $("#c-tdel").addEventListener("click", async e => {
-      const b = e.currentTarget;
-      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Eliminar transferencia"; }, 3000); return; }
-      b.disabled = true;
-      try { await api(`caja/transferencias/${encodeURIComponent(id)}/eliminar`, { method: "POST", body: "{}" }); toast("Transferencia eliminada"); st.actual = null; $("#c-detalle").innerHTML = `<p class="empty">Elige una transferencia.</p>`; $("#c-work").classList.remove("ver-detalle"); cargar(); }
-      catch (err) { if (err.message !== "sesion") toast(err.message); b.disabled = false; }
-    });
+      <div class="ctot" style="margin:10px 0">${Object.entries(TIPO_MOV).map(([k, [t]]) => `<div class="k"><span>${t}</span><b>${dinero(suma(k))}</b></div>`).join("")}</div>
+      ${lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos de caja"><table class="cmovs tmovs"><thead><tr><th>Folio</th><th>Día y turno</th><th>Hora</th><th>Tipo</th><th>Concepto</th><th>Quién</th><th class="n">Monto</th></tr></thead><tbody>
+        ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    c.querySelectorAll(".mfil .ptab").forEach(b => b.addEventListener("click", () => { st.filtroMov = b.dataset.f; vistaMovs(j); }));
+    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(b.dataset.k)); }));
   }
-  $("#c-transf").addEventListener("click", nuevaTransf);
+
+  // ---- Entregas: lo que cada turno entregó en el corte ciego ----
+  function vistaEntregas(j) {
+    const c = $("#c-curso"); $("#t-cuerpo").innerHTML = "";
+    const cs = j.cortes.filter(x => x.conteo);
+    const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
+    const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
+    c.innerHTML = `<section class="card"><h3>Entregas de los turnos</h3>
+      <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Finanzas), los retiros y el cambio que dejó al siguiente turno.</p>
+      <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Sobres</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div></div>
+      ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+        ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${dinero(x.conteo.efectivo)}</td><td>${difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(b.dataset.k)); }));
+  }
+
+  // ---- En curso: el turno abierto en la tablet y su corte hasta ahora ----
+  function vistaCurso(j) {
+    const a = turnoActual(), c = j.cortes.find(x => x.dia === a.dia && x.turno === a.turno);
+    $("#c-curso").innerHTML = `<section class="card"><h3>Corte en curso · ${esc(TURNO_TXT[a.turno])} del ${esc(diaTxt(a.dia))}</h3>
+      ${c ? `<div class="ctot" style="margin:8px 0"><div class="k"><span>Tickets en efectivo</span><b>${dinero(c.efectivo)}</b></div><div class="k"><span>Tickets con tarjeta</span><b>${dinero(c.tarjeta)}</b></div><div class="k"><span>Cambio inicial</span><b>${dinero(c.cambio.importe)}</b></div><div class="k"><span>Ingresos extra</span><b>${dinero(c.extra.importe)}</b></div><div class="k"><span>Gastos de caja</span><b>${dinero(c.gastos.EFECTIVO)}</b></div><div class="k dest"><span>Efectivo en caja</span><b>${dinero(c.efectivo_caja)}</b></div></div>
+        <button class="btn btn-line" type="button" id="c-ver-curso">Ver el detalle del corte</button>` : `<p class="note">Todavía no hay registros en este turno.</p>`}</section>`;
+    const v = $("#c-ver-curso"); if (v) v.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(a.dia + "|" + a.turno)); });
+    if (window.turnoVista) window.turnoVista("curso");
+  }
 
   // ---- Vistas y periodo ----
   function cambiarVista(v, recargar = true) {
     st.vista = v; st.actual = null;
     document.querySelectorAll("#c-vistas .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.v === v ? "true" : "false"));
-    $("#c-detalle").innerHTML = `<p class="empty">${v === "transf" ? "Elige una transferencia o agrega una nueva." : "Elige un corte de turno."}</p>`;
+    $("#c-detalle").innerHTML = `<p class="empty">Elige un corte de turno.</p>`;
     $("#c-work").classList.remove("ver-detalle");
-    if (recargar) cargar();
+    const lista = v === "cortes";
+    $("#c-work").hidden = !lista; $("#c-full").hidden = lista;
+    $("#c-per").hidden = $("#c-totales").hidden = v === "curso" || v === "encargados";
+    $("#c-gasto").hidden = v === "encargados";
+    $("#c-curso").innerHTML = ""; $("#t-cuerpo").innerHTML = "";
+    if (v === "encargados" && window.turnoVista) window.turnoVista("encargados");
+    if (recargar && v !== "encargados") cargar();
   }
+  window.turnosVista = v => cambiarVista(v);
   $("#c-vistas").addEventListener("click", e => { const b = e.target.closest(".ptab[data-v]"); if (b) cambiarVista(b.dataset.v); });
   function periodo(desde, hasta, rapido) {
     st.desde = desde; st.hasta = hasta; st.rapido = rapido;
     $("#c-desde").value = desde; $("#c-hasta").value = hasta;
     document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === rapido ? "true" : "false"));
     st.actual = null; $("#c-work").classList.remove("ver-detalle");
-    $("#c-detalle").innerHTML = `<p class="empty">${st.vista === "transf" ? "Elige una transferencia o agrega una nueva." : "Elige un corte de turno."}</p>`;
+    $("#c-detalle").innerHTML = `<p class="empty">Elige un corte de turno.</p>`;
     cargar();
   }
   $("#c-rapidos").addEventListener("click", e => {
@@ -2580,8 +2648,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   });
   for (const id of ["#c-desde", "#c-hasta"]) $(id).addEventListener("change", () => periodo($("#c-desde").value, $("#c-hasta").value, ""));
   $("#c-gasto").addEventListener("click", nuevoGasto);
-  document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
-  document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { await cargar(); if (st.actual && !String(st.actual).startsWith("t:")) abrir(st.actual); } });
+  document.addEventListener("modulo", e => { if (e.detail === "caja") { if (st.vista === "encargados") window.turnoVista && window.turnoVista("encargados"); else cargar(); } });
+  document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { if (st.vista === "encargados") { window.turnoVista && window.turnoVista("encargados"); return; } await cargar(); if (st.actual) abrir(st.actual); } });
   if (location.hash === "#caja") cargar();
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
@@ -2617,6 +2685,153 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   document.querySelectorAll("div.work .detail").forEach(d => new MutationObserver(() => { d.scrollTop = 0; }).observe(d, { childList: true }));
   // Al cambiar de sección, empezar arriba
   document.addEventListener("modulo", () => { if (matchMedia("(max-width: 1200px), (max-height: 640px)").matches) scrollTo({ top: 0, behavior: "instant" }); });
+})();
+</script>
+<script>
+// ---- Finanzas: turnos + administración, efectivo en sobres, banco, transferencias de clientes y reportes ----
+(() => {
+  const $ = q => document.querySelector(q);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const D = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
+  const nomMes = m => { const t = new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
+  async function api(ruta, op = {}) {
+    const r = await fetch("/panel/api/" + ruta, { ...op, headers: { "X-Panel": "1", ...(op.body ? { "Content-Type": "application/json" } : {}) } });
+    if (r.status === 401) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
+    const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida del servidor." }));
+    if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; throw e; }
+    return j;
+  }
+  const post = (ruta, c) => api(ruta, { method: "POST", body: JSON.stringify(c || {}) });
+  const CAT = { caja: "Gastos de caja (turnos)", programado: "Pagos programados", no_programado: "Pagos no programados", compra: "Compras", otro: "Otros gastos" };
+  const CAT1 = { programado: "Pago programado", no_programado: "Pago no programado", compra: "Compra", otro: "Otro gasto", sobre: "Sobre recibido" };
+  const FORMA = { EFECTIVO: "Sobres", TRANSFERENCIA: "Banco · transferencia", TARJETA: "Banco · tarjeta" };
+  const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const st = { mes: "", datos: null, cargarRep: null };
+
+  async function cargar() {
+    const c = $("#f-cuerpo");
+    try {
+      const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
+      st.datos = j; st.mes = j.mes;
+      const sel = $("#f-mes");
+      if (!sel.options.length) sel.innerHTML = j.meses.map((m, i) => `<option value="${m}">${esc(nomMes(m))}${i === 0 ? " (en curso)" : ""}</option>`).join("");
+      sel.value = j.mes;
+      pintar();
+      if (st.foco === "transf") { st.foco = null; const el = $("#f-ftransf"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.cliente.focus(); } }
+    } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+  }
+
+  function graf(porDia) {
+    if (!porDia.length) return `<p class="note">Sin movimientos este mes.</p>`;
+    const W = Math.max(300, Math.min(1200, ($("#f-cuerpo").clientWidth || 720) - 90)), H = 200, izq = 46, abajo = 22, arr = 10, max = Math.max(1, ...porDia.map(d => Math.max(d.ingresos, d.egresos)));
+    const banda = (W - izq - 6) / porDia.length, ancho = Math.max(2, Math.min(10, banda * 0.36));
+    const y = v => arr + (H - arr - abajo) * (1 - v / max);
+    const comp = v => v >= 1000 ? "$" + (v / 1000).toLocaleString("es-MX", { maximumFractionDigits: 1 }) + "k" : "$" + Math.round(v);
+    let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos y egresos por día">`;
+    for (const k of [0, .5, 1]) g += `<line x1="${izq}" x2="${W - 6}" y1="${y(max * k)}" y2="${y(max * k)}" stroke="#2c2c2e"/><text x="${izq - 6}" y="${y(max * k) + 4}" text-anchor="end" fill="#8e8e93" font-size="11">${comp(max * k)}</text>`;
+    porDia.forEach((d, i) => {
+      const cx = izq + banda * i + banda / 2;
+      g += `<g><title>${esc(diaTxt(d.dia))}: entró ${D(d.ingresos)}, salió ${D(d.egresos)}</title><rect x="${cx - ancho - 1}" y="${y(d.ingresos)}" width="${ancho}" height="${Math.max(0, y(0) - y(d.ingresos))}" rx="2" fill="#30d158"/><rect x="${cx + 1}" y="${y(d.egresos)}" width="${ancho}" height="${Math.max(0, y(0) - y(d.egresos))}" rx="2" fill="#ff7a70"/>`;
+      if (porDia.length <= 16 || i % 3 === 0) g += `<text x="${cx}" y="${H - 6}" text-anchor="middle" fill="#8e8e93" font-size="11">${Number(d.dia.slice(8))}</text>`;
+      g += `</g>`;
+    });
+    return g + `</svg><div class="leyenda" aria-hidden="true"><span><i class="sw" style="background:#30d158"></i>Entró</span><span><i class="sw" style="background:#ff7a70"></i>Salió</span></div>`;
+  }
+
+  function pintar() {
+    const j = st.datos, e = j.efectivo, i = j.ingresos, g = j.egresos, b = j.banco;
+    const enCurso = j.mes === j.meses[0];
+    const filas = l => l.map(([k, v, cl]) => `<div class="frow ${cl || ""}"><span>${k}</span><b>${D(v)}</b></div>`).join("");
+    $("#f-cuerpo").innerHTML = `
+      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
+        <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
+        <div class="fcols">
+          <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta", i.tarjeta], ["Transferencias de clientes", i.transferencias], ["Otros ingresos (rentas)", i.otros], ["Total", i.total, "tot"]])}</div>
+          <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), ["Total", g.total, "tot"]])}</div>
+        </div>
+        <div class="fgraf">${graf(j.por_dia)}</div>
+        ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
+      </section>
+
+      <section class="card" id="f-efectivo"><h3>Efectivo en sobres</h3>
+        <p class="note" style="margin:4px 0 10px">Entra lo que los turnos entregan en sobre al hacer su corte; sale lo que pagas o compras en efectivo. El saldo inicial lo escribes tú al empezar cada mes, después de contar los sobres.</p>
+        <form class="fsaldo" id="f-saldo" novalidate><label>Saldo inicial de ${esc(nomMes(j.mes).toLowerCase())}<input name="efectivo" inputmode="decimal" placeholder="Ej. 12500.00" value="${e.inicial != null ? esc(e.inicial) : ""}" autocomplete="off"></label><button class="btn btn-primary" type="submit">Guardar</button>${e.inicial != null ? `<span class="note">Guardado ${esc(new Date(e.inicial_actualizado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</span>` : `<span class="note" style="color:var(--warn)">Falta el saldo inicial: sin él no se puede calcular el saldo.</span>`}<span class="err"></span></form>
+        <div class="ctot" style="margin:12px 0"><div class="k"><span>Saldo inicial</span><b>${e.inicial != null ? D(e.inicial) : "—"}</b></div><div class="k"><span>Recibido en sobres</span><b style="color:#7ee2a0">${D(e.recibido)}</b></div><div class="k"><span>Gastado en efectivo</span><b style="color:#ff8a80">${D(e.gastado)}</b></div><div class="k dest"><span>Debería quedar</span><b>${e.saldo != null ? D(e.saldo) : "—"}</b></div></div>
+        ${e.movimientos.length ? `<details ${e.movimientos.length <= 12 ? "open" : ""}><summary class="note" style="cursor:pointer;font-weight:600">Movimientos del efectivo (${e.movimientos.length})</summary><div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos del efectivo"><table class="cmovs"><thead><tr><th>Día</th><th>Movimiento</th><th>Concepto</th><th class="n">Entró</th><th class="n">Salió</th><th class="n">Saldo</th></tr></thead><tbody>
+          ${e.movimientos.map(m => `<tr><td>${esc(diaTxt(m.dia))}</td><td>${esc(CAT1[m.tipo] || m.tipo)}</td><td>${m.persona ? avP(m.persona) : ""}${esc(m.concepto)}</td><td class="n">${m.entrada ? D(m.entrada) : ""}</td><td class="n">${m.salida ? D(m.salida) : ""}</td><td class="n">${m.saldo != null ? D(m.saldo) : "—"}</td></tr>`).join("")}
+        </tbody></table></div></details>` : `<p class="note">Sin sobres ni pagos en efectivo este mes.</p>`}
+      </section>
+
+      <section class="card"><h3>Banco</h3>
+        <div class="ctot" style="margin:6px 0 12px"><div class="k"><span>Entró (transferencias de clientes)</span><b style="color:#7ee2a0">${D(b.entradas)}</b></div><div class="k"><span>Salió (pagos con transferencia o tarjeta)</span><b style="color:#ff8a80">${D(b.salidas)}</b></div></div>
+        <form id="f-cuentas" novalidate><label class="fcuentas">Cuentas bancarias <span class="ayuda">(escríbelas como quieras: banco, terminación, para qué se usa…)</span><textarea name="texto" rows="4" maxlength="4000" placeholder="Ej. BBVA terminación 1234 · cuenta del negocio, aquí caen las transferencias de clientes">${esc(b.cuentas)}</textarea></label>
+          <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar cuentas</button><span class="note">Las mismas para todos los meses. Después las convertimos en una lista para elegir la cuenta en cada pago.</span><span class="err"></span></div></form>
+      </section>
+
+      <section class="card"><h3>Transferencias de clientes</h3>
+        ${enCurso ? `<form class="cform" id="f-ftransf" novalidate style="margin:6px 0 12px">
+          <label class="wide">Nombre del cliente<input name="cliente" maxlength="120" required autocomplete="off"></label>
+          <label>Importe<input name="importe" inputmode="decimal" placeholder="0.00" required></label>
+          <label>Fecha<input type="date" name="fecha" value="${esc(hoyMx())}" min="${esc(j.mes)}-01" max="${esc(hoyMx())}" required></label>
+          <label class="wide">Factura <span style="font-weight:400">(opcional)</span><input name="factura" maxlength="60" placeholder="Número o folio de la factura" autocomplete="off"></label>
+          <span class="err" style="grid-column:1/-1"></span>
+          <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Agregar transferencia</button></div></form>` : ""}
+        ${j.transferencias.length ? `<div class="alist">${j.transferencias.map(x => `<div class="aitem"><span class="grav pagado" title="Transferencia">${'<svg aria-hidden="true"><use href="#i-transf"/></svg>'}</span><span class="tt">${esc(x.cliente)}</span><span class="acc">${enCurso ? `<button class="del" type="button" data-tdel="${esc(x.id)}" aria-label="Eliminar transferencia de ${esc(x.cliente)}"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>` : ""}</span><span class="mm"><span><b>${D(x.importe)}</b></span><span>${esc(diaTxt(x.fecha))}</span><span>${x.factura ? "Factura " + esc(x.factura) : "Sin factura"}</span></span></div>`).join("")}</div>` : `<p class="note">No hay transferencias de clientes este mes.</p>`}
+        <p class="note" style="margin:8px 0 0">Entran al banco: suman a los ingresos, pero no a la caja de ningún turno.</p>
+      </section>
+
+      <section class="card"><h3>Egresos de la administración</h3>
+        ${j.admin.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Egresos de la administración"><table class="cmovs"><thead><tr><th>Día</th><th>Tipo</th><th>Concepto</th><th>Pagado con</th><th class="n">Monto</th></tr></thead><tbody>
+          ${j.admin.slice().sort((a, b) => b.dia.localeCompare(a.dia)).map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(CAT1[x.cat])}</td><td>${esc(x.concepto)}${x.comprobante ? ` · <a href="/panel/api/agenda/pagos/${esc(x.comprobante)}/comprobante" target="_blank" rel="noopener">📎</a>` : ""}</td><td>${esc(FORMA[x.forma] || x.forma)}</td><td class="n">${D(x.monto)}</td></tr>`).join("")}
+        </tbody></table></div>` : `<p class="note">Sin pagos ni compras este mes.</p>`}
+        <button class="btn btn-line" type="button" data-ir-pagos style="margin-top:10px">Ir a Pagos y compras ›</button>
+      </section>
+
+      <section class="card"><h3>Reportes en Google Sheets</h3>
+        <p class="note" style="margin:4px 0 10px">Al cerrar cada mes se crean solos tres reportes, cada uno en su carpeta de Drive: <b>Turnos</b> (TURNOS), <b>Finanzas</b> (ADMIN FINANZAS) y <b>Facturación</b> (FACTURACION). Aquí puedes generarlos para cualquiera de los últimos 13 meses; si ya existen, se reemplazan.</p>
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="f-rep-mes" aria-label="Mes del reporte"></select><button class="btn btn-primary" id="f-rep-gen" type="button">Generar los tres</button><span class="note" id="f-rep-estado" role="status"></span></div>
+        <div id="f-rep-lista"></div>
+      </section>`;
+    conectar();
+  }
+
+  function conectar() {
+    const c = $("#f-cuerpo");
+    const sal = $("#f-saldo");
+    sal.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = sal.querySelector("button"); b.disabled = true; sal.querySelector(".err").textContent = "";
+      try { await post("finanzas/saldo", { mes: st.mes, efectivo: sal.efectivo.value.replace(/[$,\s]/g, "") }); toast("Saldo inicial guardado"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") sal.querySelector(".err").textContent = e.message; b.disabled = false; }
+    });
+    const cu = $("#f-cuentas");
+    cu.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
+      try { await post("finanzas/cuentas", { texto: cu.texto.value }); toast("Cuentas guardadas"); } catch (e) { if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message; }
+      b.disabled = false;
+    });
+    const ft = $("#f-ftransf");
+    if (ft) ft.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); b.disabled = true; ft.querySelector(".err").textContent = "";
+      try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value }); toast("Transferencia guardada"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") ft.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    });
+    c.querySelectorAll("[data-tdel]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
+      try { await post(`caja/transferencias/${encodeURIComponent(b.dataset.tdel)}/eliminar`); toast("Transferencia eliminada"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    c.querySelector("[data-ir-pagos]").addEventListener("click", () => window.agendaAbrir && window.agendaAbrir("hechos"));
+    if (window.reporteWidget) { st.cargarRep = window.reporteWidget({ tipos: ["turnos", "finanzas", "facturacion"], sel: $("#f-rep-mes"), btn: $("#f-rep-gen"), est: $("#f-rep-estado"), lista: $("#f-rep-lista") }); st.cargarRep(); }
+  }
+
+  $("#f-mes").addEventListener("change", e => { st.mes = e.target.value; cargar(); });
+  // Desde el Inicio: abrir Finanzas con el formulario de transferencia listo
+  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA("finanzas"); };
+  document.addEventListener("modulo", e => { if (e.detail === "finanzas") cargar(); });
+  document.addEventListener("recargar-todo", () => { if (!$("#mod-finanzas").hidden) cargar(); });
+  if (location.hash === "#finanzas") cargar();
 })();
 </script>
 <script>
@@ -2792,6 +3007,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       api("colaboradores?tipo=colaborador&estatus=activo"), api("agenda/resumen")
     ]);
     api("agenda/pagos").then(pintarPagos).catch(() => {});
+    api("finanzas").then(pintarFinanzas).catch(() => {});
+    pintarCalendario().catch(() => {});
     if ([fac, caja, per, ag].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
 
     if (fac.status === "fulfilled") {
@@ -2804,7 +3021,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (per.status === "fulfilled") {
       const c = per.value.conteos;
       contar($("#i-exp"), c.incompletos || 0, v => String(Math.round(v)));
-      $("#i-exp-nota").textContent = `de ${c.todos || 0} colaboradores activos`;
+      $("#i-exp-nota").textContent = `(de ${c.todos || 0} activos)`;
     }
     if (caja.status === "fulfilled") {
       const j = caja.value;
@@ -2827,7 +3044,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       }).catch(() => {});
       const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
       contar($("#i-gastos"), gHoy, v => dinero(v));
-      $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto capturado" : "gastos capturados"}` : "Sin gastos capturados";
+      $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto de caja" : "gastos de caja"}` : "Sin gastos de caja";
       // Detalle discreto: quién capturó cada gasto (imagen chiquita) y cuánto
       const gl = (j.gastos_recientes || []).filter(g => g.dia === ta.dia).sort((a, b) => String(b.creado).localeCompare(String(a.creado)));
       const gEl = $("#ini-gastos-l");
@@ -2872,10 +3089,46 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     }
   }
 
+  // ---- Finanzas del mes ----
+  function pintarFinanzas(j) {
+    contar($("#i-f-ing"), j.ingresos.total, v => dinero(v));
+    $("#i-f-ing-nota").textContent = `Tickets, transferencias y rentas`;
+    contar($("#i-f-egr"), j.egresos.total, v => dinero(v));
+    $("#i-f-egr-nota").textContent = `Caja ${dinero(j.egresos.caja)} · administración ${dinero(j.egresos.total - j.egresos.caja)}`;
+    contar($("#i-f-res"), j.resultado, v => dinero(v));
+    const e = j.efectivo;
+    if (e.saldo != null) { contar($("#i-f-sob"), e.saldo, v => dinero(v)); $("#i-f-sob-nota").textContent = `Recibido ${dinero(e.recibido)} · gastado ${dinero(e.gastado)}`; }
+    else { $("#i-f-sob").textContent = "—"; $("#i-f-sob-nota").textContent = `Falta el saldo inicial del mes · recibido ${dinero(e.recibido)}`; }
+  }
+
+  // ---- Calendario del mes con puntos (eventos, tareas, incidencias, pagos) ----
+  async function pintarCalendario() {
+    const ta = turnoActual(), mes = ta.hoy.slice(0, 7);
+    const [a, m] = mes.split("-").map(Number), primero = new Date(Date.UTC(a, m - 1, 1));
+    const inicio = new Date(primero); inicio.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7));
+    const fin = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+    const j = await api(`agenda?desde=${inicio.toISOString().slice(0, 10)}&hasta=${sumar(fin, 7)}`);
+    const abierto = it => !["hecho", "comprado", "resuelta", "archivado"].includes(it.estado);
+    const porDia = {};
+    for (const it of j.items) if (it.fecha && it.tipo !== "aviso" && it.tipo !== "compra" && (abierto(it) || it.tipo === "evento")) (porDia[it.fecha] = porDia[it.fecha] || new Set()).add(it.tipo);
+    for (const p of j.pagos_hechos || []) (porDia[p.fecha] = porDia[p.fecha] || new Set()).add("pagado");
+    let celdas = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map(d => `<span class="dow">${d}</span>`).join("");
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(inicio); d.setUTCDate(inicio.getUTCDate() + i);
+      const iso = d.toISOString().slice(0, 10), t = [...(porDia[iso] || [])];
+      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === ta.hoy ? "hoy" : ""}" type="button" data-cdia="${iso}" aria-label="${esc(fLargo.format(d))}${t.length ? ", con pendientes" : ""}">${d.getUTCDate()}<span class="pts">${t.map(x => `<i class="pt ${x}"></i>`).join("")}</span></button>`;
+      if (i >= 34 && d.getUTCMonth() !== m - 1 && d.getUTCDay() === 0) break;
+    }
+    const nm = new Date(mes + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" });
+    $("#i-calendario").innerHTML = `<div class="cal-head"><h3>${esc(nm.charAt(0).toUpperCase() + nm.slice(1))}</h3></div><div class="cal">${celdas}</div>
+      <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas</span><span><i class="pt incidencia"></i>Incidencias</span><span><i class="pt pago"></i>Pagos por hacer</span><span><i class="pt pagado"></i>Pagos hechos</span></div>`;
+    $("#i-calendario").querySelectorAll("[data-cdia]").forEach(b => b.addEventListener("click", () => window.agendaDia && window.agendaDia(b.dataset.cdia)));
+  }
+
   // Navegación desde las tarjetas y acciones rápidas
   document.querySelectorAll("#mod-inicio [data-ir]").forEach(el => {
     const ir = () => window.irA && window.irA(el.dataset.ir);
-    el.addEventListener("click", ir);
+    el.addEventListener("click", e => { e.stopPropagation(); ir(); });
     el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ir(); } });
   });
   document.querySelectorAll("#mod-inicio [data-agenda]").forEach(el => {
@@ -2885,7 +3138,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   });
   document.querySelectorAll("#mod-inicio [data-accion]").forEach(b => b.addEventListener("click", () => {
     const a = b.dataset.accion;
-    if (a === "gasto" || a === "transf") { window.irA && window.irA("caja"); setTimeout(() => { const x = document.getElementById(a === "gasto" ? "c-gasto" : "c-transf"); x && x.click(); }, 300); }
+    if (a === "gasto") { window.irA && window.irA("caja"); setTimeout(() => { const x = document.getElementById("c-gasto"); x && x.click(); }, 300); }
+    else if (a === "transf") window.finanzasAbrir && window.finanzasAbrir("transf");
+    else if (a === "pagohecho") window.agendaAbrir && window.agendaAbrir("hechos", "hecho");
+    else if (a === "programar") window.agendaAbrir && window.agendaAbrir("pago", "programar");
     else window.agendaAbrir && window.agendaAbrir(a === "evento" ? "calendario" : a);
   }));
   document.addEventListener("modulo", e => { if (e.detail === "inicio") { firmaGraf = null; cargar().catch(() => {}); } });
@@ -2915,7 +3171,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   const fMes = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric", timeZone: "UTC" });
   const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
   const mayus = t => t.charAt(0).toUpperCase() + t.slice(1);
-  const st = { tab: "calendario", items: [], hoy: "", mes: "", sel: "" };
+  const st = { tab: "calendario", ptab: "pago", items: [], hoy: "", mes: "", sel: "" };
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   const AVISO_TXT = { 15: "15 min antes", 60: "1 hora antes", 1440: "1 día antes" };
   const ico = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
@@ -2936,15 +3192,19 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       const nA = $("#an-aviso"); nA.classList.toggle("rojo", !!j.avisos_sin_leer); if (j.avisos_sin_leer) nA.textContent = j.avisos_sin_leer;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
       const a = j.abiertos;
-      $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.compra || 0} compras · ${a.incidencia || 0} incidencias abiertas`;
+      $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.incidencia || 0} incidencias abiertas`;
       pintar();
     } catch (e) { if (e.message !== "sesion") $("#ag-cuerpo").innerHTML = `<p class="empty">No se pudo cargar la agenda: ${esc(e.message)}</p>`; }
   }
 
+  // La Agenda (calendario, por hacer, incidencias, avisos) y Pagos y compras comparten datos y formularios
   function pintar() {
     document.querySelectorAll("#a-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.tab ? "true" : "false"));
+    document.querySelectorAll("#pg-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.ptab ? "true" : "false"));
     $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : st.tab === "aviso" ? vistaAvisos() : vistaLista(st.tab);
-    conectar();
+    conectar($("#ag-cuerpo"));
+    $("#pg-cuerpo").innerHTML = vistaPagos();
+    conectar($("#pg-cuerpo"));
   }
 
   // ---- Formularios ----
@@ -2959,8 +3219,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "pago") return `<form class="aform" data-tipo="pago"><label class="w2">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
-      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (caja)</option></select></label>
-      <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se agrega a los gastos.</p></form>`;
+      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
+      <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Finanzas.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
       <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
@@ -2980,7 +3240,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (it.tipo === "evento") campos.push(`<label>Hora<input type="time" name="hora" value="${esc(it.hora || "")}"></label>`);
     if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
     if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
-    if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con${sel("forma", [["TRANSFERENCIA", "Transferencia"], ["TARJETA", "Tarjeta"], ["EFECTIVO", "Efectivo (caja)"]], it.forma || "TRANSFERENCIA")}</label>`);
+    if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con${sel("forma", [["TRANSFERENCIA", "Transferencia"], ["TARJETA", "Tarjeta"], ["EFECTIVO", "Efectivo (sobres)"]], it.forma || "TRANSFERENCIA")}</label>`);
     if (it.tipo === "tarea") campos.push(`<label class="chkl w2"><input type="checkbox" name="para_turno" ${it.para_turno ? "checked" : ""}>Que la haga el encargado (tablet)</label><label>Turno${sel("turno", [["", "Cualquiera"], ...Object.entries(T)], it.turno || "")}</label>`);
     if (it.tipo === "incidencia") campos.push(`<label>Gravedad${sel("gravedad", [["leve", "Leve"], ["media", "Media"], ["grave", "Grave"]], it.gravedad)}</label><label>Dónde<input name="area" maxlength="40" value="${esc(it.area || "")}"></label>`);
     if (it.tipo === "aviso") {
@@ -3002,7 +3262,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico("i-billete")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc">${hecho ? "" : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
-        <span class="mm">${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" }[it.forma] || "")}</span></span>
+        <span class="mm">${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
         ${hist ? `<span class="mm informes">${hist}</span>` : ""}</div>`;
     }
     if (it.tipo === "incidencia") {
@@ -3018,7 +3278,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
       it.cantidad ? `<span>${esc(it.cantidad)}</span>` : "",
-      it.tipo === "compra" && it.importe != null ? `<span>$${Number(it.importe).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${it.gasto_id ? " · en gastos" : ""}</span>` : "",
+      it.tipo === "compra" && it.importe != null ? `<span>$${Number(it.importe).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${it.gasto_id ? " · en Finanzas" : ""}</span>` : "",
       it.fecha && it.tipo !== "evento" ? `<span>${it.tipo === "tarea" ? "Límite " : ""}${esc(diaTxt(it.fecha))}</span>` : "",
       it.hora ? `<span>${esc(it.hora)}</span>` : "",
       it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : "",
@@ -3033,7 +3293,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 
   // ---- Pagos hechos (programados o no) ----
   const MXN = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const FORMA_TXT = { TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" };
+  const FORMA_TXT = { TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" };
   function filaPagoHecho(p) {
     const editable = (st.mesesAbiertos || []).includes(p.fecha.slice(0, 7));
     return `<div class="aitem"><span class="grav pagado" title="Pagado">${ico("i-check")}</span>
@@ -3075,14 +3335,14 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <li><b>Importe aproximado:</b> lo que pagas normalmente. Al registrar el pago escribes el importe real.</li>
       <li><b>Próximo pago:</b> la fecha en que vence.</li>
       <li><b>Se repite:</b> cada mes, cada 2, 3, 6 o 12 meses, o una sola vez.</li>
-      <li><b>Se paga con:</b> transferencia o tarjeta no tocan el efectivo de la caja; «Efectivo (caja)» sí se descuenta del corte.</li>
+      <li><b>Se paga con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» sale de los sobres que entregan los turnos. Ninguno toca la caja de los turnos.</li>
     </ol>Aparece en el calendario y te llega en el correo diario 3 días antes. Cuando lo pagues, toca «Registrar pago».`;
     const d = ventana("Programar un pago", guia, `<form class="aform" novalidate>
       <label class="w4">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
       <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (caja)</option></select></label>
+      <label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
       <span class="err"></span><div class="botones"><button class="btn btn-primary" type="submit">Programar</button><button class="btn btn-line" type="button" data-cerrar>Cancelar</button></div></form>`);
     const f = d.querySelector("form"); f.titulo.focus();
     d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
@@ -3098,15 +3358,15 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const mesAb = (st.mesesAbiertos || []).slice().sort()[0] || st.hoy.slice(0, 7);
     const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "TRANSFERENCIA", titulo: "", nota: "" };
     const suelto = modo === "hecho" || (modo === "editar" && !pago.item_id);
-    const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago ya hecho" : "Registrar pago: " + it.titulo;
+    const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago o gasto ya hecho" : "Registrar pago: " + it.titulo;
     const guia = `<b>Cómo llenarlo</b><ol>
-      ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE» o «Refacción de la pluma».</li>` : ""}
-      <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser del mes abierto en Ingresos y gastos.</li>
+      ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE», «Refacción de la pluma» o «Gasolina».</li>` : ""}
+      <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser de un mes abierto (el actual, o el anterior mientras no se cierra).</li>
       <li><b>Importe pagado:</b> lo que realmente pagaste, con centavos si los hay.</li>
-      <li><b>Pagado con:</b> transferencia o tarjeta no tocan la caja; «Efectivo (caja)» se descuenta del efectivo de ese turno.</li>
+      <li><b>Pagado con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» se descuenta del efectivo en sobres de Finanzas. No toca la caja de ningún turno.</li>
       <li><b>Comprobante (opcional):</b> toma foto del ticket o sube la captura o el PDF de la transferencia. Se guarda en Drive.</li>
       <li><b>Nota (opcional):</b> folio, referencia o lo que sirva para identificarlo.</li>
-    </ol>${modo === "editar" ? "Al guardar se corrige también su gasto en Ingresos y gastos." : `Al guardar se agrega a los gastos y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
+    </ol>${modo === "editar" ? "Al guardar se corrige también en Finanzas." : `Al guardar se suma a los egresos de la administración (Finanzas) y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
     const d = ventana(titulo, guia, `<form class="aform" novalidate>
       ${suelto ? `<label class="w4">Qué pagaste<input name="titulo" maxlength="140" value="${esc(v.titulo || "")}" placeholder="Ej. Recibo de luz CFE" autocomplete="off"></label>` : ""}
       <label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(v.fecha)}" min="${esc(mesAb)}-01" max="${esc(st.hoy)}"></label>
@@ -3147,7 +3407,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         const arch = f.comprobante.files[0];
         if (arch) { b.textContent = "Subiendo comprobante…"; await subirComprobante(id, arch); }
       } catch (e) { aviso = " · " + e.message + " Puedes subirlo después con «Editar»."; }
-      d.close(); toast((modo === "editar" ? "Pago corregido" : "Pago registrado en gastos") + aviso); await cargar();
+      d.close(); toast((modo === "editar" ? "Pago corregido" : "Pago registrado") + aviso); await cargar();
     };
     f.addEventListener("submit", ev => { ev.preventDefault(); enviar(); });
   }
@@ -3161,14 +3421,35 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (tipo === "pago") ab.sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
     const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas.", pago: "No hay pagos programados." }[tipo];
     const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
-    if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago ya hecho</button></div>
-        <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago hecho. Todo pasa a los gastos y aparece en el calendario.</p></section>
+    if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
+        <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago o gasto hecho. Todo aparece en el calendario y se suma a Finanzas.</p></section>
       <section class="card"><h3>Programados</h3><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
-      ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>
-      <section class="card"><h3>Pagos hechos</h3>${listaPagosHechos()}</section>`;
+      ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
     return `<section class="card">${formulario(tipo)}</section>
       <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
+  }
+
+  // ---- Pagos y compras (sección propia) ----
+  function vistaPagos() {
+    const mes = (st.hoy || "").slice(0, 7);
+    const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
+    const prog = st.items.filter(x => x.tipo === "pago" && abierto(x));
+    const porPagar = prog.filter(x => x.fecha && x.fecha <= finMes), vencidos = prog.filter(x => x.fecha && x.fecha < st.hoy);
+    const hechosMes = (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes);
+    const compras = st.items.filter(x => x.tipo === "compra");
+    const compradasMes = compras.filter(x => x.estado === "comprado" && x.importe != null && (x.cerrado ? new Date(Date.parse(x.cerrado) - 216e5).toISOString().slice(0, 7) === mes : false));
+    const sum = (l, f) => l.reduce((a, x) => a + (Number(f(x)) || 0), 0);
+    const resumen = `<section class="card"><div class="ctot pg-res">
+        <div class="k"><span>Por pagar este mes</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
+        <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
+        <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
+      </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Finanzas.</p></section>`;
+    if (st.ptab === "hechos") return resumen + `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
+        <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
+      <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
+    if (st.ptab === "compra") return resumen + vistaLista("compra");
+    return resumen + vistaLista("pago");
   }
 
   // ---- Avisos para la tablet ----
@@ -3210,7 +3491,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   }
 
   // ---- Turno: turno activo, encargados de la tablet (cada dato se guarda por separado) y cortes ciegos ----
-  async function vistaTablet() {
+  // modo "curso": turno abierto en la tablet; modo "encargados": encargados de la tablet (sección Turnos)
+  let modoTablet = "encargados";
+  async function vistaTablet(modo) {
+    if (modo) modoTablet = modo; else modo = modoTablet;
     const c = $("#t-cuerpo");
     if (!c.innerHTML.trim()) c.innerHTML = `<p class="empty">Cargando…</p>`;
     let j, act = null, colabs = [];
@@ -3236,29 +3520,26 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         ${selExp(p)}${selAv(p)}<span class="err" data-err="${k(p)}"></span>
       </div>
       <span class="ac">${p.bloqueado ? `<button class="btn btn-line" type="button" data-desbloquear="${k(p)}" style="min-height:34px;padding:0 12px">Desbloquear</button>` : ""}<button class="btn btn-line" type="button" data-activo="${k(p)}" data-v="${p.activo ? 0 : 1}" style="min-height:34px;padding:0 12px">${p.activo ? "Desactivar" : "Activar"}</button></span></div>`;
-    c.innerHTML = `<section class="card ${act ? "t-activo" : ""}"><h3>Turno activo</h3>
+    const secActivo = `<section class="card ${act ? "t-activo" : ""}"><h3>Turno activo</h3>
         ${act ? `<div class="t-act">${avP(act.persona, 1)}<div><b>${esc(act.nombre)}</b> <span class="note">(${esc(act.persona)})</span><div class="note">Turno de la ${esc((TURNO_TXT[act.turno] || act.turno).toLowerCase())} del ${esc(diaTxt(act.dia))} · desde ${esc(cuando(act.desde))} · cambio inicial ${act.cambio_inicial != null ? DIN(act.cambio_inicial) : "sin capturar"} · <b style="color:var(--warn)">sin corte</b></div></div></div>
-          <p class="note" style="margin:10px 0">Mientras este turno no tenga corte, nadie más puede entrar a la tablet. Si la persona ya no va a regresar, cierra su turno: se cierra su sesión y la tablet queda libre; el corte quedará pendiente en Ingresos y gastos.</p>
+          <p class="note" style="margin:10px 0">Mientras este turno no tenga corte, nadie más puede entrar a la tablet. Si la persona ya no va a regresar, cierra su turno: se cierra su sesión y la tablet queda libre; el corte quedará pendiente en Cortes.</p>
           <button class="btn btn-bad" type="button" id="t-cerrar">Cerrar turno de ${esc(act.persona)}</button>`
-        : `<p class="note" style="margin:6px 0 0">No hay turnos abiertos sin corte.</p>`}</section>
-      <section class="card"><h3>Encargados de turno</h3>
+        : `<p class="note" style="margin:6px 0 0">No hay turnos abiertos sin corte.</p>`}</section>`;
+    const secEnc = `<section class="card"><h3>Encargados de turno</h3>
         <p class="note" style="margin:4px 0 8px">Cada dato se guarda por separado: el nombre y el PIN con su botón; el expediente y el avatar base se guardan en cuanto los eliges. Al cambiar un PIN, el anterior deja de servir. Cada encargado puede cambiar su imagen (su avatar base, una foto suya o sus iniciales), color y tamaño de letra desde la tablet, tocando su nombre arriba.</p>
         <div>${j.personas.map(enc).join("") || `<p class="note">Sin encargados.</p>`}</div>
         <details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Agregar encargado</summary>
           <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
-      </section>
-      <section class="card"><h3>Últimos cortes ciegos</h3>
-        ${j.cortes.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Últimos cortes"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Cambio inicial</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${x.cambio && x.cambio.n ? DIN(x.cambio.importe) : "—"}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${(x.conteo.retiros || []).length ? DIN(x.conteo.retiros.reduce((a, r) => a + r.monto, 0)) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
-        </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo. El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
-      </section>
-      <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
+      </section>`;
+    const secComo = `<section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
+    c.innerHTML = modo === "curso" ? secActivo : secEnc + secComo;
     const errDe = clave => c.querySelector(`[data-err="${CSS.escape(clave)}"]`);
     const guardar = async (clave, datos, msg = "Guardado") => {
       const e = clave && errDe(clave); if (e) e.textContent = "";
       try { await post("turno/personas" + (clave ? "/" + encodeURIComponent(clave) : ""), datos); toast(msg); st.personas = null; vistaTablet(); return true; }
       catch (er) { if (er.message !== "sesion") { if (e) e.textContent = er.message; else toast(er.message); } return false; }
     };
+    if (modo === "curso") { const cerr = $("#t-cerrar"); if (cerr) cerr.addEventListener("click", async () => { if (!confirm(`¿Cerrar el turno de ${act.persona} sin corte? Su sesión se cierra y la tablet queda libre.`)) return; try { await post("turno/cerrar", {}); toast("Turno cerrado"); vistaTablet("curso"); } catch (e) { if (e.message !== "sesion") toast(e.message); } }); return; }
     c.querySelectorAll("form[data-nombre]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardar(f.dataset.nombre, { nombre: f.nombre.value }, "Nombre guardado"); }));
     c.querySelectorAll("form[data-pin]").forEach(f => f.addEventListener("submit", ev => {
       ev.preventDefault();
@@ -3267,8 +3548,6 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     }));
     c.querySelectorAll("select[data-exp]").forEach(sel => sel.addEventListener("change", () => guardar(sel.dataset.exp, { colaborador: sel.value }, sel.value ? "Expediente vinculado" : "Expediente desvinculado")));
     c.querySelectorAll("fieldset[data-avbase]").forEach(fs => fs.addEventListener("change", e => { if (e.target.matches("input[type=radio]")) guardar(fs.dataset.avbase, { avatar_base: e.target.value }, "Avatar guardado"); }));
-    const cerr = $("#t-cerrar");
-    if (cerr) cerr.addEventListener("click", async () => { if (!confirm(`¿Cerrar el turno de ${act.persona} sin corte? Su sesión se cierra y la tablet queda libre.`)) return; try { await post("turno/cerrar", {}); toast("Turno cerrado"); vistaTablet(); } catch (e) { if (e.message !== "sesion") toast(e.message); } });
     c.querySelectorAll("[data-quitarfoto]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.quitarfoto, { quitar_foto: 1 }, "Foto quitada")));
     c.querySelectorAll("[data-desbloquear]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.desbloquear, { desbloquear: 1 }, "Desbloqueado")));
     c.querySelectorAll("[data-activo]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.activo, { activo: b.dataset.v === "1" })));
@@ -3278,7 +3557,6 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     });
   }
   window.turnoVista = vistaTablet;
-  document.addEventListener("modulo", e => { if (e.detail === "turno") vistaTablet(); });
 
   function vistaCalendario() {
     const [a, m] = st.mes.split("-").map(Number);
@@ -3308,9 +3586,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         ${formulario("evento", st.sel)}</section></div>`;
   }
 
-  function conectar() {
-    const c = $("#ag-cuerpo");
-    c.querySelectorAll("[data-editar]").forEach(b => b.addEventListener("click", () => { st.editando = b.dataset.editar; pintar(); const f = $(`#ag-cuerpo form.editar`); f && f.titulo.focus(); }));
+  function conectar(c) {
+    c.querySelectorAll("[data-editar]").forEach(b => b.addEventListener("click", () => { st.editando = b.dataset.editar; pintar(); const f = c.querySelector("form.editar"); f && f.titulo.focus(); }));
     c.querySelectorAll("form.editar [data-cancelar]").forEach(b => b.addEventListener("click", () => { st.editando = null; pintar(); }));
     c.querySelectorAll("form.editar").forEach(f => f.addEventListener("submit", async ev => {
       ev.preventDefault();
@@ -3335,7 +3612,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
       }
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
-      try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }
+      try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = c.querySelector("form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     }));
     c.querySelectorAll("[data-chk]").forEach(b => b.addEventListener("click", async () => {
@@ -3344,18 +3621,18 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       if (!on && b.dataset.fin === "comprado") {
         const fila = b.closest(".aitem");
         if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
-        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma"><option value="EFECTIVO">Efectivo (caja)</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se registra como gasto en Ingresos y gastos, en el turno de ahora.</span></form>`);
+        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma"><option value="EFECTIVO">Efectivo (sobres)</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se suma a los egresos de la administración (Finanzas). No toca la caja de ningún turno.</span></form>`);
         const f = fila.querySelector(".compra-conf");
         f.importe.focus();
         f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());
         f.addEventListener("submit", async ev => {
           ev.preventDefault(); const bt = f.querySelector("[type=submit]"); bt.disabled = true; f.querySelector(".err").textContent = "";
-          try { await post("agenda/" + b.dataset.chk, { estado: "comprado", importe: f.importe.value, forma: f.forma.value }); toast("Compra registrada como gasto"); await cargar(); }
+          try { await post("agenda/" + b.dataset.chk, { estado: "comprado", importe: f.importe.value, forma: f.forma.value }); toast("Compra registrada"); await cargar(); }
           catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.message; bt.disabled = false; }
         });
         return;
       }
-      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se borrará su gasto de Ingresos y gastos.")) return;
+      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se quita de los egresos en Finanzas.")) return;
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
@@ -3364,7 +3641,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
     c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
       const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
-      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se borra su gasto${p.comprobante ? " y su comprobante" : ""}.`)) return;
+      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se quita de Finanzas${p.comprobante ? " y se borra su comprobante" : ""}.`)) return;
       try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
@@ -3404,11 +3681,23 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   }
 
   $("#a-tabs").addEventListener("click", e => { const b = e.target.closest(".ptab[data-t]"); if (b) { st.tab = b.dataset.t; pintar(); } });
-  // Abrir la agenda en una pestaña y con el formulario listo (desde el Inicio)
-  window.agendaAbrir = tab => { st.tab = tab || "calendario"; if (window.irA) window.irA("agenda"); setTimeout(() => { const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }, 250); };
-  document.addEventListener("modulo", e => { if (e.detail === "agenda") cargar(); });
-  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden) cargar(); if (!$("#mod-turno").hidden) vistaTablet(); });
-  if (location.hash === "#agenda") cargar();
+  $("#pg-tabs").addEventListener("click", e => { const b = e.target.closest(".ptab[data-t]"); if (b) { st.ptab = b.dataset.t; st.editando = null; pintar(); } });
+  // Abrir la agenda (o Pagos y compras) en una pestaña y con el formulario listo (desde el Inicio)
+  window.agendaDia = dia => { st.sel = dia; st.mes = dia.slice(0, 7); st.tab = "calendario"; if (window.irA) window.irA("agenda"); };
+  window.agendaAbrir = async (tab, accion) => {
+    const pagos = ["pago", "compra", "hechos"].includes(tab);
+    if (pagos) st.ptab = tab; else st.tab = tab || "calendario";
+    if (window.irA) window.irA(pagos ? "pagos" : "agenda");
+    if (accion && !st.hoy) await cargar();
+    setTimeout(() => {
+      if (accion === "programar") return ventanaProgramar();
+      if (accion === "hecho") return ventanaPago("hecho");
+      const n = $(pagos ? "#pg-cuerpo form.aform input[name=titulo]" : "#ag-cuerpo form.aform input[name=titulo]"); n && n.focus();
+    }, 300);
+  };
+  document.addEventListener("modulo", e => { if (e.detail === "agenda" || e.detail === "pagos") cargar(); });
+  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden || !$("#mod-pagos").hidden) cargar(); });
+  if (location.hash === "#agenda" || location.hash === "#pagos") cargar();
 
   // ---- Un solo botón para sincronizar todo ----
   $("#sync-todo").addEventListener("click", async e => {
@@ -3519,7 +3808,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   // ---- Botón atrás del celular: cierra el detalle y luego regresa a la sección anterior ----
   if (!history.state) {
     const m = (location.hash || "#inicio").slice(1);
-    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda", "turno"].includes(m) ? m : "inicio" }, "", location.href);
+    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda", "pagos", "finanzas"].includes(m) ? m : "inicio" }, "", location.href);
   }
   zonas.forEach(z => {
     let abierto = z.w.classList.contains("ver-detalle");

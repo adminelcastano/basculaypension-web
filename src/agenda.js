@@ -27,14 +27,6 @@ function sumarMeses(dia, n) {
   return t.toISOString().slice(0, 10);
 }
 const leerMonto = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
-// Día y turno de caja en este momento (hora de Tapachula; la noche después de medianoche es del día anterior)
-function turnoAhora(ahora = new Date()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(ahora).map(x => [x.type, x.value]));
-  const h = Number(p.hour), dia = `${p.year}-${p.month}-${p.day}`;
-  const turno = h >= 6 && h < 14 ? "MAÑANA" : h >= 14 && h < 22 ? "TARDE" : "NOCHE";
-  if (turno === "NOCHE" && h < 6) { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - 1); return { dia: d.toISOString().slice(0, 10), turno }; }
-  return { dia, turno };
-}
 export const AREAS = ["Báscula", "Caseta", "Patio", "Pluma / acceso", "Baños", "Iluminación", "Cámaras", "Otro"];
 const PRIORIDADES = ["normal", "alta"];
 const GRAVEDADES = ["leve", "media", "grave"];
@@ -66,7 +58,7 @@ export async function asegurarEsquemaAgenda(env) {
   // quien: quién reporta la incidencia (texto libre en la tablet).
   for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
-  // Historial de pagos hechos de cada pago programado (cada uno con su gasto en Ingresos y gastos)
+  // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_pagos (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, fecha TEXT NOT NULL, programado TEXT, importe REAL NOT NULL, forma TEXT NOT NULL, gasto_id TEXT, creado TEXT NOT NULL, creado_por TEXT, titulo TEXT)").run();
   const colsP = new Set((await env.DB.prepare("PRAGMA table_info(agenda_pagos)").all()).results.map(r => r.name));
@@ -200,7 +192,7 @@ export async function resumenAgenda(env) {
 }
 
 // ---- Pagos hechos (de un pago programado o sueltos) ----
-// Cada pago hecho crea su gasto en Ingresos y gastos; se puede corregir o borrar mientras su mes siga abierto.
+// Cada pago hecho crea su egreso de administración (origen 'admin', sin turno); se puede corregir o borrar mientras su mes siga abierto.
 async function validarPagoHecho(env, c, fila) {
   const fecha = String(c.fecha || ""), importe = leerMonto(c.importe);
   const forma = FORMAS.includes(c.forma) ? c.forma : (fila && fila.forma) || "TRANSFERENCIA";
@@ -208,14 +200,16 @@ async function validarPagoHecho(env, c, fila) {
   await asegurarEsquemaCaja(env);
   const meses = await mesesAbiertos(env);
   if (!RE_DIA.test(fecha) || fecha > hoyMx()) errores.fecha = "Escribe la fecha en que se pagó (no futura).";
-  else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró en Ingresos y gastos; usa una fecha del mes abierto.";
+  else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró; usa una fecha del mes abierto.";
   if (!(importe > 0) || importe > 1000000) errores.importe = "Escribe el importe pagado.";
   const titulo = texto(c.titulo, 140);
   if (!fila && titulo.length < 2) errores.titulo = "Escribe qué pagaste (ej. Recibo de luz CFE).";
   const nota = texto(c.nota, 300) || null;
   return { fecha, importe, forma, titulo, nota, errores, meses };
 }
-const turnoDe = (fecha, pedido) => { const t = turnoAhora(); return TURNOS.includes(pedido) ? pedido : fecha === t.dia ? t.turno : "MAÑANA"; };
+// Pagos, compras y otros gastos de la administración: salen de los sobres (efectivo) o del banco, no de la caja
+// de ningún turno, así que no llevan turno y no cuentan en los cortes (origen = 'admin').
+const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin')";
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
@@ -225,8 +219,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const v = await validarPagoHecho(env, c, null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(gid, v.fecha.slice(0, 7), v.fecha, turnoDe(v.fecha, c.turno), ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare(GASTO_ADMIN)
+      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null).run();
     await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?)")
       .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota).run();
     return json({ ok: true, id: pid });
@@ -245,7 +239,7 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
   if (request.method !== "POST") return json({ ok: false, error: "Ruta no encontrada." }, 404);
   await asegurarEsquemaCaja(env);
   const meses = await mesesAbiertos(env);
-  if (!meses.includes(pago.fecha.slice(0, 7))) return json({ ok: false, error: "Ese pago es de un mes ya cerrado en Ingresos y gastos; ya no se puede cambiar." }, 409);
+  if (!meses.includes(pago.fecha.slice(0, 7))) return json({ ok: false, error: "Ese pago es de un mes ya cerrado; ya no se puede cambiar." }, 409);
 
   if (accion === "comprobante") {
     const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
@@ -369,18 +363,18 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
-    // Compras: al confirmarla se captura el importe y se registra como gasto en Ingresos y gastos;
+    // Compras: al confirmarla se captura el importe y se registra como egreso de la administración (Finanzas);
     // si se regresa a pendiente, ese gasto se borra.
     if (fila.tipo === "compra" && d.estado === "comprado" && fila.estado !== "comprado" && !fila.gasto_id) {
       const t = String(c.importe ?? "").replace(/[$,\s]/g, ""), importe = /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN;
       const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
       if (!(importe > 0)) return json({ ok: false, error: "Escribe el importe de la compra.", errores: { importe: "Importe inválido." } }, 422);
       await asegurarEsquemaCaja(env);
-      const { dia, turno } = turnoAhora();
+      const dia = hoyMx();
       const gid = crypto.randomUUID();
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
-      await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(gid, dia.slice(0, 7), dia, turno, concepto, importe, forma, ahora, usuario && usuario.email || null).run();
+      await env.DB.prepare(GASTO_ADMIN)
+        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null).run();
       await env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id).run();
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).run();
@@ -405,8 +399,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (dup) return json({ ok: false, duplicado: dup, error: `Ya registraste un pago de «${fila.titulo}» el ${dup.fecha} por $${Number(dup.importe).toFixed(2)}.` }, 409);
     }
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(gid, fecha.slice(0, 7), fecha, turnoDe(fecha, c.turno), ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare(GASTO_ADMIN)
+      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
     await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota).run();
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
