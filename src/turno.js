@@ -230,12 +230,15 @@ async function estado(env, s) {
   const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
+  const inicio = await env.DB.prepare("SELECT cambio, persona, actualizado FROM turno_inicio WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
+  // Lo que dejó de cambio el turno anterior (referencia para el cambio inicial)
+  const anterior = inicio ? null : await env.DB.prepare("SELECT persona, dia, turno, cambio_sig FROM turno_cortes WHERE NOT (dia = ? AND turno = ?) AND cambio_sig IS NOT NULL ORDER BY actualizado DESC LIMIT 1").bind(s.dia, s.turno).first();
   if (corte) {
     corte.retiros = leerRetiros(corte.retiros);
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
     corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
   }
-  return { ...s, hoy, personas, acentos: ACENTOS, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
+  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
 }
 
 // ---------------------------------------------------------------------------
@@ -472,6 +475,17 @@ export async function turnoRuta(request, env, url, h) {
   }
 
   // ---- Corte ciego: efectivo físico de la caja, incluido el cambio inicial ----
+  // ---- Cambio inicial: lo primero que se captura al empezar el turno (se puede corregir hasta entregar el corte) ----
+  if (partes[0] === "inicio" && request.method === "POST") {
+    const cambio = numero(c.cambio);
+    if (!(cambio >= 0) || cambio > 1000000) return json({ ok: false, error: "Escribe con cuánto cambio empiezas (puede ser 0).", errores: { cambio: "Monto inválido." } }, 422);
+    if (!(await sinCorte())) return json({ ok: false, error: "El corte de este turno ya se entregó; el cambio inicial ya no se puede cambiar." }, 409);
+    await env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, cambio = excluded.cambio, actualizado = excluded.actualizado`)
+      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, cambio, ahora, ahora).run();
+    return recordar(json({ ok: true, inicio: { cambio, persona: s.persona, actualizado: ahora } }));
+  }
+
   if (partes[0] === "corte" && request.method === "POST") {
     const efectivo = numero(c.efectivo), tarjeta = c.tarjeta === "" || c.tarjeta == null ? null : numero(c.tarjeta);
     const opcional = v => v === "" || v == null ? 0 : numero(v);
@@ -557,8 +571,9 @@ export async function turnoAdmin(request, env, url, partes) {
       const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE dia IN (${q})`).bind(...dias).all()).results;
       const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia IN (${q})`).bind(...dias).all()).results;
       const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE dia IN (${q})`).bind(...dias).all()).results;
+      const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE dia IN (${q})`).bind(...dias).all()).results;
       const claves = new Set(conteos.map(x => x.dia + "|" + x.turno));
-      cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
+      cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
     }
     let abierto = await env.DB.prepare("SELECT persona, dia, turno, desde FROM turno_abierto WHERE id = 1").first();
     if (abierto && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(abierto.dia, abierto.turno).first()) abierto = null;

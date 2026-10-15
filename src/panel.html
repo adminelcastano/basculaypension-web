@@ -2133,7 +2133,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               ${fila("Báscula", dinero(c.bascula.EFECTIVO), dinero(c.bascula.TARJETA))}
               ${fila("Pensión", dinero(c.pension.EFECTIVO), dinero(c.pension.TARJETA))}
               ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
-              ${c.cambio && c.cambio.n ? fila("Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
+              ${c.cambio && c.cambio.n ? fila(c.cambio.fuente === "tablet" ? `Cambio inicial (${avP(c.cambio.persona)}${esc(c.cambio.persona)}, tablet)` : "Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
               ${c.extra && c.extra.n ? fila(`Ingresos extra (${c.extra.n})`, "+" + dinero(c.extra.importe), "") : ""}
               ${fila("Gastos", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
               ${c.caja.n ? fila(`Movimientos de caja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}

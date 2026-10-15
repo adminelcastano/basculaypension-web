@@ -96,6 +96,8 @@ export async function asegurarEsquemaCaja(env) {
   // Informe final: cómo se repartió el efectivo contado (sobre para la administración, retiros y cambio para el siguiente turno)
   for (const [c, t] of [["sobre", "REAL"], ["cambio_sig", "REAL"], ["retiros", "TEXT"]]) if (!colsC.has(c)) await env.DB.prepare(`ALTER TABLE turno_cortes ADD COLUMN ${c} ${t}`).run();
   // Cada entrega o corrección del corte queda registrada (no se pierde lo que se entregó antes)
+  // Cambio inicial que el encargado declara al empezar su turno en la tablet (sustituye al "cambio" de la hoja)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_inicio (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, cambio REAL NOT NULL, creado TEXT NOT NULL, actualizado TEXT NOT NULL, PRIMARY KEY (dia, turno))").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_cortes_hist (dia TEXT NOT NULL, turno TEXT NOT NULL, mes TEXT NOT NULL, persona TEXT NOT NULL, datos TEXT NOT NULL, creado TEXT NOT NULL)").run();
   esquemaListo = true;
 }
@@ -181,7 +183,7 @@ export async function sincronizarCaja(env) {
 }
 
 // Cortes por día y turno a partir de ingresos y gastos
-export function calcularCortes(movs, gastos, extras = []) {
+export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   const cortes = new Map();
   const corte = (dia, turno) => {
     const k = dia + "|" + turno;
@@ -201,6 +203,8 @@ export function calcularCortes(movs, gastos, extras = []) {
   }
   for (const g of gastos) { const c = corte(g.dia, g.turno); c.gastos[g.forma] = (c.gastos[g.forma] || 0) + g.monto; c.n_gastos++; }
   for (const x of extras) { const c = corte(x.dia, x.turno); c.extra.n++; c.extra.importe += x.monto; if (x.ingreso) c.extra.ingreso += x.monto; }
+  // El cambio inicial capturado en la tablet manda sobre el "cambio" de la hoja (no se suman los dos)
+  for (const i of inicios) { const c = corte(i.dia, i.turno); c.cambio = { n: 1, importe: Number(i.cambio) || 0, fuente: "tablet", persona: i.persona, hoja: c.cambio.importe }; }
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return [...cortes.values()].map(c => {
     const efectivo = c.bascula.EFECTIVO + c.pension.EFECTIVO, tarjeta = c.bascula.TARJETA + c.pension.TARJETA;
@@ -262,12 +266,13 @@ async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
   const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
   const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
-  return { movs, gastos, transf, conteos, extras };
+  const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
+  return { movs, gastos, transf, conteos, extras, inicios };
 }
 
 const NOMBRE_SERV = { bascula: "Báscula", pension: "Pensión" };
-export function hojasExcel(mes, movs, gastos, transf = [], conteos = [], extras = []) {
-  const cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos).slice().reverse();
+export function hojasExcel(mes, movs, gastos, transf = [], conteos = [], extras = [], inicios = []) {
+  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).slice().reverse();
   return [
     { nombre: "Cortes", anchos: [12, 10, 14, 14, 14, 14, 14, 14, 14, 14, 14, 18, 16, 18, 12, 16, 14, 16, 14, 14, 14, 30, 16], filas: [
       ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos", "Cambio inicial", "Ingresos extra", "Movimientos de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta", "Efectivo en sobre", "Retiros extra", "Detalle de retiros", "Cambio para el siguiente turno"],
@@ -315,8 +320,9 @@ export async function cierreMensualCaja(env, h) {
   const transf = (await env.DB.prepare("SELECT * FROM caja_transf WHERE mes = ? ORDER BY fecha, creado").bind(mes).all()).results;
   const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE mes = ?").bind(mes).all()).results;
   const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE mes = ? ORDER BY dia, creado").bind(mes).all()).results;
-  const t = totalesMes(calcularCortes(movs, gastos, extras), transf);
-  const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras));
+  const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE mes = ?").bind(mes).all()).results;
+  const t = totalesMes(calcularCortes(movs, gastos, extras, inicios), transf);
+  const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras, inicios));
   const dinero = v => "$" + v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   try {
     await h.llamarScript(env, {
@@ -335,7 +341,8 @@ export async function cierreMensualCaja(env, h) {
     env.DB.prepare("DELETE FROM caja_extra WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM caja_mov WHERE mes < ?").bind(actual),
     env.DB.prepare("DELETE FROM turno_cortes WHERE mes < ?").bind(actual),
-    env.DB.prepare("DELETE FROM turno_cortes_hist WHERE mes < ?").bind(actual)
+    env.DB.prepare("DELETE FROM turno_cortes_hist WHERE mes < ?").bind(actual),
+    env.DB.prepare("DELETE FROM turno_inicio WHERE mes < ?").bind(actual)
   ]);
   await env.FILES.put("caja:mes", actual);
   return { cerrado: mes };
@@ -350,8 +357,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras } = await leerMes(env, meses, periodo);
-    const cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos);
+    const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
+    const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
     return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
@@ -362,7 +369,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const gastos = (await env.DB.prepare("SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
-    const corte = unirConteos(calcularCortes(movs, gastos, extras), conteos)[0] || null;
+    const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
+    const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
     const historial = (await env.DB.prepare("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results
       .map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
     return json({ ok: true, corte, movs, gastos, extras, historial, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
@@ -376,8 +384,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "exportar" && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras } = await leerMes(env, meses, periodo);
-    const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras));
+    const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
+    const xlsx = h.crearLibro(hojasExcel(mes, movs, gastos, transf, conteos, extras, inicios));
     const nombre = periodo.desde || periodo.hasta ? `ingresos-gastos-${periodo.desde || mes + "-01"}-a-${periodo.hasta || "hoy"}` : `ingresos-gastos-${mes}`;
     return new Response(xlsx, { headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
