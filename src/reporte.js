@@ -4,10 +4,11 @@
 //   - Facturación: solicitudes de factura del mes.
 // Los crea el script de Google (acción "archivos", op "hoja", con "destino"). Se generan solos al cerrar el mes
 // y a demanda desde el panel. Los reportes de antes (un solo archivo) se quedan donde estaban.
-import { asegurarEsquemaCaja, calcularCortes, unirConteos, totalesMes, leerRetiros, leerMes, movimientosCaja, conFolios, FORMAS_CONTADAS, esCambio, firmaMov } from "./caja.js";
+import { asegurarEsquemaCaja, calcularCortes, unirConteos, totalesMes, leerRetiros, leerMes, movimientosCaja, conFolios, FORMAS_CONTADAS, esCambio, firmaMov, cambiosEntreTurnos } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaPersonal, resumenFila } from "./personal.js";
 import { datosFinanzas, CAT_TXT, FORMA_ADMIN } from "./finanzas.js";
+import { listaBitacora, ACCIONES } from "./bitacora.js";
 
 export const TIPOS_REPORTE = { turnos: "Turnos", finanzas: "Finanzas", facturacion: "Facturación" };
 const TZ_HORAS = -6; // Tapachula (sin horario de verano)
@@ -57,7 +58,7 @@ async function hojasTurnos(env, mes) {
   return [
     hoja("Resumen", ["Concepto", "Valor"], [
       ["Mes", nombreMes(mes)], ["Generado", local(new Date().toISOString())],
-      ["Tickets en efectivo", t.efectivo], ["Tickets con tarjeta", t.tarjeta], ["Báscula", t.bascula], ["Pensión", t.pension],
+      ["Tickets en efectivo", t.efectivo], ["Tickets con tarjeta", t.tarjeta], ["Tickets por transferencia (hoja)", t.transf_hoja], ["Báscula", t.bascula], ["Pensión", t.pension],
       ["Ingresos extra (incluye aumento de cambio)", t.extras], ["Otros ingresos (rentas)", t.otros],
       ["Gastos de caja", t.gastos], ["Renglones de caja de la hoja", t.caja],
       ["Cortes de turno con datos", cortes.length], ["Cortes entregados en la tablet", conteos.length],
@@ -80,6 +81,8 @@ async function hojasTurnos(env, mes) {
     hoja("Cambio inicial", ["Día", "Turno", "Encargado", "Cambio inicial", "Capturado"], inicios.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(i => [i.dia, TURNO[i.turno] || i.turno, i.persona, i.cambio, local(i.actualizado)])),
     hoja("Entregas", ["Día", "Turno", "Entregó", "Efectivo contado", "Sobre para la administración", "Retiros", "Detalle de retiros", "Cambio para el siguiente turno"],
       conteos.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(c => { const r = leerRetiros(c.retiros); return [c.dia, TURNO[c.turno] || c.turno, c.persona, c.efectivo, c.sobre ?? "", r.reduce((a, x) => a + x.monto, 0) || "", r.map((x, i) => `${folio[`r:${c.dia}|${c.turno}|${i}`] || ""} ${x.concepto} ${x.monto}`.trim()).join("; "), c.cambio_sig ?? ""]; })),
+    hoja("Cambio entre turnos", ["Día", "Turno que recibe", "Dejó", "Cambio dejado", "Recibió", "Cambio recibido", "Diferencia"],
+      [...cambiosEntreTurnos(conteos, inicios).values()].sort((a, b) => a.dia.localeCompare(b.dia)).map(x => [x.dia, TURNO[x.turno] || x.turno, x.de.persona, x.dejado, x.recibio, x.recibido, x.dif])),
     hoja("Historial de cortes", ["Día", "Turno", "Entregó", "Cuándo", "Efectivo contado", "Sobre", "Retiros", "Cambio siguiente", "Notas"],
       hist.map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return [x.dia, TURNO[x.turno] || x.turno, x.persona, local(x.creado), d.efectivo ?? "", d.sobre ?? "", leerRetiros(d.retiros).reduce((a, r) => a + r.monto, 0) || "", d.cambio_sig ?? "", d.notas || ""]; })),
     hoja("Incidencias", ["Fecha", "Turno", "Qué pasó", "Dónde", "Gravedad", "Estado", "Reportó", "Capturó", "Detalle", "Resuelta"], de("incidencia").map(i => [i.fecha || "", TURNO[i.turno] || i.turno || "", i.titulo, i.area || "", i.gravedad || "", i.estado, i.quien || "", quien(i), i.detalle || "", i.estado === "resuelta" ? local(i.cerrado) : ""])),
@@ -103,22 +106,33 @@ async function hojasFinanzas(env, mes) {
   return [
     hoja("Resumen", ["Concepto", "Valor"], [
       ["Mes", nombreMes(mes)], ["Generado", local(new Date().toISOString())],
-      ["INGRESOS", ""], ["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta", i.tarjeta], ["Transferencias de clientes", i.transferencias], ["Otros ingresos (rentas)", i.otros], ["Total de ingresos", i.total],
-      ["EGRESOS", ""], ["Gastos de caja (turnos)", g.caja], ["Pagos programados", g.programado], ["Pagos no programados", g.no_programado], ["Compras", g.compra], ["Otros gastos", g.otro], ["Total de egresos", g.total],
+      ["INGRESOS", ""], ["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta", i.tarjeta], ["Transferencias (tickets de la hoja)", i.transf_hoja], ["Transferencias capturadas sin ticket", i.transf_manual], ["Otros ingresos (rentas)", i.otros], ["Sobrantes de caja", i.sobrantes], ["Total de ingresos", i.total],
+      ["EGRESOS", ""], ["Gastos de caja (turnos)", g.caja], ["Retiros del corte", g.retiros], ["Pagos programados", g.programado], ["Pagos no programados", g.no_programado], ["Compras", g.compra], ["Otros gastos", g.otro], ["Comisión de tarjeta (Mercado Pago)", g.comision], ["Faltantes de caja", g.faltantes], ["Total de egresos", g.total],
       ["RESULTADO (ingresos − egresos)", d.resultado],
-      ["EFECTIVO EN SOBRES", ""], ["Saldo inicial del mes", e.inicial ?? "Sin capturar"], ["Recibido en sobres", e.recibido], ["Gastado en efectivo", e.gastado], ["Saldo final", e.saldo ?? "Sin saldo inicial"],
-      ["BANCO", ""], ["Cobros con tarjeta (Mercado Pago)", d.banco.tarjeta], ["Transferencias de clientes", d.banco.transferencias], ["Total de entradas", d.banco.entradas], ["Salidas (pagos con transferencia o tarjeta)", d.banco.salidas], ["Cuentas", d.banco.cuentas || ""]
+      ["SUELDOS", ""], ["Cobrados del turno", d.sueldos.total_caja], ["Pagados por la administración", d.sueldos.total_admin], ["Total de sueldos", d.sueldos.total],
+      ["EFECTIVO EN SOBRES", ""], ["Saldo inicial del mes", e.inicial ?? "Sin saldo"], ["Saldo inicial", e.capturado ? "Contado (capturado)" : "Calculado del mes anterior"], ["Ajuste contra lo calculado", e.ajuste ?? ""], ["Recibido", e.recibido], ["Salió", e.gastado], ["Saldo final", e.saldo ?? "Sin saldo inicial"],
+      ["BANCO", ""], ["Cobros con tarjeta (bruto)", d.banco.tarjeta], ["Comisión de Mercado Pago", d.banco.comision], ["Cobros con tarjeta (neto)", d.banco.tarjeta_neto], ["Transferencias de clientes", d.banco.transferencias], ["Total de entradas", d.banco.entradas], ["Salidas (pagos con transferencia o tarjeta)", d.banco.salidas],
+      ["Dinero en cuentas al final del mes", d.banco.dinero ?? "Faltan saldos"], ["Deuda en tarjetas al final del mes", d.banco.deuda ?? "Faltan saldos"], ["Cuentas", d.banco.cuentas || ""]
     ]),
+    hoja("Cuentas", ["Cuenta", "Tipo", "Saldo inicial", "Inicial", "Ajuste", "Entró", "Salió", "Saldo o deuda final"],
+      d.banco.lista.map(c => [c.nombre, c.tipo === "credito" ? "Crédito" : "Débito", c.inicial ?? "", c.inicial == null ? "" : c.capturado ? "Contado" : "Calculado", c.ajuste ?? "", c.tipo === "credito" ? c.salidas : c.entradas, c.tipo === "credito" ? c.entradas : c.salidas, c.saldo ?? ""])),
+    hoja("Retiros del corte", ["Día", "Turno", "Encargado", "Concepto", "Categoría", "Monto"], d.retiros.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(r => [r.dia, TURNO[r.turno] || r.turno, r.persona, r.concepto, r.categoria, r.monto])),
+    hoja("Diferencias de caja", ["Día", "Turno", "Encargado", "Qué", "Diferencia (− faltó, + sobró)"], d.diferencias.lista.map(x => [x.dia, TURNO[x.turno] || x.turno, x.persona, x.concepto, x.dif])),
+    hoja("Sueldos", ["Quién o concepto", "De dónde", "Pagos", "Total"], [...d.sueldos.caja.map(x => [x.persona, "Cobrado del turno", x.n, x.total]), ...d.sueldos.admin.map(x => [x.concepto, "Pagado por la administración", x.n, x.total])]),
     hoja("Efectivo en sobres", ["Día", "Movimiento", "Concepto", "Encargado", "Entrada", "Salida", "Saldo"],
-      [["", "Saldo inicial", "", "", e.inicial ?? "", "", e.inicial ?? ""], ...e.movimientos.slice().reverse().map(m => [m.dia, m.tipo === "sobre" ? "Sobre recibido" : CAT_TXT[m.tipo] || "Gasto", m.concepto, m.persona || "", m.entrada || "", m.salida || "", m.saldo ?? ""])]),
+      [["", "Saldo inicial", "", "", e.inicial ?? "", "", e.inicial ?? ""], ...e.movimientos.slice().reverse().map(m => [m.dia, ({ sobre: "Sobre recibido", deposito: "Depósito al banco", retiro: "Retiro del banco", pago_tarjeta: "Pago de tarjeta", traspaso: "Traspaso" })[m.tipo] || CAT_TXT[m.tipo] || "Gasto", m.concepto, m.persona || "", m.entrada || "", m.salida || "", m.saldo ?? ""])]),
     hoja("Egresos de administración", ["Día", "Tipo", "Categoría", "Concepto", "Monto", "Pagado con", "Nota", "Comprobante", "Registró"],
       d.admin.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(x => [x.dia, CAT_TXT[x.cat], x.categoria, x.concepto, x.monto, FORMA_ADMIN[x.forma] || x.forma, x.nota, x.comprobante ? "Sí (Drive: Comprobantes de pago)" : "", x.por])),
-    hoja("Transferencias de clientes", ["Fecha", "Cliente", "Importe", "Factura", "Capturado por"], d.transferencias.slice().reverse().map(x => [x.fecha, x.cliente, x.importe, x.factura || "", x.creado_por || ""])),
+    hoja("Transferencias de clientes", ["Fecha", "Origen", "Cliente", "Ticket", "Importe", "Factura", "Capturado por"], [
+      ...d.transf_hoja.map(h => [h.fecha, "Ticket de la hoja", h.ligada ? h.ligada.cliente : h.cliente, `${h.servicio === "bascula" ? "Báscula" : "Pensión"} ${h.folio}`, h.importe, h.ligada && h.ligada.factura || "", ""]),
+      ...d.transferencias.filter(x => !x.ticket_ref || !d.transf_hoja.some(h => h.ref === x.ticket_ref)).map(x => [x.fecha, "Capturada en el panel", x.cliente, "", x.importe, x.factura || "", x.creado_por || ""])
+    ].sort((a, b) => String(a[0]).localeCompare(String(b[0])))),
     hoja("Pagos hechos", ["Fecha de pago", "Concepto", "Tipo", "Importe", "Pagado con", "Vencimiento programado", "Nota", "Comprobante", "Registró"], pagos.map(p => [p.fecha, p.concepto || "", p.item_id ? "Programado" : "No programado", p.importe, FORMA_ADMIN[p.forma] || p.forma, p.programado || "", p.nota || "", p.comprobante ? "Sí" : "No", p.creado_por || ""])),
     hoja("Pagos programados", ["Concepto", "Próximo pago", "Importe aproximado", "Se repite", "Se paga con", "Estado"], programados.map(p => [p.titulo, p.fecha || "", p.importe ?? "", FREC[p.frecuencia] || p.frecuencia || "", FORMA_ADMIN[p.forma] || p.forma || "", p.estado === "pagado" ? "Pagado" : "Activo"])),
     hoja("Compras", ["Creada", "Qué", "Cantidad", "Estado", "Importe", "Pagada con", "Comprada"], compras.map(c => [local(c.creado), c.titulo, c.cantidad || "", c.estado === "comprado" ? "Comprada" : "Pendiente", c.importe ?? "", c.forma_gasto ? FORMA_ADMIN[c.forma_gasto] || c.forma_gasto : "", local(c.cerrado)])),
     hoja("Egresos por categoría", ["Categoría", "Total", "De caja (turnos)", "De administración"], d.por_categoria.map(x => [x.nombre, x.total, x.caja, Math.round((x.total - x.caja) * 100) / 100])),
-    hoja("Por día", ["Día", "Ingresos", "Egresos", "Diferencia"], d.por_dia.map(x => [x.dia, x.ingresos, x.egresos, Math.round((x.ingresos - x.egresos) * 100) / 100]))
+    hoja("Por día", ["Día", "Ingresos", "Egresos", "Diferencia"], d.por_dia.map(x => [x.dia, x.ingresos, x.egresos, Math.round((x.ingresos - x.egresos) * 100) / 100])),
+    hoja("Bitácora de cambios", ["Cuándo", "Quién", "Acción", "Qué", "Detalle"], (await listaBitacora(env, 2000)).filter(b => b.mes === mes || mesLocal(b.cuando) === mes).reverse().map(b => [local(b.cuando), b.quien || "", ACCIONES[b.accion] || b.accion, b.que, b.detalle ? JSON.stringify(b.detalle) : ""]))
   ];
 }
 

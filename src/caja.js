@@ -1,6 +1,7 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
+import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -21,6 +22,11 @@ export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
 // Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
 export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO").replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
+
+// Tickets pagados por transferencia en la hoja (FORBAS/FORPEN): suman a los ingresos y entran al banco.
+// Si también se capturó la transferencia a mano en Finanzas, se liga al ticket (ticket_ref) para no contarla dos veces.
+export const esTransf = f => String(f || "").startsWith("TRANSF");
+export const refTicket = m => `${m.servicio}:${String(m.folio || "").trim()}`;
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
@@ -120,6 +126,18 @@ export async function asegurarEsquemaCaja(env) {
   }
   // Folio único de cada movimiento de caja (gastos de caja, ingresos extra, retiros del corte y renglones sin folio de la hoja)
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_folios (ref TEXT PRIMARY KEY, folio TEXT NOT NULL UNIQUE, mes TEXT NOT NULL, n INTEGER NOT NULL, creado TEXT NOT NULL)").run();
+  // Transferencia capturada a mano ligada a un ticket de la hoja pagado por transferencia (servicio:folio)
+  const colsT = new Set((await env.DB.prepare("PRAGMA table_info(caja_transf)").all()).results.map(r => r.name));
+  if (!colsT.has("ticket_ref")) await env.DB.prepare("ALTER TABLE caja_transf ADD COLUMN ticket_ref TEXT").run();
+  // Índices por mes de lo que se consulta en cada carga de Turnos y Finanzas
+  await env.DB.batch([
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_mov_mes ON caja_mov (mes, tipo, forma)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_transf_mes ON caja_transf (mes)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_extra_mes ON caja_extra (mes)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS turno_cortes_mes ON turno_cortes (mes)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS turno_inicio_mes ON turno_inicio (mes)")
+  ]);
+  await asegurarEsquemaBitacora(env);
   esquemaListo = true;
 }
 // Gastos que salen de la caja de un turno (los de la administración no cuentan en los cortes)
@@ -238,9 +256,11 @@ export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   }).sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
 
+// transf: transferencias capturadas a mano que cuentan (las ligadas a un ticket de la hoja ya van en el ticket; ver transferenciasMes)
 export function totalesMes(cortes, transf = []) {
-  const t = { efectivo: 0, tarjeta: 0, transferencias: 0, ingresos: 0, gastos: 0, caja: 0, bascula: 0, pension: 0, extras: 0, otros: 0, n_transferencias: transf.length };
-  for (const x of transf) { t.transferencias += x.importe; t.ingresos += x.importe; }
+  const t = { efectivo: 0, tarjeta: 0, transferencias: 0, transf_hoja: 0, transf_manual: 0, ingresos: 0, gastos: 0, caja: 0, bascula: 0, pension: 0, extras: 0, otros: 0, n_transferencias: transf.length };
+  for (const x of transf) { t.transferencias += x.importe; t.transf_manual += x.importe; t.ingresos += x.importe; }
+  for (const c of cortes) for (const [f, v] of Object.entries(c.fuera.formas)) if (esTransf(f)) { t.transferencias += v; t.transf_hoja += v; t.ingresos += v; }
   for (const c of cortes) {
     t.efectivo += c.efectivo; t.tarjeta += c.tarjeta; t.ingresos += c.ingresos + c.extra.ingreso; t.gastos += c.gastos_total; t.caja += c.caja.importe;
     t.extras += c.extra.importe; t.otros += c.extra.ingreso;
@@ -261,6 +281,50 @@ export function unirConteos(cortes, conteos) {
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return salida.sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
+// Transferencias del periodo: tickets de la hoja pagados por transferencia + capturadas a mano.
+// Una capturada a mano ligada a un ticket que sí está en la hoja no se cuenta otra vez (el ticket ya cuenta);
+// si su ticket ya no aparece en la hoja, cuenta ella. Se marcan como "posible duplicado" las sueltas que
+// coinciden en importe (y ±3 días) con un ticket sin ligar, para que la administración decida.
+export function transferenciasMes(movs, transf) {
+  const sumDias = (d, n) => sumaDias(d, n);
+  const ligadas = new Map(transf.filter(x => x.ticket_ref).map(x => [x.ticket_ref, x]));
+  const hoja = movs.filter(m => m.tipo === "ticket" && esTransf(m.forma)).map(m => {
+    const ref = refTicket(m), l = ligadas.get(ref);
+    return { ref, servicio: m.servicio, folio: m.folio, fecha: String(m.fecha).slice(0, 10), dia: m.dia, turno: m.turno, cliente: m.cliente || "", matricula: m.matricula || "", importe: m.importe, ligada: l ? { id: l.id, cliente: l.cliente, cuenta: l.cuenta || null, factura: l.factura || null } : null };
+  });
+  const enHoja = new Set(hoja.map(h => h.ref));
+  const contadas = transf.filter(x => !x.ticket_ref || !enHoja.has(x.ticket_ref));
+  const sinLigar = hoja.filter(h => !h.ligada);
+  const posibles = contadas.filter(x => !x.ticket_ref).map(x => ({ id: x.id, tickets: sinLigar.filter(h => Math.abs(h.importe - x.importe) < 0.01 && h.fecha >= sumDias(x.fecha, -3) && h.fecha <= sumDias(x.fecha, 3)).map(h => h.ref) })).filter(x => x.tickets.length);
+  const r2 = v => Math.round(v * 100) / 100;
+  return { hoja, contadas, posibles, total_hoja: r2(hoja.reduce((a, h) => a + h.importe, 0)), total_manual: r2(contadas.reduce((a, x) => a + x.importe, 0)) };
+}
+
+// ---- Cambio entre turnos: lo que dejó un turno para el siguiente contra lo que el siguiente dijo recibir ----
+const ANTERIOR = { "MAÑANA": [-1, "NOCHE"], TARDE: [0, "MAÑANA"], NOCHE: [0, "TARDE"] };
+const SIGUIENTE = { "MAÑANA": [0, "TARDE"], TARDE: [0, "NOCHE"], NOCHE: [1, "MAÑANA"] };
+export const turnoAnterior = (dia, turno) => ANTERIOR[turno] ? { dia: sumaDias(dia, ANTERIOR[turno][0]), turno: ANTERIOR[turno][1] } : null;
+export const turnoSiguiente = (dia, turno) => SIGUIENTE[turno] ? { dia: sumaDias(dia, SIGUIENTE[turno][0]), turno: SIGUIENTE[turno][1] } : null;
+// Para cada turno con cambio inicial capturado en la tablet y cuyo turno anterior entregó corte con "cambio para el
+// siguiente turno": dif = recibido − dejado (negativo: faltó dinero entre un turno y otro).
+export function cambiosEntreTurnos(conteos, inicios) {
+  const r2 = v => Math.round(v * 100) / 100;
+  const porClave = new Map(conteos.map(x => [x.dia + "|" + x.turno, x]));
+  const out = new Map();
+  for (const i of inicios) {
+    const a = turnoAnterior(i.dia, i.turno); if (!a) continue;
+    const c = porClave.get(a.dia + "|" + a.turno);
+    if (!c || c.cambio_sig == null) continue;
+    out.set(i.dia + "|" + i.turno, { dia: i.dia, turno: i.turno, de: { dia: a.dia, turno: a.turno, persona: c.persona }, dejado: r2(c.cambio_sig), recibio: i.persona, recibido: r2(Number(i.cambio) || 0), dif: r2((Number(i.cambio) || 0) - c.cambio_sig) });
+  }
+  return out;
+}
+export function ponerCambioTurnos(cortes, conteos, inicios) {
+  const m = cambiosEntreTurnos(conteos, inicios);
+  for (const c of cortes) { const x = m.get(c.dia + "|" + c.turno); if (x) c.cambio_turno = x; }
+  return cortes;
+}
+
 export function leerRetiros(v) {
   let l = v; if (typeof l === "string") { try { l = JSON.parse(l); } catch { l = []; } }
   return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
@@ -397,6 +461,19 @@ export async function cierreMensualCaja(env, h) {
   return { cerrado: mes };
 }
 
+// ticket_ref "servicio:folio" de un ticket de la hoja del mes pagado por transferencia y sin otra transferencia ligada
+async function validarTicketRef(env, valor, mes, excepto) {
+  const v = String(valor ?? "").trim();
+  if (!v) return null;
+  const m = /^(bascula|pension):(.{1,40})$/.exec(v);
+  if (!m) return { error: "Ticket inválido." };
+  const t = (await env.DB.prepare("SELECT forma FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
+  if (!t.some(x => esTransf(x.forma))) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
+  const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE ticket_ref = ? AND id != ?").bind(v, excepto || "").first();
+  if (otra) return { error: `Ese ticket ya está ligado a la transferencia de ${otra.cliente}.` };
+  return { ref: v };
+}
+
 // Rutas del panel: /panel/api/caja...
 export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCaja(env);
@@ -408,13 +485,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
     const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
-    const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
+    const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos), conteos, inicios);
+    const tr = transferenciasMes(movs, transf);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
     const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    return json({ ok: true, mes, meses, periodo, sync, totales: totalesMes(cortes, transf), cortes, movimientos, transferencias: transf, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, totales: totalesMes(cortes, tr.contadas), cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
@@ -424,7 +502,15 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
+    // Cambio entre turnos: lo que dejó el turno anterior y lo que recibió el siguiente
+    const ant = turnoAnterior(dia, turno), sig = turnoSiguiente(dia, turno);
+    const conteoAnt = ant ? (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ant.dia, ant.turno).all()).results : [];
+    const inicioSig = sig ? (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(sig.dia, sig.turno).all()).results : [];
     const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
+    if (corte) {
+      corte.cambio_turno = cambiosEntreTurnos(conteoAnt, inicios).get(dia + "|" + turno) || null;
+      corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
+    }
     const historial = (await env.DB.prepare("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results
       .map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
     // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
@@ -461,9 +547,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   }
 
   if (partes[1] === "gastos" && partes[3] === "eliminar" && request.method === "POST") {
-    const g = await env.DB.prepare("SELECT foto FROM caja_gastos WHERE id = ?").bind(partes[2]).first();
-    if (g && g.foto) await borrarArchivo(env, g.foto).catch(() => {});
-    const r = await env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(partes[2]).run();
+    const g = await env.DB.prepare(`SELECT * FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(partes[2]).first();
+    if (!g) return json({ ok: true, borrados: 0 });
+    if (!meses.includes(g.mes)) return json({ ok: false, error: "Ese gasto es de un mes ya cerrado; ya no se puede borrar." }, 409);
+    const r = (await env.DB.batch([
+      env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(g.id),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Gasto de caja", ref: g.id, mes: g.mes, detalle: { dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, persona: g.persona || g.creado_por } })
+    ]))[0];
+    if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
@@ -483,9 +574,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     return json({ ok: true, id });
   }
   if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
-    const x = await env.DB.prepare("SELECT foto FROM caja_extra WHERE id = ?").bind(partes[2]).first();
-    if (x && x.foto) await borrarArchivo(env, x.foto).catch(() => {});
-    const r = await env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(partes[2]).run();
+    const x = await env.DB.prepare("SELECT * FROM caja_extra WHERE id = ?").bind(partes[2]).first();
+    if (!x) return json({ ok: true, borrados: 0 });
+    if (!meses.includes(x.mes)) return json({ ok: false, error: "Ese ingreso es de un mes ya cerrado; ya no se puede borrar." }, 409);
+    const r = (await env.DB.batch([
+      env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(x.id),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Ingreso extra de caja", ref: x.id, mes: x.mes, detalle: { dia: x.dia, turno: x.turno, concepto: x.concepto, detalle: x.detalle, monto: x.monto, persona: x.persona || x.creado_por } })
+    ]))[0];
+    if (x.foto) await borrarArchivo(env, x.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
@@ -501,14 +597,39 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     // Cuenta a la que llegó (por defecto, la marcada para transferencias de clientes)
     await asegurarEsquemaCuentas(env);
     const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
-    await env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null, cta).run();
+    // Ticket de la hoja pagado por transferencia al que corresponde (opcional)
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, null);
+    if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null, cta, ref ? ref.ref : null),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle: { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null } })
+    ]);
     return json({ ok: true, id });
   }
 
   if (partes[1] === "transferencias" && partes[3] === "eliminar" && request.method === "POST") {
-    const r = await env.DB.prepare("DELETE FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).run();
-    return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
+    const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
+    if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM caja_transf WHERE id = ?").bind(x.id),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { fecha: x.fecha, cliente: x.cliente, importe: x.importe, cuenta: x.cuenta, ticket: x.ticket_ref } })
+    ]);
+    return json({ ok: true, borrados: 1 });
+  }
+
+  // Ligar (o desligar con ticket_ref vacío) una transferencia capturada a mano con su ticket de la hoja
+  if (partes[1] === "transferencias" && partes[3] === "ligar" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
+    if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id);
+    if (ref && ref.error) return json({ ok: false, error: ref.error }, 422);
+    await env.DB.batch([
+      env.DB.prepare("UPDATE caja_transf SET ticket_ref = ? WHERE id = ?").bind(ref ? ref.ref : null, x.id),
+      stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { cliente: x.cliente, importe: x.importe, ticket_antes: x.ticket_ref, ticket: ref ? ref.ref : null } })
+    ]);
+    return json({ ok: true });
   }
 
   return json({ ok: false, error: "Ruta no encontrada." }, 404);

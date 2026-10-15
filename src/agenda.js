@@ -2,6 +2,7 @@ import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
+import { stmtBitacora } from "./bitacora.js";
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
   if (!c || typeof c.forma !== "string") return;
@@ -220,7 +221,8 @@ async function validarPagoHecho(env, c, fila) {
 // de ningún turno, así que no llevan turno y no cuentan en los cortes (origen = 'admin').
 const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria, cuenta) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin', ?, ?)";
 // Cuenta del pago: la elegida; si no se eligió y no es en efectivo, la de antes o la cuenta por defecto para pagos
-const cuentaDe = async (env, c, previo, forma) => forma === "EFECTIVO" ? null : ("cuenta" in c ? c.cuenta : null) || previo || await cuentaDefecto(env, "pago");
+// Con tarjeta sin elegir cuál, no se adivina: queda "sin cuenta" y Finanzas lo avisa (antes caía en la cuenta de débito por defecto)
+const cuentaDe = async (env, c, previo, forma) => forma === "EFECTIVO" ? null : ("cuenta" in c ? c.cuenta : null) || previo || (forma === "TARJETA" ? null : await cuentaDefecto(env, "pago"));
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
@@ -232,10 +234,14 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
-    await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null, cat, await cuentaDe(env, c, null, v.forma)).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota, cat, await cuentaDe(env, c, null, v.forma)).run();
+    const cta = await cuentaDe(env, c, null, v.forma), quien = usuario && usuario.email || null;
+    // Egreso y pago en una sola operación: o quedan los dos o ninguno
+    await env.DB.batch([
+      env.DB.prepare(GASTO_ADMIN).bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
+      env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
+      stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
+    ]);
     return json({ ok: true, id: pid });
   }
   const pid = partes[2];
@@ -278,25 +284,31 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const titulo = pago.item_id ? pago.titulo : v.titulo;
     const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
     const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
-    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, cta, pago.id).run();
-    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, cta, pago.gasto_id).run();
+    const st = [env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, cta, pago.id)];
+    if (pago.gasto_id) st.push(env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, cta, pago.gasto_id));
+    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id, mes: v.fecha.slice(0, 7),
+      detalle: { concepto: titulo, antes: { fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta, categoria: pago.categoria }, ahora: { fecha: v.fecha, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } } }));
+    await env.DB.batch(st);
     return json({ ok: true });
   }
   if (accion === "eliminar") {
-    if (pago.gasto_id) await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(pago.gasto_id).run();
-    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
-    await env.DB.prepare("DELETE FROM agenda_pagos WHERE id = ?").bind(pago.id).run();
-    // Si era el último pago de un pago programado, el vencimiento regresa a como estaba antes de registrarlo
+    // Pago, su egreso y (si era el último de un pago programado) el regreso del vencimiento, en una sola operación
+    const st = [];
+    if (pago.gasto_id) st.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(pago.gasto_id));
+    st.push(env.DB.prepare("DELETE FROM agenda_pagos WHERE id = ?").bind(pago.id));
     let regreso = null;
     if (pago.item_id && pago.programado) {
       const it = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(pago.item_id).first();
       const otro = await env.DB.prepare("SELECT 1 FROM agenda_pagos WHERE item_id = ? AND creado > ? LIMIT 1").bind(pago.item_id, pago.creado).first();
       if (it && !otro) {
         const n = MESES_FREC[it.frecuencia || "mensual"];
-        if (!n && it.estado === "pagado") { await env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id).run(); regreso = pago.programado; }
-        else if (n && it.fecha === sumarMeses(pago.programado, n)) { await env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id).run(); regreso = pago.programado; }
+        if (!n && it.estado === "pagado") { st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id)); regreso = pago.programado; }
+        else if (n && it.fecha === sumarMeses(pago.programado, n)) { st.push(env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id)); regreso = pago.programado; }
       }
     }
+    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id, mes: pago.fecha.slice(0, 7), detalle: { concepto: pago.titulo, fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta } }));
+    await env.DB.batch(st);
+    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
     return json({ ok: true, regreso });
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
@@ -398,22 +410,31 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
     // Compras: al confirmarla se captura el importe y se registra como egreso de la administración (Finanzas);
     // si se regresa a pendiente, ese gasto se borra.
+    // Lo que se escribe junto con el cambio del registro (compra ↔ egreso), en una sola operación
+    const junto = [];
     if (fila.tipo === "compra" && d.estado === "comprado" && fila.estado !== "comprado" && !fila.gasto_id) {
       const t = String(c.importe ?? "").replace(/[$,\s]/g, ""), importe = /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN;
       const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
       if (!(importe > 0)) return json({ ok: false, error: "Escribe el importe de la compra.", errores: { importe: "Importe inválido." } }, 422);
       await asegurarEsquemaCaja(env);
-      const dia = hoyMx();
+      // Día en que se compró (por defecto hoy); tiene que ser de un mes abierto y no futuro
+      const dia = RE_DIA.test(String(c.fecha_compra || "")) ? String(c.fecha_compra) : hoyMx();
+      if (dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7))) return json({ ok: false, error: "La fecha de la compra tiene que ser del mes abierto y no futura.", errores: { fecha_compra: "Fecha inválida." } }, 422);
       const gid = crypto.randomUUID();
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
-      await env.DB.prepare(GASTO_ADMIN)
-        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, await cuentaDe(env, c, null, forma)).run();
-      await env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id).run();
+      const cta = await cuentaDe(env, c, null, forma);
+      junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
+        env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id),
+        stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Compra", ref: id, mes: dia.slice(0, 7), detalle: { dia, concepto, importe, forma, cuenta: cta, categoria: catC } }));
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
-      await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).run();
-      await env.DB.prepare("UPDATE agenda_items SET importe = NULL, gasto_id = NULL WHERE id = ?").bind(id).run();
+      const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).first();
+      if (g && !(await mesesAbiertos(env)).includes(g.mes)) return json({ ok: false, error: "Esa compra es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
+      junto.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id),
+        env.DB.prepare("UPDATE agenda_items SET importe = NULL, gasto_id = NULL WHERE id = ?").bind(id),
+        stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: fila.titulo } }));
     }
+    if (junto.length) await env.DB.batch(junto);
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
     if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, fila.cuenta, d.forma), id).run();
@@ -443,18 +464,18 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     }
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
-    const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma);
-    await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null, cat, cta).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota, cat, cta).run();
+    const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma), quien = usuario && usuario.email || null;
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
-    if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
-    else {
+    // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
+    await env.DB.batch([
+      env.DB.prepare(GASTO_ADMIN).bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta),
+      env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, quien, fila.titulo, v.nota, cat, cta),
       // Siguiente vencimiento a partir de la fecha programada (si se pagó tarde no se recorre el calendario)
-      const sig = sumarMeses(fila.fecha || fecha, meses_);
-      await env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sig, ahora, fila.id).run();
-    }
+      !meses_ ? env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id)
+        : env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sumarMeses(fila.fecha || fecha, meses_), ahora, fila.id),
+      stmtBitacora(env, { quien, accion: "crear", que: "Pago programado", ref: pid, mes: fecha.slice(0, 7), detalle: { concepto: fila.titulo, fecha, importe, forma, cuenta: cta, categoria: cat, vencimiento: fila.fecha } })
+    ]);
     return json({ ok: true, gasto_id: gid, id: pid });
   }
 

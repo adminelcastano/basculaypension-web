@@ -518,15 +518,21 @@ export async function turnoRuta(request, env, url, h) {
     if (!(cambioSig >= 0) || cambioSig > 1000000) errores.cambio_sig = "Monto del cambio inválido.";
     if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000)) errores.retiros = "Cada retiro necesita concepto y monto.";
     const repartido = sobre + cambioSig + retiros.reduce((a, r) => a + (r.monto || 0), 0);
-    if (!errores.efectivo && repartido - efectivo > 0.5) errores.sobre = `Repartiste ${(repartido - efectivo).toFixed(2)} más de lo que contaste. Revisa el sobre, los retiros y el cambio.`;
+    // Todo el efectivo contado tiene que quedar repartido: en el sobre, en retiros o como cambio para el siguiente turno
+    const difRep = Math.round((efectivo - repartido) * 100) / 100;
+    if (!errores.efectivo && difRep < -0.009) errores.sobre = `Repartiste $${(-difRep).toFixed(2)} más de lo que contaste. Revisa el sobre, los retiros y el cambio.`;
+    else if (!errores.efectivo && difRep > 0.009) errores.sobre = `Faltan $${difRep.toFixed(2)} por repartir. Todo el efectivo contado va en el sobre, en un retiro o como cambio para el siguiente turno.`;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el corte.", errores }, 422);
-    await env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
+    // Corte, su historial y el cierre del turno en una sola operación (o se guarda todo o nada)
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
       ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, efectivo = excluded.efectivo, tarjeta = excluded.tarjeta, notas = excluded.notas, actualizado = excluded.actualizado, veces = turno_cortes.veces + 1, con_cambio = 1,
         sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros`)
-      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)).run();
-    await env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora).run();
-    await env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).run();
+        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)),
+      env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora),
+      env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno)
+    ]);
     return recordar(json({ ok: true }));
   }
 

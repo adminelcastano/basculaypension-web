@@ -767,7 +767,9 @@ dialog .acciones .btn { flex: 1 1 160px; }
       const rts = retiros();
       if (rts.some(r => r.concepto.length < 2 || !(num(r.monto) > 0))) { $("#err-corte").textContent = "Cada retiro necesita para qué fue y el monto."; return; }
       const dif = reparto();
-      const aviso = Math.abs(dif) < 0.01 ? "" : dif > 0 ? ` Ojo: faltan ${dinero(dif)} por repartir.` : ` Ojo: repartiste ${dinero(-dif)} de más.`;
+      // Todo lo contado tiene que quedar repartido (sobre + retiros + cambio = efectivo contado)
+      if (Math.abs(dif) >= 0.01) { $("#err-corte").textContent = dif > 0 ? `Faltan ${dinero(dif)} por repartir: ponlos en el sobre, en un retiro o en el cambio para el siguiente turno.` : `Repartiste ${dinero(-dif)} de más: revisa el sobre, los retiros y el cambio.`; $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      const aviso = "";
       if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
       try {

@@ -15,6 +15,7 @@ import { turnoRuta, turnoAdmin } from "./turno.js";
 import { reporteArea, reportesMes, listaReportes, TIPOS_REPORTE } from "./reporte.js";
 import { finanzasPanel } from "./finanzas.js";
 import { categoriasPanel } from "./categorias.js";
+import { limpiarBitacora } from "./bitacora.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -92,6 +93,8 @@ export default {
     }
     ctx.waitUntil(limpiarAgenda(env).then(n => n && console.log("agenda: borrados", n)).catch(e => console.error("limpiar agenda", e && e.message)));
     ctx.waitUntil(limpiarArchivos(env));
+    // Bitácora de dinero: se conservan 13 meses, igual que los turnos
+    ctx.waitUntil(limpiarBitacora(env, new Date(Date.now() - 400 * 86400e3).toISOString()).catch(e => console.error("bitacora", e && e.message)));
   }
 };
 
