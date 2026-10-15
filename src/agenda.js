@@ -185,6 +185,14 @@ export async function limpiarAgenda(env, ahora = new Date()) {
 }
 
 // Resumen para el Inicio
+// Avisos de los encargados para la administración que todavía no se leen en el panel (para Hoy)
+export async function avisosSinLeer(env) {
+  await asegurarEsquemaAgenda(env);
+  const filas = (await env.DB.prepare(`SELECT i.id, i.titulo, i.autor, i.para, i.creado, i.prioridad FROM agenda_items i WHERE i.tipo = 'aviso' AND i.estado = 'activo' AND COALESCE(i.autor, 'admin') != 'admin'
+    AND NOT EXISTS (SELECT 1 FROM agenda_lecturas l WHERE l.item_id = i.id AND l.persona = 'ADMIN') ORDER BY i.creado DESC LIMIT 50`).all()).results;
+  return filas.filter(f => normalizarPara(f.para).admin).map(({ para, ...f }) => f);
+}
+
 export async function resumenAgenda(env) {
   await asegurarEsquemaAgenda(env);
   const hoy = hoyMx();

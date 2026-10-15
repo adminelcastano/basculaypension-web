@@ -282,6 +282,15 @@
     if (recargar && v !== "encargados") cargar();
   }
   window.turnosVista = v => cambiarVista(v);
+  // Abrir un corte desde Hoy (dia|turno): cambia el periodo si el día no está en el que se ve
+  window.cajaAbrirCorte = async k => {
+    const dia = k.split("|")[0], hoy = hoyMx();
+    if (window.irA) window.irA("caja");
+    cambiarVista("cortes", false);
+    const fuera = st.desde || st.hasta ? (st.desde && dia < st.desde) || (st.hasta && dia > st.hasta) : dia.slice(0, 7) !== hoy.slice(0, 7);
+    if (fuera) { st.desde = dia.slice(0, 7) === hoy.slice(0, 7) ? "" : dia; st.hasta = st.desde ? dia : ""; st.rapido = st.desde ? "" : "mes"; $("#c-desde").value = st.desde; $("#c-hasta").value = st.hasta; document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === st.rapido ? "true" : "false")); }
+    await cargar(); abrir(k);
+  };
   $("#c-vistas").addEventListener("click", e => { const b = e.target.closest(".ptab[data-v]"); if (b) cambiarVista(b.dataset.v); });
   function periodo(desde, hasta, rapido) {
     st.desde = desde; st.hasta = hasta; st.rapido = rapido;

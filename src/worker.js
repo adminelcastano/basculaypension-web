@@ -16,6 +16,7 @@ import { reporteArea, reportesMes, listaReportes, TIPOS_REPORTE } from "./report
 import { finanzasPanel } from "./finanzas.js";
 import { categoriasPanel } from "./categorias.js";
 import { limpiarBitacora } from "./bitacora.js";
+import { hoyPanel } from "./hoy.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -413,10 +414,21 @@ async function panel(request, env, url) {
     }
   }
 
+  return await rutasPanel(request, env, url, usuario);
+}
+
+// Rutas de /panel/api/... (ya verificado el inicio de sesión). "hoy" las usa por dentro para armar el tablero.
+async function rutasPanel(request, env, url, usuario) {
+  const ruta = url.pathname.replace(/\/+$/, "");
   await asegurarEsquema(env);
   const partes = ruta.split("/").slice(3); // tras /panel/api/
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
+  // Tablero de Hoy: una sola llamada que junta lo que pide atención (las demás rutas se consultan aquí mismo)
+  if (partes[0] === "hoy" && request.method === "GET") {
+    const interno = async r => { const u = new URL("/panel/api/" + r, url.origin); return (await rutasPanel(new Request(u, { method: "GET" }), env, u, usuario)).json(); };
+    return json(await hoyPanel(env, interno));
+  }
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
   // Reportes mensuales en Google Sheets (Turnos, Finanzas y Facturación): lista y generación a demanda
   if (partes[0] === "reportes") {
