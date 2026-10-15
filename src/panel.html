@@ -228,7 +228,18 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: #2a2a2d; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 .ibadge svg { width: 19px; height: 19px; }
 .kpi .ini-num { color: var(--c); }
-.kpi { border-top: 3px solid #3a3a3c; border-top: 3px solid color-mix(in srgb, var(--c) 70%, transparent); }
+.full { grid-column: 1 / -1 !important; }
+/* Categorías del inicio: encabezado con línea y borde del color de la categoría en sus tarjetas */
+.sec-h { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; margin: 26px 2px 2px; font-size: .78rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #a1a1a6; }
+.sec-h:first-child { margin-top: 4px; }
+.sec-h .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--cat); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cat) 18%, transparent); }
+.sec-h .ln { flex: 1; height: 1px; background: linear-gradient(90deg, #3a3a3c 70%, transparent); }
+.sec-ir { font: inherit; font-size: .82rem; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--cat); background: none; border: 0; padding: 6px 2px; cursor: pointer; white-space: nowrap; border-radius: 8px; }
+.sec-ir:hover { text-decoration: underline; }
+.cat-a { --cat: #ffcc00; } .cat-b { --cat: #2dd4bf; } .cat-c { --cat: #ff9f0a; } .cat-d { --cat: #b69cff; } .cat-e { --cat: #8e8e93; }
+.ini-grid > .ini-card { border: 1.5px solid #3a3a3c; border: 1.5px solid color-mix(in srgb, var(--cat, #3a3a3c) 55%, transparent); }
+.acciones > .ini-k { display: none; }
+@media (min-width: 1001px) { .acciones .acc-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .acc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
 .accion { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: #1f1f21; color: var(--fg); border-radius: 14px; padding: 10px; font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .15s, border-color .2s; line-height: 1.2; }
 .accion:hover { background: #2a2a2d; border-color: color-mix(in srgb, var(--c) 60%, transparent); }
@@ -703,29 +714,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <p class="note" id="i-fecha"></p>
     </div>
     <div class="ini-grid">
-      <div class="ini-card ini-hero s2" data-ir="caja" tabindex="0" role="link">
-        <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
-        <b class="ini-big" id="i-hoy">$0</b>
-        <div class="ini-split" id="i-split"></div>
-        <span class="ini-turno" id="i-turno"></span>
-      </div>
-      <div class="ini-card kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
-        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
-      </div>
-      <div class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
-        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span>
-      </div>
-      <div class="ini-card kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
-        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span>
-      </div>
-      <div class="ini-card kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-persona"/></svg></span><span class="ini-k">Expedientes incompletos</span></div>
-        <b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span>
-      </div>
-      <section class="ini-card s2 acciones">
+      <h3 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-a full s2 acciones">
         <span class="ini-k">Acciones rápidas</span>
         <div class="acc-grid">
           <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
@@ -736,16 +726,42 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
           <button type="button" class="accion" data-accion="evento" style="--c:#b69cff"><span class="ibadge"><svg><use href="#i-cal"/></svg></span>Agendar evento</button>
         </div>
       </section>
-      <section class="ini-card"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
-      <section class="ini-card"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
-      <section class="ini-card s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
-      <section class="ini-card s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
-      <div class="ini-card" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
-      <div class="ini-card ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
-      <div class="ini-card ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
-      <div class="ini-card ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
-      <div class="ini-card ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
-      <section class="ini-card s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
+      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Ingresos y caja de hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Ingresos y gastos ›</button></h3>
+      <div class="ini-card cat-b ini-hero s2" data-ir="caja" tabindex="0" role="link">
+        <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
+        <b class="ini-big" id="i-hoy">$0</b>
+        <div class="ini-split" id="i-split"></div>
+        <span class="ini-turno" id="i-turno"></span>
+      </div>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
+        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span>
+      </div>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
+        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span>
+      </div>
+      <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
+      <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
+      <section class="ini-card cat-b s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <section class="ini-card cat-b full s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturación y personal</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturación ›</button></h3>
+      <div class="ini-card cat-c kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+      </div>
+      <div class="ini-card cat-c kpi" data-ir="personal" tabindex="0" role="link" style="--c:#b69cff">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-persona"/></svg></span><span class="ini-k">Expedientes incompletos</span></div>
+        <b class="ini-num" id="i-exp">0</b><span class="note" id="i-exp-nota"></span>
+      </div>
+      <div class="ini-card cat-c s2" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
+      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda y operación</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
+      <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+      <div class="ini-card cat-d ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
+      <div class="ini-card cat-d ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
+      <div class="ini-card cat-d ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
+      <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-e s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
     </div>
     <p class="note ini-pie" id="i-pie"></p>
   </div>
