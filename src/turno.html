@@ -442,7 +442,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     pintarPin(); $("#err-pin").textContent = "";
     if (pin.length === 4) {
       entrando = true;
-      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }); await abrirApp(); }
+      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }); pedirInicio = true; await abrirApp(); }
       catch (e) { $("#err-pin").textContent = e.message; const p = $("#puntos"); p.classList.remove("mal"); void p.offsetWidth; p.classList.add("mal"); }
       finally { pin = ""; pintarPin(); entrando = false; }
     }
@@ -476,8 +476,17 @@ dialog .acciones .btn { flex: 1 1 160px; }
   let E = null, seccion = "inicio";
   // El último estado se guarda en la tablet para poder trabajar sin internet
   let sinRed = false;
+  // Versión de esta página (la pone el servidor); si en el servidor hay una nueva, se recarga sola
+  const VER = "__TURNO_VER__";
+  function revisarVersion() {
+    if (!E || !E.ver || E.ver === VER || sucio || $("#dlg").open || seccion === "corte") return;
+    let ultima = 0; try { ultima = Number(sessionStorage.getItem("turno:recarga")) || 0; } catch {}
+    if (Date.now() - ultima < 120e3) return;
+    try { sessionStorage.setItem("turno:recarga", String(Date.now())); } catch {}
+    location.reload();
+  }
   async function cargar() {
-    try { E = await api("estado"); sinRed = false; guardarLS("turno:estado", { at: new Date().toISOString(), E }); }
+    try { E = await api("estado"); sinRed = false; guardarLS("turno:estado", { at: new Date().toISOString(), E }); setTimeout(revisarVersion, 0); }
     catch (e) {
       const g = leerLS("turno:estado", null);
       if (!e.red || !g || (E && g.E.persona !== E.persona)) throw e;
@@ -539,21 +548,24 @@ dialog .acciones .btn { flex: 1 1 160px; }
     window.scrollTo({ top: 0 });
   }
   // Lo primero del turno: capturar el cambio inicial (hasta entonces no se muestran las secciones)
-  const faltaInicio = () => E && !E.inicio && !E.corte;
+  // Se pregunta en cada inicio de sesión con PIN (si ya se capturó en este turno, se confirma o corrige)
+  let pedirInicio = false;
+  const faltaInicio = () => E && !E.corte && (!E.inicio || pedirInicio);
   function pintar() {
     $("#app").classList.toggle("sin-inicio", faltaInicio());
     if (faltaInicio()) return verCambioInicial();
     ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, corte: verCorte })[seccion]();
   }
   function verCambioInicial(corrigiendo) {
-    const ant = E.cambio_anterior;
+    const ant = E.cambio_anterior, ya = !corrigiendo && E.inicio;
     sec().innerHTML = `<div class="ci"><form class="card" id="f-inicio" novalidate>
       <h2 style="margin:0 0 6px">${corrigiendo ? "Corregir cambio inicial" : "Antes de empezar tu turno"}</h2>
       <p class="muted" style="margin:0 0 16px">Cuenta el dinero que hay en la caja al recibir el turno: es tu <b>cambio inicial</b>. Al final del turno se suma a lo que cobres para cuadrar el corte. Si no hay nada, escribe 0.</p>
-      ${ant ? `<p class="ref">El turno anterior (${avi(ant.persona, 1)}${esc(ant.persona)}) dejó <b>${dinero(ant.cambio_sig)}</b> de cambio. Si cuentas otra cantidad, escribe lo que cuentas tú.</p>` : ""}
+      ${ya ? `<p class="ref">En este turno ya se capturó <b>${dinero(E.inicio.cambio)}</b>${E.inicio.persona ? ` (${avi(E.inicio.persona, 1)}${esc(E.inicio.persona)})` : ""}. Confírmalo o escribe lo que cuentas tú.</p>` : ""}
+      ${!ya && ant ? `<p class="ref">El turno anterior (${avi(ant.persona, 1)}${esc(ant.persona)}) dejó <b>${dinero(ant.cambio_sig)}</b> de cambio. Si cuentas otra cantidad, escribe lo que cuentas tú.</p>` : ""}
       <label class="campo"><span>¿Con cuánto cambio empiezas?</span><input class="t monto" name="cambio" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.cambio) : ""}"></label>
       <p class="err" id="err-inicio" role="alert"></p>
-      <button class="btn btn-primary" type="submit" style="width:100%">${corrigiendo ? "Guardar" : "Empezar turno"}</button>
+      <button class="btn btn-primary" type="submit" style="width:100%">${corrigiendo ? "Guardar" : ya ? "Confirmar y empezar" : "Empezar turno"}</button>
       ${corrigiendo ? `<button class="btn btn-line" type="button" id="ci-cancelar" style="width:100%;margin-top:8px">Cancelar</button>` : ""}
     </form></div>`;
     const f = $("#f-inicio");
@@ -568,6 +580,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
         const r = await api("inicio", { cambio: v });
         const monto = Number(v.replace(/[$,\s]/g, ""));
         E.inicio = r.inicio || { cambio: monto, persona: E.persona };
+        pedirInicio = false;
         toast(r.enCola ? "Sin internet: se guardó y se enviará después." : `Cambio inicial: ${dinero(E.inicio.cambio)}`);
         ir(corrigiendo ? "corte" : "inicio");
       } catch (er) { $("#err-inicio").textContent = errores(er); b.disabled = false; }

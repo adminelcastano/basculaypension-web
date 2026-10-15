@@ -244,6 +244,16 @@ async function estado(env, s) {
   return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
 }
 
+// Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
+let versionHtml = null;
+function versionDe(html) {
+  if (versionHtml) return versionHtml;
+  let h = 2166136261;
+  for (let i = 0; i < html.length; i++) { h ^= html.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (versionHtml = (h >>> 0).toString(36));
+}
+const htmlConVersion = html => html.replace("__TURNO_VER__", versionDe(html));
+
 // ---------------------------------------------------------------------------
 // Rutas de la tablet: /turno y /turno/api/...
 // ---------------------------------------------------------------------------
@@ -252,7 +262,7 @@ export async function turnoRuta(request, env, url, h) {
   if (acceso.error) return new Response(h.paginaBloqueada(acceso.error), { status: acceso.status, headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/turno";
-  if (ruta === "/turno" && request.method === "GET") return new Response(h.html, { headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
+  if (ruta === "/turno" && request.method === "GET") return new Response(htmlConVersion(h.html), { headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
   if (ruta === "/turno/manifest.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-store" } });
   // Service worker: abre la tablet aunque no haya internet (la página y el logo quedan guardados)
   if (ruta === "/turno/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/turno" } });
@@ -325,7 +335,7 @@ export async function turnoRuta(request, env, url, h) {
   const s = await sesionActual(request, env);
   if (!s) return json({ ok: false, error: "Tu sesión terminó. Vuelve a entrar con tu PIN.", sesion: false }, 401, { "Set-Cookie": cookie("", 0) });
 
-  if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ...(await estado(env, s)) });
+  if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
 
   if (partes[0] === "foto" && request.method === "GET") return servirFoto(env, partes[1]);
 
