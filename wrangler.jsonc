@@ -34,5 +34,7 @@
   // Lectura de fotos de tickets (Workers AI: 10 000 neuronas diarias gratis). Con Workers Paid
   // el excedente se cobraría; src/neuronas.js corta a las 9 000 para que eso no pase.
   "ai": { "binding": "AI" },
+  // Avatares de los encargados (src/avatares/*.webp) se empaquetan dentro del Worker: solo se sirven tras Access
+  "rules": [{ "type": "Data", "globs": ["**/*.webp"], "fallthrough": true }],
   "observability": { "enabled": true }
 }

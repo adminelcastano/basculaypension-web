@@ -20,7 +20,8 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 17px; line-height: 1.45; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 1rem; line-height: 1.45; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+html { font-size: 17px; } html.letra-grande { font-size: 19px; } html.letra-muy-grande { font-size: 21px; }
 body { overflow-x: clip; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
@@ -49,6 +50,9 @@ svg.i { width: 1.25em; height: 1.25em; flex: none; }
 .personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 .persona { min-height: 78px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface); font-size: 1.25rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; display: grid; place-items: center; gap: 2px; padding: 8px; }
 .persona small { font-size: .78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.persona .pfoto { width: 64px; height: 64px; border-radius: 50%; display: block; margin-bottom: 4px; }
+.avatar.foto { background: none; overflow: hidden; }
+.avatar img { width: 100%; height: 100%; border-radius: 50%; display: block; }
 .persona[aria-pressed="true"] { border-color: var(--amber); background: #2a2405; }
 .turnos { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .chip { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
@@ -74,10 +78,24 @@ header.bar img { height: 34px; width: auto; display: block; }
 .modulos .mi { display: none; width: 24px; height: 24px; }
 .modulos .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #d70015; color: #fff; font-size: 11.5px; display: grid; place-items: center; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .modulos button[aria-current="page"] .n { background: var(--amber-ink); color: var(--amber); }
-.yo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.yo { display: flex; align-items: center; gap: 10px; min-width: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 4px 10px 4px 4px; border-radius: 999px; cursor: pointer; }
+.yo:hover { background: #1f1f22; }
+.yo .lapiz { width: 20px; height: 20px; border-radius: 50%; background: #2a2a2d; display: grid; place-items: center; margin-left: -18px; align-self: flex-end; flex: none; }
+.yo .lapiz svg { width: 12px; height: 12px; }
+/* Mi perfil */
+.gal { display: flex; flex-wrap: wrap; gap: 10px; }
+.gal button { width: 68px; height: 68px; border-radius: 50%; border: 3px solid transparent; padding: 0; background: #2a2a2d; color: var(--muted); cursor: pointer; display: grid; place-items: center; font-weight: 800; font-size: .72rem; overflow: hidden; }
+.gal button img { width: 100%; height: 100%; display: block; border-radius: 50%; object-fit: cover; }
+.gal button[aria-pressed="true"] { border-color: var(--amber); box-shadow: 0 0 0 3px #000 inset; }
+.gal .subir { background: #1f1f22; border: 2px dashed #48484a; font-size: .7rem; font-weight: 600; line-height: 1.1; text-align: center; color: #d2d2d7; }
+.gal .subir svg { width: 20px; height: 20px; display: block; margin: 0 auto 2px; }
+.sws { display: flex; flex-wrap: wrap; gap: 10px; }
+.sws button { width: 48px; height: 48px; border-radius: 50%; border: 3px solid transparent; background: var(--s); cursor: pointer; box-shadow: 0 0 0 3px #000 inset; }
+.sws button[aria-pressed="true"] { border-color: var(--fg); }
 .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .68rem; letter-spacing: -.02em; flex: none; }
 .yo b { display: block; font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
-.yo small { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.yo small { color: var(--muted); font-size: .8rem; white-space: nowrap; display: block; }
+.yo-t { min-width: 0; display: block; }
 .salir { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 
 main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32px) calc(40px + env(safe-area-inset-bottom)); }
@@ -251,6 +269,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   <symbol id="i-alerta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.6 4.4a1.6 1.6 0 0 1 2.8 0l7.4 13.2a1.6 1.6 0 0 1-1.4 2.4H4.6a1.6 1.6 0 0 1-1.4-2.4z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 9.6v4.4"/><circle cx="12" cy="16.9" r="1.1" fill="currentColor"/></symbol>
   <symbol id="i-gasto" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 8.6h6M9 12h6M9 15.4h3.6"/></symbol>
   <symbol id="i-billete" viewBox="0 0 24 24"><rect x="2.8" y="6.4" width="18.4" height="11.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-lapiz" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
   <symbol id="i-camara" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 8.4h3l1.6-2.4h6.8L17 8.4h3v11H4z"/><circle cx="12" cy="13.6" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 12.4l4 4 8-8.6"/></symbol>
   <symbol id="i-salir" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14 4.4H6.4v15.2H14M10.4 12h10M17 8.6l3.4 3.4-3.4 3.4"/></symbol>
@@ -296,7 +315,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <button type="button" data-sec="incidencias"><svg class="mi" aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><span class="n" data-n="incidencias" hidden></span></button>
       <button type="button" data-sec="corte"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Corte</span></button>
     </nav>
-    <div class="yo"><div class="avatar" id="avatar"></div><div><b id="nombre"></b><small id="turno-txt"></small></div></div>
+    <button class="yo" id="perfil" type="button" aria-label="Mi perfil: cambiar imagen y personalización"><span class="avatar" id="avatar"></span><span class="lapiz" aria-hidden="true"><svg><use href="#i-lapiz"/></svg></span><span class="yo-t"><b id="nombre"></b><small id="turno-txt"></small></span></button>
     <span class="red" id="red" role="status" hidden></span>
     <button class="salir" id="terminar" type="button" aria-label="Terminar turno y salir"><svg class="i" aria-hidden="true"><use href="#i-salir"/></svg><span>Salir</span></button>
   </header>
@@ -355,12 +374,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
   let elegido = null, turnoElegido = null, pin = "";
   async function mostrarEntrada() {
     $("#app").hidden = true; $("#entrada").hidden = false;
+    aplicarPrefs(null);
     elegido = null; pin = ""; pintarPin();
     $("#paso-turno").hidden = true; $("#paso-pin").hidden = true; $("#err-pin").textContent = "";
     try {
       const j = await api("personas");
       turnoElegido = j.sugerido;
-      $("#personas").innerHTML = j.personas.map(p => `<button type="button" class="persona" data-clave="${esc(p.clave)}" aria-pressed="false">${esc(p.clave)}${p.nombre && p.nombre !== p.clave ? `<small>${esc(p.nombre)}</small>` : ""}${p.tiene_pin ? "" : "<small>sin PIN</small>"}</button>`).join("") || `<p class="muted">No hay encargados dados de alta.</p>`;
+      $("#personas").innerHTML = j.personas.map(p => `<button type="button" class="persona" data-clave="${esc(p.clave)}" aria-pressed="false">${p.avatar_url ? `<img class="pfoto" src="${esc(p.avatar_url)}" alt="" width="64" height="64">` : ""}${esc(p.clave)}${p.nombre && p.nombre !== p.clave ? `<small>${esc(p.nombre)}</small>` : ""}${p.tiene_pin ? "" : "<small>sin PIN</small>"}</button>`).join("") || `<p class="muted">No hay encargados dados de alta.</p>`;
       $("#turnos").innerHTML = j.turnos.map(t => `<button type="button" class="chip" data-turno="${t}" aria-pressed="${t === turnoElegido}"><svg class="i"><use href="#${ICONO_TURNO[t]}"/></svg>${t[0] + t.slice(1).toLowerCase()}</button>`).join("");
     } catch (e) { $("#personas").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
   }
@@ -462,7 +482,8 @@ dialog .acciones .btn { flex: 1 1 160px; }
   }
   const sinLeer = () => E.avisos.filter(a => !a.leido).length;
   function pintarCabecera() {
-    $("#avatar").textContent = E.persona.slice(0, 4);
+    pintarAvatar($("#avatar"), E.avatar_url, E.persona);
+    aplicarPrefs(E.prefs);
     $("#nombre").textContent = E.nombre;
     $("#turno-txt").innerHTML = `Turno de la ${esc(TURNO_TXT[E.turno])}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
     // Contadores: avisos sin leer + tareas pendientes; en incidencias solo las graves abiertas
@@ -489,7 +510,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const urg = E.tareas.filter(t => t.prioridad === "alta").length, graves = E.incidencias.filter(i => i.gravedad === "grave").length;
     const nuevos = E.avisos.filter(a => !a.leido);
     const c = E.corte;
-    sec().innerHTML = titulo(`${saludo}, ${esc(E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
+    sec().innerHTML = titulo(`${saludo}, ${esc((E.prefs && E.prefs.apodo) || E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
       <div class="ini-grid">
         <h2 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h2>
         <section class="ini-card cat-a s4">
@@ -663,6 +684,78 @@ dialog .acciones .btn { flex: 1 1 160px; }
       } catch (er) { $("#err-corte").textContent = errores(er); b.disabled = false; }
     });
   }
+
+  // ---------- Mi perfil: imagen y personalización ----------
+  function pintarAvatar(el, url, clave) {
+    if (url) { el.innerHTML = `<img src="${esc(url)}" alt="" width="40" height="40">`; el.classList.add("foto"); }
+    else { el.textContent = clave.slice(0, 4); el.classList.remove("foto"); }
+  }
+  const ACENTO_TXT = { amarillo: "Amarillo", naranja: "Naranja", rosa: "Rosa", morado: "Morado", azul: "Azul", turquesa: "Turquesa" };
+  function aplicarPrefs(p) {
+    const r = document.documentElement, ac = p && E && E.acentos && E.acentos[p.acento];
+    if (ac) r.style.setProperty("--amber", ac); else r.style.removeProperty("--amber");
+    r.classList.toggle("letra-grande", !!p && p.letra === "grande");
+    r.classList.toggle("letra-muy-grande", !!p && p.letra === "muy-grande");
+  }
+  // Recorta al centro en cuadrado de 320 px (JPEG) para la foto de perfil
+  async function recortarPerfil(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+      const lado = Math.min(img.naturalWidth, img.naturalHeight), L = 320;
+      const c = document.createElement("canvas"); c.width = c.height = L;
+      c.getContext("2d").drawImage(img, (img.naturalWidth - lado) / 2, (img.naturalHeight - lado) / 2, lado, lado, 0, 0, L, L);
+      for (const q of [0.85, 0.75, 0.6]) { const d = c.toDataURL("image/jpeg", q); if (d.length < 260_000) return d; }
+      throw new Error("grande");
+    } finally { URL.revokeObjectURL(url); }
+  }
+  function hojaPerfil() {
+    const actual = E.avatar === "foto" ? "foto" : E.avatar || "";
+    let elegido = actual, foto = null;
+    const p = { ...E.prefs };
+    const opcion = (v, contenido, etiqueta) => `<button type="button" data-av="${esc(v)}" aria-pressed="${v === actual}" aria-label="${esc(etiqueta)}">${contenido}</button>`;
+    hoja(`<h2>Mi perfil</h2><p class="muted" style="margin:0 0 14px">Solo cambia cómo se ve la tablet cuando entras tú.</p>
+      <div class="campo"><span class="lb">Imagen</span><div class="gal" id="pf-gal">
+        ${opcion("", esc(E.persona.slice(0, 4)), E.persona.slice(0, 4) + ": sin imagen, solo iniciales")}
+        ${opcion("foto", E.tiene_foto && E.avatar_url ? `<img src="${esc(E.avatar_url)}" alt="">` : "", "Mi foto").replace("<button", E.tiene_foto ? "<button" : "<button hidden")}
+        ${E.galeria.map((a, i) => opcion(a, `<img src="/turno/avatar/${esc(a)}.webp" alt="">`, `Avatar ${i + 1}`)).join("")}
+        <label class="subir" for="pf-foto" style="width:68px;height:68px;border-radius:50%;display:grid;place-items:center;cursor:pointer"><span><svg aria-hidden="true"><use href="#i-camara"/></svg>Subir foto</span></label>
+      </div><input type="file" id="pf-foto" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px"></div>
+      <div class="campo"><span class="lb">Color</span><div class="sws" id="pf-color">${Object.entries(E.acentos).map(([k, v]) => `<button type="button" data-v="${k}" style="--s:${v}" aria-pressed="${k === p.acento}" aria-label="${ACENTO_TXT[k] || k}" title="${ACENTO_TXT[k] || k}"></button>`).join("")}</div></div>
+      <div class="campo"><span class="lb">Tamaño de letra</span>${chips("pf-letra", [["normal", "Normal"], ["grande", "Grande"], ["muy-grande", "Muy grande"]], p.letra)}</div>
+      <label class="campo"><span>¿Cómo te saludamos?</span><input class="t" name="apodo" maxlength="20" value="${esc(p.apodo || "")}" placeholder="${esc(E.nombre.split(" ")[0])}" autocomplete="off"></label>`,
+      async f => {
+        p.apodo = f.apodo.value.trim();
+        const r = await api("perfil", { avatar: elegido, foto: elegido === "foto" ? foto : null, prefs: p }, { cola: false });
+        foto = null;
+        guardado = true;
+        Object.assign(E, { avatar: r.avatar, avatar_url: r.avatar_url, tiene_foto: r.avatar === "foto", prefs: r.prefs });
+        pintarCabecera(); if (seccion === "inicio") verInicio();
+        toast("Perfil guardado.");
+      });
+    let guardado = false;
+    $("#dlg").onclose = () => { if (!guardado) aplicarPrefs(E.prefs); };
+    const gal = $("#pf-gal");
+    const marcar = v => { elegido = v; gal.querySelectorAll("[data-av]").forEach(b => b.setAttribute("aria-pressed", b.dataset.av === v)); };
+    gal.addEventListener("click", e => { const b = e.target.closest("[data-av]"); if (b) marcar(b.dataset.av); });
+    $("#pf-foto").addEventListener("change", async e => {
+      const file = e.target.files && e.target.files[0]; if (!file) return;
+      try {
+        foto = await recortarPerfil(file);
+        const b = gal.querySelector('[data-av="foto"]');
+        b.innerHTML = `<img src="${foto}" alt="">`; b.hidden = false;
+        marcar("foto");
+      } catch { toast("No se pudo usar esa foto. Prueba con otra.", true); }
+      e.target.value = "";
+    });
+    $("#pf-color").addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      p.acento = b.dataset.v; $("#pf-color").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      aplicarPrefs(p);
+    });
+    elegirChip("#pf-letra", v => { p.letra = v; aplicarPrefs(p); });
+  }
+  $("#perfil").addEventListener("click", () => { if (E) hojaPerfil(); });
 
   // ---------- Hojas (formularios en ventana) ----------
   function hoja(html, enviar) {
