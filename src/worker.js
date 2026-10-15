@@ -6,7 +6,7 @@ import { correrIA } from "./neuronas.js";
 const REVISAR_FOTO_IA = true;
 const LEER_TICKET_IA = false;
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
-import PANEL_HTML from "./panel.html";
+import { paginaPanel, recursoPanel } from "./panel-app.js";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
 import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
 import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda, limpiarAgenda } from "./agenda.js";
@@ -398,8 +398,10 @@ async function panel(request, env, url) {
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/panel";
   if (ruta === "/panel" && request.method === "GET") {
-    return new Response(PANEL_HTML, { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
+    return new Response(await paginaPanel(), { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
   }
+  // Estilos y código del panel (con versión en la URL, se guardan en el navegador)
+  if (request.method === "GET") { const r = await recursoPanel(ruta, url); if (r) return r; }
 
   if (!ruta.startsWith("/panel/api/")) return new Response("No encontrado", { status: 404, headers: cabecerasPanel() });
 

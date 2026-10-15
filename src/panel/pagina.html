@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel · El Castaño</title>
+<link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="stylesheet" href="{{CSS}}">
+<script defer src="{{JS}}"></script>
+</head>
+<body>
+
+<header class="bar">
+  <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
+  <h1>El Castaño</h1>
+  <nav class="modulos" aria-label="Sección">
+    <button type="button" data-mod="inicio" aria-current="page"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
+    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-tablet"/></svg><span>Turnos</span></button>
+    <button type="button" data-mod="pagos"><svg class="mi" aria-hidden="true"><use href="#i-carrito"/></svg><span class="largo">Pagos y compras</span><span class="corto">Pagos</span></button>
+    <button type="button" data-mod="finanzas"><svg class="mi" aria-hidden="true"><use href="#i-tendencia"/></svg><span>Finanzas</span></button>
+    <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
+    <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
+    <button type="button" data-mod="agenda"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Agenda</span></button>
+  </nav>
+  <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
+  <small id="yo"></small>
+</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M3.6 13.2l2.6-7.4a1.6 1.6 0 0 1 1.5-1.1h8.6a1.6 1.6 0 0 1 1.5 1.1l2.6 7.4v4.6a1.6 1.6 0 0 1-1.6 1.6H5.2a1.6 1.6 0 0 1-1.6-1.6z"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M3.8 13.2h4.4l1.4 2.4h4.8l1.4-2.4h4.4"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8.2 12.3l2.6 2.6 5-5.2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6"/></symbol>
+  <symbol id="i-arch" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="4.4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M5 8.8v9.4a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V8.8M10 12.6h4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4.6 6.6h14.8M9.6 6.4V4.8a1.2 1.2 0 0 1 1.2-1.2h2.4a1.2 1.2 0 0 1 1.2 1.2v1.6M6.6 6.6l.9 12.2a1.6 1.6 0 0 0 1.6 1.5h5.8a1.6 1.6 0 0 0 1.6-1.5l.9-12.2M10.2 10.6v5.8M13.8 10.6v5.8"/></symbol>
+  <symbol id="i-bascula" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 7.2a2.6 2.6 0 1 1 5.2 0M7.4 7.2h9.2l2.6 12.2H4.8z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.6 15.6v-4l2.4 2.6 2.4-2.6v4"/></symbol>
+  <symbol id="i-pension" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle cx="6.6" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="17.4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-activo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M15 17.4l2.2 2.2 4-4.2"/></symbol>
+  <symbol id="i-inactivo" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.6 19.6c.6-3.4 3.2-5.4 6.4-5.4 1.3 0 2.5.3 3.5.9"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M15.4 17.6h5.4"/></symbol>
+  <symbol id="i-aviso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10v4h3l6 4V6L7 10z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.4 9a4 4 0 0 1 0 6M18.8 6.6a7.4 7.4 0 0 1 0 10.8"/></symbol>
+  <symbol id="i-tablet" viewBox="0 0 24 24"><rect x="4.4" y="2.8" width="15.2" height="18.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M10.6 18h2.8"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M3.8 9.6h16.4M8 3.4v3.2M16 3.4v3.2"/><circle cx="8.4" cy="13.6" r="1.1" fill="currentColor"/><circle cx="12" cy="13.6" r="1.1" fill="currentColor"/><circle cx="15.6" cy="13.6" r="1.1" fill="currentColor"/><circle cx="8.4" cy="17" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
+  <symbol id="i-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.6 4.4a1.6 1.6 0 0 1 2.8 0l7.4 13.2a1.6 1.6 0 0 1-1.4 2.4H4.6a1.6 1.6 0 0 1-1.4-2.4z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 9.6v4.4"/><circle cx="12" cy="16.9" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6.6 3.6h7.6l4.2 4.2v11a1.6 1.6 0 0 1-1.6 1.6H6.6A1.6 1.6 0 0 1 5 18.8V5.2a1.6 1.6 0 0 1 1.6-1.6z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M14 3.8v4.2h4.2M8.6 12.4h6.8M8.6 16h4.6"/></symbol>
+  <symbol id="i-billete" viewBox="0 0 24 24"><rect x="2.8" y="6.4" width="18.4" height="11.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M6 9.6v.01M18 14.4v.01"/></symbol>
+  <symbol id="i-gasto" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 8.6h6M9 12h6M9 15.4h3.6"/></symbol>
+  <symbol id="i-tendencia" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M3.6 16.8l5.4-5.4 3.6 3.6 7.2-7.2M14.4 7.8h5.4v5.4"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
+  <symbol id="i-transf" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 8.4h14.4l-3.4-3.4M20 15.6H5.6l3.4 3.4"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 7.4V12l3 2"/></symbol>
+  <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 19.6c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M6 12.4l4 4 8-8.6"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8M17.6 3.6v3.6H14M6.4 20.4v-3.6H10"/></symbol>
+  <symbol id="i-casa" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h4.4v-5.6h3.2v5.6H18V9"/></symbol>
+  <symbol id="i-arriba" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-cat-servicios" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 18h5.2M10.4 21h3.2M12 3.2a5.8 5.8 0 0 0-3.5 10.4c.7.6 1 1.3 1 2.2h5c0-.9.3-1.6 1-2.2A5.8 5.8 0 0 0 12 3.2z"/></symbol>
+  <symbol id="i-cat-sueldos" viewBox="0 0 24 24"><ellipse fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="12" cy="6" rx="7" ry="2.6"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 6v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 10v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4M5 14v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4"/></symbol>
+  <symbol id="i-cat-renta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h12V9M10 19.4v-5h4v5"/></symbol>
+  <symbol id="i-cat-mantenimiento" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.7 4.3a4.2 4.2 0 0 0-5 5.5L3.9 15.6a1.9 1.9 0 0 0 2.7 2.7l5.8-5.8a4.2 4.2 0 0 0 5.5-5l-2.6 2.6-2.3-.5-.5-2.3z"/></symbol>
+  <symbol id="i-cat-papeleria" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M15.6 7.4l-6.3 6.3a1.7 1.7 0 0 0 2.4 2.4l6.6-6.6a3.4 3.4 0 0 0-4.8-4.8l-6.6 6.6a5.1 5.1 0 0 0 7.2 7.2l5.3-5.3"/></symbol>
+  <symbol id="i-cat-combustible" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 20V5.6A1.6 1.6 0 0 1 6.6 4h5.8A1.6 1.6 0 0 1 14 5.6V20M3.8 20h11.4M7.4 8.2h4.2M14 11h1.6a1.4 1.4 0 0 1 1.4 1.4v3.2a1.5 1.5 0 0 0 3 0V8.6L17.6 6"/></symbol>
+  <symbol id="i-cat-impuestos" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4zM9.4 14.6l5.2-5.2"/><circle cx="9.8" cy="9.8" r="1.1" fill="currentColor"/><circle cx="14.2" cy="14.2" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-cat-tarjetas" viewBox="0 0 24 24"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="5.6" width="18" height="12.8" rx="2.2"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.2 10h17.6M6.6 15h4"/></symbol>
+  <symbol id="i-cat-suscripciones" viewBox="0 0 24 24"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="4.6" width="18" height="12.4" rx="2.2"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M10.2 8.4v5l4.2-2.5zM8 20.4h8"/></symbol>
+  <symbol id="i-cat-familia" viewBox="0 0 24 24"><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="9" cy="8" r="3.2"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="16.6" cy="9.6" r="2.4"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.4 19.4c.6-3 2.8-4.8 5.6-4.8s5 1.8 5.6 4.8M15.4 14.6c2.6 0 4.6 1.6 5.2 4.8"/></symbol>
+  <symbol id="i-cat-otros" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7.8l8-4 8 4v8.4l-8 4-8-4zM4 7.8l8 4 8-4M12 11.8v8.4"/></symbol>
+  <symbol id="i-cat-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="i-cat-comida" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 3.4v7.4a2 2 0 0 0 2 2v7.8M5 3.4v5.4M9 3.4v5.4M17 20.6V3.4c-2.2 1-3.2 3.4-3.2 6.4v3.4H17"/></symbol>
+  <symbol id="i-cat-salud" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/></symbol>
+  <symbol id="i-cat-transporte" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="6.6" cy="17.4" r="1.8"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="17" cy="17.4" r="1.8"/></symbol>
+  <symbol id="i-cat-limpieza" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.6 3.2l-4.2 8.6M6.6 12h7.6l2 8.8H4.6zM8.6 16.4v4.4M11.6 16.4v4.4"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
+</svg>
+<main class="mod" id="mod-inicio">
+  <div class="ini">
+    <div class="ini-head">
+      <h2 id="i-saludo">Hola.</h2>
+      <p class="note" id="i-fecha"></p>
+    </div>
+    <div class="ini-grid">
+      <h3 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-a full s2 acciones">
+        <span class="ini-k">Acciones rápidas</span>
+        <div class="acc-grid">
+          <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Gasto de caja</button>
+          <button type="button" class="accion" data-accion="pagohecho" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-billete"/></svg></span>Registrar pago o gasto</button>
+          <button type="button" class="accion" data-accion="programar" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span>Programar un pago</button>
+          <button type="button" class="accion" data-accion="compra" style="--c:#ffb86b"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span>Anotar compra</button>
+          <button type="button" class="accion" data-accion="transf" style="--c:#e879b6"><span class="ibadge"><svg><use href="#i-transf"/></svg></span>Transferencia de cliente</button>
+          <button type="button" class="accion" data-accion="tarea" style="--c:#64d2ff"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span>Nueva tarea</button>
+          <button type="button" class="accion" data-accion="incidencia" style="--c:#ff6961"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
+          <button type="button" class="accion" data-accion="evento" style="--c:#b69cff"><span class="ibadge"><svg><use href="#i-cal"/></svg></span>Agendar evento</button>
+        </div>
+      </section>
+
+      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Turno hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Turnos ›</button></h3>
+      <div class="ini-card cat-b ini-hero s2" data-ir="caja" tabindex="0" role="link">
+        <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
+        <b class="ini-big" id="i-hoy">$0</b>
+        <div class="ini-split" id="i-split"></div>
+        <span class="ini-turno" id="i-turno"></span>
+      </div>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
+        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span><span class="ini-act" id="ini-activo" hidden></span>
+      </div>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de caja hoy</span></div>
+        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span><div class="ini-gl" id="ini-gastos-l" hidden></div>
+      </div>
+      <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
+      <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
+      <section class="ini-card cat-b s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <div class="ini-tri">
+        <div class="ini-card cat-b tri" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div><b class="ini-num" id="n-incid">0</b><div id="m-incid"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas por hacer</span></div><b class="ini-num" id="n-tareas">0</b><div id="m-tareas"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="aviso" tabindex="0" role="link" style="--c:#ffcc00"><div class="ini-top"><span class="ibadge"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos activos</span></div><b class="ini-num" id="n-avisos">0</b><div id="m-avisos"></div></div>
+      </div>
+
+      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos y compras</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos y compras ›</button></h3>
+      <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
+        <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
+      </div>
+      <div class="ini-card cat-f kpi" data-agenda="hechos" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Pagado este mes</span></div>
+        <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
+      </div>
+      <div class="ini-card cat-f s2 ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
+      <div class="ini-par">
+      <section class="ini-card cat-f"><h3>Pagado por mes</h3><p class="note">Pagos y gastos de la administración registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <section class="ini-card cat-f"><h3>Este mes por categoría</h3><p class="note">Pagos y compras de la administración.</p><div class="dona" id="d-pagos"></div></section>
+      </div>
+
+      <h3 class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><span>Finanzas</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Finanzas ›</button></h3>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#7ee2a0">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Entró este mes</span></div>
+        <b class="ini-num" id="i-f-ing">$0</b><span class="note" id="i-f-ing-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ff8a80">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Salió este mes</span></div>
+        <b class="ini-num" id="i-f-egr">$0</b><span class="note" id="i-f-egr-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ffcc00">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Resultado del mes</span></div>
+        <b class="ini-num" id="i-f-res">$0</b><span class="note">Entró − salió</span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en sobres</span></div>
+        <b class="ini-num" id="i-f-sob">—</b><span class="note" id="i-f-sob-nota"></span>
+      </div>
+      <section class="ini-card cat-g full s3"><h3>Ingresos del mes</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+
+      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturación</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturación ›</button></h3>
+      <div class="ini-par">
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+          <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+          <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+          <div id="i-pend-l"></div>
+          <button type="button" class="ini-exp" data-ir="personal"><svg aria-hidden="true"><use href="#i-persona"/></svg><span><b id="i-exp">0</b> expedientes incompletos <span id="i-exp-nota"></span></span></button>
+        </div>
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
+      </div>
+
+      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
+      <div class="ini-par">
+        <section class="ini-card cat-d ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
+        <div class="ini-agcol">
+          <div class="ini-card cat-d ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Pagos programados</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="hechos" tabindex="0" role="link" style="--c:#7ee2a0"><div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Pagos no programados del mes</span><b class="mini-n" id="n-noprog">0</b></div><div id="m-noprog"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="aviso" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias y avisos</span></div><div id="m-incav"></div></div>
+        </div>
+      </div>
+
+      <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-e full s3" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
+    </div>
+    <p class="note ini-pie" id="i-pie"></p>
+  </div>
+  <div class="gtip" id="gtip" role="status" hidden></div>
+</main>
+<main class="mod" id="mod-facturacion" hidden>
+<div class="titlebar">
+  <h2 id="titulo">Pendientes.</h2>
+  <p id="subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="tabs" role="tablist" aria-label="Estado">
+    <button class="tab" role="tab" data-estado="pendiente" aria-selected="true"><svg class="ti" aria-hidden="true"><use href="#i-inbox"/></svg><span class="tl">Pendientes</span> <span class="n" id="n-pendiente">0</span></button>
+    <button class="tab" role="tab" data-estado="facturada" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-ok"/></svg><span class="tl">Facturadas</span> <span class="n" id="n-facturada">0</span></button>
+    <button class="tab" role="tab" data-estado="rechazada" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg><span class="tl">Rechazadas</span> <span class="n" id="n-rechazada">0</span></button>
+    <button class="tab" role="tab" data-estado="historico" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-arch"/></svg><span class="tl">Histórico</span> <span class="n" id="n-historico">0</span></button>
+  </div>
+  <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
+  <button class="btn btn-line" id="recargar" type="button" hidden>Actualizar</button>
+  <details class="export" id="fa-rep">
+    <summary class="btn btn-line">Reporte en Google Sheets</summary>
+    <div class="export-box">
+      <label>Mes<select id="fa-rep-mes"></select></label>
+      <button class="btn btn-primary" id="fa-rep-gen" type="button">Generar</button>
+      <span class="note" id="fa-rep-estado" role="status">Se guarda en tu Drive, carpeta FACTURACION. Al cerrar cada mes se crea solo.</span>
+      <div id="fa-rep-lista"></div>
+    </div>
+  </details>
+</div>
+<div class="work" id="work">
+  <nav class="list" id="lista" aria-label="Solicitudes"></nav>
+  <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
+</div>
+</main>
+<main class="mod" id="mod-personal" hidden>
+<div class="titlebar">
+  <h2 id="p-titulo">Personal.</h2>
+  <p id="p-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ptabs ptipo" role="tablist" aria-label="Grupo">
+    <button class="ptab" role="tab" data-tipo="colaborador" aria-selected="true">Colaboradores <span class="n" id="pn-colaborador">0</span></button>
+    <button class="ptab" role="tab" data-tipo="externo" aria-selected="false">Externos <span class="n" id="pn-externo">0</span></button>
+    <button class="ptab" role="tab" data-tipo="campanas" aria-selected="false">Campañas <span class="n" id="pn-campanas">0</span></button>
+  </div>
+  <div class="ptabs pest" role="tablist" aria-label="Estatus">
+    <button class="ptab" role="tab" data-estatus="activo" aria-selected="true"><span class="est activo sm"><svg aria-hidden="true"><use href="#i-activo"/></svg></span>Activos <span class="n" id="pn-activo">0</span></button>
+    <button class="ptab" role="tab" data-estatus="inactivo" aria-selected="false"><span class="est inactivo sm"><svg aria-hidden="true"><use href="#i-inactivo"/></svg></span>Inactivos <span class="n" id="pn-inactivo">0</span></button>
+  </div>
+  <div class="ptabs pfil" role="tablist" aria-label="Expediente">
+    <button class="ptab" role="tab" data-filtro="todos" aria-selected="true">Todos <span class="n" id="pn-todos">0</span></button>
+    <button class="ptab" role="tab" data-filtro="incompletos" aria-selected="false">Incompletos <span class="n" id="pn-incompletos">0</span></button>
+    <button class="ptab" role="tab" data-filtro="completos" aria-selected="false">Completos <span class="n" id="pn-completos">0</span></button>
+  </div>
+  <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, folio, puesto o teléfono" aria-label="Buscar colaborador">
+  <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
+  <details class="ajustes">
+  <summary class="btn btn-line">Ajustes</summary>
+  <div class="plim">
+    <button class="btn btn-line" id="p-drive" type="button">Probar conexión con Drive</button>
+    <span class="note" id="p-drive-nota"></span>
+  </div>
+  </details>
+</div>
+<div class="work" id="p-work">
+  <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
+  <div class="detail" id="p-detalle"><p class="empty">Elige un colaborador o agrega uno nuevo.</p></div>
+</div>
+</main>
+<main class="mod" id="mod-caja" hidden>
+<div class="titlebar">
+  <h2 id="c-titulo">Turnos.</h2>
+  <p id="c-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Turnos" id="c-vistas">
+    <button class="ptab" role="tab" data-v="curso" aria-selected="false">En curso</button>
+    <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes</button>
+    <button class="ptab" role="tab" data-v="movs" aria-selected="false">Movimientos de caja <span class="n" id="c-nmovs">0</span></button>
+    <button class="ptab" role="tab" data-v="entregas" aria-selected="false">Entregas</button>
+    <button class="ptab" role="tab" data-v="encargados" aria-selected="false">Encargados</button>
+  </div>
+  <div class="cper" role="group" aria-label="Periodo" id="c-per">
+    <div class="ptabs" id="c-rapidos" role="tablist" aria-label="Periodo rápido">
+      <button class="ptab" type="button" role="tab" data-r="hoy">Hoy</button>
+      <button class="ptab" type="button" role="tab" data-r="ayer">Ayer</button>
+      <button class="ptab" type="button" role="tab" data-r="7"><span class="largo">Últimos 7 días</span><span class="corto">7 días</span></button>
+      <button class="ptab" type="button" role="tab" data-r="mes" aria-selected="true">Mes</button>
+    </div>
+    <label>Desde<input type="date" id="c-desde"></label>
+    <label>Hasta<input type="date" id="c-hasta"></label>
+  </div>
+  <div class="ctot" id="c-totales" aria-live="polite"></div>
+  <button class="btn btn-primary" id="c-gasto" type="button">+ Gasto de caja</button>
+</div>
+<div class="work" id="c-work">
+  <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
+  <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
+</div>
+<div class="ag" id="c-full" hidden><div id="t-cuerpo"></div><div id="c-curso"></div></div>
+</main>
+<main class="mod" id="mod-pagos" hidden>
+<div class="titlebar">
+  <h2>Pagos y compras.</h2>
+  <p id="pg-subtitulo" class="note">Lo que paga y compra la administración: sale de los sobres (efectivo) o del banco, nunca de la caja de un turno.</p>
+</div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Pagos y compras" id="pg-tabs">
+    <button class="ptab" role="tab" data-t="pago" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Programados <span class="n" id="an-pago">0</span></button>
+    <button class="ptab" role="tab" data-t="hechos" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-check"/></svg>Pagos y gastos hechos</button>
+    <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
+    <button class="ptab" role="tab" data-t="categorias" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-cat-otros"/></svg>Categorías</button>
+  </div>
+</div>
+<div class="ag" id="pg-cuerpo"></div>
+</main>
+<main class="mod" id="mod-finanzas" hidden>
+<div class="titlebar">
+  <h2>Finanzas.</h2>
+  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale y dónde está el efectivo.</p>
+</div>
+<div class="tools">
+  <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
+</div>
+<div class="ag" id="f-cuerpo"><p class="empty">Cargando…</p></div>
+</main>
+<main class="mod" id="mod-agenda" hidden>
+<div class="titlebar">
+  <h2 id="a-titulo">Agenda.</h2>
+  <p id="a-subtitulo" class="note"></p>
+</div>
+<div class="tools">
+  <div class="ptabs" role="tablist" aria-label="Agenda" id="a-tabs">
+    <button class="ptab" role="tab" data-t="calendario" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Calendario</button>
+    <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
+    <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
+    <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
+  </div>
+</div>
+<div class="ag" id="ag-cuerpo"></div>
+</main>
+<datalist id="dl-cats"></datalist>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
+<button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
+
+</body>
+</html>

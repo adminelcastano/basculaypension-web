@@ -35,6 +35,10 @@
   // el excedente se cobraría; src/neuronas.js corta a las 9 000 para que eso no pase.
   "ai": { "binding": "AI" },
   // Avatares de los encargados (src/avatares/*.webp) se empaquetan dentro del Worker: solo se sirven tras Access
-  "rules": [{ "type": "Data", "globs": ["**/*.webp"], "fallthrough": true }],
+  "rules": [
+    { "type": "Data", "globs": ["**/*.webp"], "fallthrough": true },
+    // Estilos y código del navegador del panel (src/panel/): se empaquetan como texto y el Worker los sirve
+    { "type": "Text", "globs": ["**/*.css", "**/cliente/*.js"], "fallthrough": true }
+  ],
   "observability": { "enabled": true }
 }

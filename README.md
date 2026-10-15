@@ -55,6 +55,13 @@ Menú: **Inicio · Turnos · Pagos y compras · Finanzas · Facturación · Pers
 
 **Folio de movimiento de caja** (`MC-AAMM-NNN`, tabla `caja_folios`): cada gasto de caja, ingreso extra, retiro del corte ciego y renglón de la hoja sin folio de ticket recibe un folio único al numerarse (después de cada sincronización y al consultar), en orden cronológico dentro de su mes. No cambia y, si el movimiento se borra, su número no se reutiliza. El cambio inicial no lleva folio. Llaves: `g:<id>`, `x:<id>`, `r:<día>|<turno>|<n>`, `m:<firma del renglón>#<n>`.
 
+## Código del panel (desde el 15 oct 2026)
+
+El panel ya no es un solo archivo: `src/panel/pagina.html` (HTML), `src/panel/estilos.css` (estilos) y `src/panel/cliente/NN-seccion.js` (código del navegador, en orden). `src/panel-app.js` los une y el Worker los sirve en `/panel/app.css` y `/panel/app.js` con la huella del contenido en la URL, así el celular los guarda y solo los vuelve a bajar cuando cambian (todo detrás de Cloudflare Access). En `wrangler.jsonc` la regla `Text` empaqueta `**/*.css` y `**/cliente/*.js` como texto.
+
+- **Herramientas comunes** (`00-base.js`, `window.EC`): `$`, `$$`, `esc`, `toast`, `api`, `post`, `hoyMx`, `dinero`. Cada sección las toma de ahí en vez de copiarlas.
+- **Base de diseño** (`:root` de `estilos.css`): escala de letra `--t-2xs` (12 px) a `--t-2xl` (30 px), neutros con nombre (`--bg-2`, `--surface-2`, `--fill`, `--line-2`, `--fg-2`, `--muted-2`), `--warn`, radios y `--tap` (44 px, tamaño mínimo táctil). Lo nuevo usa estos tokens.
+
 ## Panel: Facturación y Personal
 
 `/panel` (protegido con Cloudflare Access) tiene dos secciones:
