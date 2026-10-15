@@ -179,6 +179,36 @@
     const m = lista.querySelector("[data-mas]"); if (m) m.addEventListener("click", e => { e.stopPropagation(); verTodas = !verTodas; pintarAtencion(l); });
   }
 
+  // ---- Turnos de hoy: los tres últimos hasta el que está en curso (noche, mañana y tarde) ----
+  const ANT = { "MAÑANA": [-1, "NOCHE"], TARDE: [0, "MAÑANA"], NOCHE: [0, "TARDE"] };
+  const HORARIO = { "MAÑANA": ["6:00", "14:00"], TARDE: ["14:00", "22:00"], NOCHE: ["22:00", "6:00"] };
+  const horaMx = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }).replace(/\s?([ap])\.?\s?m\.?/i, " $1m") : null;
+  const hayInicio = (c, act) => !!((c && c.cambio && c.cambio.desde) || (act && act.desde));
+  function pintarTurnos(j, porDiaTurno, ta, activo) {
+    const el = $("#i-turnos"); if (!el) return;
+    const lista = [{ dia: ta.dia, turno: ta.turno }];
+    for (let k = 0; k < 2; k++) { const a = lista[0], p = ANT[a.turno]; lista.unshift({ dia: sumar(a.dia, p[0]), turno: p[1] }); }
+    el.innerHTML = lista.map(t => {
+      const c = porDiaTurno[t.dia + "|" + t.turno], k = c && c.conteo, actual = t.dia === ta.dia && t.turno === ta.turno;
+      const act = actual && activo && activo.dia === t.dia && activo.turno === t.turno ? activo : null;
+      const persona = (k && !k.admin && k.persona) || (c && c.cambio && c.cambio.persona) || (act && act.persona) || null;
+      const ini = horaMx((c && c.cambio && c.cambio.desde) || (act && act.desde)), fin = k && !k.admin ? horaMx(k.creado || k.actualizado) : null;
+      const hr = `${ini || HORARIO[t.turno][0]} – ${fin || (actual ? "en curso" : HORARIO[t.turno][1])}`;
+      const [cls, txt, tit] = k ? (k.admin ? ["", "Capturado", "Entrega capturada por la administración"] : Math.abs(k.dif_efectivo || 0) < 1 ? ["ok", "✓ Cuadra", `Contó ${dinero(k.efectivo, 2)}`] : k.dif_efectivo < 0 ? ["mal", "✗ Faltan " + dinero(-k.dif_efectivo), `No cuadra: contó ${dinero(k.efectivo, 2)}`] : ["mal", "✗ Sobran " + dinero(k.dif_efectivo), `No cuadra: contó ${dinero(k.efectivo, 2)}`])
+        : actual ? ["cur", "En curso", "El turno sigue abierto"] : ["esp", "Sin corte", "Nadie entregó el corte en la tablet"];
+      const nom = TURNO_TXT[t.turno] + (t.dia !== ta.dia ? ` ${new Date(t.dia + "T12:00:00Z").toLocaleDateString("es-MX", { day: "numeric", timeZone: "UTC" })}` : "");
+      return `<button type="button" class="tcard${actual ? " actual" : ""}" data-k="${esc(t.dia + "|" + t.turno)}" aria-label="Corte ${esc(nom)}${persona ? " de " + esc(persona) : ""}">
+        <span class="th">${persona ? avP(persona) : ""}<span>${esc(nom)}</span>${!hayInicio(c, act) && !fin && !actual ? `<span class="hr" title="Horario del turno">horario</span>` : ""}</span>
+        <span class="hr">${esc(hr)}</span>
+        <span class="tk">En caja</span>
+        <span class="tn">${dinero(c ? c.efectivo_caja : 0)}</span>
+        <span class="est ${cls}" title="${esc(tit)}">${esc(txt)}</span>
+        <span class="tl"><span>En sobre</span><b>${k && k.sobre != null ? dinero(k.sobre) : "—"}</b></span>
+      </button>`;
+    }).join("");
+    el.querySelectorAll(".tcard").forEach(b => b.addEventListener("click", ev => { ev.stopPropagation(); if (window.cajaAbrirCorte) window.cajaAbrirCorte(b.dataset.k); }));
+  }
+
   let cargando = false;
   async function cargar() {
     if (cargando) return; cargando = true;
@@ -237,6 +267,7 @@
         el.innerHTML = (a ? `${avP(a.persona)}<span><b>${esc(a.nombre)}</b> · ${esc(TURNO_TXT[a.turno].toLowerCase())} desde ${esc(new Date(a.desde).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}${a.cambio_inicial != null ? ` · cambio inicial ${dinero(a.cambio_inicial, 2)}` : ""}</span>` : "")
           + (turnoMal ? `<span style="color:#ff8a80;flex-basis:100%">El cambio no cuadra: ${esc(turnoMal.de.persona)} dejó ${dinero(turnoMal.dejado, 2)} y ${esc(turnoMal.recibio)} recibió ${dinero(turnoMal.recibido, 2)}</span>` : "");
       }
+      pintarTurnos(j, porDiaTurno, ta, F.turno);
       const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
       contar($("#i-gastos"), gHoy, v => dinero(v));
       $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto de caja" : "gastos de caja"}` : "Sin gastos de caja";

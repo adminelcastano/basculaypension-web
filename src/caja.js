@@ -278,7 +278,7 @@ export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   for (const g of gastos) { const c = corte(g.dia, g.turno); c.gastos[g.forma] = (c.gastos[g.forma] || 0) + g.monto; c.n_gastos++; }
   for (const x of extras) { const c = corte(x.dia, x.turno); c.extra.n++; c.extra.importe += x.monto; if (x.ingreso) c.extra.ingreso += x.monto; }
   // El cambio inicial capturado en la tablet manda sobre el "cambio" de la hoja (no se suman los dos)
-  for (const i of inicios) { const c = corte(i.dia, i.turno); c.cambio = { n: 1, importe: Number(i.cambio) || 0, fuente: "tablet", persona: i.persona, hoja: c.cambio.importe }; }
+  for (const i of inicios) { const c = corte(i.dia, i.turno); c.cambio = { n: 1, importe: Number(i.cambio) || 0, fuente: "tablet", persona: i.persona, desde: i.creado || null, hoja: c.cambio.importe }; }
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return [...cortes.values()].map(c => {
     const efectivo = c.bascula.EFECTIVO + c.pension.EFECTIVO, tarjeta = c.bascula.TARJETA + c.pension.TARJETA;
@@ -364,7 +364,7 @@ function conteo(x, c) {
   // Capturada por la administración: no hubo conteo ciego, así que no hay diferencia que calcular
   if (x.admin) return { persona: x.persona, admin: true, efectivo: x.efectivo, tarjeta: null, notas: x.notas, actualizado: x.actualizado, veces: x.veces, con_cambio: true,
     sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros), esperado: c ? r2(c.efectivo_caja) : null, dif_efectivo: null, dif_tarjeta: null };
-  return { persona: x.persona, efectivo: x.efectivo, tarjeta: x.tarjeta, notas: x.notas, actualizado: x.actualizado, veces: x.veces,
+  return { persona: x.persona, efectivo: x.efectivo, tarjeta: x.tarjeta, notas: x.notas, creado: x.creado, actualizado: x.actualizado, veces: x.veces,
     // Antes el encargado contaba sin el fondo de cambio; desde el 14 oct 2026 cuenta todo (con_cambio = 1)
     con_cambio: !!x.con_cambio,
     sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros),

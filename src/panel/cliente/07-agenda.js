@@ -16,6 +16,34 @@
   const ico = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
   const abierto = it => !["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(it.estado);
   const foto = k => k ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">ver foto</a>` : "";
+  // Fotos de incidencias: se reducen en el navegador (lado mayor 1600 px, JPEG) antes de subirlas
+  async function comprimirFoto(file) {
+    let img;
+    try { img = await createImageBitmap(file); }
+    catch { img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => mal(new Error(`No se pudo leer ${file.name}. Usa una foto JPG o PNG.`)); i.src = URL.createObjectURL(file); }); }
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+    for (const q of [0.82, 0.7, 0.55]) { const u = cv.toDataURL("image/jpeg", q); if (u.length * 0.75 < 1_400_000) return u; }
+    throw new Error(`La foto ${file.name} es demasiado grande.`);
+  }
+  const fotosDe = it => { let l = []; try { l = JSON.parse(it.fotos || "[]"); } catch {} if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
+  const urlFoto = k => "/panel/api/turno/foto/" + encodeURIComponent(k);
+  // Campo de fotos del formulario de incidencia: junta las elegidas (cámara o galería) con vista previa
+  function conectarFotos(f) {
+    const caja = f.querySelector(".inc-fotos"); if (!caja) return;
+    f._fotos = [];
+    const pintar = () => { caja.querySelector(".inc-prev").innerHTML = f._fotos.map((u, i) => `<span class="inc-th"><img src="${u}" alt="Foto ${i + 1}"><button type="button" data-qf="${i}" aria-label="Quitar foto ${i + 1}">×</button></span>`).join(""); };
+    caja.querySelectorAll(".inc-f").forEach(inp => inp.addEventListener("change", async () => {
+      const err = f.querySelector(".err"); err.textContent = "";
+      for (const file of inp.files) {
+        if (f._fotos.length >= 8) { err.textContent = "Máximo 8 fotos."; break; }
+        try { f._fotos.push(await comprimirFoto(file)); } catch (e) { err.textContent = e.message; }
+      }
+      inp.value = ""; pintar();
+    }));
+    caja.addEventListener("click", e => { const b = e.target.closest("[data-qf]"); if (b) { f._fotos.splice(+b.dataset.qf, 1); pintar(); } });
+  }
   const fHora = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
   const cuando = iso => iso ? fHora.format(new Date(iso)) : "";
 
@@ -67,7 +95,11 @@
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
       <label class="w4">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <label>Fecha<input type="date" name="fecha" value="${esc(st.hoy)}"></label><label>Turno<select name="turno"><option value="">—</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
-      <label>Gravedad<select name="gravedad"><option value="leve">Leve</option><option value="media" selected>Media</option><option value="grave">Grave</option></select></label><button class="btn btn-primary" type="submit">Reportar</button><span class="err"></span></form>`;
+      <label>Gravedad<select name="gravedad"><option value="leve">Leve</option><option value="media" selected>Media</option><option value="grave">Grave</option></select></label>
+      <div class="w4 inc-fotos"><span class="lbl">Fotos <span style="font-weight:400">(opcional · hasta 8)</span></span>
+        <div class="inc-fbtns"><label class="btn btn-line"><input type="file" accept="image/*" capture="environment" class="inc-f" hidden>Tomar foto</label><label class="btn btn-line"><input type="file" accept="image/*" multiple class="inc-f" hidden>Subir fotos</label></div>
+        <div class="inc-prev"></div></div>
+      <button class="btn btn-primary" type="submit">Reportar</button><span class="err"></span></form>`;
   }
 
   // ---- Elementos de lista ----
@@ -114,7 +146,8 @@
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc"><select class="estado-sel" data-estado="${esc(it.id)}" aria-label="Estado">${[["abierta", "Abierta"], ["en_proceso", "En proceso"], ["resuelta", "Resuelta"]].map(([k, v]) => `<option value="${k}" ${it.estado === k ? "selected" : ""}>${v}</option>`).join("")}</select>${del}</span>
-        <span class="mm">${it.reporto ? `<span class="tag tablet">${avP(it.reporto)}${esc(it.reporto)}</span>` : ""}${it.quien ? `<span>Reportó: <b>${esc(it.quien)}</b></span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
+        <span class="mm">${it.reporto ? `<span class="tag tablet">${avP(it.reporto)}${esc(it.reporto)}</span>` : ""}${it.quien ? `<span>Reportó: <b>${esc(it.quien)}</b></span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span>
+        <span class="inc-gal">${fotosDe(it).map((k, i) => `<span class="inc-th"><a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de la incidencia" loading="lazy"></a><button type="button" data-fquitar="${esc(it.id)}" data-k="${esc(k)}" aria-label="Quitar foto ${i + 1} (toca dos veces)">×</button></span>`).join("")}${fotosDe(it).length < 8 ? `<label class="inc-mas" title="Agregar fotos"><input type="file" accept="image/*" multiple hidden data-fmas="${esc(it.id)}">+ Fotos</label>` : ""}</span></div>`;
     }
     const fin = it.tipo === "compra" ? "comprado" : "hecho";
     const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
@@ -473,9 +506,21 @@
         if (!v.length) { f.querySelector(".err").textContent = "Elige para quién es el aviso."; return; }
         datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
       }
+      if (f._fotos && f._fotos.length) datos.fotos = f._fotos;
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = c.querySelector("form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    }));
+    c.querySelectorAll("form.aform[data-tipo=incidencia]").forEach(conectarFotos);
+    // Fotos de incidencias ya registradas: agregar más o quitar una
+    c.querySelectorAll("[data-fmas]").forEach(inp => inp.addEventListener("change", async () => {
+      const lab = inp.closest(".inc-mas"); lab.classList.add("cargando");
+      try { const fotos = []; for (const file of inp.files) fotos.push(await comprimirFoto(file)); await post(`agenda/${inp.dataset.fmas}/fotos`, { fotos }); toast(fotos.length === 1 ? "Foto agregada" : "Fotos agregadas"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") toast(e.message); lab.classList.remove("cargando"); }
+    }));
+    c.querySelectorAll("[data-fquitar]").forEach(b => b.addEventListener("click", async () => {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
+      try { await post(`agenda/${b.dataset.fquitar}/fotos`, { quitar: b.dataset.k }); toast("Foto quitada"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-chk]").forEach(b => b.addEventListener("click", async () => {
       const on = b.classList.contains("on");

@@ -230,6 +230,24 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ini-split b { color: var(--fg); font-weight: 600; }
 .ini-turno { font-size: var(--t-sm); color: var(--muted); }
 .ini-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+/* Resumen corto de los tres turnos (noche, mañana y tarde) debajo de Ingresos de hoy */
+.ini-tur { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; margin-top: 12px; }
+.ini-tur:empty { display: none; }
+.ini-tur .tcard { gap: 4px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line-2); background: var(--surface-2); text-align: left; color: inherit; font: inherit; cursor: pointer; display: grid; align-content: start; min-width: 0; }
+.ini-tur .tcard:hover { background: var(--fill); }
+.ini-tur .tcard.actual { border-color: var(--cat); }
+.tcard .th { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: var(--t-base); white-space: nowrap; min-width: 0; }
+.tcard .th .hr { margin-left: auto; }
+.tcard .tk { font-size: var(--t-xs); color: var(--muted); margin-top: 4px; }
+.tcard .hr { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcard .th .avp { width: 20px; height: 20px; }
+.tcard .hr { font-size: var(--t-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tcard .tn { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: #2dd4bf; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.tcard .tl { display: flex; justify-content: space-between; gap: 8px; font-size: var(--t-sm); color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.tcard .tl b { color: var(--fg); font-weight: 600; }
+.tcard .est { justify-self: start; white-space: nowrap; margin: 2px 0 4px; font-size: var(--t-xs); font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--fill); color: #c7c7cc; }
+.tcard .est.ok { background: var(--ok-soft); color: var(--ok); } .tcard .est.mal { background: var(--bad-soft); color: var(--bad); } .tcard .est.esp { background: var(--warn-soft); color: var(--warn); } .tcard .est.cur { background: color-mix(in srgb, #2dd4bf 18%, transparent); color: #2dd4bf; }
+@media (max-width: 640px) { .ini-tur { grid-template-columns: repeat(3, minmax(150px, 1fr)); overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; } .ini-tur .tcard { scroll-snap-align: start; } .tcard .tn { font-size: 22px; } }
 .ini-grid .s2 { grid-column: span 2; } .ini-grid .s3 { grid-column: span 3; }
 .ini-top { display: flex; align-items: center; gap: 10px; }
 .ini-top .ini-k { flex: 1; }
@@ -921,3 +939,18 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .ini-grid > * { min-width: 0; }
 .ini-aten, .ia-chips, .ia-chip { min-width: 0; }
 .ia-chip > span:not(.sr) { min-width: 0; }
+
+/* Fotos de incidencias (panel): tomar o subir varias, vista previa y galería en la lista */
+.inc-fotos { display: grid; gap: 8px; }
+.inc-fotos .lbl { font-size: var(--t-sm); font-weight: 600; color: var(--fg-2); }
+.inc-fbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.inc-fbtns .btn { cursor: pointer; min-height: 40px; }
+.inc-prev, .inc-gal { display: flex; flex-wrap: wrap; gap: 8px; }
+.inc-gal { flex-basis: 100%; grid-column: 1 / -1; margin-top: 4px; }
+.inc-gal:empty { display: none; }
+.inc-th { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--fill); flex: none; }
+.inc-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.inc-th button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.7); color: #fff; font-size: 15px; line-height: 1; cursor: pointer; }
+.inc-th button.armed { background: var(--bad); }
+.inc-mas { width: 64px; height: 64px; border-radius: 10px; border: 1.5px dashed var(--line-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 600; color: var(--fg-2); cursor: pointer; flex: none; }
+.inc-mas:hover { background: var(--fill); } .inc-mas.cargando { opacity: .5; pointer-events: none; }

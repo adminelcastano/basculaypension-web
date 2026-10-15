@@ -65,7 +65,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
@@ -143,6 +143,26 @@ export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {
     .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, creadoPor, ahora, d.aviso, d.para_turno || 0, d.area || null, extra.reporto || null, extra.foto || null,
       extra.autor || (tipo === "aviso" ? "admin" : null), d.para || null, d.quien || null).run();
 }
+// Fotos de una incidencia (varias): llegan como data URL ya comprimidas en el navegador.
+// foto = la primera (la que ve la tablet); fotos = todas (JSON con las llaves).
+const FOTO_INC_MAX = 1_500_000, FOTOS_INC_MAX = 8;
+export const listaFotos = it => { let l = []; try { l = JSON.parse(it.fotos || "[]"); } catch {} if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
+async function guardarFotosInc(env, lista, titulo) {
+  const llaves = [];
+  for (const [i, u] of (Array.isArray(lista) ? lista : []).entries()) {
+    const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(u || ""));
+    if (!m) throw new Error("Una de las fotos no es válida (usa JPG o PNG).");
+    const bin = atob(m[2]);
+    if (bin.length > FOTO_INC_MAX || bin.length < 500) throw new Error("Una de las fotos es demasiado grande o está vacía.");
+    const bytes = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+    const llave = `tf:inc:${crypto.randomUUID()}`;
+    // Igual que las fotos de la tablet: primero en KV; la tarea programada las pasa a Drive
+    await env.FILES.put(llave, bytes, { metadata: { tipo: "image/" + m[1], nombre: `Incidencia ${String(titulo || "").slice(0, 60)} ${i + 1}.${m[1] === "jpeg" ? "jpg" : m[1]}` } });
+    llaves.push(llave);
+  }
+  return llaves;
+}
+
 // Borra registros de la agenda con sus fotos, lecturas e informes
 async function borrarItems(env, items) {
   if (!items.length) return;
@@ -156,7 +176,7 @@ async function borrarItems(env, items) {
     stmts.push(env.DB.prepare(`DELETE FROM agenda_reportes WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...lote));
   }
-  for (const v of items) if (v.foto) await borrarArchivo(env, v.foto).catch(() => {});
+  for (const v of items) for (const f of listaFotos(v)) await borrarArchivo(env, f).catch(() => {});
   await env.DB.batch(stmts);
 }
 export { validar as validarItem, ABIERTO };
@@ -176,7 +196,7 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   // 40 días (y no 30) para que el reporte mensual incluya todo lo cerrado durante el mes
   const limite = new Date(ahora.getTime() - 40 * 864e5).toISOString();
   const diaLimite = limite.slice(0, 10);
-  const viejos = (await env.DB.prepare(`SELECT id, foto FROM agenda_items
+  const viejos = (await env.DB.prepare(`SELECT id, foto, fotos FROM agenda_items
     WHERE (NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
        OR (tipo = 'evento' AND fecha < ?) LIMIT 500`).bind(limite, diaLimite).all()).results;
   if (!viejos.length) return 0;
@@ -398,7 +418,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const { d, e } = validar(tipo, c);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const id = crypto.randomUUID();
-    await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora);
+    // Incidencia desde el panel: fotos tomadas o subidas (opcional, varias)
+    let fotos = [];
+    if (tipo === "incidencia" && Array.isArray(c.fotos) && c.fotos.length) {
+      if (c.fotos.length > FOTOS_INC_MAX) return json({ ok: false, error: `Máximo ${FOTOS_INC_MAX} fotos por incidencia.` }, 422);
+      try { fotos = await guardarFotosInc(env, c.fotos, d.titulo); } catch (er) { return json({ ok: false, error: er.message, errores: { fotos: er.message } }, 422); }
+    }
+    await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora, fotos.length ? { foto: fotos[0] } : {});
+    if (fotos.length) await env.DB.prepare("UPDATE agenda_items SET fotos = ? WHERE id = ?").bind(JSON.stringify(fotos), id).run();
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
     if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
     return json({ ok: true, id });
@@ -407,6 +434,24 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   const id = partes[1];
   const fila = id ? await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(id).first() : null;
   if (!fila) return json({ ok: false, error: "No existe ese registro." }, 404);
+
+  // Agregar o quitar fotos de una incidencia ya registrada
+  if (partes[2] === "fotos" && request.method === "POST" && fila.tipo === "incidencia") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    let l = listaFotos(fila);
+    if (c.quitar) {
+      if (!l.includes(String(c.quitar))) return json({ ok: false, error: "Esa foto no es de esta incidencia." }, 404);
+      l = l.filter(x => x !== c.quitar);
+      await borrarArchivo(env, String(c.quitar)).catch(() => {});
+    } else {
+      const nuevas = Array.isArray(c.fotos) ? c.fotos : [];
+      if (!nuevas.length) return json({ ok: false, error: "Elige al menos una foto." }, 422);
+      if (l.length + nuevas.length > FOTOS_INC_MAX) return json({ ok: false, error: `Máximo ${FOTOS_INC_MAX} fotos por incidencia (ya tiene ${l.length}).` }, 422);
+      try { l = l.concat(await guardarFotosInc(env, nuevas, fila.titulo)); } catch (er) { return json({ ok: false, error: er.message }, 422); }
+    }
+    await env.DB.prepare("UPDATE agenda_items SET foto = ?, fotos = ?, actualizado = ? WHERE id = ?").bind(l[0] || null, JSON.stringify(l), ahora, fila.id).run();
+    return json({ ok: true, fotos: l });
+  }
 
   if (partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
