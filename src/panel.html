@@ -237,6 +237,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: #2a2a2d; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 .ibadge svg { width: 19px; height: 19px; }
 .kpi .ini-num { color: var(--c); }
+.ini-gl { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted); }
+.ini-gl > div { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ini-gl .gc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ini-gl b { color: #ffb3ad; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ini-gl .avp { width: 20px; height: 20px; }
 .ini-act { display: flex; align-items: center; gap: 2px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
 .ini-act b { color: #d2d2d7; font-weight: 600; }
 .ini-act .avp { width: 20px; height: 20px; }
@@ -773,7 +778,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       </div>
       <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
-        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span>
+        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span><div class="ini-gl" id="ini-gastos-l" hidden></div>
       </div>
       <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
       <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
@@ -2561,6 +2566,11 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
       contar($("#i-gastos"), gHoy, v => dinero(v));
       $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto capturado" : "gastos capturados"}` : "Sin gastos capturados";
+      // Detalle discreto: quién capturó cada gasto (imagen chiquita) y cuánto
+      const gl = (j.gastos_recientes || []).filter(g => g.dia === ta.dia).sort((a, b) => String(b.creado).localeCompare(String(a.creado)));
+      const gEl = $("#ini-gastos-l");
+      gEl.hidden = !gl.length;
+      gEl.innerHTML = gl.slice(0, 4).map(g => `<div>${avP(g.persona || "admin")}<span class="gc">${esc(g.concepto)}</span><b>${dinero(g.monto, 2)}</b></div>`).join("") + (gl.length > 4 ? `<div class="mas">y ${gl.length - 4} más</div>` : "");
       const s = j.sync, hace = s && s.at ? Math.round((Date.now() - new Date(s.at)) / 60000) : null;
       $("#i-turno").textContent = !j.conectado ? "La hoja de ingresos no está conectada" : hace === null ? "" : `Hoja de ingresos leída hace ${hace < 1 ? "un momento" : hace + " min"}`;
 

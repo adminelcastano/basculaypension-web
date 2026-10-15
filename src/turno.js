@@ -441,8 +441,9 @@ export async function turnoRuta(request, env, url, h) {
     const id = crypto.randomUUID();
     await insertarItem(env, id, "incidencia", d, `tablet:${s.persona}`, ahora, { reporto: s.persona, foto });
     let avisado = false;
-    if (d.gravedad === "grave" && h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
-      try { await h.llamarScript(env, correoIncidencia(d, s)); avisado = true; } catch (err) { console.error("incidencia grave: correo", err && err.message); }
+    // Toda incidencia (leve, media o grave) manda correo a la administración
+    if (h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
+      try { await h.llamarScript(env, correoIncidencia(d, s)); avisado = true; } catch (err) { console.error("incidencia: correo", err && err.message); }
     }
     return recordar(json({ ok: true, id, avisado }));
   }
@@ -528,10 +529,11 @@ export async function turnoRuta(request, env, url, h) {
 
 const escHtml = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function correoIncidencia(d, s) {
+  const g = { leve: ["Leve", "#1d7a3a"], media: ["Media", "#b26b00"], grave: ["Grave", "#b42318"] }[d.gravedad] || ["Media", "#b26b00"];
   return {
-    asunto: `Incidencia grave: ${d.titulo}`.slice(0, 180),
-    texto: `Incidencia grave reportada desde la tablet.\n\n${d.titulo}\nDónde: ${d.area}\nReportó: ${d.quien || s.nombre} (capturó ${s.nombre}) · turno ${s.turno}${d.detalle ? "\n\n" + d.detalle : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
-    html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:#b42318;margin:0;font-weight:600">Incidencia grave · tablet de turno</p><h2 style="margin:4px 0 8px">${escHtml(d.titulo)}</h2><p style="margin:0 0 4px"><b>Dónde:</b> ${escHtml(d.area)}</p><p style="margin:0 0 12px"><b>Reportó:</b> ${escHtml(d.quien || s.nombre)} · capturó ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${d.detalle ? `<p>${escHtml(d.detalle)}</p>` : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
+    asunto: `Incidencia ${g[0].toLowerCase()}: ${d.titulo}`.slice(0, 180),
+    texto: `Incidencia ${g[0].toLowerCase()} reportada desde la tablet.\n\n${d.titulo}\nGravedad: ${g[0]}\nDónde: ${d.area}\nReportó: ${d.quien || s.nombre} (capturó ${s.nombre}) · turno ${s.turno}${d.detalle ? "\n\n" + d.detalle : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
+    html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:${g[1]};margin:0;font-weight:600">Incidencia ${escHtml(g[0].toLowerCase())} · tablet de turno</p><h2 style="margin:4px 0 8px">${escHtml(d.titulo)}</h2><p style="margin:0 0 4px"><b>Gravedad:</b> ${escHtml(g[0])}</p><p style="margin:0 0 4px"><b>Dónde:</b> ${escHtml(d.area)}</p><p style="margin:0 0 12px"><b>Reportó:</b> ${escHtml(d.quien || s.nombre)} · capturó ${escHtml(s.nombre)} · turno ${escHtml(s.turno)}</p>${d.detalle ? `<p>${escHtml(d.detalle)}</p>` : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
   };
 }
 

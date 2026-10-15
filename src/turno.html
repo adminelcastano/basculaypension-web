@@ -897,7 +897,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   }
   function hojaIncidencia() {
     let foto = null;
-    hoja(`<h2>Reportar incidencia</h2><p class="muted" style="margin:0 0 14px">Si es grave, la administración recibe un correo al momento.</p>
+    hoja(`<h2>Reportar incidencia</h2><p class="muted" style="margin:0 0 14px">La administración recibe un correo al momento.</p>
       <label class="campo"><span>¿Qué pasó?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. La pluma no baja" autocomplete="off"></label>
       <div class="campo"><span class="lb">¿Dónde pasó?</span>${chips("i-area", E.areas.map(a => [a, esc(a)]), "")}</div>
       <label class="campo"><span>¿Quién reporta?</span><input class="t" name="quien" maxlength="60" value="${esc(E.nombre)}" autocomplete="off"></label>
@@ -906,9 +906,8 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("i-foto", "Tomar foto")}</div>`,
       async f => {
         const grav = marcados("i-grav")[0];
-        if (grav === "grave" && !confirm("Es grave: se enviará un correo a la administración ahora. ¿Continuar?")) return false;
         const r = await api("incidencias", { titulo: f.titulo.value, area: marcados("i-area")[0], quien: f.quien.value, detalle: f.detalle.value, gravedad: grav, foto });
-        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : r.avisado ? "Reportada. La administración ya recibió el correo." : "Incidencia reportada."); await refrescar();
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : r.avisado ? "Reportada. La administración recibió el correo." : "Incidencia reportada."); await refrescar();
       });
     activarFoto("i-foto", x => { foto = x; });
     elegirChip("#i-area", () => {}); elegirChip("#i-grav", () => {});

@@ -360,7 +360,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
     const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
     const sync = await env.FILES.get("caja:sync", { type: "json" });
-    return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
+    const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
+    const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
+    return json({ ok: true, mes, periodo, sync, totales: totalesMes(cortes, transf), cortes, transferencias: transf, gastos_recientes: gastosRecientes, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
