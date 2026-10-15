@@ -61,6 +61,15 @@ div.work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(
 .pill.rechazada { background: var(--bad-soft); color: var(--bad); }
 .back { display: none; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+/* Facturación: un solo flujo guiado por pasos */
+.fflujo { display: grid; gap: 16px; max-width: 860px; min-width: 0; }
+.fpaso { display: flex; align-items: center; gap: 10px; }
+.fpaso .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--amber); color: var(--amber-ink); font-size: .9rem; font-weight: 800; flex: none; }
+.fguia { margin: 2px 0 10px 38px; }
+.rechazo { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+details.corregir { margin-top: 12px; }
+details.corregir > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+details.corregir[open] > summary { margin-bottom: 10px; }
 @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
 section.card { background: var(--surface); border: 0; border-radius: 18px; padding: 18px 20px; display: grid; gap: 12px; min-width: 0; }
 section.card h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.015em; }
@@ -1025,10 +1034,9 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <span class="pill ${s.estado}">${{ pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" }[s.estado]}</span>
         <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
       </div>
-      <div class="cols">
-        <div style="display:grid;gap:20px;min-width:0">
+      <div class="fflujo">
           <section class="card">
-            <h3>Datos para Facturador</h3>
+            <h3 class="fpaso"><span class="num">1</span>Datos para Facturador</h3><p class="note fguia">Copia cada dato con su botón y pégalo en Facturador.</p>
             ${s.modo === "csf" && !s.datos_de_csf && faltan ? `<p class="warn">El cliente envió su constancia. Los datos se leen solos del PDF; si es una foto o un escaneo, captúralos abajo viendo el documento.</p>` : ""}
             ${s.datos_de_csf ? `<p class="note">Datos tomados de la constancia. Verifícalos contra el documento.</p>` : ""}
             <div class="fields">
@@ -1040,9 +1048,19 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               ${campo("Forma de pago", pago)}
               ${campo("Correo", s.email)}
             </div>
+            <details class="corregir"><summary>Corregir datos fiscales</summary>
+            <div class="grid-form" id="form-datos">
+              <label>RFC<input id="d-rfc" value="${esc(s.rfc)}" autocomplete="off"></label>
+              <label>Código postal<input id="d-cp" value="${esc(s.cp)}" inputmode="numeric" maxlength="5"></label>
+              <label class="wide">Nombre o razón social<input id="d-nombre" value="${esc(s.nombre)}"></label>
+              <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
+              <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
+            </div>
+            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
+          </details>
           </section>
           <section class="card">
-            <h3>Ticket y contacto</h3>
+            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Revisa el folio y el importe contra la foto del ticket (paso 6). Si corriges algo, guarda.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
@@ -1062,20 +1080,24 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
             <div class="row"><button class="btn btn-line" id="guardar-ticket" type="button">Guardar</button>${!s.archivos_borrados && /^image\/(jpeg|png|webp)$/.test(s.ticket_tipo || "") ? `<button class="btn btn-line" id="leer-ticket" type="button">${s.ticket_leido ? "Leer ticket otra vez" : "Leer datos del ticket"}</button>` : ""}<span class="note" id="ticket-estado"></span></div>
           </section>
           <section class="card">
+            <h3 class="fpaso"><span class="num">3</span>Factura en Facturador</h3><p class="note fguia">Abre Facturador en otra pestaña, emite la factura con los datos de los pasos 1 y 2 y regresa aquí.</p>
+            <div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>
+          </section>
+          <section class="card">
             ${s.estado === "pendiente" ? `
-              <h3>Marcar como facturada</h3>
+              <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Si la emitiste, escribe el folio de Facturador y marca facturada. La fecha se registra sola. Si no se puede facturar, recházala con el motivo.</p>
               <div class="row">
-                <input type="text" id="folio-factura" placeholder="Número o UUID de la factura" aria-label="Número de la factura">
-                <button class="btn btn-primary" id="facturar" type="button">Marcar facturada</button>
+                <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
+                <button class="btn btn-primary" id="facturar" type="button">Facturada</button>
               </div>
-              <p class="note">Se guardan también el número de ticket y el importe de arriba.</p>
-              <details><summary class="note" style="cursor:pointer">Rechazar solicitud</summary>
-                <div class="row" style="margin-top:10px">
-                  <input type="text" id="motivo" placeholder="Motivo (ej. ticket ilegible, datos no coinciden)" aria-label="Motivo">
+              <p class="note">Fecha: ${fecha(new Date().toISOString())} (automática). Se guardan también el folio del ticket y el importe del paso 2.</p>
+              <div class="rechazo">
+                <div class="row">
+                  <input type="text" id="motivo" placeholder="Motivo del rechazo (ej. ticket ilegible, datos no coinciden)" aria-label="Motivo del rechazo">
                   <button class="btn btn-bad" id="rechazar" type="button">Rechazar</button>
                 </div>
-              </details>` : `
-              <h3>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
+              </div>` : `
+              <h3 class="fpaso"><span class="num">4</span>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
               <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
               ${s.estado === "rechazada" ? `
                 <h3 style="margin-top:6px">Cambiar estatus</h3>
@@ -1091,8 +1113,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
                 (s.archivos_borrados ? "" : `<div class="row"><button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button></div>`)}`}
           </section>
           <section class="card">
-            <h3>Mensaje al cliente</h3>
-            <p class="note">${{ pendiente: "Confirma que recibiste su solicitud.", facturada: "Confirma el ticket, el importe y la factura emitida.", rechazada: "Explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
+            <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
+            <p class="note">${{ pendiente: "Mientras está pendiente, el mensaje solo confirma que recibiste su solicitud. Al marcarla facturada o rechazada cambia solo al texto de ese caso.", facturada: "Texto de factura emitida: confirma el ticket, el importe y el folio de la factura.", rechazada: "Texto de rechazo: explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
             <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
@@ -1100,30 +1122,16 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               <span class="note" id="wa-aviso"></span>
             </div>
           </section>
-        </div>
-        <div style="display:grid;gap:20px;min-width:0">
           <section class="card doc">
-            <h3>Ticket</h3>
+            <h3 class="fpaso"><span class="num">6</span>Imagen del ticket</h3>
             ${docHtml("ticket", s.ticket_tipo, "Foto del ticket")}
           </section>
           ${s.modo === "csf" ? `
           <section class="card doc">
-            <h3>Constancia de Situación Fiscal</h3>
+            <h3 class="fpaso"><span class="num">7</span>Constancia de Situación Fiscal</h3>
             ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
             ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
           </section>` : ""}
-          <section class="card">
-            <h3>Corregir datos fiscales</h3>
-            <div class="grid-form" id="form-datos">
-              <label>RFC<input id="d-rfc" value="${esc(s.rfc)}" autocomplete="off"></label>
-              <label>Código postal<input id="d-cp" value="${esc(s.cp)}" inputmode="numeric" maxlength="5"></label>
-              <label class="wide">Nombre o razón social<input id="d-nombre" value="${esc(s.nombre)}"></label>
-              <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
-              <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
-            </div>
-            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
-          </section>
-        </div>
       </div>`;
 
     d.scrollTop = 0;
@@ -3007,7 +3015,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         ind.className = "dn-indice";
         secs.forEach(sec => {
           const b = document.createElement("button"); b.type = "button";
-          b.textContent = sec.querySelector(":scope > h3").textContent.trim();
+          { const h = sec.querySelector(":scope > h3").cloneNode(true); h.querySelectorAll(".num").forEach(n => n.remove()); b.textContent = h.textContent.trim(); }
           b.addEventListener("click", () => { sec.scrollIntoView({ behavior: "smooth", block: "start" }); });
           ind.append(b); b._sec = sec;
         });
