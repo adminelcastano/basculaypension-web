@@ -207,6 +207,12 @@
       </button>`;
     }).join("");
     el.querySelectorAll(".tcard").forEach(b => b.addEventListener("click", ev => { ev.stopPropagation(); if (window.cajaAbrirCorte) window.cajaAbrirCorte(b.dataset.k); }));
+    // En sobres hoy: lo que entregaron en sobre los mismos tres turnos de las tarjetas
+    const conSobre = lista.map(t => porDiaTurno[t.dia + "|" + t.turno]).filter(c => c && c.conteo && c.conteo.sobre != null);
+    const sobres = conSobre.reduce((a, c) => a + (Number(c.conteo.sobre) || 0), 0);
+    contar($("#i-sobres"), sobres, v => dinero(v));
+    const n = conSobre.length;
+    $("#i-sobres-nota").textContent = n ? `${n} de ${lista.length} turnos entregados` : "Ningún turno ha entregado sobre";
   }
 
   let cargando = false;

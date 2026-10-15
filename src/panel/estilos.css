@@ -954,3 +954,10 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .inc-th button.armed { background: var(--bad); }
 .inc-mas { width: 64px; height: 64px; border-radius: 10px; border: 1.5px dashed var(--line-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 600; color: var(--fg-2); cursor: pointer; flex: none; }
 .inc-mas:hover { background: var(--fill); } .inc-mas.cargando { opacity: .5; pointer-events: none; }
+
+/* Hoy: «En sobres hoy» a la izquierda de «Ingresos de hoy» */
+.ini-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; align-items: start; }
+.ini-dato { display: grid; gap: 6px; min-width: 0; }
+.ini-dato .ini-big { font-size: clamp(34px, 7vw, 76px); }
+.ini-dato.sob .ini-big { color: #2dd4bf; }
+.ini-dato .note { margin: 0; }
