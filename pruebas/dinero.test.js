@@ -116,3 +116,13 @@ test("saldos encadenados: pasan solos al mes siguiente y la captura muestra el a
   // sin ninguna captura no hay saldo
   assert.equal(r["bbva-pyme"].saldo, null);
 });
+
+test("tareas que se repiten: la siguiente fecha nunca queda en el pasado", async () => {
+  const { siguienteFecha } = await import("../src/agenda.js");
+  assert.equal(siguienteFecha("2026-10-15", "diaria", "2026-10-15"), "2026-10-16");
+  assert.equal(siguienteFecha("2026-10-10", "diaria", "2026-10-15"), "2026-10-16");   // atrasada: sigue mañana
+  assert.equal(siguienteFecha("2026-10-12", "semanal", "2026-10-15"), "2026-10-19");  // mismo día de la semana
+  assert.equal(siguienteFecha("2026-10-15", "semanal", "2026-10-15"), "2026-10-22");
+  assert.equal(siguienteFecha("2026-01-31", "mensual", "2026-01-31"), "2026-02-28");  // fin de mes
+  assert.equal(siguienteFecha("2026-10-15", "mensual", "2026-10-15"), "2026-11-15");
+});

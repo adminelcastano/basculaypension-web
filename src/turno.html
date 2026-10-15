@@ -129,6 +129,36 @@ main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32p
 .ini-card { background: var(--surface); border-radius: 22px; padding: 20px; min-width: 0; }
 .ini-card.s2 { grid-column: span 2; }
 .ini-card.s4 { grid-column: 1 / -1; }
+.ini-card.s3 { grid-column: span 3; }
+.ini-cta { margin-left: 8px; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.corte-mini .ini-num { font-size: 1.9rem; }
+.ini-hero.corte-mini .fila { display: grid; gap: 6px; }
+.ini-hero.corte-mini .fila span { display: flex; justify-content: space-between; gap: 10px; }
+.cal-cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cal-cols > .card + .card { margin-top: 0; }
+@media (max-width: 900px) { .cal-cols { grid-template-columns: minmax(0, 1fr); } }
+.cal-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cal-top b { font-size: 1.15rem; }
+.cal-sem, .cal-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-sem span { text-align: center; color: #8e8e93; font-size: .8rem; font-weight: 600; padding-bottom: 4px; }
+.cd { aspect-ratio: 1 / 1; min-height: 44px; border-radius: 12px; border: 1.5px solid transparent; background: #1f1f22; color: var(--fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; font: inherit; padding: 2px; }
+.cd.vacia { background: transparent; cursor: default; }
+.cd .n { font-variant-numeric: tabular-nums; font-weight: 600; }
+.cd.con { background: #26262a; }
+.cd.hoy { border-color: var(--amber); }
+.cd.sel { background: var(--amber); color: #111; }
+.cd .pts { display: flex; gap: 3px; align-items: center; }
+.cd .pts b { font-size: .65rem; }
+.cd i, .cal-ley i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: #64d2ff; }
+.cd i.venc, .cal-ley i.venc { background: #ff6961; }
+.cd i.ok, .cal-ley i.ok { background: #30d158; }
+.cd i.otro, .cal-ley i.otro { background: transparent; box-shadow: inset 0 0 0 1.5px #64d2ff; }
+.cd.sel i { box-shadow: 0 0 0 1px #111; }
+.cal-ley { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 12px 0 0; color: #a1a1a6; font-size: .85rem; }
+.cal-ley span { display: inline-flex; align-items: center; gap: 6px; }
+.compras-ya { margin-top: 6px; border-top: 1px solid #2e2e30; padding-top: 10px; }
+.compras-ya summary { cursor: pointer; font-weight: 600; color: #d2d2d7; }
+.compras-ya ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
 .sec-h { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; margin: 22px 2px 0; font-size: .8rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #a1a1a6; }
 .sec-h:first-child { margin-top: 2px; }
 .sec-h .pt { width: 8px; height: 8px; border-radius: 50%; background: var(--cat); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--cat) 18%, transparent); }
@@ -147,12 +177,12 @@ main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32p
 .ini-hero .ini-num { color: var(--amber); }
 .ini-hero .fila { display: flex; gap: 8px 20px; flex-wrap: wrap; color: #d2d2d7; margin-top: 10px; }
 .ini-hero .fila b { color: var(--fg); font-variant-numeric: tabular-nums; }
-.acc-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.acc-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .accion { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 16px; border: 0; background: #1f1f22; font-weight: 600; text-align: left; cursor: pointer; min-height: 96px; font-size: .98rem; }
 .accion:hover { background: #26262a; }
 .accion:active { transform: scale(.98); }
-@media (max-width: 1000px) { .ini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .acc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .ini-grid { gap: 12px; } .ini-card { padding: 16px; border-radius: 18px; } .ini-card.s2 { grid-column: 1 / -1; } .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-num { font-size: 2.1rem; } }
+@media (max-width: 1000px) { .ini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-card.s3 { grid-column: span 1; } .acc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .ini-grid { gap: 12px; } .ini-card { padding: 16px; border-radius: 18px; } .ini-card.s2, .ini-card.s3, .corte-mini { grid-column: 1 / -1; } .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ini-num { font-size: 2.1rem; } }
 
 /* Listas */
 .lista { display: grid; }
@@ -262,7 +292,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
 /* Tablet vertical y teléfono: secciones abajo, como una app */
 @media (max-width: 900px) {
   header.bar { height: 56px; }
-  .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-radius: 0;
+  .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-radius: 0;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: #161617; border-top: 1px solid rgba(255,255,255,.08); }
   .modulos button { flex-direction: column; gap: 3px; padding: 6px 2px; font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 500; color: #8e8e93; min-height: 56px; justify-content: center; }
   .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
@@ -313,7 +343,9 @@ dialog .acciones .btn { flex: 1 1 160px; }
   <symbol id="i-luna" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M19.4 14.6A7.6 7.6 0 0 1 9.4 4.6a7.6 7.6 0 1 0 10 10z"/></symbol>
   <symbol id="i-casa" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h4.4v-5.6h3.2v5.6H18V9"/></symbol>
   <symbol id="i-sobre" viewBox="0 0 24 24"><rect x="3.4" y="5.6" width="17.2" height="12.8" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.8 6.4l8.2 6.4 8.2-6.4"/></symbol>
-  <symbol id="i-mas" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
+  <symbol id="i-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></g></symbol>
+<symbol id="i-mas" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
 </svg>
 
 <!-- ======================= Entrada con PIN ======================= -->
@@ -348,6 +380,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <button type="button" data-sec="inicio"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
       <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos y tareas</span><span class="n" data-n="avisos" hidden></span></button>
       <button type="button" data-sec="incidencias"><svg class="mi" aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><span class="n" data-n="incidencias" hidden></span></button>
+      <button type="button" data-sec="calendario"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Calendario</span></button>
       <button type="button" data-sec="corte"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Corte</span></button>
     </nav>
     <button class="yo" id="perfil" type="button" title="Mi perfil: imagen, color y tamaño de letra"><span class="avatar" id="avatar"></span><span class="lapiz" aria-hidden="true"><svg><use href="#i-lapiz"/></svg></span><span class="yo-t"><b id="nombre"></b><small id="turno-txt"></small></span><span class="vh"> · Mi perfil</span></button>
@@ -375,7 +408,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
 
   // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
-  const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|avisos|corte|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
+  const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|compras|avisos|corte|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
   const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
   const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
@@ -530,7 +563,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     // Abierta desde una notificación (/turno?sec=avisos): va directo a esa sección
     const q = new URLSearchParams(location.search).get("sec");
     if (q) history.replaceState(null, "", location.pathname);
-    ir(["avisos", "incidencias"].includes(q) ? q : "inicio");
+    ir(["avisos", "incidencias", "calendario"].includes(q) ? q : "inicio");
   }
 
   // ---------- Notificaciones push (de la tablet, no de la persona) ----------
@@ -572,7 +605,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     if (!E || $("#app").hidden) return;
     const ocupado = $("#dlg").open || sucio || seccion === "corte" || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (m.tipo === "push") { if (ocupado) await cargar().catch(() => {}); else { const y = scrollY; await refrescar().then(() => scrollTo({ top: y })).catch(() => {}); } }
-    if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "incidencias"].includes(m.sec)) ir(m.sec); }
+    if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "incidencias", "calendario"].includes(m.sec)) ir(m.sec); }
   });
   const sinLeer = () => E.avisos.filter(a => !a.leido).length;
   function pintarCabecera() {
@@ -600,7 +633,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   function pintar() {
     $("#app").classList.toggle("sin-inicio", faltaInicio());
     if (faltaInicio()) return verCambioInicial();
-    ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, corte: verCorte })[seccion]();
+    ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, calendario: verCalendario, corte: verCorte })[seccion]();
   }
   function verCambioInicial(corrigiendo) {
     const ant = E.cambio_anterior, ya = !corrigiendo && E.inicio;
@@ -652,36 +685,32 @@ dialog .acciones .btn { flex: 1 1 160px; }
             <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
             <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
             <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Dejar aviso</button>
+            <button type="button" class="accion" data-accion="compra"><span class="ibadge" style="--c:#bf5af2"><svg><use href="#i-carrito"/></svg></span>Compras</button>
             <button type="button" class="accion" data-accion="corte"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span>${c ? "Corregir corte" : "Hacer corte"}</button>
           </div>
         </section>
         <h2 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Mi turno</span><span class="ln" aria-hidden="true"></span></h2>
-        <div class="ini-card cat-b s4 ini-hero" data-ir="corte" tabindex="0" role="link">
+        <section class="ini-card cat-b s3">
+          <div class="ini-top"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas pendientes</span><b class="ini-cta">${E.tareas.length}</b>${urg ? `<span class="etq e-alta" style="margin-left:6px">${urg} ${urg === 1 ? "urgente" : "urgentes"}</span>` : ""}</div>
+          ${E.tareas.length ? `<div class="lista">${E.tareas.slice(0, 5).map(filaTarea).join("")}</div>${E.tareas.length > 5 ? `<button class="lnk" type="button" data-ir="avisos">Ver las ${E.tareas.length} tareas</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">No hay tareas pendientes. ¡Bien!</p>`}
+        </section>
+        <div class="ini-card cat-b ini-hero corte-mini" data-ir="corte" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
-          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
-          <div class="fila"><span>Cambio inicial <b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos <b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra <b>${dinero(sumar(E.extras))}</b></span></div>
+          <span class="note">${c ? `${esc(hora12(c.actualizado))} · ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar, cuenta el efectivo y entrégalo."}</span>
+          <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
-        <section class="ini-card cat-b s2">${bloqueMovs("gastos")}</section>
-        <section class="ini-card cat-b s2">${bloqueMovs("extras")}</section>
-        <h2 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Avisos y tareas</span><span class="ln" aria-hidden="true"></span></h2>
-        <div class="ini-card cat-c" data-ir="avisos" tabindex="0" role="link">
-          <div class="ini-top"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas pendientes</span></div>
-          <b class="ini-num">${E.tareas.length}</b><span class="note">${urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Ninguna urgente" : "Todo al día"}</span>
-        </div>
-        <div class="ini-card cat-c" data-ir="avisos" tabindex="0" role="link">
-          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos nuevos</span></div>
-          <b class="ini-num">${nuevos.length}</b><span class="note">${E.avisos.length} ${E.avisos.length === 1 ? "aviso activo" : "avisos activos"}</span>
-        </div>
-        <section class="ini-card cat-c s2">
-          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos sin leer</span></div>
-          ${nuevos.length ? `<div class="lista">${nuevos.slice(0, 3).map(filaAviso).join("")}</div>${nuevos.length > 3 ? `<button class="lnk" type="button" data-ir="avisos">Ver los ${nuevos.length} avisos</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">Ya leíste todos los avisos.</p>`}
+        <section class="ini-card cat-c s4">
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos sin leer</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Todos los avisos (${E.avisos.length})</button></div>
+          ${nuevos.length ? `<div class="lista">${nuevos.map(filaAviso).join("")}</div>` : `<p class="vacio" style="padding:4px 0 0">Ya leíste todos los avisos.</p>`}
         </section>
-        <h2 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Incidencias</span><span class="ln" aria-hidden="true"></span></h2>
-        <div class="ini-card cat-d s4" data-ir="incidencias" tabindex="0" role="link">
-          <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div>
-          <b class="ini-num">${E.incidencias.length}</b><span class="note">${graves ? `${graves} ${graves === 1 ? "grave" : "graves"} · ` : ""}De todos los turnos, hasta que la administración las resuelva.</span>
-        </div>
+        <section class="ini-card cat-d s4">
+          <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="ini-cta">${E.incidencias.length}</b>${graves ? `<span class="etq g-grave" style="margin-left:6px">${svg("i-alerta")}${graves} ${graves === 1 ? "grave" : "graves"}</span>` : ""}<button class="btn btn-line btn-sm" type="button" data-accion="incidencia" style="margin-left:auto">+ Reportar</button></div>
+          ${E.incidencias.length ? `<div class="lista">${E.incidencias.map(filaIncidencia).join("")}</div><p class="note" style="margin:10px 0 0">De todos los turnos, hasta que la administración las resuelva.</p>` : `<p class="vacio" style="padding:4px 0 0">No hay incidencias abiertas.</p>`}
+        </section>
+        <h2 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Movimientos del turno</span><span class="ln" aria-hidden="true"></span></h2>
+        <section class="ini-card cat-a s2">${bloqueMovs("gastos")}</section>
+        <section class="ini-card cat-a s2">${bloqueMovs("extras")}</section>
       </div>`;
   }
   // Gastos o ingresos extra del turno (en Inicio y en Corte)
@@ -732,18 +761,73 @@ dialog .acciones .btn { flex: 1 1 160px; }
       </div>`;
   }
 
+  // ---------- Calendario: tareas programadas para los encargados (todos los turnos) ----------
+  const cal = { mes: "", sel: "" };
+  const REP_TXT = { diaria: "Se repite diario", semanal: "Se repite cada semana", mensual: "Se repite cada mes" };
+  const sumarMes = (m, n) => { const d = new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+  function verCalendario() {
+    const hoy = E.hoy || E.dia;
+    if (!cal.mes) { cal.mes = hoy.slice(0, 7); cal.sel = hoy; }
+    const l = E.calendario || [];
+    const porDia = {};
+    for (const t of l) (porDia[t.fecha] = porDia[t.fecha] || []).push(t);
+    const [a, m] = cal.mes.split("-").map(Number);
+    const primero = new Date(Date.UTC(a, m - 1, 1)), dias = new Date(Date.UTC(a, m, 0)).getUTCDate();
+    const hueco = (primero.getUTCDay() + 6) % 7; // lunes primero
+    const estado = t => t.estado === "hecho" ? "ok" : t.fecha < hoy ? "venc" : "pend";
+    let celdas = "";
+    for (let i = 0; i < hueco; i++) celdas += `<span class="cd vacia"></span>`;
+    for (let d = 1; d <= dias; d++) {
+      const f = `${cal.mes}-${String(d).padStart(2, "0")}`, ts = porDia[f] || [];
+      const mio = ts.filter(t => !t.turno || t.turno === E.turno);
+      celdas += `<button type="button" class="cd${f === hoy ? " hoy" : ""}${f === cal.sel ? " sel" : ""}${ts.length ? " con" : ""}" data-dia="${f}" aria-label="${esc(diaTxt(f))}: ${ts.length} ${ts.length === 1 ? "tarea" : "tareas"}">
+        <span class="n">${d}</span>${ts.length ? `<span class="pts">${ts.slice(0, 4).map(t => `<i class="${estado(t)}${mio.includes(t) ? "" : " otro"}"></i>`).join("")}${ts.length > 4 ? `<b>+${ts.length - 4}</b>` : ""}</span>` : ""}</button>`;
+    }
+    const delDia = porDia[cal.sel] || [];
+    const ETQ = { ok: `<span class="etq e-ok">${svg("i-check")}Hecha</span>`, venc: `<span class="etq e-alta">Pendiente · atrasada</span>`, pend: `<span class="etq">Pendiente</span>` };
+    const detalle = delDia.length ? `<div class="lista">${delDia.map(t => `<div class="fila-l${t.estado === "hecho" ? " hecha" : ""}">
+        ${t.estado !== "hecho" && t.fecha <= hoy && (!t.turno || t.turno === E.turno) ? `<button class="chk" type="button" data-reportar="${esc(t.id)}" aria-label="Informar cómo quedó: ${esc(t.titulo)}">${svg("i-check")}</button>` : `<span class="chk ${t.estado === "hecho" ? "on" : ""}">${svg("i-check")}</span>`}
+        <span class="tt">${esc(t.titulo)}</span>
+        <span class="acc">${t.prioridad === "alta" && t.estado !== "hecho" ? `<span class="etq e-alta">Urgente</span>` : ""}${ETQ[estado(t)]}</span>
+        <span class="mm"><span>${t.turno ? "Turno de la " + esc(TURNO_TXT[t.turno]) : "Cualquier turno"}</span>${t.hora ? `<span>${esc(t.hora)}</span>` : ""}${t.repetir ? `<span>🔁 ${esc(REP_TXT[t.repetir] || "")}</span>` : ""}${t.estado === "hecho" && t.hecho_por ? `<span>${t.hecho_por.includes("@") ? "Cerrada por la administración" : avi(t.hecho_por, 1) + esc(t.hecho_por)} · ${esc(fechaCorta(t.cerrado))}</span>` : ""}</span>
+        ${t.detalle ? `<div class="nota-admin"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : ""}
+      </div>`).join("")}</div>` : `<p class="vacio">No hay tareas programadas para este día.</p>`;
+    const minM = sumarMes(hoy.slice(0, 7), -1), maxM = sumarMes(hoy.slice(0, 7), 2);
+    sec().innerHTML = titulo("Calendario.", "Las tareas que programa la administración para los encargados. Toca un día para ver el detalle.") + `
+      <div class="cal-cols">
+        <section class="card cal">
+          <div class="cal-top"><button class="btn btn-line btn-sm" type="button" data-cmes="-1" ${cal.mes <= minM ? "disabled" : ""} aria-label="Mes anterior">‹</button>
+            <b>${esc(new Date(Date.UTC(a, m - 1, 15)).toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }).replace(/^./, x => x.toUpperCase()))}</b>
+            <button class="btn btn-line btn-sm" type="button" data-cmes="1" ${cal.mes >= maxM ? "disabled" : ""} aria-label="Mes siguiente">›</button></div>
+          <div class="cal-sem">${["L", "M", "M", "J", "V", "S", "D"].map(x => `<span>${x}</span>`).join("")}</div>
+          <div class="cal-g">${celdas}</div>
+          <p class="cal-ley"><span><i class="pend"></i>Pendiente</span><span><i class="venc"></i>Atrasada</span><span><i class="ok"></i>Hecha</span><span><i class="pend otro"></i>De otro turno</span></p>
+        </section>
+        <section class="card"><h2 style="margin:0 0 10px">${esc(diaTxt(cal.sel))}${cal.sel === hoy ? " · hoy" : ""}</h2>${detalle}</section>
+      </div>`;
+  }
+  sec().addEventListener("click", e => {
+    if (seccion !== "calendario") return;
+    const d = e.target.closest("[data-dia]"), mm = e.target.closest("[data-cmes]");
+    if (d) { cal.sel = d.dataset.dia; pintar(); }
+    else if (mm && !mm.disabled) { cal.mes = sumarMes(cal.mes, +mm.dataset.cmes); const hoy = E.hoy || E.dia; cal.sel = cal.mes === hoy.slice(0, 7) ? hoy : cal.mes + "-01"; pintar(); }
+  });
+
   // ---------- Incidencias ----------
   function verIncidencias() {
     const l = E.incidencias;
-    const est = { abierta: "Abierta", en_proceso: "En proceso" };
     sec().innerHTML = titulo("Incidencias.", "Las incidencias abiertas de todos los turnos. Se quitan de aquí cuando la administración las resuelve.") +
       `<div class="herr"><button class="btn btn-primary" type="button" data-accion="incidencia">${svg("i-alerta")}Reportar incidencia</button></div>
-      <section class="card">${l.length ? `<div class="lista">${l.map(i => `<div class="fila-l">${avi(i.reporto || "admin")}
+      <section class="card">${l.length ? `<div class="lista">${l.map(filaIncidencia).join("")}</div>` : `<p class="vacio">No hay incidencias abiertas.</p>`}</section>`;
+  }
+  function filaIncidencia(i) {
+    const est = { abierta: "Abierta", en_proceso: "En proceso" };
+    return `<div class="fila-l">${avi(i.reporto || "admin")}
         <span class="tt">${esc(i.titulo)}</span>
         <span class="acc"><span class="etq g-${esc(i.gravedad)}">${i.gravedad === "grave" ? svg("i-alerta") : ""}${esc({ leve: "Leve", media: "Media", grave: "Grave" }[i.gravedad] || i.gravedad)}</span><span class="etq">${esc(est[i.estado] || i.estado)}</span></span>
         <span class="mm">${i.area ? `<span>Dónde: <b>${esc(i.area)}</b></span>` : ""}<span>Reportó: <b>${esc(i.quien || i.reporto || "Administración")}</b></span><span>${esc(diaTxt(i.fecha))}${i.turno ? " · turno " + esc(TURNO_TXT[i.turno] || i.turno) : ""}</span>${fotoLink(i.foto)}</span>
         ${i.detalle ? `<span class="det">${esc(i.detalle)}</span>` : ""}
-      </div>`).join("")}</div>` : `<p class="vacio">No hay incidencias abiertas.</p>`}</section>`;
+      </div>`;
   }
 
   // ---------- Corte ----------
@@ -986,6 +1070,28 @@ dialog .acciones .btn { flex: 1 1 160px; }
       if (on && /^[tp]:/.test(b.dataset.v)) { const t = $('#a-para .chip[data-v="todos"]'); t && t.setAttribute("aria-pressed", "false"); }
     });
   }
+  // Compras que tiene que hacer la administración: llegan a su lista de Compras con el nombre de quien las pidió
+  function hojaCompra() {
+    const l = E.compras || [], pend = l.filter(x => x.estado !== "comprado"), ya = l.filter(x => x.estado === "comprado");
+    let repetida = "";
+    const fila = x => `<li><b>${esc(x.titulo)}</b>${x.cantidad ? ` · ${esc(x.cantidad)}` : ""}${x.prioridad === "alta" && x.estado !== "comprado" ? ` <span class="etq e-alta">Urgente</span>` : ""}<span class="muted"> · ${x.reporto ? `pidió ${esc(x.reporto)}` : "administración"}${x.estado === "comprado" ? ` · comprado ${esc(fechaCorta(x.cerrado))}` : ` · ${esc(fechaCorta(x.creado))}`}</span></li>`;
+    hoja(`<h2>Pedir una compra</h2><p class="muted" style="margin:0 0 14px">Lo que haga falta en la pensión o la báscula. Le llega a la administración a su lista de compras con tu nombre.</p>
+      <label class="campo"><span>¿Qué hay que comprar?</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
+      <label class="campo"><span>Cantidad (opcional)</span><input class="t" name="cantidad" maxlength="40" placeholder="Ej. 2 cajas" autocomplete="off"></label>
+      <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000" placeholder="Marca, medida, para qué es…"></textarea></label>
+      <label class="campo" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="alta" style="width:22px;height:22px;accent-color:var(--amber)"><span style="margin:0">Es urgente</span></label>
+      ${pend.length ? `<details class="compras-ya" open><summary>Ya pedidas, por comprar (${pend.length})</summary><ul>${pend.map(fila).join("")}</ul></details>` : ""}
+      ${ya.length ? `<details class="compras-ya"><summary>Compradas en los últimos días (${ya.length})</summary><ul>${ya.map(fila).join("")}</ul></details>` : ""}`,
+      async f => {
+        const t = f.titulo.value.trim();
+        if (t.length < 2) throw new Error("Escribe qué hay que comprar.");
+        // Si ya está pedido, avisa una vez; al volver a tocar Guardar se pide de todos modos
+        const igual = pend.find(x => x.titulo.trim().toLowerCase() === t.toLowerCase());
+        if (igual && repetida !== t.toLowerCase()) { repetida = t.toLowerCase(); throw new Error(`"${igual.titulo}" ya está pedido${igual.reporto ? " (lo pidió " + igual.reporto + ")" : ""}. Si hace falta más, toca Guardar otra vez.`); }
+        const r = await api("compras", { titulo: t, cantidad: f.cantidad.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal" });
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Compra pedida a la administración."); await refrescar();
+      });
+  }
   function hojaReporte(t) {
     let foto = null;
     hoja(`<h2>${esc(t.titulo)}</h2>${t.detalle ? `<div class="nota-admin" style="margin:6px 0 14px"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : `<p class="muted" style="margin:0 0 14px">¿Cómo quedó la tarea?</p>`}
@@ -1007,12 +1113,12 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), resp = e.target.closest("[data-responder]"), qu = e.target.closest("[data-quitar]"), bo = e.target.closest("[data-borrar]");
     if (ac) {
       const a = ac.dataset.accion;
-      if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "corte") ir("corte");
+      if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
     } else if (en) {
       en.disabled = true;
       try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); await refrescar(); } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
-      const t = E.tareas.find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
+      const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
     } else if (resp) {
       const a = E.avisos.find(x => x.id === resp.dataset.responder); if (!a) return;
       hojaAviso({ titulo: ("Re: " + a.titulo).slice(0, 140), para: [a.autor === "admin" ? "admin" : "p:" + a.autor] });

@@ -13,7 +13,7 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
-import { asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
+import { repetirTarea, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
@@ -220,7 +220,7 @@ async function estado(env, s) {
   const avisos = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50)
     .map(a => ({ ...a, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id) }));
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
-  const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno FROM agenda_items
+  const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
     ORDER BY CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, COALESCE(fecha, '9999'), creado LIMIT 50`).bind(s.turno, hoy).all()).results;
   if (tareas.length) {
@@ -244,9 +244,17 @@ async function estado(env, s) {
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
     corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
   }
+  // Calendario de la tablet: tareas programadas para los encargados (de todos los turnos) de 5 semanas atrás a 10 adelante
+  const desde = new Date(Date.parse(hoy + "T12:00:00Z") - 35 * 864e5).toISOString().slice(0, 10), hasta = new Date(Date.parse(hoy + "T12:00:00Z") + 70 * 864e5).toISOString().slice(0, 10);
+  const calendario = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, estado, hecho_por, cerrado, repetir FROM agenda_items
+    WHERE tipo = 'tarea' AND para_turno = 1 AND fecha BETWEEN ? AND ? AND estado != 'archivado' ORDER BY fecha, COALESCE(hora, '99'), creado LIMIT 300`).bind(desde, hasta).all()).results;
+  // Compras para la administración: las pendientes (para no pedir dos veces lo mismo) y las compradas en los últimos 3 días
+  const compras = (await env.DB.prepare(`SELECT id, titulo, cantidad, detalle, prioridad, estado, reporto, turno, creado, cerrado FROM agenda_items WHERE tipo = 'compra'
+    AND (${ABIERTO} OR (estado = 'comprado' AND reporto IS NOT NULL AND cerrado >= ?)) ORDER BY CASE WHEN estado = 'comprado' THEN 1 ELSE 0 END, CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, creado DESC LIMIT 60`)
+    .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.nombre); } catch {}
-  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -437,6 +445,7 @@ export async function turnoRuta(request, env, url, h) {
     if (resultado === "cumplida")
       await env.DB.prepare("UPDATE agenda_items SET estado = 'hecho', cerrado = ?, actualizado = ?, hecho_por = ?, nota_cierre = ?, foto = COALESCE(?, foto) WHERE id = ?")
         .bind(ahora, ahora, s.persona, nota || null, foto, t.id).run();
+    if (resultado === "cumplida") await repetirTarea(env, t.id, ahora).catch(e => console.error("repetir tarea", e && e.message));
     else await env.DB.prepare("UPDATE agenda_items SET actualizado = ? WHERE id = ?").bind(ahora, t.id).run();
     const RES = { cumplida: "cumplida", parcial: "a medias", no: "no se pudo" };
     await notificar(env, "admin", { titulo: `Tarea ${RES[resultado]}: ${t.titulo}`, cuerpo: `${s.nombre} · turno ${String(s.turno).toLowerCase()}${nota ? "\n" + nota : ""}`, sec: "tarea", url: "/panel?abrir=tarea", etiqueta: "tarea-" + t.id });
@@ -445,6 +454,17 @@ export async function turnoRuta(request, env, url, h) {
       try { await h.llamarScript(env, correoTarea(t, resultado, nota, !!foto, s)); avisado = true; } catch (err) { console.error("informe tarea: correo", err && err.message); }
     }
     return recordar(json({ ok: true, avisado }));
+  }
+
+  // ---- Compra que tiene que hacer la administración (llega a Pagos y compras → Compras con quién la pidió) ----
+  if (partes[0] === "compras" && partes.length === 1 && request.method === "POST") {
+    const { d, e } = validarItem("compra", { titulo: c.titulo, cantidad: c.cantidad, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", turno: s.turno });
+    if (Object.keys(e).length) return json({ ok: false, error: "Escribe qué hay que comprar.", errores: e }, 422);
+    const id = crypto.randomUUID();
+    await insertarItem(env, id, "compra", d, `tablet:${s.persona}`, ahora, { reporto: s.persona });
+    await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind(adivinarCategoria(d.titulo), id).run();
+    await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Compra urgente" : "Compra"} pedida por ${s.nombre}`, cuerpo: d.titulo + (d.cantidad ? " · " + d.cantidad : "") + (d.detalle ? "\n" + d.detalle : ""), sec: "compra", url: "/panel?abrir=compra", etiqueta: "compra-" + id, grave: d.prioridad === "alta" });
+    return recordar(json({ ok: true, id }));
   }
 
   // ---- Incidencia nueva ----

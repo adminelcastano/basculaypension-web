@@ -67,7 +67,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
@@ -108,7 +108,8 @@ function validar(tipo, c, previo = {}) {
     para_turno: v("para_turno") ? 1 : 0,
     area: v("area") ? texto(v("area"), 40) : null,
     para: tipo === "aviso" ? JSON.stringify(normalizarPara(v("para"))) : null,
-    quien: tipo === "incidencia" && v("quien") ? texto(v("quien"), 60) : null
+    quien: tipo === "incidencia" && v("quien") ? texto(v("quien"), 60) : null,
+    repetir: tipo === "tarea" && REPETIR[v("repetir")] ? v("repetir") : null
   };
   const e = {};
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
@@ -134,7 +135,34 @@ function validar(tipo, c, previo = {}) {
   if (d.aviso && !["evento", "tarea"].includes(tipo)) d.aviso = null;
   if (tipo !== "tarea") d.para_turno = tipo === "aviso" ? 1 : 0;
   if (d.aviso && !d.fecha) e.aviso = "Para recordarte, ponle fecha.";
+  if (d.repetir && !d.fecha) e.fecha = "Para repetirla, elige el día en que empieza.";
   return { d, e };
+}
+
+// Tareas que se repiten: al cumplirse se crea la siguiente (un día, una semana o un mes después, nunca en el pasado)
+export const REPETIR = { diaria: "Diario", semanal: "Cada semana", mensual: "Cada mes" };
+export function siguienteFecha(fecha, repetir, hoy) {
+  const sumar = f => {
+    const d = new Date(f + "T12:00:00Z");
+    if (repetir === "diaria") d.setUTCDate(d.getUTCDate() + 1);
+    else if (repetir === "semanal") d.setUTCDate(d.getUTCDate() + 7);
+    else { const dia = +fecha.slice(8, 10); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + 1); const fin = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(dia, fin)); }
+    return d.toISOString().slice(0, 10);
+  };
+  let f = sumar(fecha);
+  for (let i = 0; f <= hoy && i < 400; i++) f = sumar(f);
+  return f;
+}
+export async function repetirTarea(env, id, ahora = new Date().toISOString()) {
+  const t = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ? AND tipo = 'tarea'").bind(id).first();
+  if (!t || !REPETIR[t.repetir] || !t.fecha || t.sig_id) return null;
+  const nid = crypto.randomUUID(), fecha = siguienteFecha(t.fecha, t.repetir, hoyMx());
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, turno, creado, creado_por, actualizado, aviso, para_turno, repetir)
+      VALUES (?, 'tarea', ?, ?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?)`).bind(nid, t.titulo, t.detalle, fecha, t.hora, t.prioridad, t.turno, ahora, t.creado_por, ahora, t.aviso, t.para_turno || 0, t.repetir),
+    env.DB.prepare("UPDATE agenda_items SET sig_id = ? WHERE id = ?").bind(nid, id)
+  ]);
+  return { id: nid, fecha };
 }
 
 const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado','pagado')";
@@ -151,7 +179,8 @@ export function pushTablet(tipo, d, id) {
     return { titulo: urgente ? "Aviso urgente de la administración" : "Aviso de la administración", cuerpo: d.titulo + det + para, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
   }
   if (tipo === "tarea" && d.para_turno) {
-    return { titulo: `${urgente ? "Tarea urgente" : "Nueva tarea"}${d.turno ? " · turno de " + (TURNO_TXT[d.turno] || d.turno.toLowerCase()) : ""}`, cuerpo: d.titulo + det, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "tarea-" + id, grave: urgente };
+    const futura = d.fecha && d.fecha > hoyMx();
+    return { titulo: `${futura ? `Tarea programada para el ${d.fecha.slice(8, 10)}/${d.fecha.slice(5, 7)}` : urgente ? "Tarea urgente" : "Nueva tarea"}${d.turno ? " · turno de " + (TURNO_TXT[d.turno] || d.turno.toLowerCase()) : ""}`, cuerpo: d.titulo + det + (d.repetir ? "\n🔁 " + REPETIR[d.repetir] : ""), sec: futura ? "calendario" : "avisos", url: "/turno?sec=" + (futura ? "calendario" : "avisos"), etiqueta: "tarea-" + id, grave: urgente };
   }
   return null;
 }
@@ -447,6 +476,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (fotos.length) await env.DB.prepare("UPDATE agenda_items SET fotos = ? WHERE id = ?").bind(JSON.stringify(fotos), id).run();
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
     if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
+    if (d.repetir) await env.DB.prepare("UPDATE agenda_items SET repetir = ? WHERE id = ?").bind(d.repetir, id).run();
     const push = pushTablet(tipo, d, id);
     if (push) await notificar(env, "tablet", push);
     return json({ ok: true, id });
@@ -509,8 +539,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: fila.titulo } }));
     }
     if (junto.length) await env.DB.batch(junto);
-    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
-      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
+    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para), repetir=? WHERE id=?`)
+      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, d.repetir, id).run();
+    if (fila.tipo === "tarea" && d.estado === "hecho" && fila.estado !== "hecho") await repetirTarea(env, id, ahora);
+    // Compra que pidió un encargado desde la tablet: al comprarla, la tablet se entera
+    if (fila.tipo === "compra" && fila.reporto && d.estado === "comprado" && fila.estado !== "comprado")
+      await notificar(env, "tablet", { titulo: "Ya se compró: " + d.titulo, cuerpo: `La pidió ${fila.reporto}${d.cantidad ? " · " + d.cantidad : ""}`, sec: "inicio", url: "/turno", etiqueta: "compra-" + id });
     if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, fila.cuenta, d.forma), id).run();
     if ((fila.tipo === "pago" || fila.tipo === "compra") && "categoria" in c) {
       const cat = await resolverCategoria(env, c.categoria);
