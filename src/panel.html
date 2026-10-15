@@ -386,10 +386,13 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .enc:last-child { border-bottom: 0; }
 .enc .av { width: 46px; height: 46px; border-radius: 50%; background: var(--amber); color: var(--amber-ink); display: grid; place-items: center; font-weight: 800; font-size: .7rem; letter-spacing: -.02em; }
 .enc.inactivo .av { background: #2a2a2d; color: var(--muted); }
+.avp { width: 22px; height: 22px; border-radius: 50%; display: inline-block; vertical-align: -6px; margin-right: 6px; object-fit: cover; flex: none; }
+.avp.g { width: 36px; height: 36px; vertical-align: middle; margin: 0; }
 .enc .av img { width: 100%; height: 100%; border-radius: 50%; display: block; }
 .enc .av.foto { background: none; }
 .enc.inactivo .av.foto img { filter: grayscale(1); opacity: .6; }
 .avs { border: 0; padding: 0; margin: 2px 0 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex-basis: 100%; }
+.avs .lnk-q { background: none; border: 0; color: var(--amber); font: inherit; font-weight: 600; cursor: pointer; padding: 0 0 0 6px; }
 .avs legend { font-size: .8rem; color: var(--muted); padding: 0; margin-bottom: 4px; float: left; width: 100%; }
 .avs label { position: relative; cursor: pointer; border-radius: 50%; }
 .avs input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -402,6 +405,8 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .enc input { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
 .enc input.pin { width: 7.5em; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
 .enc input.nom { width: 10em; }
+.exp-sel { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); flex-basis: 100%; }
+.exp-sel select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; max-width: 100%; }
 .enc .err { color: var(--bad); font-size: .82rem; flex-basis: 100%; }
 .enc .ac { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .estp { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
@@ -529,7 +534,7 @@ header.bar .sync { flex: none; }
 .est.sm { width: 24px; height: 24px; border-radius: 7px; }
 .est.sm svg { width: 16px; height: 16px; }
 .pitem { padding-left: 62px; }
-.pitem > .est { position: absolute; left: 14px; top: 14px; }
+.pitem > .est, .pitem > .avp { position: absolute; left: 14px; top: 14px; }
 .pitem.baja .t { color: var(--muted); }
 #p-detalle .detail-head { align-items: center; }
 .pill.inactivo { background: #2a2a2d; color: #c7c7cc; }
@@ -925,6 +930,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
 
+  // Imagen de perfil de un encargado de la tablet ("admin" = logo de la pensión)
+  window.avP = (clave, grande) => `<img class="avp${grande ? " g" : ""}" src="/panel/api/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${grande ? 36 : 22}" height="${grande ? 36 : 22}" loading="lazy">`;
   async function api(ruta, opciones = {}) {
     const r = await fetch("/panel/api/" + ruta, { ...opciones, headers: { "X-Panel": "1", ...(opciones.body ? { "Content-Type": "application/json" } : {}) } });
     if (r.status === 401 || r.status === 403) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
@@ -1509,11 +1516,14 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   const urlWa = (tel, msg) => `https://wa.me/52${tel}?text=${encodeURIComponent(msg)}`;
   const estadoPill = c => c.estatus === "inactivo" ? `<span class="pill inactivo">Inactivo${c.fecha_baja ? " desde " + fecha(c.fecha_baja) : ""}</span>` : c.completo ? `<span class="pill completo">Completo</span>` : !c.llenado_en ? `<span class="pill sinllenar">Sin llenar datos</span>` : `<span class="pill faltan">Faltan documentos</span>`;
 
+  // Expedientes vinculados a un encargado de la tablet: muestran su imagen de perfil
+  let VINC = {};
   async function cargar() {
     const lista = $("#p-lista");
     const p = new URLSearchParams({ tipo: st.tipo, estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q);
     try {
-      const j = await api("colaboradores?" + p);
+      const [j, v] = await Promise.all([api("colaboradores?" + p), api("turno/vinculos").catch(() => ({}))]);
+      VINC = (v && v.vinculos) || {};
       for (const k of ["colaborador", "externo", "activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
       st.config = j.config || {};
       if (document.activeElement !== $("#p-flim")) $("#p-flim").value = st.config.fecha_limite || "";
@@ -1530,7 +1540,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       }
       lista.innerHTML = j.colaboradores.map(c => `<button class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
-        ${iconoEst(c.estatus)}
+        ${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
         <span class="m"><span class="folio">${esc(c.folio)}</span></span>
         <span class="m">${c.puesto || c.actividad ? `<span>${esc(c.puesto || c.actividad)}</span>` : ""}</span>
@@ -1579,7 +1589,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre), c.tipo);
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head">${iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="folio-tag" id="p-folio" type="button" title="Copiar folio">Folio ${esc(c.folio)}</button><button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
+      <div class="detail-head">${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="folio-tag" id="p-folio" type="button" title="Copiar folio">Folio ${esc(c.folio)}</button><button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
       <div class="cols">
         <div style="display:grid;gap:24px">
           <section class="card" id="p-estatus">
@@ -2051,7 +2061,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
           <span class="t">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? ` <span class="cturno ahora">en curso</span>` : ""}</span>
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
-          ${c.conteo ? `<span class="m"><span>Contó ${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
+          ${c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
         </button>`;
       };
       // Un grupo por día, con el total de ingresos del día en el encabezado
@@ -2131,7 +2141,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
             </div>
             ${c.conteo ? `<div class="conteo"><h4>Corte ciego de la tablet</h4>
               <div class="cres">
-                <span class="h">Entregó ${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
+                <span class="h">Entregó ${avP(c.conteo.persona)}${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
                 ${fila("Contado", dinero(c.conteo.efectivo), c.conteo.tarjeta != null ? dinero(c.conteo.tarjeta) : "—")}
                 ${fila(!c.conteo.con_cambio && c.cambio && c.cambio.n ? "Según el sistema (sin cambio)" : "Según el sistema", dinero(c.conteo.esperado ?? c.efectivo_caja), dinero(c.tarjeta))}
                 <span class="fin">Diferencia</span><span class="n">${difEtq(c.conteo.dif_efectivo)}</span><span class="n">${c.conteo.dif_tarjeta != null ? difEtq(c.conteo.dif_tarjeta) : ""}</span>
@@ -2145,7 +2155,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               </div>` : ""}
               ${(j.historial || []).length > 1 ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
                 <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-                ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
+                ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${avP(x.persona)}${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
                 </tbody></table></div></details>` : ""}
               <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
               <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
@@ -2156,11 +2166,11 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos del turno</h3>
-            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
           <section class="card"><h3>Ingresos extra del turno</h3>
-            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
+            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, aumento de cambio u otros ingresos sin ticket.</p>`}
             <details><summary class="note" style="cursor:pointer;font-weight:600">Agregar ingreso extra a este turno</summary><div style="margin-top:12px">
               <form class="cform" id="c-fextra" novalidate>
                 <label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
@@ -2674,7 +2684,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc"><select class="estado-sel" data-estado="${esc(it.id)}" aria-label="Estado">${[["abierta", "Abierta"], ["en_proceso", "En proceso"], ["resuelta", "Resuelta"]].map(([k, v]) => `<option value="${k}" ${it.estado === k ? "selected" : ""}>${v}</option>`).join("")}</select>${del}</span>
-        <span class="mm">${it.reporto ? `<span class="tag tablet">${ico("i-tablet")}${esc(it.reporto)}</span>` : ""}${it.quien ? `<span>Reportó: <b>${esc(it.quien)}</b></span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
+        <span class="mm">${it.reporto ? `<span class="tag tablet">${avP(it.reporto)}${esc(it.reporto)}</span>` : ""}${it.quien ? `<span>Reportó: <b>${esc(it.quien)}</b></span>` : ""}<span>${esc(diaTxt(it.fecha))}${it.turno ? " · " + esc(TURNO_TXT[it.turno] || it.turno) : ""}</span>${it.area ? `<span>${esc(it.area)}</span>` : ""}<span>Gravedad ${esc(it.gravedad)}${foto(it.foto)}</span>${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}</span></div>`;
     }
     const fin = it.tipo === "compra" ? "comprado" : "hecho";
     const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
@@ -2690,7 +2700,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       hecho && it.hecho_por && !(it.reportes || []).length ? `<span>Hecha por ${esc(it.hecho_por)} ${esc(cuando(it.cerrado))}${it.nota_cierre ? " · " + esc(it.nota_cierre) : ""}${foto(it.foto)}</span>` : ""
     ].filter(Boolean).join("");
     const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
-    const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
+    const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${avP(r.persona)}${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
       <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${it.tipo === "tarea" && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
@@ -2727,7 +2737,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const fila = it => {
       if (st.editando === it.id) return `<div class="aitem">${formEditar(it)}</div>`;
       const deEnc = it.autor !== "admin", paraAdmin = it.para && it.para.admin, nuevo = deEnc && paraAdmin && abierto(it) && !leidoAdmin(it);
-      return `<div class="aitem ${abierto(it) ? "" : "hecho"}"><span class="grav ${it.prioridad === "alta" ? "grave" : deEnc ? "media" : "leve"}">${ico(deEnc ? "i-tablet" : "i-aviso")}</span>
+      return `<div class="aitem ${abierto(it) ? "" : "hecho"}">${avP(deEnc ? it.autor : "admin", 1)}
       <span class="tt">${nuevo ? `<span class="tag hoy" style="margin-right:6px">Nuevo</span>` : ""}${esc(it.titulo)}</span>
       <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:40px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:40px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Reactivar</button>`}${it.autor === "admin" ? `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}">Editar</button>` : ""}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button></span>
       <span class="mm"><span>De <b>${esc(deTxt(it))}</b> para <b>${esc(paraTxt(it.para || {}))}</b></span>${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}${deEnc && paraAdmin && leidoAdmin(it) ? `<span class="lect si">✓ Leído por ti</span>` : ""}</span>
@@ -2757,23 +2767,26 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const dif = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${DIN(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${DIN(v)}</span>`;
     const avs = j.avatares || [];
     const AV = id => `/panel/api/turno/avatar/${encodeURIComponent(id)}`;
-    const selAv = p => avs.length ? `<fieldset class="avs"><legend>Avatar</legend>
-        <label title="Sin avatar"><input type="radio" name="avatar" value="" ${p.avatar ? "" : "checked"} aria-label="Sin avatar"><span class="sin">${esc(p.clave.slice(0, 4))}</span></label>
-        ${p.foto_url ? `<label title="Su foto"><input type="radio" name="avatar" value="foto" ${p.avatar === "foto" ? "checked" : ""} aria-label="Su foto"><img src="${esc(p.foto_url)}" alt="" width="38" height="38" loading="lazy"></label>` : ""}
-        ${avs.map((a, i) => `<label title="Avatar ${i + 1}"><input type="radio" name="avatar" value="${esc(a)}" ${p.avatar === a ? "checked" : ""} aria-label="Avatar ${i + 1}"><img src="${AV(a)}" alt="" width="38" height="38" loading="lazy"></label>`).join("")}</fieldset>` : "";
+    const selAv = p => avs.length ? `<fieldset class="avs"><legend>Avatar base${p.avatar === "foto" ? ` · ahora usa su foto <button type="button" class="lnk-q" data-quitarfoto="${esc(p.clave)}">Quitar foto</button>` : ""}</legend>
+        <label title="Sin avatar"><input type="radio" name="avatar_base" value="" ${p.avatar_base ? "" : "checked"} aria-label="Sin avatar base"><span class="sin">${esc(p.clave.slice(0, 4))}</span></label>
+        ${avs.map((a, i) => `<label title="Avatar ${i + 1}"><input type="radio" name="avatar_base" value="${esc(a)}" ${p.avatar_base === a ? "checked" : ""} aria-label="Avatar ${i + 1}"><img src="${AV(a)}" alt="" width="38" height="38" loading="lazy"></label>`).join("")}</fieldset>` : "";
     const enc = p => `<div class="enc ${p.activo ? "" : "inactivo"}"><span class="av ${p.avatar_url ? "foto" : ""}">${p.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" width="46" height="46">` : esc(p.clave.slice(0, 5))}</span>
       <span class="nm"><b>${esc(p.nombre)}</b><span>${p.activo ? (p.bloqueado ? `<span class="estp bloq">Bloqueado</span>` : p.tiene_pin ? `<span class="estp ok">✓ PIN listo</span>` : `<span class="estp no">Sin PIN</span>`) : "Desactivado"}${p.ultimo_acceso ? " · entró " + esc(cuando(p.ultimo_acceso)) : ""}</span></span>
-      <form data-enc="${esc(p.clave)}" autocomplete="off"><input class="nom" name="nombre" value="${esc(p.nombre)}" maxlength="60" aria-label="Nombre de ${esc(p.clave)}"><input class="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" aria-label="Nuevo PIN de ${esc(p.clave)}" autocomplete="new-password"><button class="btn btn-primary" type="submit" style="min-height:38px">Guardar</button>${selAv(p)}<span class="err"></span></form>
+      <form data-enc="${esc(p.clave)}" autocomplete="off"><input class="nom" name="nombre" value="${esc(p.nombre)}" maxlength="60" aria-label="Nombre de ${esc(p.clave)}"><input class="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" aria-label="Nuevo PIN de ${esc(p.clave)}" autocomplete="new-password"><button class="btn btn-primary" type="submit" style="min-height:38px">Guardar</button>${selExp(p)}${selAv(p)}<span class="err"></span></form>
       <span class="ac">${p.bloqueado ? `<button class="btn btn-line" type="button" data-desbloquear="${esc(p.clave)}" style="min-height:34px;padding:0 12px">Desbloquear</button>` : ""}<button class="btn btn-line" type="button" data-activo="${esc(p.clave)}" data-v="${p.activo ? 0 : 1}" style="min-height:34px;padding:0 12px">${p.activo ? "Desactivar" : "Activar"}</button></span></div>`;
-    c.innerHTML = `<section class="card"><h3>Encargados de turno</h3>
-        <p class="note" style="margin:4px 0 8px">Cada encargado entra a la tablet con su PIN de 4 números. Para cambiar un PIN, escribe el nuevo y guarda; el anterior deja de servir al momento. Cada encargado puede cambiar su imagen (avatar o foto propia), color y tamaño de letra desde la tablet, tocando su nombre arriba. Aquí también puedes asignarle un avatar o quitar su foto.</p>
+    let colabs = [];
+    try { colabs = ((await api("colaboradores?tipo=colaborador&estatus=activo")).colaboradores || []); } catch {}
+    const selExp = p => `<label class="exp-sel">Expediente<select name="colaborador" aria-label="Expediente de ${esc(p.clave)}"><option value="">Sin vincular</option>${colabs.map(x => `<option value="${esc(x.id)}" ${p.colaborador === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.folio)}</option>`).join("")}</select></label>`;
+    const ab = j.abierto;
+    c.innerHTML = `${ab ? `<section class="card" style="border:1.5px solid var(--warn)"><h3>Turno sin corte</h3><p class="note" style="margin:4px 0 10px"><b>${esc(ab.persona)}</b> abrió el turno de la ${esc((TURNO_TXT[ab.turno] || ab.turno).toLowerCase())} del ${esc(diaTxt(ab.dia))} y no ha entregado el corte. Mientras tanto nadie más puede entrar a la tablet. Si ya no va a regresar, libérala: el corte de ese turno quedará pendiente en Ingresos y gastos.</p><button class="btn btn-line" type="button" id="t-liberar">Liberar la tablet</button></section>` : ""}<section class="card"><h3>Encargados de turno</h3>
+        <p class="note" style="margin:4px 0 8px">Cada encargado entra a la tablet con su PIN de 4 números. Para cambiar un PIN, escribe el nuevo y guarda; el anterior deja de servir al momento. Cada encargado puede cambiar su imagen (avatar o foto propia), color y tamaño de letra desde la tablet, tocando su nombre arriba. Aquí eliges su avatar base (el que puede usar) y puedes quitar su foto.</p>
         <div>${j.personas.map(enc).join("") || `<p class="note">Sin encargados.</p>`}</div>
         <details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Agregar encargado</summary>
           <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
       </section>
       <section class="card"><h3>Últimos cortes ciegos</h3>
         ${j.cortes.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Últimos cortes"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th><th class="n">Sobre</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
+          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
         </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo (los cortes anteriores al 14 oct se contaron sin el cambio). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
       </section>
       <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
@@ -2784,9 +2797,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     c.querySelectorAll("form[data-enc]").forEach(f => f.addEventListener("submit", ev => {
       ev.preventDefault(); f.querySelector(".err").textContent = "";
       const d = { nombre: f.nombre.value, pin: f.pin.value };
-      const r = f.querySelector('input[name="avatar"]:checked'); if (r) d.avatar = r.value;
+      const r = f.querySelector('input[name="avatar_base"]:checked'); if (r) d.avatar_base = r.value;
+      if (f.colaborador) d.colaborador = f.colaborador.value;
       guardar(f.dataset.enc, d, f.querySelector(".err"));
     }));
+    const lib = $("#t-liberar");
+    if (lib) lib.addEventListener("click", async () => { if (!confirm("¿Liberar la tablet sin el corte de ese turno?")) return; try { await post("turno/liberar", {}); toast("Tablet liberada"); vistaTablet(); } catch (e) { if (e.message !== "sesion") toast(e.message); } });
+    c.querySelectorAll("[data-quitarfoto]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.quitarfoto, { quitar_foto: 1 })));
     c.querySelectorAll("[data-desbloquear]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.desbloquear, { desbloquear: 1 })));
     c.querySelectorAll("[data-activo]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.activo, { activo: b.dataset.v === "1" })));
     $("#enc-nuevo").addEventListener("submit", ev => {

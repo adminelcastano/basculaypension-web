@@ -39,6 +39,22 @@ function urlAvatar(p, panel) {
   if (a === "foto") return p.foto_ver ? (panel ? `/panel/api/turno/avatar/p/${encodeURIComponent(p.clave)}/${p.foto_ver}` : `/turno/avatar/p/${encodeURIComponent(p.clave)}/${p.foto_ver}.jpg`) : null;
   return panel ? `/panel/api/turno/avatar/${a}` : `/turno/avatar/${a}.webp`;
 }
+// Imagen de perfil por clave (para acompañar avisos, incidencias, cortes...). "admin" usa el logo de la pensión;
+// sin imagen asignada se dibuja un círculo con las iniciales.
+async function servirAvatarDe(env, clave, urlBase) {
+  clave = String(clave || "").toUpperCase();
+  if (clave === "ADMIN") return Response.redirect(new URL("/img/logo.png", urlBase).toString(), 302);
+  if (!/^[A-ZÑ0-9]{1,12}$/.test(clave)) return new Response("No encontrado", { status: 404 });
+  const p = await env.DB.prepare("SELECT clave, avatar, foto_ver FROM turno_personas WHERE clave = ?").bind(clave).first();
+  const a = p && avatarValido(p.avatar);
+  let r;
+  if (a === "foto" && p.foto_ver) r = await servirFotoPerfil(env, clave);
+  else if (a && a !== "foto") r = servirAvatar(a);
+  if (r && r.ok) { const h = new Headers(r.headers); h.set("Cache-Control", "private, max-age=300"); return new Response(r.body, { headers: h }); }
+  const ini = clave.slice(0, 2);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="#2a2a2d"/><text x="32" y="40" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="#d2d2d7">${ini}</text></svg>`;
+  return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
+}
 async function servirFotoPerfil(env, clave) {
   const v = await env.FILES.get("perfil:" + String(clave || "").toUpperCase(), { type: "arrayBuffer" });
   if (!v) return new Response("No encontrado", { status: 404 });
@@ -93,7 +109,11 @@ export async function asegurarEsquemaTurno(env) {
     clave TEXT PRIMARY KEY, nombre TEXT, pin_hash TEXT, pin_sal TEXT, activo INTEGER NOT NULL DEFAULT 1,
     fallas INTEGER NOT NULL DEFAULT 0, bloqueado_hasta TEXT, ultimo_acceso TEXT, creado TEXT NOT NULL)`).run();
   const colsP = new Set((await env.DB.prepare("PRAGMA table_info(turno_personas)").all()).results.map(c => c.name));
-  for (const col of ["avatar", "foto_ver", "prefs"]) if (!colsP.has(col)) await env.DB.prepare(`ALTER TABLE turno_personas ADD COLUMN ${col} TEXT`).run();
+  for (const col of ["avatar", "avatar_base", "foto_ver", "prefs", "colaborador"]) if (!colsP.has(col)) await env.DB.prepare(`ALTER TABLE turno_personas ADD COLUMN ${col} TEXT`).run();
+  // Avatares asignados antes de existir el "avatar base"
+  await env.DB.prepare("UPDATE turno_personas SET avatar_base = avatar WHERE avatar_base IS NULL AND avatar IN ('a1','a2','a3','a4','a5')").run();
+  // Turno abierto sin corte: mientras exista, nadie más puede entrar a otro turno (una sola fila)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_abierto (id INTEGER PRIMARY KEY CHECK (id = 1), persona TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, desde TEXT NOT NULL)").run();
   const n = (await env.DB.prepare("SELECT COUNT(*) n FROM turno_personas").first()).n;
   if (!n) {
     const ahora = new Date().toISOString();
@@ -154,9 +174,9 @@ async function sesionActual(request, env) {
   if (!datos || !firma || !igual(firma, await firmar(env, datos))) return null;
   let s; try { s = JSON.parse(deB64u(datos)); } catch { return null; }
   if (!s.e || s.e < Date.now() || !TURNOS.includes(s.t)) return null;
-  const persona = await env.DB.prepare("SELECT clave, nombre, pin_sal, activo, avatar, foto_ver, prefs FROM turno_personas WHERE clave = ?").bind(s.p).first();
+  const persona = await env.DB.prepare("SELECT clave, nombre, pin_sal, activo, avatar, avatar_base, foto_ver, prefs FROM turno_personas WHERE clave = ?").bind(s.p).first();
   if (!persona || !persona.activo || !persona.pin_sal || persona.pin_sal.slice(0, 8) !== s.s) return null;
-  return { persona: persona.clave, nombre: persona.nombre || persona.clave, avatar: avatarValido(persona.avatar), avatar_url: urlAvatar(persona), tiene_foto: !!persona.foto_ver, prefs: leerPrefs(persona.prefs), turno: s.t, dia: s.d };
+  return { persona: persona.clave, nombre: persona.nombre || persona.clave, avatar: avatarValido(persona.avatar), avatar_base: Object.hasOwn(AVATARES, persona.avatar_base) ? persona.avatar_base : null, avatar_url: urlAvatar(persona), tiene_foto: !!persona.foto_ver, prefs: leerPrefs(persona.prefs), turno: s.t, dia: s.d };
 }
 const cookie = (valor, maxAge) => `turno_ses=${valor}; Path=/turno; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
 
@@ -215,7 +235,7 @@ async function estado(env, s) {
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
     corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
   }
-  return { ...s, hoy, personas, galeria: Object.keys(AVATARES), acentos: ACENTOS, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
+  return { ...s, hoy, personas, acentos: ACENTOS, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +252,8 @@ export async function turnoRuta(request, env, url, h) {
   if (ruta === "/turno/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/turno" } });
   const av = /^\/turno\/avatar\/(a\d)\.webp$/.exec(ruta);
   if (av && request.method === "GET") return servirAvatar(av[1]);
+  const ac = /^\/turno\/avatar\/c\/([^/]{1,40})$/.exec(ruta);
+  if (ac && request.method === "GET") { let cl = ""; try { cl = decodeURIComponent(ac[1]); } catch {} return servirAvatarDe(env, cl, url); }
   const fp = /^\/turno\/avatar\/p\/([A-ZÑ0-9%]{2,40})\/[a-z0-9]{4,16}\.jpg$/.exec(ruta);
   if (fp && request.method === "GET") { let cl = ""; try { cl = decodeURIComponent(fp[1]); } catch {} return servirFotoPerfil(env, cl); }
   if (!ruta.startsWith("/turno/api/")) return new Response("No encontrado", { status: 404, headers: h.cabeceras() });
@@ -245,7 +267,9 @@ export async function turnoRuta(request, env, url, h) {
 
   if (partes[0] === "personas" && request.method === "GET") {
     const filas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, pin_hash IS NOT NULL AS tiene_pin FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results;
-    return json({ ok: true, personas: filas.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p), tiene_pin: !!p.tiene_pin })), turnos: TURNOS, sugerido: turnoSugerido() });
+    let ab = await env.DB.prepare("SELECT persona, dia, turno FROM turno_abierto WHERE id = 1").first();
+    if (ab && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first()) ab = null;
+    return json({ ok: true, personas: filas.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p), tiene_pin: !!p.tiene_pin })), turnos: TURNOS, sugerido: ab ? ab.turno : turnoSugerido(), abierto: ab || null });
   }
 
   if (partes[0] === "entrar" && request.method === "POST") {
@@ -270,7 +294,23 @@ export async function turnoRuta(request, env, url, h) {
     await env.DB.prepare("UPDATE turno_personas SET fallas = 0, bloqueado_hasta = NULL, ultimo_acceso = ? WHERE clave = ?").bind(ahora.toISOString(), clave).run();
     // PIN guardado con el formato anterior: se vuelve a guardar con 100 000 iteraciones (misma sal, la sesión no cambia)
     if (pinViejo(p.pin_hash)) await env.DB.prepare("UPDATE turno_personas SET pin_hash = ? WHERE clave = ?").bind(await hashPin(pin, p.pin_sal), clave).run();
-    const ses = await crearSesion(env, p, turno, diaDeTurno(turno, ahora));
+    // Se puede salir sin entregar el corte, pero nadie más entra (ni a otro turno) hasta que se entregue
+    const diaNuevo = diaDeTurno(turno, ahora);
+    const ab = await env.DB.prepare("SELECT * FROM turno_abierto WHERE id = 1").first();
+    if (ab) {
+      const cerrado = await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first();
+      if (cerrado) await env.DB.prepare("DELETE FROM turno_abierto WHERE id = 1").run();
+      else if (ab.persona !== clave || ab.dia !== diaNuevo || ab.turno !== turno) {
+        const cual = `del turno de la ${String(ab.turno).toLowerCase()} del ${ab.dia.slice(8, 10)}/${ab.dia.slice(5, 7)}`;
+        return json({ ok: false, error: ab.persona === clave
+          ? `Primero entrega el corte ${cual}: entra eligiendo ese turno.`
+          : `Falta el corte ${cual}, que abrió ${ab.persona}. ${ab.persona} debe entrar y entregarlo, o la administración puede liberarlo desde el panel.`, turno_abierto: { persona: ab.persona, dia: ab.dia, turno: ab.turno } }, 409);
+      }
+    }
+    if (!(await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(diaNuevo, turno).first()))
+      await env.DB.prepare("INSERT INTO turno_abierto (id, persona, dia, turno, desde) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET persona = excluded.persona, dia = excluded.dia, turno = excluded.turno, desde = CASE WHEN turno_abierto.dia = excluded.dia AND turno_abierto.turno = excluded.turno THEN turno_abierto.desde ELSE excluded.desde END")
+        .bind(clave, diaNuevo, turno, ahora.toISOString()).run();
+    const ses = await crearSesion(env, p, turno, diaNuevo);
     return json({ ok: true }, 200, { "Set-Cookie": cookie(ses, SESION_HORAS * 3600) });
   }
 
@@ -306,7 +346,8 @@ export async function turnoRuta(request, env, url, h) {
     const prefs = leerPrefs(JSON.stringify(p));
     const fila = await env.DB.prepare("SELECT foto_ver FROM turno_personas WHERE clave = ?").bind(s.persona).first();
     let avatar = c.avatar === "" || c.avatar == null ? null : avatarValido(String(c.avatar));
-    if (c.avatar && !avatar) return json({ ok: false, error: "Imagen no válida." }, 422);
+    // Cada quien solo puede usar su avatar base (el que le asignó la administración), su foto o sus iniciales
+    if (c.avatar && (!avatar || (avatar !== "foto" && avatar !== s.avatar_base))) return json({ ok: false, error: "Imagen no válida." }, 422);
     let fotoVer = fila && fila.foto_ver;
     if (c.foto) {
       const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(c.foto));
@@ -451,6 +492,7 @@ export async function turnoRuta(request, env, url, h) {
       .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)).run();
     await env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
       .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora).run();
+    await env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).run();
     return recordar(json({ ok: true }));
   }
 
@@ -504,8 +546,8 @@ export async function turnoAdmin(request, env, url, partes) {
 
   if (partes.length === 1 && request.method === "GET") {
     const ahora = new Date().toISOString();
-    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, foto_ver, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
-      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, avatar: avatarValido(p.avatar), avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
+    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
+      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
     // Últimos cortes entregados con su comparación
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes ORDER BY dia DESC, actualizado DESC LIMIT 12").all()).results;
     let cortes = [];
@@ -518,9 +560,22 @@ export async function turnoAdmin(request, env, url, partes) {
       const claves = new Set(conteos.map(x => x.dia + "|" + x.turno));
       cortes = unirConteos(calcularCortes(movs, gastos, extras), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
     }
-    return json({ ok: true, personas, cortes, avatares: Object.keys(AVATARES) });
+    let abierto = await env.DB.prepare("SELECT persona, dia, turno, desde FROM turno_abierto WHERE id = 1").first();
+    if (abierto && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(abierto.dia, abierto.turno).first()) abierto = null;
+    return json({ ok: true, personas, cortes, abierto: abierto || null, avatares: Object.keys(AVATARES) });
   }
 
+  // La administración libera la tablet cuando un turno quedó sin corte (por ejemplo, el encargado ya no regresa)
+  if (partes[1] === "liberar" && request.method === "POST") {
+    await env.DB.prepare("DELETE FROM turno_abierto WHERE id = 1").run();
+    return json({ ok: true });
+  }
+
+  if (partes[1] === "avatar" && partes[2] === "c" && request.method === "GET") return servirAvatarDe(env, partes[3], url);
+  if (partes[1] === "vinculos" && request.method === "GET") {
+    const filas = (await env.DB.prepare("SELECT clave, colaborador FROM turno_personas WHERE colaborador IS NOT NULL").all()).results;
+    return json({ ok: true, vinculos: Object.fromEntries(filas.map(f => [f.colaborador, f.clave])) });
+  }
   if (partes[1] === "avatar" && partes[2] === "p" && request.method === "GET") return servirFotoPerfil(env, partes[3]);
   if (partes[1] === "avatar" && request.method === "GET") return servirAvatar(partes[2]);
 
@@ -541,9 +596,21 @@ export async function turnoAdmin(request, env, url, partes) {
     if (partes[2] && !previa) return json({ ok: false, error: "No existe esa persona." }, 404);
     const nombre = "nombre" in c ? texto(c.nombre, 60) || clave : previa ? previa.nombre : clave;
     const activo = "activo" in c ? (c.activo ? 1 : 0) : previa ? previa.activo : 1;
-    if ("avatar" in c && c.avatar && !avatarValido(c.avatar)) return json({ ok: false, error: "Avatar no válido." }, 422);
-    let avatar = "avatar" in c ? avatarValido(c.avatar) : previa ? avatarValido(previa.avatar) : null;
+    // Avatar base: el de la galería que asigna la administración. La persona elige en la tablet entre ese,
+    // su foto o sus iniciales; si no usa foto, al cambiar el base se le muestra el nuevo.
+    if (c.avatar_base && !Object.hasOwn(AVATARES, c.avatar_base)) return json({ ok: false, error: "Avatar no válido." }, 422);
+    const baseAntes = previa && Object.hasOwn(AVATARES, previa.avatar_base) ? previa.avatar_base : null;
+    const avatarBase = "avatar_base" in c ? (c.avatar_base || null) : baseAntes;
+    let avatar = previa ? avatarValido(previa.avatar) : avatarBase;
+    if ("avatar_base" in c && avatar !== "foto" && (avatar === baseAntes || !avatar)) avatar = avatarBase;
+    if (c.quitar_foto && avatar === "foto") avatar = avatarBase;
     let fotoVer = previa ? previa.foto_ver : null;
+    let colaborador = previa ? previa.colaborador : null;
+    if ("colaborador" in c) {
+      colaborador = c.colaborador ? String(c.colaborador).slice(0, 60) : null;
+      if (colaborador && !(await env.DB.prepare("SELECT 1 FROM colaboradores WHERE id = ?").bind(colaborador).first().catch(() => null))) return json({ ok: false, error: "Ese expediente no existe." }, 422);
+      if (colaborador) await env.DB.prepare("UPDATE turno_personas SET colaborador = NULL WHERE colaborador = ? AND clave != ?").bind(colaborador, clave).run();
+    }
     if (avatar === "foto" && !fotoVer) avatar = null;
     if (avatar !== "foto" && fotoVer) { await env.FILES.delete("perfil:" + clave); fotoVer = null; }
     let pinHash = previa ? previa.pin_hash : null, sal = previa ? previa.pin_sal : null;
@@ -559,10 +626,10 @@ export async function turnoAdmin(request, env, url, partes) {
     }
     const ahora = new Date().toISOString();
     if (previa) {
-      await env.DB.prepare("UPDATE turno_personas SET nombre = ?, activo = ?, avatar = ?, foto_ver = ?, pin_hash = ?, pin_sal = ?, fallas = CASE WHEN ? THEN 0 ELSE fallas END, bloqueado_hasta = CASE WHEN ? THEN NULL ELSE bloqueado_hasta END WHERE clave = ?")
-        .bind(nombre, activo, avatar, fotoVer, pinHash, sal, c.desbloquear || c.pin ? 1 : 0, c.desbloquear || c.pin ? 1 : 0, clave).run();
+      await env.DB.prepare("UPDATE turno_personas SET nombre = ?, activo = ?, avatar = ?, avatar_base = ?, foto_ver = ?, colaborador = ?, pin_hash = ?, pin_sal = ?, fallas = CASE WHEN ? THEN 0 ELSE fallas END, bloqueado_hasta = CASE WHEN ? THEN NULL ELSE bloqueado_hasta END WHERE clave = ?")
+        .bind(nombre, activo, avatar, avatarBase, fotoVer, colaborador, pinHash, sal, c.desbloquear || c.pin ? 1 : 0, c.desbloquear || c.pin ? 1 : 0, clave).run();
     } else {
-      await env.DB.prepare("INSERT INTO turno_personas (clave, nombre, activo, avatar, pin_hash, pin_sal, creado) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(clave, nombre, activo, avatar, pinHash, sal, ahora).run();
+      await env.DB.prepare("INSERT INTO turno_personas (clave, nombre, activo, avatar, avatar_base, colaborador, pin_hash, pin_sal, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(clave, nombre, activo, avatarBase, avatarBase, colaborador, pinHash, sal, ahora).run();
     }
     return json({ ok: true, clave });
   }

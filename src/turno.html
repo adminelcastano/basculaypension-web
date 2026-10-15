@@ -47,14 +47,21 @@ svg.i { width: 1.25em; height: 1.25em; flex: none; }
 .caja-entrada h1 { font-size: 1.9rem; margin-bottom: 4px; }
 .paso { margin-top: 26px; }
 .paso > h2 { font-size: 1.05rem; color: var(--muted); font-weight: 500; margin-bottom: 12px; }
-.personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
-.persona { min-height: 78px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface); font-size: 1.25rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; display: grid; place-items: center; gap: 2px; padding: 8px; }
+.aviso-abierto { display: flex; gap: 10px; align-items: flex-start; text-align: left; max-width: 560px; margin: 0 auto 16px; padding: 12px 14px; border-radius: 14px; background: var(--warn-soft); color: #ffe4a3; font-size: .92rem; }
+.aviso-abierto svg { width: 20px; height: 20px; flex: none; color: var(--warn); margin-top: 1px; }
+.personas { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 14px 10px; }
+.persona { border: 0; background: none; color: var(--fg); font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; display: grid; justify-items: center; align-content: start; gap: 2px; padding: 6px 4px; border-radius: 16px; }
+.persona:hover .pfoto { transform: scale(1.04); }
 .persona small { font-size: .78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
-.persona .pfoto { width: 64px; height: 64px; border-radius: 50%; display: block; margin-bottom: 4px; }
-.persona .pfoto.ini { display: grid; place-items: center; background: #2a2a2d; color: #d2d2d7; font-size: 1.3rem; font-weight: 800; }
+.persona .pfoto { width: 84px; height: 84px; border-radius: 50%; display: block; margin-bottom: 6px; transition: transform .15s, box-shadow .15s; }
+.persona .pfoto.ini { display: grid; place-items: center; background: #2a2a2d; color: #d2d2d7; font-size: 1.5rem; font-weight: 800; }
 .avatar.foto { background: none; overflow: hidden; }
 .avatar img { width: 100%; height: 100%; border-radius: 50%; display: block; }
-.persona[aria-pressed="true"] { border-color: var(--amber); background: #2a2405; }
+.persona[aria-pressed="true"] .pfoto { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--amber); }
+.persona[aria-pressed="true"] { color: var(--amber); }
+/* Imagen de perfil junto a avisos, incidencias, gastos y cortes */
+.avi { width: 40px; height: 40px; border-radius: 50%; display: block; flex: none; object-fit: cover; }
+.avi.ch { width: 22px; height: 22px; display: inline-block; vertical-align: -6px; margin-right: 6px; }
 .turnos { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .chip { min-height: 48px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 .chip[aria-pressed="true"] { border-color: var(--amber); background: #2a2405; }
@@ -291,6 +298,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     <p class="muted" style="margin:0">Báscula y Pensión El Castaño</p>
     <div class="paso">
       <h2>¿Quién está de turno?</h2>
+      <p class="aviso-abierto" id="aviso-abierto" role="status" hidden></p>
       <div class="personas" id="personas"><p class="muted">Cargando…</p></div>
     </div>
     <div class="paso" id="paso-turno" hidden>
@@ -381,6 +389,9 @@ dialog .acciones .btn { flex: 1 1 160px; }
     try {
       const j = await api("personas");
       turnoElegido = j.sugerido;
+      const ab = j.abierto, aviso = $("#aviso-abierto");
+      aviso.hidden = !ab;
+      if (ab) aviso.innerHTML = `${svg("i-alerta")}<span>Falta el corte del turno de la ${esc(TURNO_TXT[ab.turno] || ab.turno.toLowerCase())} que abrió <b>${esc(ab.persona)}</b>. Solo ${esc(ab.persona)} puede entrar para entregarlo.</span>`;
       $("#personas").innerHTML = j.personas.map(p => `<button type="button" class="persona" data-clave="${esc(p.clave)}" aria-pressed="false">${p.avatar_url ? `<img class="pfoto" src="${esc(p.avatar_url)}" alt="" width="64" height="64">` : `<span class="pfoto ini" aria-hidden="true">${esc(p.clave.slice(0, 2))}</span>`}${esc(p.clave)}${p.nombre && p.nombre !== p.clave ? `<small>${esc(p.nombre)}</small>` : ""}${p.tiene_pin ? "" : "<small>sin PIN</small>"}</button>`).join("") || `<p class="muted">No hay encargados dados de alta.</p>`;
       $("#turnos").innerHTML = j.turnos.map(t => `<button type="button" class="chip" data-turno="${t}" aria-pressed="${t === turnoElegido}"><svg class="i"><use href="#${ICONO_TURNO[t]}"/></svg>${t[0] + t.slice(1).toLowerCase()}</button>`).join("");
     } catch (e) { $("#personas").innerHTML = `<p class="err">${esc(e.message)}</p>`; }
@@ -423,6 +434,8 @@ dialog .acciones .btn { flex: 1 1 160px; }
   const ico = (id, cls = "") => `<span class="ico ${cls}"><svg aria-hidden="true"><use href="#${id}"/></svg></span>`;
   const svg = id => `<svg class="i" aria-hidden="true"><use href="#${id}"/></svg>`;
   const fotoLink = k => k ? `<a class="lnk" href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver foto</a>` : "";
+  // Imagen de perfil de un encargado ("admin" = logo de la pensión). chico: para ir dentro de un texto
+  const avi = (clave, chico) => `<img class="avi${chico ? " ch" : ""}" src="/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${chico ? 22 : 40}" height="${chico ? 22 : 40}" loading="lazy">`;
   const nombreDe = clave => clave === "admin" ? "Administración" : ((E.personas.find(p => p.clave === clave) || {}).nombre || clave);
   const errores = er => er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message;
   const sumar = l => l.reduce((s, x) => s + Number(x.monto || 0), 0);
@@ -527,7 +540,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
         <div class="ini-card cat-b s4 ini-hero" data-ir="corte" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
-          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
+          <span class="note">${c ? `A las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar el turno cuenta el efectivo físico y entrégalo."}</span>
           <div class="fila"><span>Gastos <b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra <b>${dinero(sumar(E.extras))}</b></span></div>
         </div>
         <section class="ini-card cat-b s2">${bloqueMovs("gastos")}</section>
@@ -558,7 +571,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const t = tipo === "gastos" ? "Gastos del turno" : "Ingresos extra del turno";
     return `<div class="ini-top"><span class="ibadge" style="--c:${tipo === "gastos" ? "#ff7a70" : "#30d158"}"><svg><use href="#${tipo === "gastos" ? "i-gasto" : "i-mas"}"/></svg></span><span class="ini-k">${t}</span>
         ${conBoton ? `<button class="btn btn-line btn-sm" type="button" data-accion="${tipo === "gastos" ? "gasto" : "extra"}" style="margin-left:auto">+ Agregar</button>` : ""}</div>
-      ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? " · " + esc(x.persona) : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
+      ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? ` · ${avi(x.persona, 1)}${esc(x.persona)}` : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
           <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar ${esc(x.concepto)} de ${dinero(x.monto)}"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
         <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
   }
@@ -566,7 +579,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   // ---------- Avisos y tareas ----------
   function filaAviso(a) {
     const de = a.propio ? "Tú" : nombreDe(a.autor);
-    return `<div class="fila-l ${a.leido ? "" : "nuevo"}">${ico("i-aviso", a.autor === "admin" ? "c-aviso" : "c-admin")}
+    return `<div class="fila-l ${a.leido ? "" : "nuevo"}">${avi(a.autor)}
       <span class="tt">${esc(a.titulo)}</span>
       <span class="acc">${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</span>
       <span class="mm"><span>${a.propio ? "Lo dejaste tú" : `De <b>${esc(de)}</b>`} para ${esc(paraTxt(a.para))}</span><span>${esc(fechaCorta(a.creado))}</span></span>
@@ -591,7 +604,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
         <section class="card"><h2>${ico("i-tarea", "c-tarea")}Tareas del turno</h2>
           <p class="note">Marca cada tarea y cuenta cómo quedó: cumplida, en parte o no se pudo. La administración recibe tu informe.</p>
           ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
-          ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
+          ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${t.hecho_por && !t.hecho_por.includes("@") ? avi(t.hecho_por, 1) : ""}${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
         </section>
         <section class="card"><h2>${ico("i-aviso", "c-aviso")}Avisos<button class="btn btn-primary btn-sm der" type="button" data-accion="aviso">+ Nuevo aviso</button></h2>
           <p class="note">Los de la administración y los que se dejan entre encargados. Marca "Enterado" al leerlos. Los avisos entre encargados se quitan solos a los 3 días.</p>
@@ -606,7 +619,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const est = { abierta: "Abierta", en_proceso: "En proceso" };
     sec().innerHTML = titulo("Incidencias.", "Las incidencias abiertas de todos los turnos. Se quitan de aquí cuando la administración las resuelve.") +
       `<div class="herr"><button class="btn btn-primary" type="button" data-accion="incidencia">${svg("i-alerta")}Reportar incidencia</button></div>
-      <section class="card">${l.length ? `<div class="lista">${l.map(i => `<div class="fila-l">${ico("i-alerta", "c-incid")}
+      <section class="card">${l.length ? `<div class="lista">${l.map(i => `<div class="fila-l">${avi(i.reporto || "admin")}
         <span class="tt">${esc(i.titulo)}</span>
         <span class="acc"><span class="etq g-${esc(i.gravedad)}">${i.gravedad === "grave" ? svg("i-alerta") : ""}${esc({ leve: "Leve", media: "Media", grave: "Grave" }[i.gravedad] || i.gravedad)}</span><span class="etq">${esc(est[i.estado] || i.estado)}</span></span>
         <span class="mm">${i.area ? `<span>Dónde: <b>${esc(i.area)}</b></span>` : ""}<span>Reportó: <b>${esc(i.quien || i.reporto || "Administración")}</b></span><span>${esc(diaTxt(i.fecha))}${i.turno ? " · turno " + esc(TURNO_TXT[i.turno] || i.turno) : ""}</span>${fotoLink(i.foto)}</span>
@@ -618,7 +631,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
   function verCorte() {
     const c = E.corte;
     sec().innerHTML = titulo("Corte de turno.", "Cuenta <b>todo el efectivo físico</b> de la caja, incluido el cambio inicial, y escríbelo. La administración lo compara con el sistema.") + `
-      ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
+      ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.tarjeta != null ? ` · vouchers ${dinero(c.tarjeta)}` : ""}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
         <form class="card" id="f-corte" novalidate>
@@ -719,7 +732,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <div class="campo"><span class="lb">Imagen</span><div class="gal" id="pf-gal">
         ${opcion("", esc(E.persona.slice(0, 4)), E.persona.slice(0, 4) + ": sin imagen, solo iniciales")}
         ${opcion("foto", E.tiene_foto && E.avatar_url ? `<img src="${esc(E.avatar_url)}" alt="">` : "", "Mi foto").replace("<button", E.tiene_foto ? "<button" : "<button hidden")}
-        ${E.galeria.map((a, i) => opcion(a, `<img src="/turno/avatar/${esc(a)}.webp" alt="">`, `Avatar ${i + 1}`)).join("")}
+        ${E.avatar_base ? opcion(E.avatar_base, `<img src="/turno/avatar/${esc(E.avatar_base)}.webp" alt="">`, "Mi avatar") : ""}
         <label class="subir" for="pf-foto" style="width:68px;height:68px;border-radius:50%;display:grid;place-items:center;cursor:pointer"><span><svg aria-hidden="true"><use href="#i-camara"/></svg>Subir foto</span></label>
       </div><input type="file" id="pf-foto" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px"></div>
       <div class="campo"><span class="lb">Color</span><div class="sws" id="pf-color">${Object.entries(E.acentos).map(([k, v]) => `<button type="button" data-v="${k}" style="--s:${v}" aria-pressed="${k === p.acento}" aria-label="${ACENTO_TXT[k] || k}" title="${ACENTO_TXT[k] || k}"></button>`).join("")}</div></div>
@@ -936,8 +949,10 @@ dialog .acciones .btn { flex: 1 1 160px; }
     E = null; sec().innerHTML = ""; mostrarEntrada();
   }
   $("#terminar").addEventListener("click", async () => {
-    const pend = E && !E.corte ? " Todavía no entregas el corte." : "";
-    if (await confirmar("¿Terminar turno?", "Se cerrará tu sesión en la tablet." + pend, "Terminar turno")) salir();
+    const pend = E && !E.corte;
+    if (await confirmar(pend ? "¿Salir sin entregar el corte?" : "¿Terminar turno?", pend
+      ? "Puedes salir y volver después, pero nadie más podrá entrar a la tablet hasta que entregues el corte de este turno."
+      : "Se cerrará tu sesión en la tablet.", pend ? "Salir" : "Terminar turno")) salir();
   });
   // Por seguridad: tras 30 minutos sin tocar la tablet se cierra la sesión
   let ultimo = Date.now(), ultRef = Date.now();
