@@ -8,6 +8,8 @@
   const LADO_MIN = 500;        // píxeles del lado corto
   const BRILLO_MIN = 45;       // promedio de gris (0-255)
   const CONTRASTE_MIN = 45;    // diferencia entre tonos claros y oscuros
+  const LEJOS_FRAC = 0.45;     // el lado largo del ticket debe ocupar al menos 45 % de la foto
+  const LEJOS_PX = 700;        // y al menos 700 píxeles reales
 
   async function cargar(file) {
     try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
@@ -184,6 +186,10 @@
     if (corto < LADO_MIN) res.problemas.push("La foto es muy pequeña. Tómala de cerca, que el ticket ocupe casi toda la pantalla.");
     if (brillo < BRILLO_MIN) res.problemas.push("La foto está muy oscura. Tómala con más luz o activa el flash.");
     else if (res.contraste < CONTRASTE_MIN) res.problemas.push("No se distingue el texto. Busca mejor luz y evita reflejos sobre el ticket.");
+    // Distancia: si el ticket ocupa poco de la foto, el texto queda chico aunque la foto sea grande
+    const ladoTicket = rc ? Math.max((rc.x1 - rc.x0) * bmp.width, (rc.y1 - rc.y0) * bmp.height) : 0;
+    const fraccion = rc ? Math.max(rc.x1 - rc.x0, rc.y1 - rc.y0) : 1;
+    if (rc && (fraccion < LEJOS_FRAC || ladoTicket < LEJOS_PX)) res.problemas.push("Estás muy lejos. Acércate hasta que el ticket llene casi toda la pantalla (a unos 20 cm).");
     if (info.papel === false) res.problemas.push("No encontramos un ticket en la foto. Pon el ticket blanco completo sobre una superficie oscura y tómale la foto.");
     else if (res.nitidez < NITIDEZ_MIN) res.problemas.push("La foto está borrosa o desenfocada. Toca la pantalla sobre el ticket para enfocar y mantén el teléfono quieto.");
     res.ok = res.problemas.length === 0;

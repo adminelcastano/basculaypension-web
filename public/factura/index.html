@@ -143,11 +143,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
               <li data-servicio="pension" hidden>Que se vea el <b>folio</b> de arriba, sin el comprobante de la terminal ni otros papeles encima.</li>
               <li data-servicio="bascula" hidden><b>Envía tu ticket de pesaje,</b> de entrada o de salida: los dos sirven.</li>
               <li data-servicio="bascula" hidden>Que se vean el <b>folio</b>, el <b>cliente</b> y la <b>tarifa</b>, sin el comprobante de la terminal ni otros papeles encima.</li>
-              <li>Pon el ticket sobre una superficie plana, completo y sin doblar.</li>
-              <li>Busca buena luz, sin sombras ni reflejos.</li>
-              <li>Toca la pantalla sobre el ticket para enfocar y no muevas el teléfono.</li>
+              <li>Pon el ticket <b>completo y sin doblar</b> sobre una superficie plana y de preferencia oscura.</li>
+              <li><b>Acércate:</b> que el ticket llene casi toda la pantalla, a unos 20 cm. Sin cortar las orillas.</li>
+              <li>Busca <b>buena luz</b>, sin sombras ni reflejos. Si está oscuro, activa el flash.</li>
+              <li>Toca la pantalla sobre el ticket para <b>enfocar</b> y no muevas el teléfono al tomarla.</li>
             </ul>
-            <span class="hint">Revisamos la foto antes de enviarla y la mejoramos para que se lea mejor.</span>
+            <span class="hint">Revisamos la foto antes de enviarla: si no se lee bien te pediremos otra.</span>
             <label class="btn btn-line" for="ticket">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
               Tomar o elegir foto
@@ -355,11 +356,11 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (analisis && !analisis.ok) {
         intentosBorrosos++;
         rechazarFoto(f, "Esta foto no se lee bien. Toma otra:", analisis.problemas,
-          intentosBorrosos >= 2 ? ["Mi ticket así se ve, enviar esta foto", () => usarTicket(f, prev, "Foto enviada como está")] : null,
+          intentosBorrosos >= 2 ? ["Mi ticket así se ve, enviar esta foto", () => { avisoCalidad = analisis.problemas.join(" "); return usarTicket(f, prev, "Foto enviada como está"); }] : null,
           "Toma una foto más clara del ticket.");
         return;
       }
-      intentosBorrosos = 0;
+      intentosBorrosos = 0; avisoCalidad = "";
       await usarTicket(f, prev, analisis ? "Foto revisada y mejorada ✓" : (f.name || "Foto") + " ✓");
       return;
     }
@@ -393,12 +394,11 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   }
 
   const NOMBRE_SERVICIO = { bascula: "báscula", pension: "pensión" };
-  let intentosNoTicket = 0, forzarTicket = false, revisandoTicket = null;
+  let intentosNoTicket = 0, forzarTicket = false, revisandoTicket = null, avisoCalidad = "";
   function avisoServicio(msg) { const a = document.getElementById("aviso-servicio"); a.textContent = msg || ""; a.hidden = !msg; }
 
   // Pregunta al servidor qué ticket es (pensión, báscula o no es ticket)
   async function revisarTicketServidor(listo) {
-    return null; // La revisión con IA está desactivada: la administración revisa la foto a mano
     try {
       const d = new FormData(); d.append("ticket", listo); d.append("servicio", form.servicio.value);
       const r = await fetch("/api/revisar-ticket", { method: "POST", body: d });
@@ -420,7 +420,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       const j = await revisandoTicket; revisandoTicket = null;
       if (j && j.clase === "otro") {
         intentosNoTicket++;
-        rechazarFoto(f, "Esta foto no parece un ticket de Báscula y Pensión El Castaño.", ["Toma la foto del ticket que te entregaron en la báscula o en la pensión."],
+        rechazarFoto(f, "No pudimos leer un ticket de Báscula y Pensión El Castaño en esta foto.", ["Toma la foto del ticket que te entregaron en la báscula o en la pensión.", "Acércate hasta que el ticket llene casi toda la pantalla (a unos 20 cm).", "Busca buena luz, sin sombras ni reflejos, y que se lean el folio y el total."],
           intentosNoTicket >= 2 ? ["Sí es mi ticket, enviar esta foto", () => usarTicket(f, prev, "Foto enviada como está", true)] : null,
           "Esta foto no parece un ticket. Toma la foto de tu ticket.");
         return;
@@ -490,6 +490,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
     if (forzarTicket) datos.append("forzar_ticket", "1");
+    if (avisoCalidad) datos.append("aviso_calidad", avisoCalidad);
     if (modo() === "csf") datos.append("csf", archivos.csf);
 
     const boton = document.getElementById("enviar");

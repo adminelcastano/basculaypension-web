@@ -1,7 +1,9 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
-// Los tickets ya no se leen con IA: el administrador captura los datos a mano viendo la foto
+// La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
+// Los datos del ticket ya no se leen con IA: el administrador los captura a mano viendo la foto.
+const REVISAR_FOTO_IA = true;
 const LEER_TICKET_IA = false;
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
@@ -48,7 +50,7 @@ export default {
       if (request.method === "POST" && (url.pathname === "/api/solicitud" || url.pathname === "/api/revisar-ticket" || url.pathname.startsWith("/api/expediente/")) && await enAhorro(env))
         return json({ ok: false, error: "Por ahora no podemos recibir archivos en línea. Escríbenos por WhatsApp al 962 564 2170 y te ayudamos." }, 503);
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
-      if (url.pathname === "/api/revisar-ticket") return LEER_TICKET_IA ? await revisarTicketApi(request, env) : json({ ok: false, desactivado: true });
+      if (url.pathname === "/api/revisar-ticket") return REVISAR_FOTO_IA ? await revisarTicketApi(request, env) : json({ ok: false, desactivado: true });
       if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
       if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
@@ -207,7 +209,7 @@ async function crearSolicitud(request, env, ctx) {
 
   // Revisar el ticket con IA antes de guardar (se reutiliza la revisión hecha al tomar la foto)
   let lectura = null, avisoTicket = null;
-  if (LEER_TICKET_IA && env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
+  if (REVISAR_FOTO_IA && env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
     let rev = null;
     try { rev = await conLimite(revisarTicket(env, ticketBuf, ticket.type, servicio), 20000); }
     catch (e) { console.error("revisar ticket", e && e.message); rev = null; }
@@ -230,6 +232,9 @@ async function crearSolicitud(request, env, ctx) {
     }
   }
 
+  // El cliente envió la foto aunque la revisión de su teléfono dijo que no se ve bien
+  const calidad = texto(form, "aviso_calidad").slice(0, 300);
+  if (calidad) avisoTicket = [avisoTicket, "El cliente envió la foto aunque la revisión de calidad marcó: " + calidad].filter(Boolean).join(" ");
   await env.FILES.put(`f:${id}:ticket`, ticketBuf, { metadata: { tipo: ticket.type } });
   let csfTipo = null;
   if (modo === "csf" && csf) {
@@ -256,7 +261,7 @@ async function crearSolicitud(request, env, ctx) {
     return json({ ok: false, error: "No pudimos registrar tu solicitud en este momento. Intenta de nuevo en unas horas o escríbenos por WhatsApp." }, 503);
   }
 
-  if (lectura && !lectura.error) {
+  if (LEER_TICKET_IA && lectura && !lectura.error) {
     try { await guardarLecturaTicket(env, { id, folio_ticket: folioTicket }, lectura.datos, false); }
     catch (e) { console.error("guardar lectura", e && e.message); }
   }
