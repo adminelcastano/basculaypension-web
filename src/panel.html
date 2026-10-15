@@ -823,6 +823,11 @@ div.work.lista-oculta > .list { visibility: hidden; overflow: hidden; padding: 0
 div.work.lista-oculta > .lat-tg svg { transform: none; }
 @media (max-width: 820px) { .lat-tg { display: none; } div.work.lista-oculta { grid-template-columns: 1fr; } div.work.lista-oculta > .list { visibility: visible; } }
 @media (max-width: 640px) { .enc-tg span { display: none; } .enc-tg { padding: 0 10px; } }
+
+.btn-pagado { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: #12301d; color: #30d158; border: 1px solid rgba(48,209,88,.45); font-weight: 700; cursor: default; }
+.btn-pagado svg { width: 16px; height: 16px; }
+.aitem.pagado-ok { opacity: 1; }
+.aitem.hecho.pagado-ok .tt { text-decoration: none; color: var(--fg); }
 </style>
 </head>
 <body>
@@ -3229,7 +3234,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     const inicio = new Date(primero); inicio.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7));
     const fin = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
     const j = await api(`agenda?desde=${inicio.toISOString().slice(0, 10)}&hasta=${sumar(fin, 7)}`);
-    const abierto = it => !["hecho", "comprado", "resuelta", "archivado"].includes(it.estado);
+    const abierto = it => !["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(it.estado);
     const porDia = {};
     for (const it of j.items) if (it.fecha && it.tipo !== "aviso" && it.tipo !== "compra" && (abierto(it) || it.tipo === "evento")) (porDia[it.fecha] = porDia[it.fecha] || new Set()).add(it.tipo);
     for (const p of j.pagos_hechos || []) (porDia[p.fecha] = porDia[p.fecha] || new Set()).add("pagado");
@@ -3296,7 +3301,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   const AVISO_TXT = { 15: "15 min antes", 60: "1 hora antes", 1440: "1 día antes" };
   const ico = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
-  const abierto = it => !["hecho", "comprado", "resuelta", "archivado"].includes(it.estado);
+  const abierto = it => !["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(it.estado);
   const foto = k => k ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">ver foto</a>` : "";
   const fHora = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
   const cuando = iso => iso ? fHora.format(new Date(iso)) : "";
@@ -3382,10 +3387,13 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       const M = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const venc = !hecho && it.fecha && it.fecha < st.hoy, hoyP = !hecho && it.fecha === st.hoy;
       const hist = (it.pagos || []).map(x => `<span>Pagado ${esc(diaTxt(x.fecha))} · ${M(x.importe)}${x.comprobante ? " · 📎" : ""}</span>`).join("");
-      return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico("i-billete")}</span>
+      // Ya pagado: el único que se cerró, o el que se repite y ya se pagó este mes (su siguiente vencimiento es de otro mes)
+      const mesHoy = st.hoy.slice(0, 7), ult = (it.pagos || [])[0];
+      const pagadoMes = hecho || (ult && ult.fecha.slice(0, 7) === mesHoy && (it.fecha || "") .slice(0, 7) > mesHoy);
+      return `<div class="aitem ${hecho ? "hecho pagado-ok" : ""}"><span class="grav ${pagadoMes ? "pagado" : venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico(pagadoMes ? "i-check" : "i-billete")}</span>
         <span class="tt">${esc(it.titulo)}</span>
-        <span class="acc">${hecho ? "" : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
-        <span class="mm">${window.catChip(it.categoria)}${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
+        <span class="acc">${pagadoMes ? `<span class="btn btn-pagado" title="${ult ? "Pagado el " + esc(diaTxt(ult.fecha)) + " por " + M(ult.importe) : "Pagado"}">${ico("i-check")}Pagado</span>` : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
+        <span class="mm">${window.catChip(it.categoria)}${!pagadoMes && venc ? `<span class="tag vencida">Vencido</span>` : !pagadoMes && hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? "" : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
         ${hist ? `<span class="mm informes">${hist}</span>` : ""}</div>`;
     }
     if (it.tipo === "incidencia") {
@@ -3546,7 +3554,12 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     if (tipo === "tarea") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta") || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
     if (tipo === "compra") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta"));
     if (tipo === "incidencia") { const g = { grave: 0, media: 1, leve: 2 }; ab.sort((a, b) => g[a.gravedad] - g[b.gravedad] || b.fecha.localeCompare(a.fecha)); }
-    if (tipo === "pago") ab.sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+    if (tipo === "pago") {
+      // Los de una sola vez pagados este mes siguen a la vista (con su botón verde "Pagado")
+      const mesHoy = st.hoy.slice(0, 7), esteMes = x => (x.pagos || []).some(p => p.fecha.slice(0, 7) === mesHoy);
+      for (let i = ce.length - 1; i >= 0; i--) if (esteMes(ce[i])) ab.push(ce.splice(i, 1)[0]);
+      ab.sort((a, b) => abierto(b) - abierto(a) || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+    }
     const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas.", pago: "No hay pagos programados." }[tipo];
     const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
     if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
