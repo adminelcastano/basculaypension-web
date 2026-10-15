@@ -1190,12 +1190,13 @@ dialog .acciones .btn { flex: 1 1 160px; }
       ? "Puedes salir y volver después, pero nadie más podrá entrar a la tablet hasta que entregues el corte de este turno."
       : "Se cerrará tu sesión en la tablet.", pend ? "Salir" : "Terminar turno")) salir();
   });
-  // Por seguridad: tras 30 minutos sin tocar la tablet se cierra la sesión
+  // La sesión dura el turno completo: solo se cierra sola tras 8 horas sin tocar la tablet
   let ultimo = Date.now(), ultRef = Date.now();
   ["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, () => { ultimo = Date.now(); }, { passive: true }));
   setInterval(() => {
     if (!E) return;
-    if (Date.now() - ultimo > 30 * 60e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
+    // La sesión dura todo el turno (8 horas): solo se cierra sola tras 8 horas sin tocar la tablet
+    if (Date.now() - ultimo > 8 * 3600e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
     // Cada minuto se actualizan avisos, tareas e incidencias si no hay un formulario a medio llenar
     const ocupado = $("#dlg").open || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (!ocupado && Date.now() - ultRef > 60e3) {
