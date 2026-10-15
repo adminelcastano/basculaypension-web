@@ -228,6 +228,9 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .ibadge { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: #2a2a2d; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 .ibadge svg { width: 19px; height: 19px; }
 .kpi .ini-num { color: var(--c); }
+.ini-act { display: flex; align-items: center; gap: 2px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); }
+.ini-act b { color: #d2d2d7; font-weight: 600; }
+.ini-act .avp { width: 20px; height: 20px; }
 .full { grid-column: 1 / -1 !important; }
 /* Categorías del inicio: encabezado con línea y borde del color de la categoría en sus tarjetas */
 .sec-h { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; margin: 26px 2px 2px; font-size: .78rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #a1a1a6; }
@@ -314,7 +317,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 @media (max-width: 640px) { .sync span { display: none; } .sync { padding: 7px; margin-left: 4px; } }
 
 /* Agenda */
-#mod-agenda { overflow-y: auto; }
+#mod-agenda, #mod-turno { overflow-y: auto; }
 .aico { width: 17px; height: 17px; flex: none; }
 .ag { width: 100%; padding: 4px 24px 40px; display: grid; gap: 16px; }
 .ag-cal { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
@@ -407,6 +410,11 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .enc input.nom { width: 10em; }
 .exp-sel { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); flex-basis: 100%; }
 .exp-sel select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; max-width: 100%; }
+.enc .ajustes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.enc .aj { display: flex; gap: 6px; align-items: center; }
+.btn-aj { min-height: 38px; padding: 0 12px; }
+.t-activo { border: 1.5px solid var(--warn); }
+.t-act { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
 .enc .err { color: var(--bad); font-size: .82rem; flex-basis: 100%; }
 .enc .ac { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .estp { display: inline-flex; align-items: center; gap: 4px; font-size: .78rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
@@ -415,7 +423,7 @@ table.tcortes { width: 100%; border-collapse: collapse; font-size: .92rem; }
 table.tcortes th, table.tcortes td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.tcortes th { color: var(--muted); font-weight: 600; font-size: .8rem; }
 table.tcortes .n { text-align: right; font-variant-numeric: tabular-nums; }
-@media (max-width: 760px) { .enc { grid-template-columns: auto minmax(0, 1fr); } .enc form, .enc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 760px) { .enc { grid-template-columns: auto minmax(0, 1fr); } .enc form, .enc .ac, .enc .ajustes { grid-column: 1 / -1; justify-content: flex-start; } }
 details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted); font-size: .9rem; }
 @media (max-width: 900px) { .ag-cal { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .ag { padding: 4px 16px 32px; } .aform { grid-template-columns: repeat(2, minmax(0, 1fr)); } .aform label.w2 { grid-column: 1 / -1; } .cal .d { min-height: 40px; padding: 4px 5px; font-size: .85rem; border-radius: 10px; } }
@@ -424,7 +432,7 @@ details.hechos summary { cursor: pointer; font-weight: 600; color: var(--muted);
   html, body { height: auto; }
   body { display: block; min-height: 100%; }
   .mod { display: block; min-height: 0; }
-  #mod-inicio, #mod-agenda { overflow: visible; }
+  #mod-inicio, #mod-agenda, #mod-turno { overflow: visible; }
   div.work { min-height: 0; align-items: start; }
   .list, .detail { overflow: visible; }
 }
@@ -689,6 +697,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
     <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span class="largo">Ingresos y gastos</span><span class="corto">Caja</span></button>
     <button type="button" data-mod="agenda"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Agenda</span></button>
+    <button type="button" data-mod="turno"><svg class="mi" aria-hidden="true"><use href="#i-tablet"/></svg><span>Turno</span></button>
   </nav>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
@@ -751,7 +760,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       </div>
       <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
-        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span>
+        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span><span class="ini-act" id="ini-activo" hidden></span>
       </div>
       <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de hoy</span></div>
@@ -879,6 +888,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
 </div>
 </main>
+<main class="mod" id="mod-turno" hidden>
+<div class="titlebar">
+  <h2>Turno.</h2>
+  <p class="note">Turno activo, encargados de la tablet y cortes ciegos.</p>
+</div>
+<div class="ag" id="t-cuerpo"></div>
+</main>
 <main class="mod" id="mod-agenda" hidden>
 <div class="titlebar">
   <h2 id="a-titulo">Agenda.</h2>
@@ -891,7 +907,6 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
     <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
     <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
-    <button class="ptab" role="tab" data-t="tablet" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tablet"/></svg>Tablet de turno</button>
   </div>
 </div>
 <div class="ag" id="ag-cuerpo"></div>
@@ -1476,8 +1491,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   // opciones.historia === "push": el cambio queda en el historial (el botón atrás del celular regresa)
   function mostrar(mod, opciones = {}) {
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    for (const m of ["inicio", "facturacion", "personal", "caja", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos", agenda: "Agenda" }[mod] || "Facturación") + " · El Castaño";
+    for (const m of ["inicio", "facturacion", "personal", "caja", "agenda", "turno"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Ingresos y gastos", agenda: "Agenda", turno: "Turno" }[mod] || "Facturación") + " · El Castaño";
     const url = mod === "inicio" ? location.pathname : "#" + mod;
     if (opciones.historia === "push" && (history.state || {}).mod !== mod) history.pushState({ mod }, "", url);
     else history.replaceState({ mod }, "", url);
@@ -1986,6 +2001,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   if (location.hash === "#caja") mostrar("caja");
   if (location.hash === "#facturacion") mostrar("facturacion");
   if (location.hash === "#agenda") mostrar("agenda");
+  if (location.hash === "#turno") mostrar("turno");
   window.irA = (mod, opciones = { historia: "push" }) => mostrar(mod, opciones);
 })();
 </script>
@@ -2520,6 +2536,12 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       const enCurso = porDiaTurno[ta.dia + "|" + ta.turno];
       contar($("#i-caja"), enCurso ? enCurso.efectivo_caja : 0, v => dinero(v));
       $("#i-caja-nota").textContent = `Turno de la ${TURNO_TXT[ta.turno].toLowerCase()}${enCurso ? ` · ${enCurso.registros} registros` : " · sin registros aún"}`;
+      // Turno activo en la tablet (discreto, con su imagen de perfil)
+      api("turno/activo").then(x => {
+        const a = x.activo, el = $("#ini-activo");
+        el.hidden = !a;
+        if (a) el.innerHTML = `${avP(a.persona)}<span><b>${esc(a.nombre)}</b> · ${esc(TURNO_TXT[a.turno].toLowerCase())} desde ${esc(new Date(a.desde).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}${a.cambio_inicial != null ? ` · cambio inicial ${dinero(a.cambio_inicial, 2)}` : ""}</span>`;
+      }).catch(() => {});
       const gHoy = delDia.reduce((a, c) => a + c.gastos_total, 0), nG = delDia.reduce((a, c) => a + c.n_gastos, 0);
       contar($("#i-gastos"), gHoy, v => dinero(v));
       $("#i-gastos-nota").textContent = nG ? `${nG} ${nG === 1 ? "gasto capturado" : "gastos capturados"}` : "Sin gastos capturados";
@@ -2632,7 +2654,6 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 
   function pintar() {
     document.querySelectorAll("#a-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.tab ? "true" : "false"));
-    if (st.tab === "tablet") { vistaTablet(); return; }
     $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : st.tab === "aviso" ? vistaAvisos() : vistaLista(st.tab);
     conectar();
   }
@@ -2756,61 +2777,76 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       ${arch.length ? `<details class="hechos"><summary>Archivados en los últimos 30 días (${arch.length})</summary><div class="alist">${arch.map(fila).join("")}</div></details>` : ""}</section>`;
   }
 
-  // ---- Tablet de turno: encargados con PIN y cortes ciegos ----
+  // ---- Turno: turno activo, encargados de la tablet (cada dato se guarda por separado) y cortes ciegos ----
   async function vistaTablet() {
-    const c = $("#ag-cuerpo");
-    c.innerHTML = `<p class="empty">Cargando…</p>`;
-    let j;
-    try { j = await api("turno"); st.personas = j.personas; } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
-    if (st.tab !== "tablet") return;
+    const c = $("#t-cuerpo");
+    if (!c.innerHTML.trim()) c.innerHTML = `<p class="empty">Cargando…</p>`;
+    let j, act = null, colabs = [];
+    try {
+      [j, act] = await Promise.all([api("turno"), api("turno/activo").then(x => x.activo).catch(() => null)]);
+      st.personas = j.personas;
+    } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+    try { colabs = ((await api("colaboradores?tipo=colaborador&estatus=activo")).colaboradores || []); } catch {}
     const DIN = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const dif = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${DIN(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${DIN(v)}</span>`;
     const avs = j.avatares || [];
     const AV = id => `/panel/api/turno/avatar/${encodeURIComponent(id)}`;
-    const selAv = p => avs.length ? `<fieldset class="avs"><legend>Avatar base${p.avatar === "foto" ? ` · ahora usa su foto <button type="button" class="lnk-q" data-quitarfoto="${esc(p.clave)}">Quitar foto</button>` : ""}</legend>
-        <label title="Sin avatar"><input type="radio" name="avatar_base" value="" ${p.avatar_base ? "" : "checked"} aria-label="Sin avatar base"><span class="sin">${esc(p.clave.slice(0, 4))}</span></label>
-        ${avs.map((a, i) => `<label title="Avatar ${i + 1}"><input type="radio" name="avatar_base" value="${esc(a)}" ${p.avatar_base === a ? "checked" : ""} aria-label="Avatar ${i + 1}"><img src="${AV(a)}" alt="" width="38" height="38" loading="lazy"></label>`).join("")}</fieldset>` : "";
+    const k = p => esc(p.clave);
+    const selAv = p => avs.length ? `<fieldset class="avs" data-avbase="${k(p)}"><legend>Avatar base${p.avatar === "foto" ? ` · ahora usa su foto <button type="button" class="lnk-q" data-quitarfoto="${k(p)}">Quitar foto</button>` : ""}</legend>
+        <label title="Sin avatar"><input type="radio" name="avb-${k(p)}" value="" ${p.avatar_base ? "" : "checked"} aria-label="Sin avatar base"><span class="sin">${esc(p.clave.slice(0, 4))}</span></label>
+        ${avs.map((a, i) => `<label title="Avatar ${i + 1}"><input type="radio" name="avb-${k(p)}" value="${esc(a)}" ${p.avatar_base === a ? "checked" : ""} aria-label="Avatar ${i + 1}"><img src="${AV(a)}" alt="" width="38" height="38" loading="lazy"></label>`).join("")}</fieldset>` : "";
+    const selExp = p => `<label class="exp-sel">Expediente<select data-exp="${k(p)}" aria-label="Expediente de ${k(p)}"><option value="">Sin vincular</option>${colabs.map(x => `<option value="${esc(x.id)}" ${p.colaborador === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.folio)}</option>`).join("")}</select></label>`;
     const enc = p => `<div class="enc ${p.activo ? "" : "inactivo"}"><span class="av ${p.avatar_url ? "foto" : ""}">${p.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" width="46" height="46">` : esc(p.clave.slice(0, 5))}</span>
       <span class="nm"><b>${esc(p.nombre)}</b><span>${p.activo ? (p.bloqueado ? `<span class="estp bloq">Bloqueado</span>` : p.tiene_pin ? `<span class="estp ok">✓ PIN listo</span>` : `<span class="estp no">Sin PIN</span>`) : "Desactivado"}${p.ultimo_acceso ? " · entró " + esc(cuando(p.ultimo_acceso)) : ""}</span></span>
-      <form data-enc="${esc(p.clave)}" autocomplete="off"><input class="nom" name="nombre" value="${esc(p.nombre)}" maxlength="60" aria-label="Nombre de ${esc(p.clave)}"><input class="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" aria-label="Nuevo PIN de ${esc(p.clave)}" autocomplete="new-password"><button class="btn btn-primary" type="submit" style="min-height:38px">Guardar</button>${selExp(p)}${selAv(p)}<span class="err"></span></form>
-      <span class="ac">${p.bloqueado ? `<button class="btn btn-line" type="button" data-desbloquear="${esc(p.clave)}" style="min-height:34px;padding:0 12px">Desbloquear</button>` : ""}<button class="btn btn-line" type="button" data-activo="${esc(p.clave)}" data-v="${p.activo ? 0 : 1}" style="min-height:34px;padding:0 12px">${p.activo ? "Desactivar" : "Activar"}</button></span></div>`;
-    let colabs = [];
-    try { colabs = ((await api("colaboradores?tipo=colaborador&estatus=activo")).colaboradores || []); } catch {}
-    const selExp = p => `<label class="exp-sel">Expediente<select name="colaborador" aria-label="Expediente de ${esc(p.clave)}"><option value="">Sin vincular</option>${colabs.map(x => `<option value="${esc(x.id)}" ${p.colaborador === x.id ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.folio)}</option>`).join("")}</select></label>`;
-    const ab = j.abierto;
-    c.innerHTML = `${ab ? `<section class="card" style="border:1.5px solid var(--warn)"><h3>Turno sin corte</h3><p class="note" style="margin:4px 0 10px"><b>${esc(ab.persona)}</b> abrió el turno de la ${esc((TURNO_TXT[ab.turno] || ab.turno).toLowerCase())} del ${esc(diaTxt(ab.dia))} y no ha entregado el corte. Mientras tanto nadie más puede entrar a la tablet. Si ya no va a regresar, libérala: el corte de ese turno quedará pendiente en Ingresos y gastos.</p><button class="btn btn-line" type="button" id="t-liberar">Liberar la tablet</button></section>` : ""}<section class="card"><h3>Encargados de turno</h3>
-        <p class="note" style="margin:4px 0 8px">Cada encargado entra a la tablet con su PIN de 4 números. Para cambiar un PIN, escribe el nuevo y guarda; el anterior deja de servir al momento. Cada encargado puede cambiar su imagen (avatar o foto propia), color y tamaño de letra desde la tablet, tocando su nombre arriba. Aquí eliges su avatar base (el que puede usar) y puedes quitar su foto.</p>
+      <div class="ajustes">
+        <form class="aj" data-nombre="${k(p)}" autocomplete="off"><input class="nom" name="nombre" value="${esc(p.nombre)}" maxlength="60" aria-label="Nombre de ${k(p)}"><button class="btn btn-line btn-aj" type="submit">Guardar nombre</button></form>
+        <form class="aj" data-pin="${k(p)}" autocomplete="off"><input class="pin" name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" aria-label="Nuevo PIN de ${k(p)}" autocomplete="new-password"><button class="btn btn-primary btn-aj" type="submit">Guardar PIN</button></form>
+        ${selExp(p)}${selAv(p)}<span class="err" data-err="${k(p)}"></span>
+      </div>
+      <span class="ac">${p.bloqueado ? `<button class="btn btn-line" type="button" data-desbloquear="${k(p)}" style="min-height:34px;padding:0 12px">Desbloquear</button>` : ""}<button class="btn btn-line" type="button" data-activo="${k(p)}" data-v="${p.activo ? 0 : 1}" style="min-height:34px;padding:0 12px">${p.activo ? "Desactivar" : "Activar"}</button></span></div>`;
+    c.innerHTML = `<section class="card ${act ? "t-activo" : ""}"><h3>Turno activo</h3>
+        ${act ? `<div class="t-act">${avP(act.persona, 1)}<div><b>${esc(act.nombre)}</b> <span class="note">(${esc(act.persona)})</span><div class="note">Turno de la ${esc((TURNO_TXT[act.turno] || act.turno).toLowerCase())} del ${esc(diaTxt(act.dia))} · desde ${esc(cuando(act.desde))} · cambio inicial ${act.cambio_inicial != null ? DIN(act.cambio_inicial) : "sin capturar"} · <b style="color:var(--warn)">sin corte</b></div></div></div>
+          <p class="note" style="margin:10px 0">Mientras este turno no tenga corte, nadie más puede entrar a la tablet. Si la persona ya no va a regresar, cierra su turno: se cierra su sesión y la tablet queda libre; el corte quedará pendiente en Ingresos y gastos.</p>
+          <button class="btn btn-bad" type="button" id="t-cerrar">Cerrar turno de ${esc(act.persona)}</button>`
+        : `<p class="note" style="margin:6px 0 0">No hay turnos abiertos sin corte.</p>`}</section>
+      <section class="card"><h3>Encargados de turno</h3>
+        <p class="note" style="margin:4px 0 8px">Cada dato se guarda por separado: el nombre y el PIN con su botón; el expediente y el avatar base se guardan en cuanto los eliges. Al cambiar un PIN, el anterior deja de servir. Cada encargado puede cambiar su imagen (su avatar base, una foto suya o sus iniciales), color y tamaño de letra desde la tablet, tocando su nombre arriba.</p>
         <div>${j.personas.map(enc).join("") || `<p class="note">Sin encargados.</p>`}</div>
         <details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Agregar encargado</summary>
           <form class="aform" id="enc-nuevo" style="margin-top:10px"><label>Clave<input name="clave" maxlength="12" placeholder="Ej. MAR" autocomplete="off"></label><label>Nombre<input name="nombre" maxlength="60" autocomplete="off"></label><label>PIN<input name="pin" inputmode="numeric" maxlength="4" autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></details>
       </section>
       <section class="card"><h3>Últimos cortes ciegos</h3>
-        ${j.cortes.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Últimos cortes"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Vouchers</th><th>Tarjeta</th><th class="n">Sobre</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.tarjeta != null ? DIN(x.conteo.tarjeta) : "—"}</td><td>${dif(x.conteo.dif_tarjeta)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
-        </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo (los cortes anteriores al 14 oct se contaron sin el cambio). El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
+        ${j.cortes.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Últimos cortes"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Cambio inicial</th><th class="n">Contado</th><th class="n">Sistema</th><th>Diferencia</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+          ${j.cortes.map(x => `<tr><td>${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${x.cambio && x.cambio.n ? DIN(x.cambio.importe) : "—"}</td><td class="n">${DIN(x.conteo.efectivo)}</td><td class="n">${DIN(x.conteo.esperado ?? x.efectivo_caja)}</td><td>${dif(x.conteo.dif_efectivo)}</td><td class="n">${x.conteo.sobre != null ? DIN(x.conteo.sobre) : "—"}</td><td class="n">${(x.conteo.retiros || []).length ? DIN(x.conteo.retiros.reduce((a, r) => a + r.monto, 0)) : "—"}</td><td class="n">${x.conteo.cambio_sig != null ? DIN(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
+        </tbody></table></div><p class="note">Sistema = efectivo esperado: tickets en efectivo + cambio inicial + ingresos extra − gastos en efectivo. El detalle de cada corte está en Ingresos y gastos.</p>` : `<p class="note">Todavía no se entrega ningún corte desde la tablet.</p>`}
       </section>
       <section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
-    const guardar = async (clave, datos, err) => {
-      try { await post("turno/personas" + (clave ? "/" + encodeURIComponent(clave) : ""), datos); toast("Guardado"); st.personas = null; vistaTablet(); }
-      catch (e) { if (e.message !== "sesion") { if (err) err.textContent = e.message; else toast(e.message); } }
+    const errDe = clave => c.querySelector(`[data-err="${CSS.escape(clave)}"]`);
+    const guardar = async (clave, datos, msg = "Guardado") => {
+      const e = clave && errDe(clave); if (e) e.textContent = "";
+      try { await post("turno/personas" + (clave ? "/" + encodeURIComponent(clave) : ""), datos); toast(msg); st.personas = null; vistaTablet(); return true; }
+      catch (er) { if (er.message !== "sesion") { if (e) e.textContent = er.message; else toast(er.message); } return false; }
     };
-    c.querySelectorAll("form[data-enc]").forEach(f => f.addEventListener("submit", ev => {
-      ev.preventDefault(); f.querySelector(".err").textContent = "";
-      const d = { nombre: f.nombre.value, pin: f.pin.value };
-      const r = f.querySelector('input[name="avatar_base"]:checked'); if (r) d.avatar_base = r.value;
-      if (f.colaborador) d.colaborador = f.colaborador.value;
-      guardar(f.dataset.enc, d, f.querySelector(".err"));
+    c.querySelectorAll("form[data-nombre]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardar(f.dataset.nombre, { nombre: f.nombre.value }, "Nombre guardado"); }));
+    c.querySelectorAll("form[data-pin]").forEach(f => f.addEventListener("submit", ev => {
+      ev.preventDefault();
+      if (!/^\d{4}$/.test(f.pin.value)) { errDe(f.dataset.pin).textContent = "El PIN debe ser de 4 números."; return; }
+      guardar(f.dataset.pin, { pin: f.pin.value }, "PIN guardado");
     }));
-    const lib = $("#t-liberar");
-    if (lib) lib.addEventListener("click", async () => { if (!confirm("¿Liberar la tablet sin el corte de ese turno?")) return; try { await post("turno/liberar", {}); toast("Tablet liberada"); vistaTablet(); } catch (e) { if (e.message !== "sesion") toast(e.message); } });
-    c.querySelectorAll("[data-quitarfoto]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.quitarfoto, { quitar_foto: 1 })));
-    c.querySelectorAll("[data-desbloquear]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.desbloquear, { desbloquear: 1 })));
+    c.querySelectorAll("select[data-exp]").forEach(sel => sel.addEventListener("change", () => guardar(sel.dataset.exp, { colaborador: sel.value }, sel.value ? "Expediente vinculado" : "Expediente desvinculado")));
+    c.querySelectorAll("fieldset[data-avbase]").forEach(fs => fs.addEventListener("change", e => { if (e.target.matches("input[type=radio]")) guardar(fs.dataset.avbase, { avatar_base: e.target.value }, "Avatar guardado"); }));
+    const cerr = $("#t-cerrar");
+    if (cerr) cerr.addEventListener("click", async () => { if (!confirm(`¿Cerrar el turno de ${act.persona} sin corte? Su sesión se cierra y la tablet queda libre.`)) return; try { await post("turno/cerrar", {}); toast("Turno cerrado"); vistaTablet(); } catch (e) { if (e.message !== "sesion") toast(e.message); } });
+    c.querySelectorAll("[data-quitarfoto]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.quitarfoto, { quitar_foto: 1 }, "Foto quitada")));
+    c.querySelectorAll("[data-desbloquear]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.desbloquear, { desbloquear: 1 }, "Desbloqueado")));
     c.querySelectorAll("[data-activo]").forEach(b => b.addEventListener("click", () => guardar(b.dataset.activo, { activo: b.dataset.v === "1" })));
     $("#enc-nuevo").addEventListener("submit", ev => {
       ev.preventDefault(); const f = ev.target; f.querySelector(".err").textContent = "";
-      guardar("", { clave: f.clave.value, nombre: f.nombre.value, pin: f.pin.value }, f.querySelector(".err"));
+      post("turno/personas", { clave: f.clave.value, nombre: f.nombre.value, pin: f.pin.value }).then(() => { toast("Encargado agregado"); vistaTablet(); }).catch(er => { if (er.message !== "sesion") f.querySelector(".err").textContent = er.message; });
     });
   }
+  window.turnoVista = vistaTablet;
+  document.addEventListener("modulo", e => { if (e.detail === "turno") vistaTablet(); });
 
   function vistaCalendario() {
     const [a, m] = st.mes.split("-").map(Number);
@@ -2912,7 +2948,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   // Abrir la agenda en una pestaña y con el formulario listo (desde el Inicio)
   window.agendaAbrir = tab => { st.tab = tab || "calendario"; if (window.irA) window.irA("agenda"); setTimeout(() => { const n = $("#ag-cuerpo form.aform input[name=titulo]"); n && n.focus(); }, 250); };
   document.addEventListener("modulo", e => { if (e.detail === "agenda") cargar(); });
-  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden) cargar(); });
+  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden) cargar(); if (!$("#mod-turno").hidden) vistaTablet(); });
   if (location.hash === "#agenda") cargar();
 
   // ---- Un solo botón para sincronizar todo ----
@@ -3024,7 +3060,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   // ---- Botón atrás del celular: cierra el detalle y luego regresa a la sección anterior ----
   if (!history.state) {
     const m = (location.hash || "#inicio").slice(1);
-    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda"].includes(m) ? m : "inicio" }, "", location.href);
+    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda", "turno"].includes(m) ? m : "inicio" }, "", location.href);
   }
   zonas.forEach(z => {
     let abierto = z.w.classList.contains("ver-detalle");

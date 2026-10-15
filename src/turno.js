@@ -21,7 +21,7 @@ const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
 // Las fotos se guardan 100 días como máximo (KV incluye 1 GB; lo que pase de ahí se cobra aparte)
 const FOTO_MAX = 1_500_000, FOTO_TTL = 100 * 86400;
-// Avatares que la administración asigna a cada encargado (Agenda › Tablet de turno)
+// Avatares que la administración asigna a cada encargado (sección Turno del panel)
 const AVATARES = { a1: AV1, a2: AV2, a3: AV3, a4: AV4, a5: AV5 };
 const avatarValido = v => (Object.hasOwn(AVATARES, v) || v === "foto" ? v : null);
 // Personalización que cada encargado elige en "Mi perfil" (se guarda en su registro y lo sigue en cualquier tablet)
@@ -110,6 +110,8 @@ export async function asegurarEsquemaTurno(env) {
     fallas INTEGER NOT NULL DEFAULT 0, bloqueado_hasta TEXT, ultimo_acceso TEXT, creado TEXT NOT NULL)`).run();
   const colsP = new Set((await env.DB.prepare("PRAGMA table_info(turno_personas)").all()).results.map(c => c.name));
   for (const col of ["avatar", "avatar_base", "foto_ver", "prefs", "colaborador"]) if (!colsP.has(col)) await env.DB.prepare(`ALTER TABLE turno_personas ADD COLUMN ${col} TEXT`).run();
+  // Generación de sesión: la administración la sube para cerrar la sesión abierta de alguien
+  if (!colsP.has("ses_gen")) await env.DB.prepare("ALTER TABLE turno_personas ADD COLUMN ses_gen INTEGER NOT NULL DEFAULT 0").run();
   // Avatares asignados antes de existir el "avatar base"
   await env.DB.prepare("UPDATE turno_personas SET avatar_base = avatar WHERE avatar_base IS NULL AND avatar IN ('a1','a2','a3','a4','a5')").run();
   // Turno abierto sin corte: mientras exista, nadie más puede entrar a otro turno (una sola fila)
@@ -161,7 +163,7 @@ async function firmar(env, datos) {
 }
 async function crearSesion(env, persona, turno, dia) {
   // La sal del PIN va en la sesión: si se cambia el PIN, las sesiones abiertas dejan de valer
-  const datos = b64u(JSON.stringify({ p: persona.clave, t: turno, d: dia, s: persona.pin_sal.slice(0, 8), e: Date.now() + SESION_HORAS * 3600e3 }));
+  const datos = b64u(JSON.stringify({ p: persona.clave, t: turno, d: dia, s: persona.pin_sal.slice(0, 8), g: persona.ses_gen || 0, e: Date.now() + SESION_HORAS * 3600e3 }));
   return datos + "." + await firmar(env, datos);
 }
 function leerCookie(cab, nombre) {
@@ -174,8 +176,9 @@ async function sesionActual(request, env) {
   if (!datos || !firma || !igual(firma, await firmar(env, datos))) return null;
   let s; try { s = JSON.parse(deB64u(datos)); } catch { return null; }
   if (!s.e || s.e < Date.now() || !TURNOS.includes(s.t)) return null;
-  const persona = await env.DB.prepare("SELECT clave, nombre, pin_sal, activo, avatar, avatar_base, foto_ver, prefs FROM turno_personas WHERE clave = ?").bind(s.p).first();
+  const persona = await env.DB.prepare("SELECT clave, nombre, pin_sal, activo, avatar, avatar_base, foto_ver, prefs, ses_gen FROM turno_personas WHERE clave = ?").bind(s.p).first();
   if (!persona || !persona.activo || !persona.pin_sal || persona.pin_sal.slice(0, 8) !== s.s) return null;
+  if ((s.g || 0) !== (persona.ses_gen || 0)) return null;
   return { persona: persona.clave, nombre: persona.nombre || persona.clave, avatar: avatarValido(persona.avatar), avatar_base: Object.hasOwn(AVATARES, persona.avatar_base) ? persona.avatar_base : null, avatar_url: urlAvatar(persona), tiene_foto: !!persona.foto_ver, prefs: leerPrefs(persona.prefs), turno: s.t, dia: s.d };
 }
 const cookie = (valor, maxAge) => `turno_ses=${valor}; Path=/turno; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
@@ -581,9 +584,20 @@ export async function turnoAdmin(request, env, url, partes) {
   }
 
   // La administración libera la tablet cuando un turno quedó sin corte (por ejemplo, el encargado ya no regresa)
-  if (partes[1] === "liberar" && request.method === "POST") {
+  // Cerrar el turno abierto sin corte: termina la sesión de esa persona y libera la tablet
+  if ((partes[1] === "liberar" || partes[1] === "cerrar") && request.method === "POST") {
+    const ab = await env.DB.prepare("SELECT persona FROM turno_abierto WHERE id = 1").first();
+    if (ab) await env.DB.prepare("UPDATE turno_personas SET ses_gen = COALESCE(ses_gen, 0) + 1 WHERE clave = ?").bind(ab.persona).run();
     await env.DB.prepare("DELETE FROM turno_abierto WHERE id = 1").run();
     return json({ ok: true });
+  }
+
+  // Turno activo (para el Inicio del panel): quién está, desde cuándo y con cuánto cambio empezó
+  if (partes[1] === "activo" && request.method === "GET") {
+    const ab = await env.DB.prepare("SELECT a.persona, a.dia, a.turno, a.desde, p.nombre FROM turno_abierto a LEFT JOIN turno_personas p ON p.clave = a.persona WHERE a.id = 1").first();
+    if (!ab || await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first()) return json({ ok: true, activo: null });
+    const ini = await env.DB.prepare("SELECT cambio FROM turno_inicio WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first();
+    return json({ ok: true, activo: { ...ab, nombre: ab.nombre || ab.persona, cambio_inicial: ini ? ini.cambio : null } });
   }
 
   if (partes[1] === "avatar" && partes[2] === "c" && request.method === "GET") return servirAvatarDe(env, partes[3], url);
