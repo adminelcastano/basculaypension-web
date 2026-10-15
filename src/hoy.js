@@ -156,7 +156,7 @@ export async function hoyPanel(env, interno) {
   const pedir = async r => { try { const j = await interno(r); return j && j.ok !== false ? j : null; } catch (e) { console.error("hoy", r, e && e.message); return null; } };
   const [facturas, caja, turno, agenda, pagos, finanzas, personal, consumo, avisos] = await Promise.all([
     pedir("solicitudes?estado=pendiente&limite=50"),
-    pedir(`caja?desde=${sumaDias(t.dia, -8)}&hasta=${t.dia}`),
+    pedir(`caja?desde=${[sumaDias(t.dia, -8), t.dia.slice(0, 8) + "01"].sort()[0]}&hasta=${t.dia}`),
     pedir("turno/activo"),
     pedir("agenda/resumen"),
     pedir("agenda/pagos"),
@@ -165,7 +165,36 @@ export async function hoyPanel(env, interno) {
     pedir("consumo"),
     avisosSinLeer(env).catch(() => [])
   ]);
+  // Calendario del mes (puntos por día) para el tablero
+  const [a, m] = t.fecha.slice(0, 7).split("-").map(Number), primero = new Date(Date.UTC(a, m - 1, 1));
+  const inicioCal = new Date(primero); inicioCal.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7));
+  const finMes = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+  const cal = await pedir(`agenda?desde=${inicioCal.toISOString().slice(0, 10)}&hasta=${sumaDias(finMes, 7)}`);
   const r = armarHoy({ facturas, caja, turno, agenda, pagos, finanzas, personal, consumo, avisos });
   r.fallas = Object.entries({ facturas, caja, agenda, pagos, finanzas }).filter(([, v]) => !v).map(([k]) => k);
+  r.fuentes = recortar({ facturas, caja, turno, agenda, pagos, finanzas, personal, consumo, cal });
   return r;
 }
+
+// Lo que necesita el tablero de cada fuente (sin las listas largas que no usa)
+export function recortar({ facturas, caja, turno, agenda, pagos, finanzas, personal, consumo, cal }) {
+  const transfPorDia = {};
+  if (caja) {
+    for (const c of caja.cortes || []) for (const [f, v] of Object.entries((c.fuera && c.fuera.formas) || {})) if (f.startsWith("TRANSF")) transfPorDia[c.dia] = r2((transfPorDia[c.dia] || 0) + v);
+    const enHoja = new Set((caja.transf_hoja || []).map(h => h.ref));
+    for (const x of caja.transferencias || []) if (!x.ticket_ref || !enHoja.has(x.ticket_ref)) transfPorDia[x.fecha] = r2((transfPorDia[x.fecha] || 0) + x.importe);
+  }
+  return {
+    facturas: facturas && { conteos: facturas.conteos || {}, solicitudes: (facturas.solicitudes || []).slice(0, 6) },
+    caja: caja && { cortes: caja.cortes, gastos_recientes: caja.gastos_recientes || [], sync: caja.sync || null, conectado: caja.conectado, transf_por_dia: transfPorDia },
+    turno: turno && turno.activo || null,
+    agenda, pagos,
+    finanzas: finanzas && { mes: finanzas.mes, ingresos: finanzas.ingresos, egresos: finanzas.egresos, resultado: finanzas.resultado, diferencias: finanzas.diferencias && { faltantes: finanzas.diferencias.faltantes, sobrantes: finanzas.diferencias.sobrantes },
+      efectivo: finanzas.efectivo && { inicial: finanzas.efectivo.inicial, capturado: finanzas.efectivo.capturado, recibido: finanzas.efectivo.recibido, gastado: finanzas.efectivo.gastado, saldo: finanzas.efectivo.saldo },
+      banco: finanzas.banco && { dinero: finanzas.banco.dinero, deuda: finanzas.banco.deuda, comision: finanzas.banco.comision } },
+    personal: personal && { conteos: personal.conteos || {} },
+    consumo,
+    calendario: cal && { items: (cal.items || []).map(i => ({ fecha: i.fecha, tipo: i.tipo, estado: i.estado })), pagos_hechos: (cal.pagos_hechos || []).map(p => ({ fecha: p.fecha })) }
+  };
+}
+

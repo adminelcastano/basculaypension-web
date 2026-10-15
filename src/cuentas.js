@@ -23,7 +23,7 @@ export const CUENTAS_BASE = [
 export const TIPOS_MOV = { traspaso: "Traspaso entre cuentas", pago_tarjeta: "Pago de tarjeta de crédito", deposito: "Depósito en efectivo", retiro: "Retiro de efectivo" };
 // Comisión que cobra la terminal (Mercado Pago) por cada cobro con tarjeta: porcentaje + IVA sobre la comisión
 export const IVA = 0.16;
-export const COMISION_INICIAL = 3.49;
+export const COMISION_INICIAL = 3.5; // Mercado Pago: 3.50 % + IVA (confirmado por Manuel el 15 oct 2026)
 
 let listo = false;
 export async function asegurarEsquemaCuentas(env) {
@@ -40,6 +40,11 @@ export async function asegurarEsquemaCuentas(env) {
     await env.DB.prepare("UPDATE fin_cuentas SET comision_pct = ? WHERE tarjeta = 1").bind(COMISION_INICIAL).run();
   }
   if (!colsC.has("comision_iva")) await env.DB.prepare("ALTER TABLE fin_cuentas ADD COLUMN comision_iva INTEGER NOT NULL DEFAULT 1").run();
+  // La tasa real es 3.50 % + IVA: corrige una sola vez la que se puso al principio (3.49 %)
+  if (env.FILES && !(await env.FILES.get("mig:comision350"))) {
+    await env.DB.prepare("UPDATE fin_cuentas SET comision_pct = ?, comision_iva = 1 WHERE tarjeta = 1 AND (comision_pct IS NULL OR comision_pct = 3.49)").bind(COMISION_INICIAL).run();
+    await env.FILES.put("mig:comision350", "1");
+  }
   await asegurarEsquemaBitacora(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_saldos_cuenta (mes TEXT NOT NULL, cuenta TEXT NOT NULL, saldo REAL NOT NULL, actualizado TEXT NOT NULL, PRIMARY KEY (mes, cuenta))").run();
   // Traspasos, pagos de tarjeta, depósitos y retiros de efectivo ("sobres" = efectivo de la administración)
@@ -172,7 +177,7 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         const t = String(c.comision_pct ?? "").replace(/[%\s]/g, "");
         if (t === "") pct = null;
         else if (/^\d{1,2}(\.\d{1,3})?$/.test(t) && Number(t) < 20) pct = Number(t);
-        else return json({ ok: false, error: "Escribe la comisión como porcentaje (ej. 3.49)." }, 422);
+        else return json({ ok: false, error: "Escribe la comisión como porcentaje (ej. 3.50)." }, 422);
       }
       if ("comision_iva" in c) iva = c.comision_iva ? 1 : 0;
       const st = [env.DB.prepare("UPDATE fin_cuentas SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ? WHERE id = ?").bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo, "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id)];

@@ -6,16 +6,16 @@ import { flujosMes, encadenarSaldos, comisionDe } from "../src/cuentas.js";
 import { diferenciasCaja, retirosDeCortes, resumenSueldos, transfConCuenta } from "../src/finanzas.js";
 
 const ticket = (servicio, folio, dia, turno, importe, forma) => ({ tipo: "ticket", servicio, folio, fecha: dia + "T10:00:00", dia, turno, importe, forma, mes: dia.slice(0, 7) });
-const MP = { id: "mdo-pago", nombre: "MDO PAGO", tipo: "debito", tarjeta: 1, def_transf: 0, comision_pct: 3.49, comision_iva: 1, activa: 1 };
+const MP = { id: "mdo-pago", nombre: "MDO PAGO", tipo: "debito", tarjeta: 1, def_transf: 0, comision_pct: 3.5, comision_iva: 1, activa: 1 };
 const PYME = { id: "bbva-pyme", nombre: "BBVA PYME", tipo: "debito", tarjeta: 0, def_transf: 1, activa: 1 };
 const BANORTE = { id: "banorte-credito", nombre: "BANORTE CREDITO", tipo: "credito", tarjeta: 0, def_transf: 0, activa: 1 };
 const CUENTAS = [MP, PYME, BANORTE];
 
-test("comisión de Mercado Pago: 3.49% + IVA por cobro, redondeada", () => {
-  assert.equal(comisionDe(1000, MP), 40.48);
-  assert.equal(comisionDe(350, MP), 14.17);
+test("comisión de Mercado Pago: 3.50% + IVA por cobro, redondeada", () => {
+  assert.equal(comisionDe(1000, MP), 40.6);
+  assert.equal(comisionDe(350, MP), 14.21);
   assert.equal(comisionDe(1000, { ...MP, comision_pct: null }), 0);
-  assert.equal(comisionDe(1000, { ...MP, comision_iva: 0 }), 34.9);
+  assert.equal(comisionDe(1000, { ...MP, comision_iva: 0 }), 35);
 });
 
 test("transferencias: tickets de la hoja + capturadas, sin contar dos veces", () => {
@@ -88,8 +88,8 @@ test("flujos del mes: tarjeta neta, transferencias, pagos, sobres y movimientos"
     cambio: [{ dia: "2026-10-06", turno: "TARDE", monto: 200 }]
   }, CUENTAS);
   assert.equal(f.tarjeta, 2000);
-  assert.equal(f.comision, 80.96);
-  assert.equal(f.cuentas["mdo-pago"].entradas, 1919.04);
+  assert.equal(f.comision, 81.2);
+  assert.equal(f.cuentas["mdo-pago"].entradas, 1918.8);
   assert.equal(f.cuentas["mdo-pago"].salidas, 400);
   assert.equal(f.cuentas["bbva-pyme"].entradas, 1600);   // 600 transferencia + 1000 depósito
   assert.equal(f.cuentas["bbva-pyme"].salidas, 450);     // 300 luz + 150 pago de tarjeta

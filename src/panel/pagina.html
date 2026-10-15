@@ -73,38 +73,117 @@
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <main class="mod" id="mod-inicio">
-  <div class="hoy">
-    <header class="hoy-cab">
-      <h2 id="h-saludo">Hola.</h2>
-      <p class="note" id="h-fecha"></p>
-    </header>
+  <div class="ini">
+    <div class="ini-head">
+      <h2 id="i-saludo">Hola.</h2>
+      <p class="note" id="i-fecha"></p>
+    </div>
+    <div class="ini-grid">
+      <section class="ini-card full s3 ini-aten" id="i-aten" aria-label="Pide atención" hidden>
+        <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Pide atención</span><b class="ia-n" id="i-aten-n"></b></div>
+        <div class="ia-chips" id="i-aten-l"></div>
+      </section>
+      <h3 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-a full s2 acciones">
+        <span class="ini-k">Acciones rápidas</span>
+        <div class="acc-grid">
+          <button type="button" class="accion" data-accion="gasto" style="--c:#ff7a70"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span>Gasto de caja</button>
+          <button type="button" class="accion" data-accion="pagohecho" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-billete"/></svg></span>Registrar pago o gasto</button>
+          <button type="button" class="accion" data-accion="programar" style="--c:#30d158"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span>Programar un pago</button>
+          <button type="button" class="accion" data-accion="compra" style="--c:#ffb86b"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span>Anotar compra</button>
+          <button type="button" class="accion" data-accion="transf" style="--c:#e879b6"><span class="ibadge"><svg><use href="#i-transf"/></svg></span>Transferencia de cliente</button>
+          <button type="button" class="accion" data-accion="tarea" style="--c:#64d2ff"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span>Nueva tarea</button>
+          <button type="button" class="accion" data-accion="incidencia" style="--c:#ff6961"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
+          <button type="button" class="accion" data-accion="evento" style="--c:#b69cff"><span class="ibadge"><svg><use href="#i-cal"/></svg></span>Agendar evento</button>
+        </div>
+      </section>
 
-    <section class="hoy-turno" id="h-turno" aria-label="Turno en curso"><p class="note">Cargando…</p></section>
-
-    <section class="hoy-blq" aria-labelledby="h-aten-t">
-      <h3 class="hoy-h" id="h-aten-t">Pide atención <span class="hoy-n" id="h-aten-n" hidden></span></h3>
-      <div class="hoy-aten" id="h-aten" aria-live="polite"><p class="note">Revisando…</p></div>
-    </section>
-
-    <section class="hoy-blq" aria-labelledby="h-acc-t">
-      <h3 class="hoy-h" id="h-acc-t">Registrar</h3>
-      <div class="hoy-acc">
-        <button type="button" data-accion="gasto"><svg aria-hidden="true"><use href="#i-gasto"/></svg>Gasto de caja</button>
-        <button type="button" data-accion="pagohecho"><svg aria-hidden="true"><use href="#i-billete"/></svg>Pago o gasto</button>
-        <button type="button" data-accion="compra"><svg aria-hidden="true"><use href="#i-carrito"/></svg>Compra</button>
-        <button type="button" data-accion="transf"><svg aria-hidden="true"><use href="#i-transf"/></svg>Transferencia</button>
-        <button type="button" data-accion="programar"><svg aria-hidden="true"><use href="#i-reloj"/></svg>Programar pago</button>
-        <button type="button" data-accion="tarea"><svg aria-hidden="true"><use href="#i-tarea"/></svg>Tarea</button>
-        <button type="button" data-accion="incidencia"><svg aria-hidden="true"><use href="#i-alerta"/></svg>Incidencia</button>
-        <button type="button" data-accion="evento"><svg aria-hidden="true"><use href="#i-cal"/></svg>Evento</button>
+      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Caja · turno de hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Caja ›</button></h3>
+      <div class="ini-card cat-b ini-hero s2" data-ir="caja" tabindex="0" role="link">
+        <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Ingresos de hoy</span></div>
+        <b class="ini-big" id="i-hoy">$0</b>
+        <div class="ini-split" id="i-split"></div>
+        <span class="ini-turno" id="i-turno"></span>
       </div>
-    </section>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en caja</span></div>
+        <b class="ini-num" id="i-caja">$0</b><span class="note" id="i-caja-nota"></span><span class="ini-act" id="ini-activo" hidden></span>
+      </div>
+      <div class="ini-card cat-b kpi" data-ir="caja" tabindex="0" role="link" style="--c:#ff7a70">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Gastos de caja hoy</span></div>
+        <b class="ini-num" id="i-gastos">$0</b><span class="note" id="i-gastos-nota"></span><div class="ini-gl" id="ini-gastos-l" hidden></div>
+      </div>
+      <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
+      <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
+      <section class="ini-card cat-b s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <div class="ini-tri">
+        <div class="ini-card cat-b tri" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div><b class="ini-num" id="n-incid">0</b><div id="m-incid"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas por hacer</span></div><b class="ini-num" id="n-tareas">0</b><div id="m-tareas"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="aviso" tabindex="0" role="link" style="--c:#ffcc00"><div class="ini-top"><span class="ibadge"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos activos</span></div><b class="ini-num" id="n-avisos">0</b><div id="m-avisos"></div></div>
+      </div>
 
-    <section class="hoy-blq hoy-card" id="h-num" aria-label="Ingresos de hoy"></section>
-    <section class="hoy-blq hoy-card" id="h-mes" aria-label="Este mes"></section>
-    <section class="hoy-blq hoy-card" id="h-prox" aria-label="Próximo en la agenda"></section>
-    <p class="note hoy-pie" id="h-pie"></p>
+      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos y compras</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos ›</button></h3>
+      <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
+        <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
+      </div>
+      <div class="ini-card cat-f kpi" data-agenda="hechos" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Pagado este mes</span></div>
+        <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
+      </div>
+      <div class="ini-card cat-f s2 ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
+      <div class="ini-par">
+      <section class="ini-card cat-f"><h3>Pagado por mes</h3><p class="note">Pagos y gastos de la administración registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <section class="ini-card cat-f"><h3>Este mes por categoría</h3><p class="note">Pagos y compras de la administración.</p><div class="dona" id="d-pagos"></div></section>
+      </div>
+
+      <h3 class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><span>Dinero · este mes</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Dinero ›</button></h3>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#7ee2a0">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Entró este mes</span></div>
+        <b class="ini-num" id="i-f-ing">$0</b><span class="note" id="i-f-ing-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ff8a80">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-gasto"/></svg></span><span class="ini-k">Salió este mes</span></div>
+        <b class="ini-num" id="i-f-egr">$0</b><span class="note" id="i-f-egr-nota"></span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#ffcc00">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Resultado del mes</span></div>
+        <b class="ini-num" id="i-f-res">$0</b><span class="note" id="i-f-res-nota">Entró − salió</span>
+      </div>
+      <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#2dd4bf">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en sobres</span></div>
+        <b class="ini-num" id="i-f-sob">—</b><span class="note" id="i-f-sob-nota"></span>
+      </div>
+      <section class="ini-card cat-g full s3"><h3>Ingresos del mes</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+
+      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturas y personal</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturas ›</button></h3>
+      <div class="ini-par">
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+          <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+          <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+          <div id="i-pend-l"></div>
+          <button type="button" class="ini-exp" data-ir="personal"><svg aria-hidden="true"><use href="#i-persona"/></svg><span><b id="i-exp">0</b> expedientes incompletos <span id="i-exp-nota"></span></span></button>
+        </div>
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
+      </div>
+
+      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
+      <div class="ini-par">
+        <section class="ini-card cat-d ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
+        <div class="ini-agcol">
+          <div class="ini-card cat-d ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Pagos programados</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="hechos" tabindex="0" role="link" style="--c:#7ee2a0"><div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Pagos no programados del mes</span><b class="mini-n" id="n-noprog">0</b></div><div id="m-noprog"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="aviso" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias y avisos</span></div><div id="m-incav"></div></div>
+        </div>
+      </div>
+
+      <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
+      <section class="ini-card cat-e full s3" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
+    </div>
+    <p class="note ini-pie" id="i-pie"></p>
   </div>
+  <div class="gtip" id="gtip" role="status" hidden></div>
 </main>
 <main class="mod" id="mod-facturacion" hidden>
 <div class="titlebar">
