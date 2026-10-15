@@ -1,5 +1,5 @@
 // Notificaciones push en este celular: tarjeta en Hoy para activarlas y, al tocar una notificación, abrir la sección.
-// Las incidencias, avisos e informes de tareas de la tablet llegan aquí (y los recordatorios de la agenda).
+// Las incidencias, avisos, informes de tareas y cortes de la tablet llegan aquí (y los recordatorios de la agenda).
 (() => {
   const { $, api, post, toast } = EC;
   const caja = $("#i-push");
@@ -32,7 +32,7 @@
       ? `<p class="push-t">Este navegador no recibe notificaciones. En Android abre el panel en <b>Chrome</b>.</p>`
       : p === "denied"
         ? `<p class="push-t">Están <b>bloqueadas</b> en este celular. Permítelas en Chrome: <b>⋮ → Configuración → Notificaciones → basculaypension.com</b>, y vuelve a abrir el panel.</p>`
-        : `<p class="push-t">Recibe al instante las <b>incidencias</b>, <b>avisos</b> e informes de <b>tareas</b> de la tablet.</p><button class="btn btn-primary" type="button" id="push-act">Activar notificaciones</button>`);
+        : `<p class="push-t">Recibe al instante los <b>cortes</b>, <b>incidencias</b>, <b>avisos</b> e informes de <b>tareas</b> de la tablet.</p><button class="btn btn-primary" type="button" id="push-act">Activar notificaciones</button>`);
   }
 
   if (caja) caja.addEventListener("click", async e => {
@@ -50,7 +50,11 @@
   pintar();
 
   // Al tocar una notificación: abre la sección; si llega con el panel abierto, recarga los datos
-  const abrir = sec => { if (sec && window.agendaAbrir) window.agendaAbrir(sec); };
+  const abrir = sec => {
+    if (!sec) return;
+    if (sec.startsWith("corte:")) { if (window.cajaAbrirCorte) window.cajaAbrirCorte(sec.slice(6)); return; }
+    if (window.agendaAbrir) window.agendaAbrir(sec);
+  };
   if (soporta) navigator.serviceWorker.addEventListener("message", e => {
     const m = e.data || {};
     if (m.tipo === "abrir") abrir(m.sec);

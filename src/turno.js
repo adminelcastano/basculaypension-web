@@ -550,10 +550,35 @@ export async function turnoRuta(request, env, url, h) {
         .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora),
       env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno)
     ]);
+    // Al celular de la administración: cómo se repartió el efectivo del turno
+    try {
+      const gastos = (await env.DB.prepare("SELECT concepto, monto FROM caja_gastos WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja' ORDER BY creado").bind(s.dia, s.turno).all()).results;
+      const extras = (await env.DB.prepare("SELECT concepto, detalle, monto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
+      const veces = (await env.DB.prepare("SELECT veces FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first() || {}).veces || 1;
+      await notificar(env, "admin", pushCorte({ dia: s.dia, turno: s.turno, nombre: s.nombre, efectivo, tarjeta, sobre, cambioSig, retiros, gastos, extras, corregido: veces > 1 }));
+    } catch (err) { console.error("corte: push", err && err.message); }
     return recordar(json({ ok: true }));
   }
 
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
+}
+
+// Notificación del corte: sobre, cambio, retiros, gastos e ingresos extra del turno
+const pesos = v => "$" + (Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const TURNO_NOM = { "MAÑANA": "Mañana", TARDE: "Tarde", NOCHE: "Noche" };
+export function pushCorte({ dia, turno, nombre, efectivo, tarjeta, sobre, cambioSig, retiros = [], gastos = [], extras = [], corregido }) {
+  const suma = l => l.reduce((a, x) => a + (Number(x.monto) || 0), 0);
+  const cuales = (l, f) => { const n = l.map(f).filter(Boolean); return n.length ? ` (${n.slice(0, 3).join(", ")}${n.length > 3 ? ` y ${n.length - 3} más` : ""})` : ""; };
+  const lineas = [`Sobre ${pesos(sobre)} · Cambio ${pesos(cambioSig)}`];
+  if (retiros.length) lineas.push(`Retiros ${pesos(suma(retiros))}${cuales(retiros, r => r.concepto)}`);
+  lineas.push(gastos.length ? `Gastos ${pesos(suma(gastos))}${cuales(gastos, g => g.concepto)}` : "Sin gastos");
+  if (extras.length) lineas.push(`Ingresos extra ${pesos(suma(extras))}${cuales(extras, x => x.detalle ? `${x.concepto} ${x.detalle}` : x.concepto)}`);
+  lineas.push(`Contó ${pesos(efectivo)}${tarjeta != null ? ` · Vouchers ${pesos(tarjeta)}` : ""}`);
+  const k = `${dia}|${turno}`;
+  return {
+    titulo: `${corregido ? "Corte corregido" : "Corte entregado"} · ${TURNO_NOM[turno] || turno} ${dia.slice(8, 10)}/${dia.slice(5, 7)} · ${nombre}`,
+    cuerpo: lineas.join("\n"), sec: "corte:" + k, url: "/panel?abrir=" + encodeURIComponent("corte:" + k), etiqueta: "corte-" + k
+  };
 }
 
 const escHtml = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

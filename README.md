@@ -127,6 +127,7 @@ Web Push estándar (VAPID + cifrado aes128gcm, `src/push.js`), sin servicios ext
 
 | Pasa esto | Llega a |
 |---|---|
+| Corte entregado o corregido: sobre, cambio, retiros, gastos, ingresos extra y lo contado (abre el detalle del corte) | admin |
 | Incidencia reportada en la tablet (las graves se quedan fijas) | admin |
 | Aviso dejado en la tablet | admin |
 | Informe de una tarea (cumplida, a medias, no se pudo) | admin |
