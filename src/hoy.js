@@ -82,7 +82,12 @@ export function armarHoy(d, ahora = new Date()) {
   const prox = (pg.proximos || []).filter(p => p.fecha && p.fecha >= t.fecha && p.fecha <= sumaDias(t.fecha, 3));
   if (pg.vencidos) add("alta", "pagos-vencidos", `${pg.vencidos} ${pg.vencidos === 1 ? "pago vencido" : "pagos vencidos"}`, (pg.proximos || []).filter(p => p.fecha && p.fecha < t.fecha).slice(0, 3).map(p => `${p.titulo}${p.importe ? " " + dinero(p.importe) : ""}`).join(" · "), { mod: "pagos", tab: "pago" }, pg.vencidos);
   if (prox.length) add("media", "pagos-pronto", `${prox.length} ${prox.length === 1 ? "pago vence" : "pagos vencen"} en los próximos 3 días`, prox.slice(0, 3).map(p => `${p.titulo} (${diaCorto(p.fecha, t.fecha)})${p.importe ? " " + dinero(p.importe) : ""}`).join(" · "), { mod: "pagos", tab: "pago" }, prox.length);
-  if (ab.compra) add("info", "compras", `${ab.compra} ${ab.compra === 1 ? "compra pendiente" : "compras pendientes"}`, (ag.compras || []).slice(0, 3).map(x => x.titulo + (x.cantidad ? ` (${x.cantidad})` : "")).join(" · "), { mod: "pagos", tab: "compra" }, ab.compra);
+  // Compras: las que pidieron los encargados desde la tablet van aparte (con quién las pidió); urgentes en rojo
+  const ct = ag.compras_tablet || [], ctUrg = ct.filter(x => x.prioridad === "alta").length;
+  if (ct.length) add(ctUrg ? "alta" : "media", "compras-tablet", `${ct.length} ${ct.length === 1 ? "compra pedida" : "compras pedidas"} por los encargados${ctUrg ? ` (${ctUrg} ${ctUrg === 1 ? "urgente" : "urgentes"})` : ""}`,
+    ct.slice(0, 3).map(x => `${x.reporto}: ${x.titulo}${x.cantidad ? ` (${x.cantidad})` : ""}${x.prioridad === "alta" ? " ❗" : ""}`).join(" · ") + (ct.length > 3 ? ` · y ${ct.length - 3} más` : ""), { mod: "pagos", tab: "compra" }, ct.length);
+  const otras = Math.max(0, (ab.compra || 0) - ct.length);
+  if (otras) add("info", "compras", `${otras} ${otras === 1 ? (ct.length ? "compra tuya pendiente" : "compra pendiente") : (ct.length ? "compras tuyas pendientes" : "compras pendientes")}`, (ag.compras || []).filter(x => !x.reporto).slice(0, 3).map(x => x.titulo + (x.cantidad ? ` (${x.cantidad})` : "")).join(" · "), { mod: "pagos", tab: "compra" }, otras);
 
   // ---- Dinero: lo que falta para que las cifras sean reales ----
   const fin = d.finanzas || null;
