@@ -12,6 +12,7 @@ import AV5 from "./avatares/a5.webp";
 // avisos y tareas (avisos de ida y vuelta con la administración y entre encargados; tareas con informe),
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
+import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
@@ -334,6 +335,17 @@ export async function turnoRuta(request, env, url, h) {
     return json({ ok: true }, 200, { "Set-Cookie": cookie(ses, SESION_HORAS * 3600) });
   }
 
+  // Notificaciones push de la tablet: son del aparato, no de la persona (sirven aunque nadie haya entrado)
+  if (partes[0] === "push") {
+    if (partes.length === 1 && request.method === "GET") return json({ ok: true, clave: await clavePublica(env) });
+    const c = request.method === "POST" ? await request.json().catch(() => ({})) : {};
+    if (partes.length === 1 && request.method === "POST") {
+      try { await suscribir(env, "tablet", c.sub, c.aparato || "Tablet del turno"); } catch (e) { return json({ ok: false, error: e.message }, 422); }
+      return json({ ok: true });
+    }
+    if (partes[1] === "quitar" && request.method === "POST") { await desuscribir(env, c.endpoint); return json({ ok: true }); }
+  }
+
   if (partes[0] === "salir" && request.method === "POST") return json({ ok: true }, 200, { "Set-Cookie": cookie("", 0) });
 
   const s = await sesionActual(request, env);
@@ -390,6 +402,7 @@ export async function turnoRuta(request, env, url, h) {
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
     const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona });
+    await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Aviso urgente" : "Aviso"} de ${s.nombre}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : ""), sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }
   if (partes[0] === "avisos" && partes[2] && request.method === "POST") {
@@ -425,6 +438,8 @@ export async function turnoRuta(request, env, url, h) {
       await env.DB.prepare("UPDATE agenda_items SET estado = 'hecho', cerrado = ?, actualizado = ?, hecho_por = ?, nota_cierre = ?, foto = COALESCE(?, foto) WHERE id = ?")
         .bind(ahora, ahora, s.persona, nota || null, foto, t.id).run();
     else await env.DB.prepare("UPDATE agenda_items SET actualizado = ? WHERE id = ?").bind(ahora, t.id).run();
+    const RES = { cumplida: "cumplida", parcial: "a medias", no: "no se pudo" };
+    await notificar(env, "admin", { titulo: `Tarea ${RES[resultado]}: ${t.titulo}`, cuerpo: `${s.nombre} · turno ${String(s.turno).toLowerCase()}${nota ? "\n" + nota : ""}`, sec: "tarea", url: "/panel?abrir=tarea", etiqueta: "tarea-" + t.id });
     let avisado = false;
     if (h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
       try { await h.llamarScript(env, correoTarea(t, resultado, nota, !!foto, s)); avisado = true; } catch (err) { console.error("informe tarea: correo", err && err.message); }
@@ -444,6 +459,8 @@ export async function turnoRuta(request, env, url, h) {
     try { foto = await guardarFoto(env, c.foto, "incid"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await insertarItem(env, id, "incidencia", d, `tablet:${s.persona}`, ahora, { reporto: s.persona, foto });
+    const grave = d.gravedad === "grave";
+    await notificar(env, "admin", { titulo: `${grave ? "🚨 Incidencia GRAVE" : d.gravedad === "media" ? "Incidencia" : "Incidencia leve"} · ${area}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : "") + `\nReportó ${s.nombre}${quien && quien !== s.nombre ? " · " + quien : ""}`, sec: "incidencia", url: "/panel?abrir=incidencia", etiqueta: "inc-" + id, grave });
     let avisado = false;
     // Toda incidencia (leve, media o grave) manda correo a la administración
     if (h.llamarScript && env.AVISO_URL && env.AVISO_TOKEN) {
@@ -559,7 +576,7 @@ function correoTarea(t, resultado, nota, conFoto, s) {
   };
 }
 
-const SW = `const C = "turno-v2";
+const SW = `const C = "turno-v2";${swPush("/turno")}
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(["/turno", "/img/logo.png", "/img/turno-192.png"])).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {

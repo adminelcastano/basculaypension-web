@@ -17,6 +17,7 @@ import { finanzasPanel } from "./finanzas.js";
 import { categoriasPanel } from "./categorias.js";
 import { limpiarBitacora } from "./bitacora.js";
 import { hoyPanel } from "./hoy.js";
+import { clavePublica, suscribir, desuscribir, aparatos, enviarPush } from "./push.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -49,6 +50,8 @@ function normalizarScripts(env) {
 export default {
   async fetch(request, env, ctx) {
     env = normalizarScripts(env);
+    // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
+    env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
     try {
       // Modo ahorro (consumo cerca del límite incluido): se pausan los formularios públicos
@@ -424,6 +427,20 @@ async function rutasPanel(request, env, url, usuario) {
   const partes = ruta.split("/").slice(3); // tras /panel/api/
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
+  // Notificaciones push del celular del administrador
+  if (partes[0] === "push") {
+    if (partes.length === 1 && request.method === "GET") return json({ ok: true, clave: await clavePublica(env), aparatos: await aparatos(env, "admin") });
+    const c = request.method === "POST" ? await request.json().catch(() => ({})) : {};
+    if (partes.length === 1 && request.method === "POST") {
+      try { await suscribir(env, "admin", c.sub, c.aparato); } catch (e) { return json({ ok: false, error: e.message }, 422); }
+      return json({ ok: true });
+    }
+    if (partes[1] === "quitar" && request.method === "POST") { await desuscribir(env, c.endpoint); return json({ ok: true }); }
+    if (partes[1] === "prueba" && request.method === "POST") {
+      const n = await enviarPush(env, "admin", { titulo: "Notificaciones activadas", cuerpo: "Así te llegarán las incidencias, avisos y tareas de la tablet.", sec: "incidencia", etiqueta: "prueba" });
+      return json({ ok: true, enviados: n });
+    }
+  }
   // Tablero de Hoy: una sola llamada que junta lo que pide atención (las demás rutas se consultan aquí mismo)
   if (partes[0] === "hoy" && request.method === "GET") {
     const interno = async r => { const u = new URL("/panel/api/" + r, url.origin); return (await rutasPanel(new Request(u, { method: "GET" }), env, u, usuario)).json(); };

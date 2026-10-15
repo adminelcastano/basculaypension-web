@@ -3,6 +3,8 @@ import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
 import { stmtBitacora } from "./bitacora.js";
+import { notificar, enviarPush } from "./push.js";
+const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => { console.error("push", e && e.message); return 0; });
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
   if (!c || typeof c.forma !== "string") return;
@@ -136,6 +138,23 @@ function validar(tipo, c, previo = {}) {
 }
 
 const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado','pagado')";
+
+// Notificación a la tablet por un aviso o una tarea del turno creados en el panel (null si no va a los encargados)
+const TURNO_TXT = { "MAÑANA": "la mañana", TARDE: "la tarde", NOCHE: "la noche" };
+export function pushTablet(tipo, d, id) {
+  const urgente = d.prioridad === "alta";
+  const det = d.detalle ? "\n" + d.detalle : "";
+  if (tipo === "aviso") {
+    const p = normalizarPara(d.para);
+    if (!p.todos && !p.turnos.length && !p.personas.length) return null; // solo para la administración
+    const para = p.todos ? "" : "\nPara: " + [...p.turnos.map(t => "turno de " + (TURNO_TXT[t] || t.toLowerCase())), ...p.personas].join(", ");
+    return { titulo: urgente ? "Aviso urgente de la administración" : "Aviso de la administración", cuerpo: d.titulo + det + para, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
+  }
+  if (tipo === "tarea" && d.para_turno) {
+    return { titulo: `${urgente ? "Tarea urgente" : "Nueva tarea"}${d.turno ? " · turno de " + (TURNO_TXT[d.turno] || d.turno.toLowerCase()) : ""}`, cuerpo: d.titulo + det, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "tarea-" + id, grave: urgente };
+  }
+  return null;
+}
 
 export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {}) {
   await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso, para_turno, area, reporto, foto, autor, para, quien)
@@ -428,6 +447,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (fotos.length) await env.DB.prepare("UPDATE agenda_items SET fotos = ? WHERE id = ?").bind(JSON.stringify(fotos), id).run();
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
     if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
+    const push = pushTablet(tipo, d, id);
+    if (push) await notificar(env, "tablet", push);
     return json({ ok: true, id });
   }
 
@@ -570,15 +591,18 @@ export async function recordatoriosAgenda(env, enviar, ahora = new Date()) {
     if (ahora.getTime() - momento.getTime() > 3600000) { await env.DB.prepare("UPDATE agenda_items SET avisado = ? WHERE id = ?").bind(ahora.toISOString(), it.id).run(); continue; }
     const cuando = `${diaTxt(it.fecha)}${it.hora ? " a las " + it.hora : ""}`;
     const que = it.tipo === "evento" ? "Evento" : "Tarea";
+    // Llega al celular (push) y al correo; si uno falla, el otro sigue y ya no se repite
+    const push = await enviarPushSeguro(env, { titulo: `${que}: ${it.titulo}`.slice(0, 120), cuerpo: cuando + (it.detalle ? "\n" + it.detalle : ""), sec: it.tipo === "evento" ? "calendario" : "tarea", url: "/panel?abrir=" + (it.tipo === "evento" ? "calendario" : "tarea"), etiqueta: "rec-" + it.id });
+    let correo = false;
     try {
       await enviar(env, {
         asunto: `Recordatorio: ${it.titulo}`.slice(0, 180),
         texto: `${que}: ${it.titulo}\nCuándo: ${cuando}${it.detalle ? "\n\n" + it.detalle : ""}\n\nAgenda: https://basculaypension.com/panel#agenda`,
         html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><p style="color:#666;margin:0">Recordatorio · ${que}</p><h2 style="margin:4px 0 8px">${escHtml(it.titulo)}</h2><p style="margin:0 0 12px"><b>${escHtml(cuando)}</b></p>${it.detalle ? `<p>${escHtml(it.detalle)}</p>` : ""}<p><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
       });
-      await env.DB.prepare("UPDATE agenda_items SET avisado = ? WHERE id = ?").bind(ahora.toISOString(), it.id).run();
-      enviados++;
+      correo = true;
     } catch (e) { console.error("recordatorio agenda", e && e.message); }
+    if (correo || push) { await env.DB.prepare("UPDATE agenda_items SET avisado = ? WHERE id = ?").bind(ahora.toISOString(), it.id).run(); enviados++; }
   }
   return enviados;
 }

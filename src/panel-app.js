@@ -17,8 +17,19 @@ import J06 from "./panel/cliente/06-inicio.js";
 import J07 from "./panel/cliente/07-agenda.js";
 import J08 from "./panel/cliente/08-navegacion.js";
 import J09 from "./panel/cliente/09-ocultar.js";
+import J10 from "./panel/cliente/10-avisos-push.js";
+import { swPush } from "./push.js";
 
-export const JS = [J00, J01, J02, J03, J04, J05, J06, J07, J08, J09].join("\n;\n");
+export const JS = [J00, J01, J02, J03, J04, J05, J06, J07, J08, J09, J10].join("\n;\n");
+// Para instalar el panel como app en el celular ("Agregar a pantalla principal")
+const MANIFIESTO = {
+  id: "/panel", name: "Panel · El Castaño", short_name: "El Castaño", start_url: "/panel", scope: "/panel", display: "standalone",
+  background_color: "#111214", theme_color: "#111214", orientation: "portrait",
+  icons: [{ src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
+};
+// Service worker del panel: solo notificaciones (no guarda páginas; el panel siempre se pide a internet)
+const SW = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));` + swPush("/panel");
 export { CSS };
 
 let version = null;
@@ -36,6 +47,8 @@ export async function paginaPanel() {
 
 // /panel/app.css y /panel/app.js (null si no es uno de ellos)
 export async function recursoPanel(ruta, url) {
+  if (ruta === "/panel/app.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache" } });
+  if (ruta === "/panel/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/panel", "X-Content-Type-Options": "nosniff" } });
   const tipo = ruta === "/panel/app.css" ? "text/css" : ruta === "/panel/app.js" ? "text/javascript" : null;
   if (!tipo) return null;
   const v = await huella();

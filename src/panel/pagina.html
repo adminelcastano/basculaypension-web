@@ -7,6 +7,8 @@
 <title>Panel · El Castaño</title>
 <link rel="icon" href="/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="manifest" href="/panel/app.webmanifest" crossorigin="use-credentials">
+<meta name="theme-color" content="#111214">
 <link rel="stylesheet" href="{{CSS}}">
 <script defer src="{{JS}}"></script>
 </head>
@@ -79,6 +81,7 @@
       <p class="note" id="i-fecha"></p>
     </div>
     <div class="ini-grid">
+      <section class="ini-card full s3 push-card" id="i-push" aria-label="Notificaciones" hidden></section>
       <section class="ini-card full s3 ini-aten" id="i-aten" aria-label="Pide atención" hidden>
         <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Pide atención</span><b class="ia-n" id="i-aten-n"></b></div>
         <div class="ia-chips" id="i-aten-l"></div>

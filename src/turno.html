@@ -115,6 +115,7 @@ main.sec { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 3vw, 32p
 
 .card { background: var(--surface); border-radius: 22px; padding: 20px 22px; }
 .card + .card { margin-top: 16px; }
+.push-card { margin-bottom: 16px; }
 .card > h2 { font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .card > h2 .der { margin-left: auto; }
 .card > .note { margin: 0 0 12px; }
@@ -524,10 +525,55 @@ dialog .acciones .btn { flex: 1 1 160px; }
   async function abrirApp() {
     await cargar();
     enviarCola();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" }).catch(() => {});
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" }).then(() => { if (pushListo()) suscribirPush(false).catch(() => {}); }).catch(() => {});
     $("#entrada").hidden = true; $("#app").hidden = false;
-    ir("inicio");
+    // Abierta desde una notificación (/turno?sec=avisos): va directo a esa sección
+    const q = new URLSearchParams(location.search).get("sec");
+    if (q) history.replaceState(null, "", location.pathname);
+    ir(["avisos", "incidencias"].includes(q) ? q : "inicio");
   }
+
+  // ---------- Notificaciones push (de la tablet, no de la persona) ----------
+  const soportaPush = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const pushListo = () => soportaPush && Notification.permission === "granted";
+  const deB64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+  const aB64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  async function suscribirPush(pedir) {
+    const reg = await navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" });
+    if (pedir && Notification.permission === "default") await Notification.requestPermission();
+    if (Notification.permission !== "granted") return false;
+    await navigator.serviceWorker.ready;
+    const { clave } = await api("push");
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && sub.options && sub.options.applicationServerKey && aB64u(sub.options.applicationServerKey) !== clave) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: deB64u(clave) });
+    await api("push", { sub: sub.toJSON(), aparato: "Tablet del turno" }, { cola: false });
+    return true;
+  }
+  function tarjetaPush() {
+    if (!soportaPush || Notification.permission === "granted") return "";
+    return `<section class="card push-card"><h2 style="margin:0 0 6px">${ico("i-aviso", "c-aviso")}Notificaciones de la tablet</h2>
+      ${Notification.permission === "denied"
+        ? `<p class="muted" style="margin:0">Están bloqueadas. Permítelas en Chrome: <b>⋮ → Configuración → Notificaciones → basculaypension.com</b>.</p>`
+        : `<p class="muted" style="margin:0 0 12px">Actívalas para que suenen los avisos y las tareas que manda la administración, aunque la pantalla esté apagada.</p><button class="btn btn-primary" type="button" id="push-act">Activar notificaciones</button>`}</section>`;
+  }
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("#push-act"); if (!b || b.disabled) return;
+    b.disabled = true; b.textContent = "Activando…";
+    try {
+      if (await suscribirPush(true)) toast("Listo: la tablet recibirá los avisos y tareas.");
+      else if (Notification.permission === "denied") toast("Se bloquearon: permítelas en los ajustes de Chrome.", true);
+    } catch (er) { toast("No se pudieron activar: " + (er && er.message || er), true); }
+    if (seccion === "inicio") pintar();
+  });
+  // Al tocar una notificación con la tablet abierta, o si llega una mientras se usa: recarga y abre la sección
+  if (soportaPush) navigator.serviceWorker.addEventListener("message", async e => {
+    const m = e.data || {};
+    if (!E || $("#app").hidden) return;
+    const ocupado = $("#dlg").open || sucio || seccion === "corte" || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+    if (m.tipo === "push") { if (ocupado) await cargar().catch(() => {}); else { const y = scrollY; await refrescar().then(() => scrollTo({ top: y })).catch(() => {}); } }
+    if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "incidencias"].includes(m.sec)) ir(m.sec); }
+  });
   const sinLeer = () => E.avisos.filter(a => !a.leido).length;
   function pintarCabecera() {
     pintarAvatar($("#avatar"), E.avatar_url, E.persona);
@@ -597,6 +643,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
     const nuevos = E.avisos.filter(a => !a.leido);
     const c = E.corte;
     sec().innerHTML = titulo(`${saludo}, ${esc((E.prefs && E.prefs.apodo) || E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
+      ${tarjetaPush()}
       <div class="ini-grid">
         <h2 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h2>
         <section class="ini-card cat-a s4">
