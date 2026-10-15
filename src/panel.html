@@ -753,15 +753,76 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 .rl-mes { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .rl-mes b { min-width: 150px; }
 .pg-res .k small { display: block; color: #a1a1a6; font-size: 12px; margin-top: 2px; }
-.ini-agcol { grid-column: span 2; display: grid; gap: 12px; align-content: start; }
+.ini-agcol { display: grid; gap: 12px; align-content: start; }
 .ini-exp { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid #3a3a3c; background: #1f1f21; color: #d2d2d7; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
 .ini-exp svg { width: 18px; height: 18px; flex: none; color: #b69cff; }
 .ini-exp b { color: #f5f5f7; }
 .ini-cal .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .ini-cal .cal-head h3 { margin: 0; }
 .ini-cal .cal .d { min-height: 46px; }
-@media (max-width: 1000px) { .ini-agcol { grid-column: 1 / -1; } .ini-cal { grid-column: 1 / -1 !important; } }
 @media (max-width: 640px) { .fcols { grid-template-columns: 1fr; } .ini-cal .cal .d { min-height: 38px; } header.bar .modulos { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } header.bar .modulos button { font-size: 10px !important; padding: 4px 0 !important; } header.bar .modulos .mi { width: 22px !important; height: 22px !important; } }
+
+/* ---- Categorías ---- */
+.cat-ico { display: inline-block; vertical-align: -3px; flex: none; }
+.cat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 6px; border-radius: 999px; background: #2a2a2d; color: #d2d2d7; font-size: 12.5px; white-space: nowrap; }
+.cat-lista { display: grid; gap: 8px; }
+.cat-fila { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.cat-fila .ci { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.cat-fila .ci svg { width: 20px; height: 20px; }
+.cat-icos { display: flex; flex-wrap: wrap; gap: 4px; }
+.cat-icos button { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: #1f1f21; color: #d2d2d7; display: grid; place-items: center; cursor: pointer; }
+.cat-icos button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+.cat-icos svg { width: 18px; height: 18px; }
+.st-ico svg { width: 13px; height: 13px; }
+
+.fcat { display: grid; gap: 10px; margin-top: 8px; }
+.fcat-f { display: grid; grid-template-columns: 34px minmax(140px, 1.2fr) minmax(60px, 2fr) auto; align-items: center; gap: 12px; }
+.fcat-f .ci { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.fcat-f .ci svg { width: 20px; height: 20px; }
+.fcat-f .fn small { display: block; color: #a1a1a6; font-size: 12px; }
+.fcat-f .fb { height: 8px; background: #2a2a2d; border-radius: 4px; overflow: hidden; } .fcat-f .fb i { display: block; height: 100%; background: var(--c); border-radius: 4px; }
+.fcat-f b { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .fcat-f { grid-template-columns: 34px minmax(0, 1fr) auto; } .fcat-f .fb { display: none; } }
+
+.ini-tri, .ini-par { grid-column: 1 / -1; display: grid; gap: 12px; align-items: stretch; }
+.ini-tri { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ini-par { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.ini-tri > .ini-card, .ini-par > .ini-card { border: 1.5px solid #3a3a3c; border: 1.5px solid color-mix(in srgb, var(--cat, #3a3a3c) 55%, transparent); }
+.ini-par > .ini-card { height: 100%; }
+.ini-agcol { grid-column: auto !important; }
+.tri .ini-num { color: var(--c); }
+.mini-q { display: grid; gap: 8px; margin-top: 6px; }
+.mini-q > div { display: grid; gap: 1px; border-top: 1px solid #2c2c2e; padding-top: 7px; min-width: 0; }
+.mini-q .t { font-size: 14px; color: #f5f5f7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-q .q { font-size: 12px; color: #a1a1a6; display: flex; align-items: center; gap: 5px; }
+.mini-q .q .avp { width: 16px; height: 16px; }
+.mini-q .vacio { color: #8e8e93; font-size: 13.5px; border: 0; }
+.mini-r { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.mini-r b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mini-tot { display: flex; justify-content: space-between; border-top: 1px solid #3a3a3c; margin-top: 6px; padding-top: 6px; font-size: 13.5px; color: #d2d2d7; }
+@media (max-width: 1000px) { .ini-cal { grid-column: auto !important; } }
+@media (max-width: 760px) { .ini-tri, .ini-par { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Ocultar la parte fija de arriba y colapsar la lista lateral (se recuerda por sección) ---- */
+.titlebar { position: relative; }
+.enc-tg { position: absolute; right: clamp(16px, 3vw, 32px); top: 22px; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: #1c1c1e; color: #d2d2d7; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.enc-tg:hover { background: #2a2a2d; }
+.enc-tg svg { width: 14px; height: 14px; transition: transform .2s; }
+.mod.enc-oculto > .tools { display: none; }
+.mod.enc-oculto > .titlebar { padding-top: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); grid-template-columns: auto 1fr; align-items: center; column-gap: 12px; }
+.mod.enc-oculto > .titlebar h2 { font-size: 20px; letter-spacing: -0.01em; }
+.mod.enc-oculto > .titlebar .note { display: none; }
+.mod.enc-oculto > .titlebar .enc-tg { top: 50%; transform: translateY(-50%); }
+.mod.enc-oculto .enc-tg svg { transform: rotate(180deg); }
+div.work { position: relative; transition: grid-template-columns .2s; }
+div.work.lista-oculta { grid-template-columns: 0 minmax(0, 1fr); }
+div.work.lista-oculta > .list { visibility: hidden; overflow: hidden; padding: 0; border: 0; }
+.lat-tg { position: absolute; top: 10px; z-index: 25; width: 28px; height: 44px; border-radius: 0 10px 10px 0; border: 1px solid var(--line); border-left: 0; background: #1c1c1e; color: #d2d2d7; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.lat-tg:hover { background: #2a2a2d; color: var(--amber); }
+.lat-tg svg { width: 16px; height: 16px; transform: rotate(180deg); }
+div.work.lista-oculta > .lat-tg svg { transform: none; }
+@media (max-width: 820px) { .lat-tg { display: none; } div.work.lista-oculta { grid-template-columns: 1fr; } div.work.lista-oculta > .list { visibility: visible; } }
+@media (max-width: 640px) { .enc-tg span { display: none; } .enc-tg { padding: 0 10px; } }
 </style>
 </head>
 <body>
@@ -828,6 +889,22 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   <symbol id="i-sync" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8M17.6 3.6v3.6H14M6.4 20.4v-3.6H10"/></symbol>
   <symbol id="i-casa" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h4.4v-5.6h3.2v5.6H18V9"/></symbol>
   <symbol id="i-arriba" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-cat-servicios" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 18h5.2M10.4 21h3.2M12 3.2a5.8 5.8 0 0 0-3.5 10.4c.7.6 1 1.3 1 2.2h5c0-.9.3-1.6 1-2.2A5.8 5.8 0 0 0 12 3.2z"/></symbol>
+  <symbol id="i-cat-sueldos" viewBox="0 0 24 24"><ellipse fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="12" cy="6" rx="7" ry="2.6"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 6v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 10v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4M5 14v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4"/></symbol>
+  <symbol id="i-cat-renta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 10.6L12 4l8.2 6.6M6 9v10.4h12V9M10 19.4v-5h4v5"/></symbol>
+  <symbol id="i-cat-mantenimiento" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.7 4.3a4.2 4.2 0 0 0-5 5.5L3.9 15.6a1.9 1.9 0 0 0 2.7 2.7l5.8-5.8a4.2 4.2 0 0 0 5.5-5l-2.6 2.6-2.3-.5-.5-2.3z"/></symbol>
+  <symbol id="i-cat-papeleria" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M15.6 7.4l-6.3 6.3a1.7 1.7 0 0 0 2.4 2.4l6.6-6.6a3.4 3.4 0 0 0-4.8-4.8l-6.6 6.6a5.1 5.1 0 0 0 7.2 7.2l5.3-5.3"/></symbol>
+  <symbol id="i-cat-combustible" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 20V5.6A1.6 1.6 0 0 1 6.6 4h5.8A1.6 1.6 0 0 1 14 5.6V20M3.8 20h11.4M7.4 8.2h4.2M14 11h1.6a1.4 1.4 0 0 1 1.4 1.4v3.2a1.5 1.5 0 0 0 3 0V8.6L17.6 6"/></symbol>
+  <symbol id="i-cat-impuestos" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3.6h12v16.8l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4zM9.4 14.6l5.2-5.2"/><circle cx="9.8" cy="9.8" r="1.1" fill="currentColor"/><circle cx="14.2" cy="14.2" r="1.1" fill="currentColor"/></symbol>
+  <symbol id="i-cat-tarjetas" viewBox="0 0 24 24"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="5.6" width="18" height="12.8" rx="2.2"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.2 10h17.6M6.6 15h4"/></symbol>
+  <symbol id="i-cat-suscripciones" viewBox="0 0 24 24"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="4.6" width="18" height="12.4" rx="2.2"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M10.2 8.4v5l4.2-2.5zM8 20.4h8"/></symbol>
+  <symbol id="i-cat-familia" viewBox="0 0 24 24"><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="9" cy="8" r="3.2"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="16.6" cy="9.6" r="2.4"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.4 19.4c.6-3 2.8-4.8 5.6-4.8s5 1.8 5.6 4.8M15.4 14.6c2.6 0 4.6 1.6 5.2 4.8"/></symbol>
+  <symbol id="i-cat-otros" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7.8l8-4 8 4v8.4l-8 4-8-4zM4 7.8l8 4 8-4M12 11.8v8.4"/></symbol>
+  <symbol id="i-cat-carrito" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.4h2.4l2.2 10.4a1.4 1.4 0 0 0 1.4 1.1h8.2a1.4 1.4 0 0 0 1.4-1.1L20.2 8H6.3"/><circle cx="9.6" cy="19.4" r="1.4" fill="currentColor"/><circle cx="17" cy="19.4" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="i-cat-comida" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 3.4v7.4a2 2 0 0 0 2 2v7.8M5 3.4v5.4M9 3.4v5.4M17 20.6V3.4c-2.2 1-3.2 3.4-3.2 6.4v3.4H17"/></symbol>
+  <symbol id="i-cat-salud" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/></symbol>
+  <symbol id="i-cat-transporte" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="6.6" cy="17.4" r="1.8"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="17" cy="17.4" r="1.8"/></symbol>
+  <symbol id="i-cat-limpieza" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.6 3.2l-4.2 8.6M6.6 12h7.6l2 8.8H4.6zM8.6 16.4v4.4M11.6 16.4v4.4"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <main class="mod" id="mod-inicio">
@@ -869,8 +946,12 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       </div>
       <section class="ini-card cat-b"><h3>Hoy por forma de pago</h3><div class="dona" id="d-formas"></div></section>
       <section class="ini-card cat-b"><h3>Hoy por servicio</h3><div class="dona" id="d-serv"></div></section>
-      <div class="ini-card cat-b s2 ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
-      <section class="ini-card cat-b full s3"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <section class="ini-card cat-b s2"><h3>Comparativo del turno</h3><p class="note" id="cmp-sub"></p><div id="cmp"></div></section>
+      <div class="ini-tri">
+        <div class="ini-card cat-b tri" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span></div><b class="ini-num" id="n-incid">0</b><div id="m-incid"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas por hacer</span></div><b class="ini-num" id="n-tareas">0</b><div id="m-tareas"></div></div>
+        <div class="ini-card cat-b tri" data-agenda="aviso" tabindex="0" role="link" style="--c:#ffcc00"><div class="ini-top"><span class="ibadge"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos activos</span></div><b class="ini-num" id="n-avisos">0</b><div id="m-avisos"></div></div>
+      </div>
 
       <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos y compras</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos y compras ›</button></h3>
       <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
@@ -882,8 +963,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
       </div>
       <div class="ini-card cat-f s2 ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
-      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos y gastos de la administración registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
-      <section class="ini-card cat-f s2"><h3>Este mes por concepto</h3><div class="dona" id="d-pagos"></div></section>
+      <div class="ini-par">
+      <section class="ini-card cat-f"><h3>Pagado por mes</h3><p class="note">Pagos y gastos de la administración registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <section class="ini-card cat-f"><h3>Este mes por categoría</h3><p class="note">Pagos y compras de la administración.</p><div class="dona" id="d-pagos"></div></section>
+      </div>
 
       <h3 class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><span>Finanzas</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Finanzas ›</button></h3>
       <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#7ee2a0">
@@ -902,22 +985,28 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Efectivo en sobres</span></div>
         <b class="ini-num" id="i-f-sob">—</b><span class="note" id="i-f-sob-nota"></span>
       </div>
-      <section class="ini-card cat-g full s3"><h3>Ingresos de la semana</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
+      <section class="ini-card cat-g full s3"><h3>Ingresos del mes</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
 
       <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturación</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturación ›</button></h3>
-      <div class="ini-card cat-c kpi" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
-        <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
-        <button type="button" class="ini-exp" data-ir="personal"><svg aria-hidden="true"><use href="#i-persona"/></svg><span><b id="i-exp">0</b> expedientes incompletos <span id="i-exp-nota"></span></span></button>
+      <div class="ini-par">
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
+          <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
+          <b class="ini-num" id="i-pend">0</b><span class="note" id="i-pend-nota"></span>
+          <div id="i-pend-l"></div>
+          <button type="button" class="ini-exp" data-ir="personal"><svg aria-hidden="true"><use href="#i-persona"/></svg><span><b id="i-exp">0</b> expedientes incompletos <span id="i-exp-nota"></span></span></button>
+        </div>
+        <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
       </div>
-      <div class="ini-card cat-c s3" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
 
       <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
-      <section class="ini-card cat-d s2 ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
-      <div class="ini-agcol">
-        <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
-        <div class="ini-card cat-d ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Pagos programados</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
-        <div class="ini-card cat-d ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
+      <div class="ini-par">
+        <section class="ini-card cat-d ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
+        <div class="ini-agcol">
+          <div class="ini-card cat-d ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Pagos programados</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="hechos" tabindex="0" role="link" style="--c:#7ee2a0"><div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Pagos no programados del mes</span><b class="mini-n" id="n-noprog">0</b></div><div id="m-noprog"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="calendario" tabindex="0" role="link" style="--c:#b69cff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos eventos</span></div><div id="m-eventos"></div></div>
+          <div class="ini-card cat-d ag-mini" data-agenda="aviso" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias y avisos</span></div><div id="m-incav"></div></div>
+        </div>
       </div>
 
       <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
@@ -1033,6 +1122,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     <button class="ptab" role="tab" data-t="pago" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Programados <span class="n" id="an-pago">0</span></button>
     <button class="ptab" role="tab" data-t="hechos" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-check"/></svg>Pagos y gastos hechos</button>
     <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
+    <button class="ptab" role="tab" data-t="categorias" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-cat-otros"/></svg>Categorías</button>
   </div>
 </div>
 <div class="ag" id="pg-cuerpo"></div>
@@ -1062,6 +1152,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 </div>
 <div class="ag" id="ag-cuerpo"></div>
 </main>
+<datalist id="dl-cats"></datalist>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
 <button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
@@ -1097,6 +1188,17 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
 
   // Imagen de perfil de un encargado de la tablet ("admin" = logo de la pensión)
+  // ---- Categorías de egresos (lista para elegir o escribir, con icono de línea) ----
+  window.CATS = window.CATS || [];
+  window.ponerCategorias = lista => {
+    if (!Array.isArray(lista)) return;
+    window.CATS = lista;
+    const dl = document.getElementById("dl-cats"); if (dl) dl.innerHTML = lista.map(c => `<option value="${esc(c.nombre)}"></option>`).join("");
+  };
+  window.catInfo = nombre => window.CATS.find(c => c.nombre === nombre) || { nombre: nombre || "Sin categoría", icono: "otros", color: "#8e8e93" };
+  window.catIco = (nombre, tam = 16) => { const c = window.catInfo(nombre); return `<svg class="cat-ico" style="width:${tam}px;height:${tam}px;color:${c.color}" aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg>`; };
+  window.catChip = nombre => nombre ? `<span class="cat-chip">${window.catIco(nombre, 14)}${esc(nombre)}</span>` : "";
+  window.campoCategoria = (valor = "", clase = "w2") => `<label class="${clase}">Categoría <span class="ayuda">(elige o escribe una nueva)</span><input name="categoria" list="dl-cats" maxlength="40" value="${esc(valor || "")}" placeholder="Ej. Servicios" autocomplete="off"></label>`;
   window.avP = (clave, grande) => `<img class="avp${grande ? " g" : ""}" src="/panel/api/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${grande ? 36 : 22}" height="${grande ? 36 : 22}" loading="lazy">`;
   async function api(ruta, opciones = {}) {
     const r = await fetch("/panel/api/" + ruta, { ...opciones, headers: { "X-Panel": "1", ...(opciones.body ? { "Content-Type": "application/json" } : {}) } });
@@ -2387,6 +2489,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     try {
       const j = await api("caja" + consulta());
       st.datos = j;
+      if (j.categorias) window.ponerCategorias(j.categorias);
       $("#c-nmovs").textContent = (j.movimientos || []).length;
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
@@ -2429,6 +2532,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <label>Turno<select name="turno">${["MAÑANA", "TARDE", "NOCHE"].map(t => `<option value="${t}" ${t === turno ? "selected" : ""}>${TURNO_TXT[t]}</option>`).join("")}</select></label>
       <label class="wide">Concepto<input name="concepto" maxlength="120" placeholder="Ej. garrafón de agua, papelería" required></label>
       <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
+      <label class="wide">Categoría <span style="font-weight:400">(elige o escribe; vacía se asigna sola)</span><input name="categoria" list="dl-cats" maxlength="40" placeholder="Ej. Papelería y consumibles" autocomplete="off"></label>
       <p class="note wide" style="grid-column:1/-1;margin:0">Solo lo que salió del efectivo de la caja de ese turno (resta al corte). Los pagos y compras de la administración van en Pagos y compras.</p>
       <span class="err wide" id="c-ferr" style="grid-column:1/-1"></span>
       <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Guardar gasto de caja</button></div>
@@ -2438,7 +2542,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     $("#c-fgasto").addEventListener("submit", async ev => {
       ev.preventDefault();
       const f = ev.target, b = f.querySelector("button[type=submit]");
-      const cuerpo = { dia: f.dia.value, turno: f.turno.value, concepto: f.concepto.value, monto: f.monto.value.replace(/[$,\s]/g, ""), forma: "EFECTIVO" };
+      const cuerpo = { dia: f.dia.value, turno: f.turno.value, concepto: f.concepto.value, monto: f.monto.value.replace(/[$,\s]/g, ""), forma: "EFECTIVO", categoria: f.categoria.value };
       b.disabled = true; $("#c-ferr").textContent = "";
       try {
         await api("caja/gastos", { method: "POST", body: JSON.stringify(cuerpo) });
@@ -2519,7 +2623,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
             ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
           </section>
           <section class="card"><h3>Gastos de caja del turno</h3>
-            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${g.folio_mc ? `<span class="folio-mc">${esc(g.folio_mc)}</span> ` : ""}${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
+            ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${g.folio_mc ? `<span class="folio-mc">${esc(g.folio_mc)}</span> ` : ""}${g.categoria ? window.catIco(g.categoria) + " " : ""}${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto de caja a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
           <section class="card"><h3>Ingresos extra del turno</h3>
@@ -2583,7 +2687,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       </div>
       <div class="ctot" style="margin:10px 0">${Object.entries(TIPO_MOV).map(([k, [t]]) => `<div class="k"><span>${t}</span><b>${dinero(suma(k))}</b></div>`).join("")}</div>
       ${lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos de caja"><table class="cmovs tmovs"><thead><tr><th>Folio</th><th>Día y turno</th><th>Hora</th><th>Tipo</th><th>Concepto</th><th>Quién</th><th class="n">Monto</th></tr></thead><tbody>
-        ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
+        ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
     c.querySelectorAll(".mfil .ptab").forEach(b => b.addEventListener("click", () => { st.filtroMov = b.dataset.f; vistaMovs(j); }));
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(b.dataset.k)); }));
@@ -2756,6 +2860,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
       </section>
 
+      <section class="card"><h3>Egresos por categoría</h3>
+        ${(j.por_categoria || []).length ? `<div class="fcat">${j.por_categoria.map(x => `<div class="fcat-f" style="--c:${esc(x.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(x.icono)}"/></svg></span><span class="fn">${esc(x.nombre)}${x.caja ? `<small>caja ${D(x.caja)} · administración ${D(x.total - x.caja)}</small>` : ""}</span><span class="fb"><i style="width:${Math.max(2, 100 * x.total / j.por_categoria[0].total)}%"></i></span><b>${D(x.total)}</b></div>`).join("")}</div>` : `<p class="note">Sin egresos este mes.</p>`}
+      </section>
+
       <section class="card" id="f-efectivo"><h3>Efectivo en sobres</h3>
         <p class="note" style="margin:4px 0 10px">Entra lo que los turnos entregan en sobre al hacer su corte; sale lo que pagas o compras en efectivo. El saldo inicial lo escribes tú al empezar cada mes, después de contar los sobres.</p>
         <form class="fsaldo" id="f-saldo" novalidate><label>Saldo inicial de ${esc(nomMes(j.mes).toLowerCase())}<input name="efectivo" inputmode="decimal" placeholder="Ej. 12500.00" value="${e.inicial != null ? esc(e.inicial) : ""}" autocomplete="off"></label><button class="btn btn-primary" type="submit">Guardar</button>${e.inicial != null ? `<span class="note">Guardado ${esc(new Date(e.inicial_actualizado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</span>` : `<span class="note" style="color:var(--warn)">Falta el saldo inicial: sin él no se puede calcular el saldo.</span>`}<span class="err"></span></form>
@@ -2885,15 +2993,16 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     $("#i-pg-nota").textContent = j.n_pagado_mes ? `${j.n_pagado_mes} ${j.n_pagado_mes === 1 ? "pago registrado" : "pagos registrados"}` : "Sin pagos registrados";
     $("#n-pagos").textContent = j.proximos.length;
     const fc = d => { const t = new Date(d + "T12:00:00Z"); return t.toLocaleDateString("es-MX", { day: "numeric", month: "short", timeZone: "UTC" }); };
-    $("#m-pagos").innerHTML = j.proximos.length ? `<div class="mini-l">${j.proximos.map(x => `<div><span>${x.fecha < j.hoy ? "❗ " : ""}${esc(x.titulo)}${x.importe != null ? ` · ${esc(D(x.importe))}` : ""}</span><span class="m" style="${x.fecha < j.hoy ? "color:#ff6961" : x.fecha === j.hoy ? "color:#ffcc00" : ""}">${x.fecha === j.hoy ? "Hoy" : esc(fc(x.fecha))}</span></div>`).join("")}</div>` : `<p class="note">No hay pagos programados.</p>`;
+    $("#m-pagos").innerHTML = j.proximos.length ? `<div class="mini-q">${j.proximos.map(x => `<div><span class="mini-r"><span class="t">${x.categoria ? window.catIco(x.categoria, 14) + " " : ""}${esc(x.titulo)}</span><b>${x.importe != null ? esc(D(x.importe)) : "—"}</b></span><span class="q" style="${x.fecha < j.hoy ? "color:#ff6961" : x.fecha === j.hoy ? "color:#ffcc00" : ""}">${x.fecha < j.hoy ? "Vencido · " : ""}${x.fecha === j.hoy ? "Hoy" : esc(fc(x.fecha))}</span></div>`).join("")}</div>` : `<p class="note">No hay pagos programados.</p>`;
+    $("#n-noprog").textContent = j.n_no_programados || 0;
+    $("#m-noprog").innerHTML = (j.no_programados || []).length ? `<div class="mini-q">${j.no_programados.slice(0, 5).map(x => `<div><span class="mini-r"><span class="t">${x.categoria ? window.catIco(x.categoria, 14) + " " : ""}${esc(x.titulo || "Pago")}</span><b>${esc(D(x.importe))}</b></span><span class="q">${esc(fc(x.fecha))}</span></div>`).join("")}</div>${j.no_programados.length > 5 ? `<p class="note" style="margin:6px 0 0">y ${j.no_programados.length - 5} más</p>` : ""}<div class="mini-tot"><span>Total del mes</span><b>${esc(D(j.total_no_programados || 0))}</b></div>` : `<p class="note">Sin pagos no programados este mes.</p>`;
     const max = Math.max(1, ...j.por_mes.map(x => x.total));
     const nm = m => new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
     $("#g-pagos").innerHTML = j.por_mes.map(x => `<div class="cmp-fila"><span class="k">${esc(nm(x.mes))}${x.mes === j.mes ? " (este)" : ""}</span><div style="background:#1f1f21;border-radius:0 4px 4px 0"><div class="cmp-bar" style="--c:${x.mes === j.mes ? "#30d158" : "#2f8f50"};width:${Math.max(x.total ? 1.5 : 0, 100 * x.total / max)}%"></div></div><span><b>${D(x.total)}</b></span></div>`).join("");
-    const COL = ["#30d158", "#64d2ff", "#ffcc00", "#b69cff", "#ff9f0a", "#ff8fc7", "#8e8e93"];
-    const pc = j.por_concepto.slice(0, 6), resto = j.por_concepto.slice(6).reduce((a, x) => a + x.total, 0);
-    const partes = [...pc.map((x, i) => ({ nombre: x.titulo, v: x.total, c: COL[i] })), ...(resto ? [{ nombre: "Otros", v: resto, c: COL[6] }] : [])];
-    if (partes.length) dona($("#d-pagos"), partes, { etiqueta: "pagado", formato: D });
-    else $("#d-pagos").innerHTML = `<p class="note">Todavía no hay pagos registrados este mes.</p>`;
+    const pc = (j.por_categoria || []).slice(0, 7), resto = (j.por_categoria || []).slice(7).reduce((a, x) => a + x.total, 0);
+    const partes = [...pc.map(x => ({ nombre: x.nombre, v: x.total, c: x.color, ico: "i-cat-" + x.icono })), ...(resto ? [{ nombre: "Otras", v: resto, c: "#8e8e93", ico: "i-cat-otros" }] : [])];
+    if (partes.length) dona($("#d-pagos"), partes, { etiqueta: "pagado", formato: D, iconos: true });
+    else $("#d-pagos").innerHTML = `<p class="note">Todavía no hay pagos ni compras este mes.</p>`;
   }
   function dona(cont, partes, { centro, etiqueta, formato = v => dinero(v, 2), iconos = false } = {}) {
     const total = partes.reduce((a, p) => a + p.v, 0);
@@ -2938,7 +3047,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
           : `<rect x="${x0}" y="${yTop}" width="${ancho}" height="${hh}" fill="${p.c}"/>`;
         base = yTop;
       });
-      const val = d.total > 0 ? `<text class="val" x="${cx}" y="${base - 6}" text-anchor="middle">${compacto(d.total)}</text>` : "";
+      const val = d.total > 0 && (datos.length <= 12 || d.resaltar) ? `<text class="val" x="${cx}" y="${base - 6}" text-anchor="middle">${compacto(d.total)}</text>` : "";
       svg += `<g class="col" data-i="${i}"><g class="segs" style="transform-origin:${cx}px ${y(0)}px">${segs}</g>${val}<text x="${cx}" y="${H - 6}" text-anchor="middle"${d.resaltar ? ' style="fill:#f5f5f7;font-weight:600"' : ""}>${esc(d.etiqueta)}</text><rect class="hit" x="${izq + banda * i}" y="${arr}" width="${banda}" height="${H - arr}"/></g>`;
     });
     if (promedio > 0) svg += `<line x1="${izq}" x2="${W - der}" y1="${y(promedio)}" y2="${y(promedio)}" stroke="#c7c7cc" stroke-width="1.5" opacity=".8"/>`;
@@ -3003,10 +3112,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     $("#i-fecha").textContent = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1) + ` · turno de la ${TURNO_TXT[ta.turno].toLowerCase()} en curso`;
     cargarConsumo();
     const [fac, caja, per, ag] = await Promise.allSettled([
-      api("solicitudes?estado=pendiente"), api(`caja?desde=${sumar(ta.dia, -7)}&hasta=${ta.dia}`),
+      api("solicitudes?estado=pendiente"), api(`caja?desde=${[sumar(ta.dia, -7), ta.dia.slice(0, 8) + "01"].sort()[0]}&hasta=${ta.dia}`),
       api("colaboradores?tipo=colaborador&estatus=activo"), api("agenda/resumen")
     ]);
-    api("agenda/pagos").then(pintarPagos).catch(() => {});
+    (window.CATS.length ? Promise.resolve() : api("categorias").then(r => window.ponerCategorias(r.categorias)).catch(() => {})).then(() => api("agenda/pagos")).then(pintarPagos).catch(() => {});
     api("finanzas").then(pintarFinanzas).catch(() => {});
     pintarCalendario().catch(() => {});
     if ([fac, caja, per, ag].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
@@ -3016,6 +3125,9 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       contar($("#i-pend"), n, v => String(Math.round(v)));
       const viejo = fac.value.solicitudes[0], horas = viejo ? (Date.now() - new Date(viejo.creado)) / 36e5 : 0;
       $("#i-pend-nota").textContent = !n ? "Todo facturado" : horas < 1 ? "La más antigua llegó hace menos de 1 h" : horas < 24 ? `La más antigua espera ${Math.round(horas)} h` : `La más antigua espera ${Math.floor(horas / 24)} ${Math.floor(horas / 24) === 1 ? "día" : "días"}`;
+      const pend = fac.value.solicitudes || [];
+      const imp = x => Number(String(x.importe ?? x.tarifa ?? "").replace(/[$,\s]/g, ""));
+      $("#i-pend-l").innerHTML = pend.length ? `<div class="mini-q">${pend.slice(0, 5).map(x => `<div><span class="mini-r"><span class="t">${esc(x.nombre || x.cliente || x.rfc || "Sin nombre")}</span><b>${imp(x) > 0 ? esc(dinero(imp(x), 2)) : "—"}</b></span><span class="q">Folio ${esc(x.folio)} · llegó ${esc(fCorto.format(new Date(Date.parse(x.creado) - 216e5)))}</span></div>`).join("")}</div>${pend.length > 5 ? `<p class="note" style="margin:6px 0 0">y ${pend.length - 5} más</p>` : ""}` : "";
       dona($("#d-fact"), ["pendiente", "facturada", "rechazada"].map(k => ({ nombre: ESTADO[k][2], v: c[k] || 0, c: ESTADO[k][0], ico: ESTADO[k][1] })), { etiqueta: "solicitudes", formato: v => String(Math.round(v)), iconos: true });
     }
     if (per.status === "fulfilled") {
@@ -3054,16 +3166,18 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       $("#i-turno").textContent = !j.conectado ? "La hoja de ingresos no está conectada" : hace === null ? "" : `Hoja de ingresos leída hace ${hace < 1 ? "un momento" : hace + " min"}`;
 
       const dias7 = []; for (let k = 6; k >= 0; k--) dias7.push(sumar(ta.dia, -k));
-      const semana = dias7.map((d, i) => {
+      const diasMes = []; for (let d = ta.dia.slice(0, 8) + "01"; d <= ta.dia; d = sumar(d, 1)) diasMes.push(d);
+      const semana = diasMes.map((d, i) => {
         const cs = j.cortes.filter(c => c.dia === d);
         const partes = [
           { c: COL.bas, nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) },
           { c: COL.pen, nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) },
           { c: COL.tra, nombre: "Transferencias", v: j.transferencias.filter(t => t.fecha === d).reduce((a, t) => a + t.importe, 0) }
         ];
-        return { etiqueta: i === 6 ? "Hoy" : fDia.format(new Date(d + "T12:00:00Z")).replace(".", ""), titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: i === 6 };
+        const ult = i === diasMes.length - 1, n = diasMes.length;
+        return { etiqueta: ult ? "Hoy" : n <= 10 ? fDia.format(new Date(d + "T12:00:00Z")).replace(".", "") : (i % (n > 20 ? 3 : 2) === 0 ? String(Number(d.slice(8))) : ""), titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: ult };
       });
-      const cerrados = semana.slice(0, 6), promedio = cerrados.reduce((a, d) => a + d.total, 0) / Math.max(1, cerrados.length);
+      const cerrados = semana.slice(0, -1), promedio = cerrados.reduce((a, d) => a + d.total, 0) / Math.max(1, cerrados.length);
       const firma = JSON.stringify([ef, tj, trHoy, bas, pen, semana.map(d => d.total), Object.keys(porDiaTurno).length, innerWidth]);
       if (firma !== firmaGraf) {
         firmaGraf = firma;
@@ -3071,7 +3185,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         dona($("#d-serv"), [{ nombre: "Báscula", v: bas, c: COL.bas }, { nombre: "Pensión", v: pen, c: COL.pen }, { nombre: "Transferencias", v: trHoy, c: COL.tra }], { etiqueta: "hoy", centro: compacto(bas + pen + trHoy) });
         comparativo($("#cmp"), ta, porDiaTurno, dias7);
         columnas($("#g-dias"), semana, { promedio });
-        $("#prom-txt").textContent = `Promedio diario ${dinero(promedio)} (6 días anteriores)`;
+        $("#prom-txt").textContent = cerrados.length ? `Promedio diario ${dinero(promedio)} (${cerrados.length} ${cerrados.length === 1 ? "día" : "días"} anteriores del mes)` : "Promedio diario";
       }
       $("#i-pie").textContent = "Las gráficas suman efectivo y tarjeta de la hoja de ingresos más las transferencias capturadas; el prepago no suma.";
     } else $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
@@ -3079,13 +3193,20 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (ag.status === "fulfilled") {
       const a = ag.value, d = x => fCorto.format(new Date(x + "T12:00:00Z"));
       const lista = (filas, f, vacio) => `<div class="mini-l">${filas.length ? filas.map(f).join("") : `<div class="vacio">${vacio}</div>`}</div>`;
-      $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");
+      const quien = x => x.reporto || (x.autor && x.autor !== "admin" ? x.autor : null);
+      const cuando = iso => iso ? new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", timeZone: "America/Mexico_City" }) : "";
+      const q3 = (filas, vacio, extra = () => "") => `<div class="mini-q">${filas.length ? filas.slice(0, 3).map(x => `<div><span class="t">${extra(x)}${esc(x.titulo)}</span><span class="q">${quien(x) ? avP(quien(x)) + esc(quien(x)) : avP("admin") + "Administración"} · ${esc(cuando(x.creado))}</span></div>`).join("") : `<div class="vacio">${vacio}</div>`}</div>`;
+      contar($("#n-incid"), a.abiertos.incidencia || 0, v => String(Math.round(v)));
+      $("#m-incid").innerHTML = q3(a.incidencias, "Sin incidencias abiertas", x => x.gravedad === "grave" ? "❗ " : "");
       contar($("#n-tareas"), a.abiertos.tarea || 0, v => String(Math.round(v)));
-      $("#m-tareas").innerHTML = lista(a.tareas, x => `<div><span>${x.prioridad === "alta" ? "❗ " : ""}${esc(x.titulo)}</span><span class="m" ${x.fecha && x.fecha < a.hoy ? 'style="color:#ff6961"' : ""}>${x.fecha ? esc(d(x.fecha)) : ""}</span></div>`, "Nada pendiente");
+      $("#m-tareas").innerHTML = q3(a.tareas, "Nada pendiente", x => x.prioridad === "alta" ? "❗ " : "");
+      contar($("#n-avisos"), a.abiertos.aviso || 0, v => String(Math.round(v)));
+      $("#m-avisos").innerHTML = q3(a.avisos || [], "Sin avisos activos");
+      const ia = [...a.incidencias.map(x => ({ ...x, k: "Incidencia" })), ...(a.avisos || []).map(x => ({ ...x, k: "Aviso" }))].sort((x, y) => String(y.creado).localeCompare(String(x.creado)));
+      $("#m-incav").innerHTML = `<div class="mini-q">${ia.length ? ia.slice(0, 5).map(x => `<div><span class="t">${x.k === "Incidencia" ? `<span style="color:${x.gravedad === "grave" ? "#ff6961" : x.gravedad === "media" ? "#ff9f0a" : "#8e8e93"}">●</span> ` : `<span style="color:#ffcc00">●</span> `}${esc(x.titulo)}</span><span class="q">${esc(x.k)} · ${quien(x) ? esc(quien(x)) : "Administración"} · ${esc(cuando(x.creado))}</span></div>`).join("") : `<div class="vacio">Sin incidencias ni avisos</div>`}</div>`;
+      $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");
       contar($("#n-compras"), a.abiertos.compra || 0, v => String(Math.round(v)));
       $("#m-compras").innerHTML = lista(a.compras, x => `<div><span>${x.prioridad === "alta" ? "❗ " : ""}${esc(x.titulo)}</span><span class="m">${esc(x.cantidad || "")}</span></div>`, "Sin compras pendientes");
-      contar($("#n-incid"), a.abiertos.incidencia || 0, v => String(Math.round(v)));
-      $("#m-incid").innerHTML = lista(a.incidencias, x => `<div><span>${esc(x.titulo)}</span><span class="m" style="color:${x.gravedad === "grave" ? "#ff6961" : x.gravedad === "media" ? "#ff9f0a" : "#8e8e93"}">${esc(x.gravedad)}</span></div>`, "Sin incidencias");
     }
   }
 
@@ -3184,6 +3305,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     try {
       const j = await api("agenda");
       st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || []; st.mesesAbiertos = j.meses_abiertos || [];
+      if (j.categorias) window.ponerCategorias(j.categorias);
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
       for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
@@ -3219,10 +3341,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "pago") return `<form class="aform" data-tipo="pago"><label class="w2">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
-      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
+      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>${window.campoCategoria()}<label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
       <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Finanzas.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
-      <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+      <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label>${window.campoCategoria("", "w2")}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
       <label class="w4">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <label>Fecha<input type="date" name="fecha" value="${esc(st.hoy)}"></label><label>Turno<select name="turno"><option value="">—</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
@@ -3240,6 +3362,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (it.tipo === "evento") campos.push(`<label>Hora<input type="time" name="hora" value="${esc(it.hora || "")}"></label>`);
     if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
     if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
+    if (it.tipo === "compra" || it.tipo === "pago") campos.push(window.campoCategoria(it.categoria));
     if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con${sel("forma", [["TRANSFERENCIA", "Transferencia"], ["TARJETA", "Tarjeta"], ["EFECTIVO", "Efectivo (sobres)"]], it.forma || "TRANSFERENCIA")}</label>`);
     if (it.tipo === "tarea") campos.push(`<label class="chkl w2"><input type="checkbox" name="para_turno" ${it.para_turno ? "checked" : ""}>Que la haga el encargado (tablet)</label><label>Turno${sel("turno", [["", "Cualquiera"], ...Object.entries(T)], it.turno || "")}</label>`);
     if (it.tipo === "incidencia") campos.push(`<label>Gravedad${sel("gravedad", [["leve", "Leve"], ["media", "Media"], ["grave", "Grave"]], it.gravedad)}</label><label>Dónde<input name="area" maxlength="40" value="${esc(it.area || "")}"></label>`);
@@ -3262,7 +3385,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico("i-billete")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc">${hecho ? "" : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
-        <span class="mm">${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
+        <span class="mm">${window.catChip(it.categoria)}${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
         ${hist ? `<span class="mm informes">${hist}</span>` : ""}</div>`;
     }
     if (it.tipo === "incidencia") {
@@ -3274,6 +3397,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const fin = it.tipo === "compra" ? "comprado" : "hecho";
     const vencida = it.tipo === "tarea" && it.fecha && it.fecha < st.hoy && !hecho;
     const meta = [
+      it.tipo === "compra" ? window.catChip(it.categoria) : "",
       it.tipo === "evento" ? `<span class="tag evento" style="color:#111">Evento</span>` : "",
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
@@ -3299,7 +3423,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     return `<div class="aitem"><span class="grav pagado" title="Pagado">${ico("i-check")}</span>
       <span class="tt">${esc(p.titulo || "Pago")}</span>
       <span class="acc">${editable ? `<button class="btn btn-line edit" type="button" data-editar-pago="${esc(p.id)}">Editar</button><button class="del" type="button" data-borrar-pago="${esc(p.id)}" aria-label="Eliminar pago de ${esc(p.titulo || "")}">${ico("i-trash")}</button>` : ""}</span>
-      <span class="mm"><span class="tag" style="background:#12301d;color:#30d158">Pagado</span><span><b>${MXN(p.importe)}</b></span><span>${esc(diaTxt(p.fecha))}</span><span>${esc(FORMA_TXT[p.forma] || p.forma)}</span><span>${p.item_id ? "Programado" : "No programado"}</span>${p.comprobante ? `<a href="/panel/api/agenda/pagos/${esc(p.id)}/comprobante" target="_blank" rel="noopener">📎 ver comprobante</a>` : `<span>Sin comprobante</span>`}${p.nota ? `<span>${esc(p.nota)}</span>` : ""}</span></div>`;
+      <span class="mm"><span class="tag" style="background:#12301d;color:#30d158">Pagado</span>${window.catChip(p.categoria)}<span><b>${MXN(p.importe)}</b></span><span>${esc(diaTxt(p.fecha))}</span><span>${esc(FORMA_TXT[p.forma] || p.forma)}</span><span>${p.item_id ? "Programado" : "No programado"}</span>${p.comprobante ? `<a href="/panel/api/agenda/pagos/${esc(p.id)}/comprobante" target="_blank" rel="noopener">📎 ver comprobante</a>` : `<span>Sin comprobante</span>`}${p.nota ? `<span>${esc(p.nota)}</span>` : ""}</span></div>`;
   }
   function listaPagosHechos() {
     const ps = st.pagosHechos || [];
@@ -3335,6 +3459,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <li><b>Importe aproximado:</b> lo que pagas normalmente. Al registrar el pago escribes el importe real.</li>
       <li><b>Próximo pago:</b> la fecha en que vence.</li>
       <li><b>Se repite:</b> cada mes, cada 2, 3, 6 o 12 meses, o una sola vez.</li>
+      <li><b>Categoría:</b> elígela de la lista o escribe una nueva (por ejemplo «Servicios» o «Tarjetas y créditos»). Sirve para ver en qué se va el dinero.</li>
       <li><b>Se paga con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» sale de los sobres que entregan los turnos. Ninguno toca la caja de los turnos.</li>
     </ol>Aparece en el calendario y te llega en el correo diario 3 días antes. Cuando lo pagues, toca «Registrar pago».`;
     const d = ventana("Programar un pago", guia, `<form class="aform" novalidate>
@@ -3343,12 +3468,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
       <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
+      ${window.campoCategoria("", "w4")}
       <span class="err"></span><div class="botones"><button class="btn btn-primary" type="submit">Programar</button><button class="btn btn-line" type="button" data-cerrar>Cancelar</button></div></form>`);
     const f = d.querySelector("form"); f.titulo.focus();
     d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
     f.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
-      try { await post("agenda", { tipo: "pago", titulo: f.titulo.value, importe: f.importe.value, fecha: f.fecha.value, frecuencia: f.frecuencia.value, forma: f.forma.value }); d.close(); toast("Pago programado"); await cargar(); }
+      try { await post("agenda", { tipo: "pago", titulo: f.titulo.value, importe: f.importe.value, fecha: f.fecha.value, frecuencia: f.frecuencia.value, forma: f.forma.value, categoria: f.categoria.value }); d.close(); toast("Pago programado"); await cargar(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     });
   }
@@ -3356,7 +3482,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   // modo: "programado" (registrar el pago de un programado), "hecho" (pago sin programar), "editar" (corregir un pago ya registrado)
   function ventanaPago(modo, it, pago) {
     const mesAb = (st.mesesAbiertos || []).slice().sort()[0] || st.hoy.slice(0, 7);
-    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "TRANSFERENCIA", titulo: "", nota: "" };
+    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "TRANSFERENCIA", titulo: "", nota: "", categoria: it && it.categoria || "" };
     const suelto = modo === "hecho" || (modo === "editar" && !pago.item_id);
     const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago o gasto ya hecho" : "Registrar pago: " + it.titulo;
     const guia = `<b>Cómo llenarlo</b><ol>
@@ -3364,6 +3490,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser de un mes abierto (el actual, o el anterior mientras no se cierra).</li>
       <li><b>Importe pagado:</b> lo que realmente pagaste, con centavos si los hay.</li>
       <li><b>Pagado con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» se descuenta del efectivo en sobres de Finanzas. No toca la caja de ningún turno.</li>
+      <li><b>Categoría:</b> elígela de la lista o escribe una nueva.</li>
       <li><b>Comprobante (opcional):</b> toma foto del ticket o sube la captura o el PDF de la transferencia. Se guarda en Drive.</li>
       <li><b>Nota (opcional):</b> folio, referencia o lo que sirva para identificarlo.</li>
     </ol>${modo === "editar" ? "Al guardar se corrige también en Finanzas." : `Al guardar se suma a los egresos de la administración (Finanzas) y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
@@ -3371,7 +3498,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       ${suelto ? `<label class="w4">Qué pagaste<input name="titulo" maxlength="140" value="${esc(v.titulo || "")}" placeholder="Ej. Recibo de luz CFE" autocomplete="off"></label>` : ""}
       <label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(v.fecha)}" min="${esc(mesAb)}-01" max="${esc(st.hoy)}"></label>
       <label>Importe pagado<input name="importe" inputmode="decimal" placeholder="$0.00" value="${esc(v.importe)}" autocomplete="off"></label>
-      <label class="w4">Pagado con<select name="forma">${Object.entries(FORMA_TXT).map(([k, t]) => `<option value="${k}" ${v.forma === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="w2">Pagado con<select name="forma">${Object.entries(FORMA_TXT).map(([k, t]) => `<option value="${k}" ${v.forma === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      ${window.campoCategoria(v.categoria, "w2")}
       ${campoComp}${modo === "editar" && pago.comprobante ? `<label class="chkl w4" style="flex-direction:row"><input type="checkbox" name="quitar"> Quitar el comprobante actual (<a href="/panel/api/agenda/pagos/${esc(pago.id)}/comprobante" target="_blank" rel="noopener">ver</a>)</label>` : ""}
       <label class="w4">Nota <span class="ayuda">(opcional)</span><input name="nota" maxlength="300" value="${esc(v.nota || "")}" placeholder="Ej. referencia 123456" autocomplete="off"></label>
       <div class="dup" hidden></div><span class="err"></span>
@@ -3382,7 +3510,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     let forzar = false;
     const enviar = async () => {
       const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
-      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}) };
+      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}) };
       let id;
       try {
         if (modo === "editar") { await post(`agenda/pagos/${pago.id}/editar`, cuerpo); id = pago.id; }
@@ -3449,6 +3577,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
       <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
     if (st.ptab === "compra") return resumen + vistaLista("compra");
+    if (st.ptab === "categorias") {
+      const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
+      return `<section class="card"><h3>Categorías</h3><p class="note" style="margin:4px 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario; aquí le eliges su icono.</p>
+        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span><b>${esc(c.nombre)}</b>
+          <div class="cat-icos" role="group" aria-label="Icono de ${esc(c.nombre)}">${ICONOS.map(i => `<button type="button" data-cat="${esc(c.nombre)}" data-ico="${i}" aria-pressed="${i === c.icono}" aria-label="${i}"><svg aria-hidden="true"><use href="#i-cat-${i}"/></svg></button>`).join("")}</div></div>`).join("")}</div>
+        <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Publicidad" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></section>`;
+    }
     return resumen + vistaLista("pago");
   }
 
@@ -3602,7 +3737,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       try { await post("agenda/" + f.dataset.id, datos); st.editando = null; toast("Cambios guardados"); await cargar(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     }));
-    c.querySelectorAll("form.aform:not(.editar)").forEach(f => f.addEventListener("submit", async ev => {
+    c.querySelectorAll("form.aform:not(.editar):not(#cat-nueva)").forEach(f => f.addEventListener("submit", async ev => {
       ev.preventDefault();
       const datos = { tipo: f.dataset.tipo };
       for (const el of f.elements) if (el.name) datos[el.name] = el.type === "checkbox" ? (el.checked ? 1 : "") : el.value;
@@ -3672,6 +3807,14 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
       try { await post(`agenda/${b.dataset.del}/eliminar`); toast("Eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
+    c.querySelectorAll("[data-cat][data-ico]").forEach(b => b.addEventListener("click", async () => {
+      try { const r = await post("categorias", { nombre: b.dataset.cat, icono: b.dataset.ico }); window.ponerCategorias(r.categorias); toast("Icono guardado"); pintar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    const cn = c.querySelector("#cat-nueva");
+    if (cn) cn.addEventListener("submit", async ev => {
+      ev.preventDefault(); cn.querySelector(".err").textContent = "";
+      try { const r = await post("categorias", { nombre: cn.nombre.value }); window.ponerCategorias(r.categorias); toast("Categoría agregada"); pintar(); } catch (e) { if (e.message !== "sesion") cn.querySelector(".err").textContent = e.message; }
+    });
     c.querySelectorAll("[data-dia]").forEach(b => b.addEventListener("click", () => { st.sel = b.dataset.dia; if (b.classList.contains("fuera")) st.mes = st.sel.slice(0, 7); pintar(); }));
     c.querySelectorAll("[data-mes]").forEach(b => b.addEventListener("click", () => {
       if (b.dataset.mes === "hoy") { st.mes = st.hoy.slice(0, 7); st.sel = st.hoy; }
@@ -3890,6 +4033,37 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   }, { capture: true, passive: true });
   arriba.addEventListener("click", () => { if (fuente) fuente.scrollTo({ top: 0, behavior: "smooth" }); });
   document.addEventListener("modulo", () => { fuente = document.scrollingElement; setTimeout(revisar, 50); });
+})();
+</script>
+<script>
+// ---- Ocultar la parte fija de arriba (título, pestañas, filtros y totales) y colapsar la lista lateral ----
+// Cada sección recuerda cómo la dejaste en este navegador.
+(() => {
+  const leer = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const guardar = (k, v) => { try { v ? localStorage.setItem(k, "1") : localStorage.removeItem(k); } catch {} };
+  const flecha = '<svg aria-hidden="true" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/></svg>';
+  document.querySelectorAll("main.mod").forEach(m => {
+    const tb = m.querySelector(":scope > .titlebar"), tools = m.querySelector(":scope > .tools");
+    if (!tb || !tools) return;
+    const k = "enc:" + m.id, b = document.createElement("button");
+    b.type = "button"; b.className = "enc-tg";
+    const pintar = () => { const o = m.classList.contains("enc-oculto"); b.innerHTML = flecha + `<span>${o ? "Mostrar filtros" : "Ocultar filtros"}</span>`; b.setAttribute("aria-expanded", String(!o)); b.title = o ? "Mostrar título, pestañas y filtros" : "Ocultar título, pestañas y filtros"; };
+    m.classList.toggle("enc-oculto", leer(k) === "1"); pintar();
+    b.addEventListener("click", () => { m.classList.toggle("enc-oculto"); guardar(k, m.classList.contains("enc-oculto")); pintar(); });
+    tb.appendChild(b);
+  });
+  document.querySelectorAll("div.work").forEach(w => {
+    const lista = w.querySelector(":scope > .list"); if (!lista) return;
+    const k = "lat:" + w.id, b = document.createElement("button");
+    b.type = "button"; b.className = "lat-tg";
+    b.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></svg>';
+    const ubicar = () => { const o = w.classList.contains("lista-oculta"); b.style.left = o ? "0px" : Math.max(0, lista.offsetWidth - 1) + "px"; b.setAttribute("aria-label", o ? "Mostrar la lista" : "Ocultar la lista"); b.title = o ? "Mostrar la lista" : "Ocultar la lista para ver el detalle completo"; b.setAttribute("aria-expanded", String(!o)); };
+    w.classList.toggle("lista-oculta", leer(k) === "1");
+    b.addEventListener("click", () => { w.classList.toggle("lista-oculta"); guardar(k, w.classList.contains("lista-oculta")); requestAnimationFrame(ubicar); setTimeout(ubicar, 250); });
+    w.appendChild(b);
+    if (window.ResizeObserver) new ResizeObserver(ubicar).observe(lista);
+    addEventListener("resize", ubicar); document.addEventListener("modulo", () => setTimeout(ubicar, 50)); ubicar();
+  });
 })();
 </script>
 </body>

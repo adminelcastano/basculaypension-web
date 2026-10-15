@@ -14,6 +14,7 @@ import TURNO_HTML from "./turno.html";
 import { turnoRuta, turnoAdmin } from "./turno.js";
 import { reporteArea, reportesMes, listaReportes, TIPOS_REPORTE } from "./reporte.js";
 import { finanzasPanel } from "./finanzas.js";
+import { categoriasPanel } from "./categorias.js";
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -427,6 +428,7 @@ async function panel(request, env, url) {
     }
   }
   if (partes[0] === "finanzas") return await finanzasPanel(request, env, url, partes, usuario);
+  if (partes[0] === "categorias" && partes.length === 1) return await categoriasPanel(request, env);
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, {});
   if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
   if (partes[0] === "turno") return await turnoAdmin(request, env, url, partes);
@@ -439,7 +441,7 @@ async function panel(request, env, url) {
     const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
     const q = (url.searchParams.get("q") || "").trim().slice(0, 60);
     const lim = limiteHistorico();
-    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en FROM solicitudes WHERE ";
+    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en, importe, tarifa, cliente FROM solicitudes WHERE ";
     const args = [];
     if (estado === "pendiente") sql += "estado = 'pendiente'";
     else if (estado === "historico") { sql += "estado IN ('facturada','rechazada') AND resuelta_en < ?"; args.push(lim); }

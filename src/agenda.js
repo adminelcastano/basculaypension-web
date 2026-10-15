@@ -1,5 +1,6 @@
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
+import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
 
@@ -188,7 +189,8 @@ export async function resumenAgenda(env) {
   const vencidas = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'tarea' AND ${ABIERTO} AND fecha < ?`).bind(hoy).first()).n;
   const eventosHoy = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'evento' AND fecha = ?`).bind(hoy).first()).n;
   const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha LIMIT 4`).all()).results;
-  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, incidencias, pagos };
+  const avisos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'aviso' AND ${ABIERTO} ORDER BY creado DESC LIMIT 4`).all()).results.map(a => ({ ...a, autor: a.autor || "admin" }));
+  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, incidencias, pagos, avisos };
 }
 
 // ---- Pagos hechos (de un pago programado o sueltos) ----
@@ -209,7 +211,7 @@ async function validarPagoHecho(env, c, fila) {
 }
 // Pagos, compras y otros gastos de la administración: salen de los sobres (efectivo) o del banco, no de la caja
 // de ningún turno, así que no llevan turno y no cuentan en los cortes (origen = 'admin').
-const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin')";
+const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin', ?)";
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
@@ -219,10 +221,11 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const v = await validarPagoHecho(env, c, null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
+    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
     await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota).run();
+      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null, cat).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota, cat).run();
     return json({ ok: true, id: pid });
   }
   const pid = partes[2];
@@ -262,8 +265,9 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const v = await validarPagoHecho(env, { ...c, titulo: c.titulo ?? pago.titulo }, pago.item_id ? pago : null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const titulo = pago.item_id ? pago.titulo : v.titulo;
-    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, pago.id).run();
-    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), pago.gasto_id).run();
+    const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
+    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, pago.id).run();
+    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, pago.gasto_id).run();
     return json({ ok: true });
   }
   if (accion === "eliminar") {
@@ -289,6 +293,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
 // Rutas: /panel/api/agenda...
 export async function agendaPanel(request, env, url, partes, usuario) {
   await asegurarEsquemaAgenda(env);
+  await asegurarEsquemaCaja(env);
+  await asegurarEsquemaCategorias(env);
   const ahora = new Date().toISOString();
 
   if (partes.length === 1 && request.method === "GET") {
@@ -316,9 +322,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
     const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
-    const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
+    const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
-    return json({ ok: true, items, pagos_hechos: pagosHechos, meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
+    // Forma de pago de las compras ya compradas (está en su egreso)
+    const gc = await deIds("SELECT id, forma FROM caja_gastos WHERE id IN (?)", items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id));
+    for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; }
+    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
@@ -326,16 +335,24 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   if (partes[1] === "pagos" && partes.length === 2 && request.method === "GET") {
     const hoy = hoyMx(), mes = hoy.slice(0, 7);
     const finMes = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
-    const abiertos = (await env.DB.prepare(`SELECT id, titulo, fecha, importe, frecuencia, forma FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha`).all()).results;
+    const abiertos = (await env.DB.prepare(`SELECT id, titulo, fecha, importe, frecuencia, forma, categoria FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha`).all()).results;
     const hechos = (await env.DB.prepare("SELECT p.fecha, p.importe, COALESCE(p.titulo, i.titulo) AS titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha").bind(sumarMeses(mes + "-01", -5)).all()).results;
     const porMes = []; for (let k = 5; k >= 0; k--) { const m = sumarMeses(mes + "-01", -k).slice(0, 7); porMes.push({ mes: m, total: hechos.filter(x => x.fecha.slice(0, 7) === m).reduce((a, x) => a + x.importe, 0) }); }
     const delMes = hechos.filter(x => x.fecha.slice(0, 7) === mes);
     const conceptos = {}; for (const x of delMes) conceptos[x.titulo || "Otro"] = (conceptos[x.titulo || "Otro"] || 0) + x.importe;
+    // Egresos de la administración del mes por categoría (pagos y compras), con su icono y color
+    const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
+    const porCat = {};
+    for (const g of (await env.DB.prepare("SELECT categoria, monto FROM caja_gastos WHERE origen = 'admin' AND mes = ?").bind(mes).all()).results) { const k = g.categoria || "Otros"; porCat[k] = (porCat[k] || 0) + g.monto; }
+    // Pagos no programados del mes (concepto e importe)
+    const noProg = (await env.DB.prepare("SELECT id, titulo, fecha, importe, categoria FROM agenda_pagos WHERE item_id = '' AND substr(fecha, 1, 7) = ? ORDER BY fecha DESC, creado DESC").bind(mes).all()).results;
     const pendMes = abiertos.filter(x => x.fecha && x.fecha <= finMes);
     return json({ ok: true, hoy, mes, proximos: abiertos.slice(0, 6), vencidos: abiertos.filter(x => x.fecha && x.fecha < hoy).length,
       por_pagar_mes: pendMes.reduce((a, x) => a + (x.importe || 0), 0), n_por_pagar_mes: pendMes.length,
       pagado_mes: delMes.reduce((a, x) => a + x.importe, 0), n_pagado_mes: delMes.length, por_mes: porMes,
-      por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total) });
+      por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total),
+      por_categoria: Object.entries(porCat).map(([nombre, total]) => ({ nombre, total: Math.round(total * 100) / 100, icono: (cats[nombre] || {}).icono || "otros", color: (cats[nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total),
+      no_programados: noProg, n_no_programados: noProg.length, total_no_programados: noProg.reduce((a, x) => a + x.importe, 0) });
   }
 
   if (partes[1] === "pagos" && partes.length >= 3) return await pagosHechosRutas(request, env, partes, usuario, ahora);
@@ -349,6 +366,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const id = crypto.randomUUID();
     await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora);
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
+    if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
     return json({ ok: true, id });
   }
 
@@ -373,8 +391,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const dia = hoyMx();
       const gid = crypto.randomUUID();
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
+      const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
       await env.DB.prepare(GASTO_ADMIN)
-        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null).run();
+        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC).run();
       await env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id).run();
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).run();
@@ -383,6 +402,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
     if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
+    if ((fila.tipo === "pago" || fila.tipo === "compra") && "categoria" in c) {
+      const cat = await resolverCategoria(env, c.categoria);
+      if (cat) {
+        await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind(cat, id).run();
+        const g = await env.DB.prepare("SELECT gasto_id FROM agenda_items WHERE id = ?").bind(id).first();
+        if (fila.tipo === "compra" && g && g.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET categoria = ? WHERE id = ?").bind(cat, g.gasto_id).run();
+      }
+    }
     return json({ ok: true });
   }
 
@@ -399,10 +426,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (dup) return json({ ok: false, duplicado: dup, error: `Ya registraste un pago de «${fila.titulo}» el ${dup.fecha} por $${Number(dup.importe).toFixed(2)}.` }, 409);
     }
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
+    const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
     await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota).run();
+      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null, cat).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota, cat).run();
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
     else {

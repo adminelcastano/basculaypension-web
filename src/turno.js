@@ -13,6 +13,7 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
+import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
 const TZ = "America/Mexico_City";
@@ -242,7 +243,9 @@ async function estado(env, s) {
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
     corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
   }
-  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS };
+  let categorias = [];
+  try { categorias = (await listaCategorias(env)).map(c => c.nombre); } catch {}
+  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -459,8 +462,10 @@ export async function turnoRuta(request, env, url, h) {
     let foto = null;
     try { foto = await guardarFoto(env, c.foto, "gasto"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona) VALUES (?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?)")
-      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona).run();
+    await asegurarEsquemaCategorias(env);
+    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
+    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona, categoria) VALUES (?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?, ?)")
+      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona, cat).run();
     return recordar(json({ ok: true, id }));
   }
   // ---- Ingreso extra (renta, aumento de cambio, otro) ----

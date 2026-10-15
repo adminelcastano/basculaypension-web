@@ -878,8 +878,9 @@ dialog .acciones .btn { flex: 1 1 160px; }
     hoja(`<h2>Agregar gasto</h2><p class="muted" style="margin:0 0 14px">Dinero que salió de la caja en este turno.</p>
       <label class="campo"><span>¿En qué se gastó?</span>${chips("g-conc", E.conceptos.map(c => [c, esc(c)]), "")}<input class="t" name="concepto" maxlength="120" placeholder="Ej. Garrafón de agua" autocomplete="off" style="margin-top:8px"></label>
       <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
+      <label class="campo"><span>Categoría <span class="muted" style="font-weight:400">(elige o escribe; si la dejas vacía se asigna sola)</span></span><input class="t" name="categoria" list="g-cats" maxlength="40" autocomplete="off" placeholder="Ej. Papelería y consumibles"><datalist id="g-cats">${(E.categorias || []).map(c => `<option value="${esc(c)}">`).join("")}</datalist></label>
       <div class="campo"><span class="lb">Foto del comprobante (opcional)</span>${campoFoto("g-foto", "Tomar foto")}</div>`,
-      async f => { const r = await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Gasto registrado."); await refrescar(); });
+      async f => { const r = await api("gastos", { concepto: f.concepto.value, monto: f.monto.value, categoria: f.categoria.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Gasto registrado."); await refrescar(); });
     activarFoto("g-foto", x => { foto = x; });
     elegirChip("#g-conc", v => { const i = $("#dlg-form").concepto; i.value = v === "Otro" ? "" : v; i.focus(); });
   }

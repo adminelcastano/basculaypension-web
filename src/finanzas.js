@@ -5,6 +5,7 @@
 // en el corte ciego − pagos y compras en efectivo. Banco: texto libre con las cuentas (por ahora).
 import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, sumarMesesCaja, montoUsuario } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
+import { asegurarEsquemaCategorias, listaCategorias } from "./categorias.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -15,6 +16,7 @@ export async function asegurarEsquemaFinanzas(env) {
   if (esquemaListo) return;
   await asegurarEsquemaCaja(env);
   await asegurarEsquemaAgenda(env);
+  await asegurarEsquemaCategorias(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_saldos (mes TEXT PRIMARY KEY, efectivo REAL NOT NULL, actualizado TEXT NOT NULL, por TEXT)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_config (clave TEXT PRIMARY KEY, valor TEXT, actualizado TEXT NOT NULL)").run();
   esquemaListo = true;
@@ -33,7 +35,7 @@ async function clasificarAdmin(env, gastos) {
     const p = pagos.get(g.id), c = compras.get(g.id);
     const cat = p ? (p.item_id ? "programado" : "no_programado") : c ? "compra" : "otro";
     const concepto = p ? p.titulo || g.concepto : c ? c.titulo + (c.cantidad ? ` (${c.cantidad})` : "") : g.concepto;
-    return { id: g.id, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cat, nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
+    return { id: g.id, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cat, categoria: g.categoria || "Otros", nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
   });
 }
 
@@ -77,7 +79,15 @@ export async function datosFinanzas(env, mes) {
   for (const g of admin) d(g.dia).egresos += g.monto;
   const porDia = Object.values(dias).map(x => ({ dia: x.dia, ingresos: r2(x.ingresos), egresos: r2(x.egresos) })).sort((a, b) => a.dia.localeCompare(b.dia));
 
-  return { mes, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, gastos_caja: gastos, transferencias: transf, por_dia: porDia, cortes };
+  // Egresos por categoría (gastos de caja + administración), con icono y color
+  const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
+  const pc = {};
+  for (const x of [...gastos.map(g => ({ categoria: g.categoria || "Otros", monto: g.monto, caja: 1 })), ...admin]) {
+    const k = x.categoria || "Otros"; pc[k] = pc[k] || { nombre: k, total: 0, caja: 0 }; pc[k].total += x.monto; if (x.caja) pc[k].caja += x.monto;
+  }
+  const porCategoria = Object.values(pc).map(x => ({ ...x, total: r2(x.total), caja: r2(x.caja), icono: (cats[x.nombre] || {}).icono || "otros", color: (cats[x.nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total);
+
+  return { mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, gastos_caja: gastos, transferencias: transf, por_dia: porDia, cortes };
 }
 
 export function mesesFinanzas(actual = mesActual()) {

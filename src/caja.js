@@ -1,4 +1,5 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -280,7 +281,7 @@ function conteo(x, c) {
 const horaLocal = iso => { const d = new Date(Date.parse(iso) - 6 * 3600e3); return isNaN(d) ? "" : d.toISOString().slice(0, 16); };
 export function movimientosCaja({ movs = [], gastos = [], extras = [], conteos = [] }) {
   const lista = [];
-  for (const g of gastos) if (esDeCaja(g)) lista.push({ ref: "g:" + g.id, tipo: "gasto", id: g.id, mes: g.mes, dia: g.dia, turno: g.turno, cuando: horaLocal(g.creado), concepto: g.concepto, detalle: "", monto: -g.monto, forma: g.forma, persona: g.persona || null, por: g.persona ? null : g.creado_por || null, foto: g.foto || null });
+  for (const g of gastos) if (esDeCaja(g)) lista.push({ ref: "g:" + g.id, tipo: "gasto", id: g.id, mes: g.mes, dia: g.dia, turno: g.turno, cuando: horaLocal(g.creado), concepto: g.concepto, categoria: g.categoria || null, detalle: "", monto: -g.monto, forma: g.forma, persona: g.persona || null, por: g.persona ? null : g.creado_por || null, foto: g.foto || null });
   for (const x of extras) lista.push({ ref: "x:" + x.id, tipo: "ingreso", id: x.id, mes: x.mes, dia: x.dia, turno: x.turno, cuando: horaLocal(x.creado), concepto: x.concepto, detalle: x.detalle || "", monto: x.monto, forma: "EFECTIVO", persona: x.persona || null, por: x.persona ? null : x.creado_por || null, foto: x.foto || null, ingreso: !!x.ingreso });
   for (const c of conteos) leerRetiros(c.retiros).forEach((r, i) => lista.push({ ref: `r:${c.dia}|${c.turno}|${i}`, tipo: "retiro", mes: c.mes, dia: c.dia, turno: c.turno, cuando: horaLocal(c.actualizado), concepto: r.concepto, detalle: "Retiro en el corte", monto: -r.monto, forma: "EFECTIVO", persona: c.persona, foto: null }));
   // Renglones de la hoja sin folio de ticket (retiros, sueldos, compras); el cambio inicial no lleva folio
@@ -398,6 +399,7 @@ export async function cierreMensualCaja(env, h) {
 // Rutas del panel: /panel/api/caja...
 export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCaja(env);
+  await asegurarEsquemaCategorias(env);
   const meses = await mesesAbiertos(env), mes = meses[meses.length - 1];
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
   const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
@@ -411,7 +413,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    return json({ ok: true, mes, meses, periodo, sync, totales: totalesMes(cortes, transf), cortes, movimientos, transferencias: transf, gastos_recientes: gastosRecientes, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, totales: totalesMes(cortes, transf), cortes, movimientos, transferencias: transf, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
@@ -451,8 +453,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!FORMAS_GASTO.includes(forma)) errores.forma = "Forma de pago inválida.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja')")
-      .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null).run();
+    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
+    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?)")
+      .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null, cat).run();
     return json({ ok: true, id });
   }
 
