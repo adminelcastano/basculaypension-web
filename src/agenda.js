@@ -1,18 +1,32 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
-import { asegurarEsquemaCaja } from "./caja.js";
+import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
-export const TIPOS = ["evento", "tarea", "compra", "incidencia", "aviso"];
+export const TIPOS = ["evento", "tarea", "compra", "incidencia", "aviso", "pago"];
 const ESTADOS = {
   evento: ["programado", "hecho"],
   tarea: ["pendiente", "hecho"],
   compra: ["pendiente", "comprado"],
   incidencia: ["abierta", "en_proceso", "resuelta"],
-  aviso: ["activo", "archivado"]
+  aviso: ["activo", "archivado"],
+  pago: ["pendiente", "pagado"]
 };
+// Pagos programados (planes de teléfono, suscripciones, tarjetas…): al registrar el pago se crea el gasto
+export const FRECUENCIAS = { unica: "Una sola vez", mensual: "Cada mes", bimestral: "Cada 2 meses", trimestral: "Cada 3 meses", semestral: "Cada 6 meses", anual: "Cada año" };
+const MESES_FREC = { mensual: 1, bimestral: 2, trimestral: 3, semestral: 6, anual: 12 };
+const FORMAS = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"];
+// Misma fecha N meses después (si el día no existe, el último del mes: 31 ene → 28/29 feb)
+function sumarMeses(dia, n) {
+  const [a, m, d] = dia.split("-").map(Number);
+  const t = new Date(Date.UTC(a, m - 1 + n, 1));
+  const ult = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  t.setUTCDate(Math.min(d, ult));
+  return t.toISOString().slice(0, 10);
+}
+const leerMonto = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
 // Día y turno de caja en este momento (hora de Tapachula; la noche después de medianoche es del día anterior)
 function turnoAhora(ahora = new Date()) {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(ahora).map(x => [x.type, x.value]));
@@ -50,8 +64,10 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
+  // Historial de pagos hechos de cada pago programado (cada uno con su gasto en Ingresos y gastos)
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_pagos (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, fecha TEXT NOT NULL, programado TEXT, importe REAL NOT NULL, forma TEXT NOT NULL, gasto_id TEXT, creado TEXT NOT NULL, creado_por TEXT)").run();
   listo = true;
 }
 
@@ -90,6 +106,15 @@ function validar(tipo, c, previo = {}) {
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
   if (d.fecha && !RE_DIA.test(d.fecha)) e.fecha = "Fecha inválida.";
   if (tipo === "evento" && !d.fecha) e.fecha = "Elige la fecha del evento.";
+  if (tipo === "pago") {
+    if (!d.fecha) e.fecha = "Elige la fecha del próximo pago.";
+    d.frecuencia = Object.hasOwn(FRECUENCIAS, v("frecuencia")) ? v("frecuencia") : "mensual";
+    d.forma = FORMAS.includes(v("forma")) ? v("forma") : "TRANSFERENCIA";
+    const imp = v("importe");
+    d.importe = imp === "" || imp == null ? null : leerMonto(imp);
+    if (d.importe !== null && !(d.importe > 0)) e.importe = "Importe inválido.";
+    if (e.titulo) e.titulo = "Escribe qué se paga (ej. Plan Telcel).";
+  }
   if (tipo === "incidencia" && !d.fecha) d.fecha = hoyMx();
   if (d.hora && !RE_HORA.test(d.hora)) e.hora = "Hora inválida.";
   if (!ESTADOS[tipo].includes(d.estado)) e.estado = "Estado inválido.";
@@ -104,7 +129,7 @@ function validar(tipo, c, previo = {}) {
   return { d, e };
 }
 
-const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado')";
+const ABIERTO = "estado NOT IN ('hecho','comprado','resuelta','archivado','pagado')";
 
 export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {}) {
   await env.DB.prepare(`INSERT INTO agenda_items (id, tipo, titulo, detalle, fecha, hora, estado, prioridad, cantidad, turno, gravedad, creado, creado_por, actualizado, aviso, para_turno, area, reporto, foto, autor, para, quien)
@@ -123,6 +148,7 @@ async function borrarItems(env, items) {
     for (const f of fotos) await borrarArchivo(env, f.foto).catch(() => {});
     stmts.push(env.DB.prepare(`DELETE FROM agenda_lecturas WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_reportes WHERE item_id IN (${q})`).bind(...lote));
+    stmts.push(env.DB.prepare(`DELETE FROM agenda_pagos WHERE item_id IN (${q})`).bind(...lote));
     stmts.push(env.DB.prepare(`DELETE FROM agenda_items WHERE id IN (${q})`).bind(...lote));
   }
   for (const v of items) if (v.foto) await borrarArchivo(env, v.foto).catch(() => {});
@@ -160,7 +186,8 @@ export async function resumenAgenda(env) {
   const incidencias = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'incidencia' AND ${ABIERTO} ORDER BY CASE gravedad WHEN 'grave' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, fecha DESC LIMIT 4`).all()).results;
   const vencidas = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'tarea' AND ${ABIERTO} AND fecha < ?`).bind(hoy).first()).n;
   const eventosHoy = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'evento' AND fecha = ?`).bind(hoy).first()).n;
-  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, incidencias };
+  const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha LIMIT 4`).all()).results;
+  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, incidencias, pagos };
 }
 
 // Rutas: /panel/api/agenda...
@@ -187,13 +214,31 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Informes de la tablet sobre las tareas
     const rep = (await deIds("SELECT * FROM agenda_reportes WHERE item_id IN (?)", items.filter(it => it.tipo === "tarea").map(it => it.id))).sort((a, b) => b.creado.localeCompare(a.creado));
     for (const it of items) if (it.tipo === "tarea") it.reportes = rep.filter(r => r.item_id === it.id);
+    // Últimos pagos hechos de cada pago programado
+    const pg = (await deIds("SELECT * FROM agenda_pagos WHERE item_id IN (?)", items.filter(it => it.tipo === "pago").map(it => it.id))).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado.localeCompare(a.creado));
+    for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6);
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
     const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
-    return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS });
+    return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
+  // Pagos programados para el Inicio: próximos, vencidos, totales del mes y pagado por mes
+  if (partes[1] === "pagos" && request.method === "GET") {
+    const hoy = hoyMx(), mes = hoy.slice(0, 7);
+    const finMes = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const abiertos = (await env.DB.prepare(`SELECT id, titulo, fecha, importe, frecuencia, forma FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha`).all()).results;
+    const hechos = (await env.DB.prepare("SELECT p.fecha, p.importe, i.titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha").bind(sumarMeses(mes + "-01", -5)).all()).results;
+    const porMes = []; for (let k = 5; k >= 0; k--) { const m = sumarMeses(mes + "-01", -k).slice(0, 7); porMes.push({ mes: m, total: hechos.filter(x => x.fecha.slice(0, 7) === m).reduce((a, x) => a + x.importe, 0) }); }
+    const delMes = hechos.filter(x => x.fecha.slice(0, 7) === mes);
+    const conceptos = {}; for (const x of delMes) conceptos[x.titulo || "Otro"] = (conceptos[x.titulo || "Otro"] || 0) + x.importe;
+    const pendMes = abiertos.filter(x => x.fecha && x.fecha <= finMes);
+    return json({ ok: true, hoy, mes, proximos: abiertos.slice(0, 6), vencidos: abiertos.filter(x => x.fecha && x.fecha < hoy).length,
+      por_pagar_mes: pendMes.reduce((a, x) => a + (x.importe || 0), 0), n_por_pagar_mes: pendMes.length,
+      pagado_mes: delMes.reduce((a, x) => a + x.importe, 0), n_pagado_mes: delMes.length, por_mes: porMes,
+      por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total) });
+  }
 
   if (partes.length === 1 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
@@ -203,6 +248,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const id = crypto.randomUUID();
     await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora);
+    if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
     return json({ ok: true, id });
   }
 
@@ -214,7 +260,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const { d, e } = validar(fila.tipo, c, fila);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
-    const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado"].includes(d.estado);
+    const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
     const reprogramar = d.fecha !== fila.fecha || d.hora !== fila.hora || d.aviso !== fila.aviso;
     // Compras: al confirmarla se captura el importe y se registra como gasto en Ingresos y gastos;
@@ -236,7 +282,36 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     }
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
+    if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
     return json({ ok: true });
+  }
+
+  // Registrar un pago programado: fecha en que se pagó, importe y forma → gasto; el pago se mueve al siguiente periodo
+  if (partes[2] === "pagar" && request.method === "POST" && fila.tipo === "pago") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const fecha = String(c.fecha || ""), importe = leerMonto(c.importe), forma = FORMAS.includes(c.forma) ? c.forma : (fila.forma || "TRANSFERENCIA");
+    const errores = {};
+    await asegurarEsquemaCaja(env);
+    const meses = await mesesAbiertos(env);
+    if (!RE_DIA.test(fecha) || fecha > hoyMx()) errores.fecha = "Escribe la fecha en que se pagó (no futura).";
+    else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró en Ingresos y gastos; usa una fecha del mes actual.";
+    if (!(importe > 0) || importe > 1000000) errores.importe = "Escribe el importe pagado.";
+    if (Object.keys(errores).length) return json({ ok: false, error: Object.values(errores).join(" "), errores }, 422);
+    const ahoraT = turnoAhora();
+    const turno = TURNOS.includes(c.turno) ? c.turno : fecha === ahoraT.dia ? ahoraT.turno : "MAÑANA";
+    const gid = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(gid, fecha.slice(0, 7), fecha, turno, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null).run();
+    const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
+    if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
+    else {
+      // Siguiente vencimiento a partir de la fecha programada (si se pagó tarde no se recorre el calendario)
+      const sig = sumarMeses(fila.fecha || fecha, meses_);
+      await env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sig, ahora, fila.id).run();
+    }
+    return json({ ok: true, gasto_id: gid });
   }
 
   if (partes[2] === "eliminar" && request.method === "POST") {
@@ -298,19 +373,22 @@ export async function resumenDiarioAgenda(env, enviar) {
   const tareasHoy = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'tarea' AND ${ABIERTO} AND fecha <= ? ORDER BY fecha`).bind(hoy).all()).results;
   const compras = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'compra' AND ${ABIERTO} ORDER BY CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, creado`).all()).results;
   const incid = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'incidencia' AND ${ABIERTO} ORDER BY CASE gravedad WHEN 'grave' THEN 0 WHEN 'media' THEN 1 ELSE 2 END`).all()).results;
-  if (!eventosHoy.length && !tareasHoy.length && !compras.length && !incid.length) return false;
+  const en3 = new Date(Date.parse(hoy + "T12:00:00Z") + 3 * 864e5).toISOString().slice(0, 10);
+  const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} AND fecha <= ? ORDER BY fecha`).bind(en3).all()).results;
+  if (!eventosHoy.length && !tareasHoy.length && !compras.length && !incid.length && !pagos.length) return false;
   const sec = (t, filas, f) => filas.length ? `${t}\n${filas.map(x => "• " + f(x)).join("\n")}\n\n` : "";
   const secH = (t, filas, f) => filas.length ? `<h3 style="margin:18px 0 6px">${t}</h3><ul style="margin:0;padding-left:18px">${filas.map(x => `<li>${f(x)}</li>`).join("")}</ul>` : "";
   const ev = x => `${x.hora ? x.hora + " · " : ""}${x.titulo}`;
   const ta = x => `${x.titulo}${x.fecha < hoy ? " (vencida " + x.fecha + ")" : ""}`;
   const co = x => `${x.titulo}${x.cantidad ? " · " + x.cantidad : ""}${x.prioridad === "alta" ? " (urgente)" : ""}`;
   const inc = x => `${x.titulo} · ${x.gravedad}${x.estado === "en_proceso" ? " · en proceso" : ""}`;
+  const pa = x => `${x.titulo}${x.importe ? " · aprox. $" + Number(x.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : ""} · ${x.fecha < hoy ? "vencido desde " + x.fecha : x.fecha === hoy ? "vence hoy" : "vence " + x.fecha}`;
   await enviar(env, {
     asunto: `Agenda de hoy · ${diaTxt(hoy)}`,
-    texto: `Agenda de hoy, ${diaTxt(hoy)}\n\n` + sec("Eventos de hoy", eventosHoy, ev) + sec("Por hacer (hoy o vencidas)", tareasHoy, ta) + sec("Compras pendientes", compras, co) + sec("Incidencias abiertas", incid, inc) + "Agenda: https://basculaypension.com/panel#agenda",
+    texto: `Agenda de hoy, ${diaTxt(hoy)}\n\n` + sec("Eventos de hoy", eventosHoy, ev) + sec("Por hacer (hoy o vencidas)", tareasHoy, ta) + sec("Pagos por hacer (vencidos o en los próximos 3 días)", pagos, pa) + sec("Compras pendientes", compras, co) + sec("Incidencias abiertas", incid, inc) + "Agenda: https://basculaypension.com/panel#agenda",
     html: `<div style="font-family:system-ui,sans-serif;font-size:15px"><h2 style="margin:0 0 4px">Agenda de hoy</h2><p style="color:#666;margin:0">${escHtml(diaTxt(hoy))}</p>`
       + secH("Eventos de hoy", eventosHoy, x => escHtml(ev(x))) + secH("Por hacer (hoy o vencidas)", tareasHoy, x => escHtml(ta(x)))
-      + secH("Compras pendientes", compras, x => escHtml(co(x))) + secH("Incidencias abiertas", incid, x => escHtml(inc(x)))
+      + secH("Pagos por hacer (vencidos o en los próximos 3 días)", pagos, x => escHtml(pa(x))) + secH("Compras pendientes", compras, x => escHtml(co(x))) + secH("Incidencias abiertas", incid, x => escHtml(inc(x)))
       + `<p style="margin-top:18px"><a href="https://basculaypension.com/panel#agenda">Abrir la agenda</a></p></div>`
   });
   return true;

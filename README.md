@@ -55,6 +55,11 @@ Copia en Google Drive: el Apps Script (`herramientas/aviso-correo.gs`, acción `
 
 Navegación del panel: en cada detalle (factura, colaborador, corte) hay una barra fija con «‹ Lista», la posición («3 de 12») y flechas ‹ › para pasar al anterior o siguiente sin volver a la lista; en computadora también con las teclas ← → (Esc vuelve a la lista). En el celular el botón atrás cierra el detalle y luego regresa a la sección anterior, deslizar el detalle a la derecha vuelve a la lista y el menú de secciones va abajo. Las fichas largas traen un índice de secciones y hay un botón ↑ para subir. Código en el último `<script>` de `src/panel.html`.
 
+## Compras y pagos programados (Agenda)
+
+- **Compras**: al marcar una compra como comprada se pide el importe y la forma de pago; se registra como gasto en Ingresos y gastos (día y turno de ese momento) y la compra guarda `importe` y `gasto_id`. Si se regresa a pendiente, ese gasto se borra.
+- **Pagos** (pestaña Pagos): planes de teléfono, suscripciones, tarjetas… con importe aproximado, próximo pago, frecuencia (una vez, mensual, bimestral, trimestral, semestral, anual) y forma. "Registrar pago" pide la fecha en que se pagó (no futura y de un mes abierto), el importe y la forma; crea el gasto con esa fecha, lo anota en `agenda_pagos` y mueve el próximo pago al siguiente periodo (los de una sola vez quedan pagados). Aparecen en el calendario, en el correo diario (vencidos o en los próximos 3 días) y en el Inicio (sección Pagos programados: por pagar y pagado del mes, próximos, pagado por mes y por concepto).
+
 ## Tablet de turno (`/turno`)
 
 Para el encargado de turno. Entra con la cuenta `entrada@basculaypension.com` (Cloudflare Access, código por correo) y luego cada encargado elige su nombre, su turno y escribe su PIN de 4 números. Cinco PIN equivocados bloquean a esa persona 15 minutos; tras 30 minutos sin tocar la tablet se cierra la sesión. Se instala como app desde Chrome (manifiesto público en `public/turno.webmanifest`). Mismo estilo que el panel; en tablet vertical y celular las secciones van abajo.

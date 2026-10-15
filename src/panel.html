@@ -253,7 +253,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .sec-h .ln { flex: 1; height: 1px; background: linear-gradient(90deg, #3a3a3c 70%, transparent); }
 .sec-ir { font: inherit; font-size: .82rem; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--cat); background: none; border: 0; padding: 6px 2px; cursor: pointer; white-space: nowrap; border-radius: 8px; }
 .sec-ir:hover { text-decoration: underline; }
-.cat-a { --cat: #ffcc00; } .cat-b { --cat: #2dd4bf; } .cat-c { --cat: #ff9f0a; } .cat-d { --cat: #b69cff; } .cat-e { --cat: #8e8e93; }
+.cat-a { --cat: #ffcc00; } .cat-b { --cat: #2dd4bf; } .cat-c { --cat: #ff9f0a; } .cat-d { --cat: #b69cff; } .cat-e { --cat: #8e8e93; } .cat-f { --cat: #30d158; }
 .ini-grid > .ini-card { border: 1.5px solid #3a3a3c; border: 1.5px solid color-mix(in srgb, var(--cat, #3a3a3c) 55%, transparent); }
 .acciones > .ini-k { display: none; }
 @media (min-width: 1001px) { .acciones .acc-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
@@ -348,7 +348,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .cal .d:hover:not(.sel) { background: #2a2a2d; }
 .cal .pts { display: flex; gap: 3px; flex-wrap: wrap; }
 .cal .pt { width: 7px; height: 7px; border-radius: 50%; }
-.pt.evento, .tag.evento { background: #a78bfa; } .pt.tarea, .tag.tarea { background: #64d2ff; } .pt.incidencia, .tag.incidencia { background: #ff6961; }
+.pt.evento, .tag.evento { background: #a78bfa; } .pt.tarea, .tag.tarea { background: #64d2ff; } .pt.incidencia, .tag.incidencia { background: #ff6961; } .pt.pago { background: #30d158; }
 .cal .d.sel .pt { box-shadow: 0 0 0 1.5px var(--amber-ink); }
 .cal-ley { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: #d2d2d7; }
 .cal-ley span { display: inline-flex; align-items: center; gap: 6px; }
@@ -803,6 +803,18 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <div class="ini-card cat-d ag-mini" data-agenda="tarea" tabindex="0" role="link" style="--c:#64d2ff"><div class="ini-top"><span class="ibadge"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Por hacer</span><b class="mini-n" id="n-tareas">0</b></div><div id="m-tareas"></div></div>
       <div class="ini-card cat-d ag-mini" data-agenda="compra" tabindex="0" role="link" style="--c:#ffb86b"><div class="ini-top"><span class="ibadge"><svg><use href="#i-carrito"/></svg></span><span class="ini-k">Compras por hacer</span><b class="mini-n" id="n-compras">0</b></div><div id="m-compras"></div></div>
       <div class="ini-card cat-d ag-mini" data-agenda="incidencia" tabindex="0" role="link" style="--c:#ff6961"><div class="ini-top"><span class="ibadge"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="mini-n" id="n-incid">0</b></div><div id="m-incid"></div></div>
+      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos programados</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-agenda="pago">Ir a Pagos ›</button></h3>
+      <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
+        <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
+      </div>
+      <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-check"/></svg></span><span class="ini-k">Pagado este mes</span></div>
+        <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
+      </div>
+      <div class="ini-card cat-f s2 ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos pagos</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
+      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos programados registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <section class="ini-card cat-f s2"><h3>Este mes por concepto</h3><div class="dona" id="d-pagos"></div></section>
       <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
       <section class="ini-card cat-e s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
     </div>
@@ -923,6 +935,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     <button class="ptab" role="tab" data-t="calendario" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Calendario</button>
     <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
     <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
+    <button class="ptab" role="tab" data-t="pago" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-billete"/></svg>Pagos <span class="n" id="an-pago">0</span></button>
     <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
     <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
   </div>
@@ -2423,6 +2436,25 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   const ocultarTip = () => { tip.hidden = true; };
 
   // ---- Gráfica circular (dona) ----
+  // Pagos programados en el Inicio: totales del mes, próximos, pagado por mes y por concepto
+  function pintarPagos(j) {
+    const D = v => dinero(v, 2);
+    contar($("#i-pp"), j.por_pagar_mes, v => dinero(v));
+    $("#i-pp-nota").textContent = j.n_por_pagar_mes ? `${j.n_por_pagar_mes} ${j.n_por_pagar_mes === 1 ? "pago pendiente" : "pagos pendientes"}${j.vencidos ? ` · ${j.vencidos} ${j.vencidos === 1 ? "vencido" : "vencidos"}` : ""}` : "Nada pendiente este mes";
+    contar($("#i-pg"), j.pagado_mes, v => dinero(v));
+    $("#i-pg-nota").textContent = j.n_pagado_mes ? `${j.n_pagado_mes} ${j.n_pagado_mes === 1 ? "pago registrado" : "pagos registrados"}` : "Sin pagos registrados";
+    $("#n-pagos").textContent = j.proximos.length;
+    const fc = d => { const t = new Date(d + "T12:00:00Z"); return t.toLocaleDateString("es-MX", { day: "numeric", month: "short", timeZone: "UTC" }); };
+    $("#m-pagos").innerHTML = j.proximos.length ? `<div class="mini-l">${j.proximos.map(x => `<div><span>${x.fecha < j.hoy ? "❗ " : ""}${esc(x.titulo)}${x.importe != null ? ` · ${esc(D(x.importe))}` : ""}</span><span class="m" style="${x.fecha < j.hoy ? "color:#ff6961" : x.fecha === j.hoy ? "color:#ffcc00" : ""}">${x.fecha === j.hoy ? "Hoy" : esc(fc(x.fecha))}</span></div>`).join("")}</div>` : `<p class="note">No hay pagos programados.</p>`;
+    const max = Math.max(1, ...j.por_mes.map(x => x.total));
+    const nm = m => new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" });
+    $("#g-pagos").innerHTML = j.por_mes.map(x => `<div class="cmp-fila"><span class="k">${esc(nm(x.mes))}${x.mes === j.mes ? " (este)" : ""}</span><div style="background:#1f1f21;border-radius:0 4px 4px 0"><div class="cmp-bar" style="--c:${x.mes === j.mes ? "#30d158" : "#2f8f50"};width:${Math.max(x.total ? 1.5 : 0, 100 * x.total / max)}%"></div></div><span><b>${D(x.total)}</b></span></div>`).join("");
+    const COL = ["#30d158", "#64d2ff", "#ffcc00", "#b69cff", "#ff9f0a", "#ff8fc7", "#8e8e93"];
+    const pc = j.por_concepto.slice(0, 6), resto = j.por_concepto.slice(6).reduce((a, x) => a + x.total, 0);
+    const partes = [...pc.map((x, i) => ({ nombre: x.titulo, v: x.total, c: COL[i] })), ...(resto ? [{ nombre: "Otros", v: resto, c: COL[6] }] : [])];
+    if (partes.length) dona($("#d-pagos"), partes, { etiqueta: "pagado", formato: D });
+    else $("#d-pagos").innerHTML = `<p class="note">Todavía no hay pagos registrados este mes.</p>`;
+  }
   function dona(cont, partes, { centro, etiqueta, formato = v => dinero(v, 2), iconos = false } = {}) {
     const total = partes.reduce((a, p) => a + p.v, 0);
     const R = 52, C = 2 * Math.PI * R, gap = total > 0 && partes.filter(p => p.v > 0).length > 1 ? 2.5 : 0;
@@ -2534,6 +2566,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       api("solicitudes?estado=pendiente"), api(`caja?desde=${sumar(ta.dia, -7)}&hasta=${ta.dia}`),
       api("colaboradores?tipo=colaborador&estatus=activo"), api("agenda/resumen")
     ]);
+    api("agenda/pagos").then(pintarPagos).catch(() => {});
     if ([fac, caja, per, ag].some(r => r.status === "rejected" && r.reason && r.reason.message === "sesion")) { $("#i-pie").textContent = "Tu sesión expiró. Recarga la página."; return; }
 
     if (fac.status === "fulfilled") {
@@ -2672,7 +2705,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       st.items = j.items; st.hoy = j.hoy;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
-      for (const t of ["tarea", "compra", "incidencia", "aviso"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
+      st.frecuencias = j.frecuencias || {};
       // Avisos de los encargados sin leer: el contador se pone en rojo con cuántos son
       const nA = $("#an-aviso"); nA.classList.toggle("rojo", !!j.avisos_sin_leer); if (j.avisos_sin_leer) nA.textContent = j.avisos_sin_leer;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
@@ -2698,6 +2732,10 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <label class="w4">Nota para el encargado <span style="font-weight:400">(opcional; la ve en la tablet)</span><input name="detalle" maxlength="1000" autocomplete="off"></label>
       <label class="chkl w2"><input type="checkbox" name="para_turno">Que la haga el encargado (tablet)</label><label>Turno<select name="turno"><option value="">Cualquiera</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
       <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+    if (tipo === "pago") return `<form class="aform" data-tipo="pago"><label class="w2">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
+      <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
+      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label><label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (caja)</option></select></label>
+      <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se agrega a los gastos.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
       <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
@@ -2717,6 +2755,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (it.tipo === "evento") campos.push(`<label>Hora<input type="time" name="hora" value="${esc(it.hora || "")}"></label>`);
     if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
     if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
+    if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con${sel("forma", [["TRANSFERENCIA", "Transferencia"], ["TARJETA", "Tarjeta"], ["EFECTIVO", "Efectivo (caja)"]], it.forma || "TRANSFERENCIA")}</label>`);
     if (it.tipo === "tarea") campos.push(`<label class="chkl w2"><input type="checkbox" name="para_turno" ${it.para_turno ? "checked" : ""}>Que la haga el encargado (tablet)</label><label>Turno${sel("turno", [["", "Cualquiera"], ...Object.entries(T)], it.turno || "")}</label>`);
     if (it.tipo === "incidencia") campos.push(`<label>Gravedad${sel("gravedad", [["leve", "Leve"], ["media", "Media"], ["grave", "Grave"]], it.gravedad)}</label><label>Dónde<input name="area" maxlength="40" value="${esc(it.area || "")}"></label>`);
     if (it.tipo === "aviso") {
@@ -2731,6 +2770,16 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (st.editando === it.id) return formEditar(it);
     const hecho = !abierto(it);
     const del = `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}" aria-label="Editar ${esc(it.titulo)}">Editar</button><button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button>`;
+    if (it.tipo === "pago") {
+      const M = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const venc = !hecho && it.fecha && it.fecha < st.hoy, hoyP = !hecho && it.fecha === st.hoy;
+      const hist = (it.pagos || []).map(x => `<span>Pagado ${esc(diaTxt(x.fecha))} · ${M(x.importe)}</span>`).join("");
+      return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico("i-billete")}</span>
+        <span class="tt">${esc(it.titulo)}</span>
+        <span class="acc">${hecho ? "" : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
+        <span class="mm">${venc ? `<span class="tag vencida">Vencido</span>` : hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? `<span>Pagado</span>` : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" }[it.forma] || "")}</span></span>
+        ${hist ? `<span class="mm informes">${hist}</span>` : ""}</div>`;
+    }
     if (it.tipo === "incidencia") {
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${esc(it.gravedad)}" title="Gravedad ${esc(it.gravedad)}">${ico("i-alerta")}</span>
         <span class="tt">${esc(it.titulo)}</span>
@@ -2763,8 +2812,9 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (tipo === "tarea") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta") || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
     if (tipo === "compra") ab.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta"));
     if (tipo === "incidencia") { const g = { grave: 0, media: 1, leve: 2 }; ab.sort((a, b) => g[a.gravedad] - g[b.gravedad] || b.fecha.localeCompare(a.fecha)); }
-    const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas." }[tipo];
-    const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas" }[tipo];
+    if (tipo === "pago") ab.sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+    const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas.", pago: "No hay pagos programados." }[tipo];
+    const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
     return `<section class="card">${formulario(tipo)}</section>
       <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
@@ -2898,7 +2948,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     return `<div class="ag-cal">
       <section class="card"><div class="cal-head"><h3>${esc(mayus(fMes.format(primero)))}</h3><div class="cal-nav"><button type="button" data-mes="-1" aria-label="Mes anterior">‹</button><button type="button" data-mes="hoy" aria-label="Hoy" style="width:auto;padding:0 12px;font-size:14px">Hoy</button><button type="button" data-mes="1" aria-label="Mes siguiente">›</button></div></div>
         <div class="cal">${celdas}</div>
-        <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span></div></section>
+        <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span><span><i class="pt pago"></i>Pagos</span></div></section>
       <section class="card"><h3>${esc(mayus(fLargo.format(new Date(st.sel + "T12:00:00Z"))))}</h3>
         <div class="alist">${delDia.length ? delDia.map(item).join("") : `<p class="note">Nada programado este día.</p>`}</div>
         ${formulario("evento", st.sel)}</section></div>`;
@@ -2954,6 +3004,20 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se borrará su gasto de Ingresos y gastos.")) return;
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
+    }));
+    c.querySelectorAll("[data-pagar]").forEach(b => b.addEventListener("click", () => {
+      const fila = b.closest(".aitem"), it = st.items.find(x => x.id === b.dataset.pagar);
+      if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
+      const fs = { TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" };
+      fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(st.hoy)}" max="${esc(st.hoy)}"></label><label>Importe pagado<input name="importe" inputmode="decimal" placeholder="$0.00" value="${it && it.importe != null ? esc(it.importe) : ""}" autocomplete="off"></label><label>Pagado con<select name="forma">${Object.entries(fs).map(([k, v]) => `<option value="${k}" ${it && it.forma === k ? "selected" : ""}>${v}</option>`).join("")}</select></label><button class="btn btn-primary" type="submit">Confirmar pago</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se agrega a los gastos con esa fecha${it && it.frecuencia !== "unica" ? " y el pago pasa al siguiente periodo" : ""}.</span></form>`);
+      const f = fila.querySelector(".compra-conf");
+      f.importe.focus(); f.importe.select();
+      f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());
+      f.addEventListener("submit", async ev => {
+        ev.preventDefault(); const bt = f.querySelector("[type=submit]"); bt.disabled = true; f.querySelector(".err").textContent = "";
+        try { await post("agenda/" + b.dataset.pagar + "/pagar", { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value }); toast("Pago registrado en gastos"); await cargar(); }
+        catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.message; bt.disabled = false; }
+      });
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
