@@ -14,15 +14,30 @@
   // opciones.historia === "push": el cambio queda en el historial (el botón atrás del celular regresa)
   function mostrar(mod, opciones = {}) {
     if (mod === "turno") mod = "caja";
-    document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === mod) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    // Dinero abre la última vista que se usó (Pagos y compras o una de Finanzas)
+    if (mod === "dinero") mod = EC.ultimoDinero === "pagos" ? "pagos" : "finanzas";
+    if (mod === "finanzas" && opciones.vista) EC.finVista = opciones.vista;
+    if (mod === "pagos" || mod === "finanzas") EC.ultimoDinero = mod;
+    const sec = EC.seccionDe(mod);
+    document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === sec) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     for (const m of ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    document.title = ({ inicio: "Inicio", personal: "Personal", caja: "Turnos", pagos: "Pagos y compras", finanzas: "Finanzas", agenda: "Agenda" }[mod] || "Facturación") + " · El Castaño";
-    const url = mod === "inicio" ? location.pathname : "#" + mod;
-    if (opciones.historia === "push" && (history.state || {}).mod !== mod) history.pushState({ mod }, "", url);
-    else history.replaceState({ mod }, "", url);
+    const vista = mod === "pagos" ? "pagos" : mod === "finanzas" ? EC.finVista : null;
+    document.querySelectorAll(".dsub [data-dv]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.dv === vista)));
+    document.title = ({ inicio: "Hoy", personal: "Personal", caja: "Caja", pagos: "Dinero · Pagos y compras", finanzas: "Dinero", agenda: "Agenda" }[mod] || "Facturas") + " · El Castaño";
+    const url = EC.hashDe(mod, vista) || location.pathname;
+    const estado = { mod, vista };
+    if (opciones.historia === "push" && ((history.state || {}).mod !== mod || (history.state || {}).vista !== vista)) history.pushState(estado, "", url);
+    else history.replaceState(estado, "", url);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
+  // Pestañas de Dinero: Pagos y compras es su propia pantalla; las demás son vistas de Finanzas
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".dsub [data-dv]"); if (!b) return;
+    const v = b.dataset.dv;
+    if (v === "pagos") mostrar("pagos");
+    else mostrar("finanzas", { vista: v });
+  });
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod, { historia: "push" }); });
 
   // ---- Personal ----
@@ -680,7 +695,7 @@
   let h; $("#p-q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { st.q = e.target.value.trim(); cargar(); }, 300); });
   $("#p-nuevo").addEventListener("click", () => CAMP() ? nuevaCampana() : nuevo());
 
-  const inicial = location.hash.slice(1);
-  if (["personal", "caja", "facturacion", "agenda", "turno", "pagos", "finanzas"].includes(inicial)) mostrar(inicial);
+  const inicial = EC.ruta();
+  if (inicial.mod !== "inicio") mostrar(inicial.mod, { vista: inicial.vista });
   window.irA = (mod, opciones = { historia: "push" }) => mostrar(mod, opciones);
 })();

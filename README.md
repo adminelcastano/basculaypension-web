@@ -35,7 +35,7 @@ Se guardan en Google Drive, en la carpeta dedicada **"El Castaño · Archivos de
 
 ## Organización del panel (desde el 15 oct 2026)
 
-Menú: **Inicio · Turnos · Pagos y compras · Finanzas · Facturación · Personal · Agenda**. El dinero tiene dos orígenes y no se mezclan:
+Menú (desde el 15 oct 2026): **Hoy · Caja · Dinero · Agenda · Facturas · Personal**. Dinero tiene pestañas: Resumen, Pagos y compras, Cuentas y sobres, Transferencias, Bitácora y reportes (`#dinero`, `#dinero/pagos`, `#dinero/cuentas`, `#dinero/transferencias`, `#dinero/bitacora`). Internamente siguen `#mod-inicio`, `#mod-caja`, `#mod-finanzas`, `#mod-pagos`…; `EC.ruta()` traduce la dirección y los enlaces viejos (`#finanzas`, `#pagos`, `#turno`) siguen sirviendo. El dinero tiene dos orígenes y no se mezclan:
 
 - **Turnos** (`#caja`, código en `src/caja.js` y el script "Turnos" de `src/panel.html`): solo lo que pasa físicamente por la caja de un turno. Pestañas: *En curso* (turno abierto en la tablet y su corte hasta ahora), *Cortes*, *Movimientos de caja*, *Entregas* (sobre, retiros y cambio de cada corte ciego) y *Encargados*. El enlace viejo `#turno` abre esta sección.
 - **Pagos y compras** (`#pagos`): pagos programados, pagos y gastos hechos, y compras. Todo sale de la administración: «Efectivo (sobres)», transferencia o tarjeta (banco). Se guardan en `caja_gastos` con `origen = 'admin'` y `turno = ''`, así que **no cuentan en ningún corte**. Los pagos y compras registrados antes del 15 oct se migraron a `origen = 'admin'` automáticamente.

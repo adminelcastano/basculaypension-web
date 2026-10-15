@@ -158,7 +158,7 @@
                 <span class="h"></span><span class="h">Dejó</span><span class="h">Recibió</span>
                 ${c.cambio_turno ? fila(`Del turno anterior (${avP(c.cambio_turno.de.persona)}${esc(c.cambio_turno.de.persona)} → ${avP(c.cambio_turno.recibio)}${esc(c.cambio_turno.recibio)})`, dinero(c.cambio_turno.dejado), dinero(c.cambio_turno.recibido)) + `<span class="fin">Diferencia</span><span class="n"></span><span class="n">${difEtq(c.cambio_turno.dif)}</span>` : ""}
                 ${c.cambio_siguiente ? fila(`Al turno siguiente (→ ${avP(c.cambio_siguiente.recibio)}${esc(c.cambio_siguiente.recibio)})`, dinero(c.cambio_siguiente.dejado), dinero(c.cambio_siguiente.recibido)) + `<span class="fin">Diferencia</span><span class="n"></span><span class="n">${difEtq(c.cambio_siguiente.dif)}</span>` : ""}
-              </div><p class="note">Si el cambio que declara quien entra no es el que dejó quien sale, la diferencia cuenta como faltante o sobrante en Finanzas.</p>` : ""}
+              </div><p class="note">Si el cambio que declara quien entra no es el que dejó quien sale, la diferencia cuenta como faltante o sobrante en Dinero.</p>` : ""}
               ${(j.historial || []).length > 1 ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
                 <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
                 ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${avP(x.persona)}${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
@@ -249,7 +249,7 @@
     const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
     c.innerHTML = `<section class="card"><h3>Entregas de los turnos</h3>
-      <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Finanzas), los retiros y el cambio que dejó al siguiente turno.</p>
+      <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
       <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Sobres</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div></div>
       ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${avP(x.conteo.persona)}${esc(x.conteo.persona)}</td><td class="n">${dinero(x.conteo.efectivo)}</td><td>${difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
@@ -303,7 +303,7 @@
   $("#c-gasto").addEventListener("click", nuevoGasto);
   document.addEventListener("modulo", e => { if (e.detail === "caja") { if (st.vista === "encargados") window.turnoVista && window.turnoVista("encargados"); else cargar(); } });
   document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { if (st.vista === "encargados") { window.turnoVista && window.turnoVista("encargados"); return; } await cargar(); if (st.actual) abrir(st.actual); } });
-  if (location.hash === "#caja") cargar();
+  if (EC.ruta().mod === "caja") cargar();
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
 })();

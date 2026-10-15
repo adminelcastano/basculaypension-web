@@ -90,8 +90,8 @@
 
   // ---- Botón atrás del celular: cierra el detalle y luego regresa a la sección anterior ----
   if (!history.state) {
-    const m = (location.hash || "#inicio").slice(1);
-    history.replaceState({ mod: ["facturacion", "personal", "caja", "agenda", "pagos", "finanzas"].includes(m) ? m : "inicio" }, "", location.href);
+    const r = EC.ruta();
+    history.replaceState({ mod: r.mod, vista: r.vista }, "", location.href);
   }
   zonas.forEach(z => {
     let abierto = z.w.classList.contains("ver-detalle");
@@ -120,9 +120,9 @@
       return;
     }
     if (st.detalle && !(z && z.w.classList.contains("ver-detalle"))) { history.replaceState({ mod: st.mod }, "", location.href); return; }
-    const actual = (document.querySelector(".modulos button[aria-current]") || {}).dataset?.mod;
+    const actualMod = ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda"].find(m => { const el = document.getElementById("mod-" + m); return el && !el.hidden; });
     const destino = st.mod || "inicio";
-    if (destino !== actual && window.irA) window.irA(destino, {});
+    if ((destino !== actualMod || (destino === "finanzas" && st.vista && st.vista !== EC.finVista)) && window.irA) window.irA(destino, { vista: st.vista });
   });
 
   // ---- Teclado: ← → anterior y siguiente, Esc vuelve a la lista ----

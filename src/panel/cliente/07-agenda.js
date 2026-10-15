@@ -61,7 +61,7 @@
     if (tipo === "pago") return `<form class="aform" data-tipo="pago"><label class="w2">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
       <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>${window.campoCategoria()}<label>Se paga con<select name="forma">${window.opcionesMedio("")}</select></label>
-      <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Finanzas.</p></form>`;
+      <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Dinero.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
       <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label>${window.campoCategoria("", "w2")}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
@@ -124,7 +124,7 @@
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
       it.cantidad ? `<span>${esc(it.cantidad)}</span>` : "",
-      it.tipo === "compra" && it.importe != null ? `<span>$${Number(it.importe).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${it.gasto_id ? " · en Finanzas" : ""}</span>` : "",
+      it.tipo === "compra" && it.importe != null ? `<span>$${Number(it.importe).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${it.gasto_id ? " · en Dinero" : ""}</span>` : "",
       it.fecha && it.tipo !== "evento" ? `<span>${it.tipo === "tarea" ? "Límite " : ""}${esc(diaTxt(it.fecha))}</span>` : "",
       it.hora ? `<span>${esc(it.hora)}</span>` : "",
       it.aviso ? `<span>🔔 ${AVISO_TXT[it.aviso] || ""}</span>` : "",
@@ -211,11 +211,11 @@
       ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE», «Refacción de la pluma» o «Gasolina».</li>` : ""}
       <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser de un mes abierto (el actual, o el anterior mientras no se cierra).</li>
       <li><b>Importe pagado:</b> lo que realmente pagaste, con centavos si los hay.</li>
-      <li><b>Pagado con:</b> «Efectivo (sobres)», la cuenta de la que salió (transferencia o débito) o la tarjeta de crédito con que se pagó. Así cuadran los saldos de Finanzas. No toca la caja de ningún turno.</li>
+      <li><b>Pagado con:</b> «Efectivo (sobres)», la cuenta de la que salió (transferencia o débito) o la tarjeta de crédito con que se pagó. Así cuadran los saldos de Dinero. No toca la caja de ningún turno.</li>
       <li><b>Categoría:</b> elígela de la lista o escribe una nueva.</li>
       <li><b>Comprobante (opcional):</b> toma foto del ticket o sube la captura o el PDF de la transferencia. Se guarda en Drive.</li>
       <li><b>Nota (opcional):</b> folio, referencia o lo que sirva para identificarlo.</li>
-    </ol>${modo === "editar" ? "Al guardar se corrige también en Finanzas." : `Al guardar se suma a los egresos de la administración (Finanzas) y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
+    </ol>${modo === "editar" ? "Al guardar se corrige también en Dinero." : `Al guardar se suma a los egresos de la administración (Dinero) y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
     const d = ventana(titulo, guia, `<form class="aform" novalidate>
       ${suelto ? `<label class="w4">Qué pagaste<input name="titulo" maxlength="140" value="${esc(v.titulo || "")}" placeholder="Ej. Recibo de luz CFE" autocomplete="off"></label>` : ""}
       <label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(v.fecha)}" min="${esc(mesAb)}-01" max="${esc(st.hoy)}"></label>
@@ -277,7 +277,7 @@
     const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas.", pago: "No hay pagos programados." }[tipo];
     const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
     if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
-        <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago o gasto hecho. Todo aparece en el calendario y se suma a Finanzas.</p></section>
+        <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago o gasto hecho. Todo aparece en el calendario y se suma a Dinero.</p></section>
       <section class="card"><h3>Programados</h3><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
     return `<section class="card">${formulario(tipo)}</section>
@@ -299,7 +299,7 @@
         <div class="k"><span>Por pagar este mes</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
         <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
         <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
-      </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Finanzas.</p></section>`;
+      </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Dinero.</p></section>`;
     if (st.ptab === "hechos") return resumen + `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
       <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
@@ -483,7 +483,7 @@
       if (!on && b.dataset.fin === "comprado") {
         const fila = b.closest(".aitem");
         if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
-        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma">${window.opcionesMedio("EFECTIVO")}</select></label><label>Día de la compra<input type="date" name="fecha_compra" value="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date())}" max="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date())}"></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se suma a los egresos de la administración (Finanzas). No toca la caja de ningún turno.</span></form>`);
+        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma">${window.opcionesMedio("EFECTIVO")}</select></label><label>Día de la compra<input type="date" name="fecha_compra" value="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date())}" max="${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date())}"></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se suma a los egresos de la administración (Dinero). No toca la caja de ningún turno.</span></form>`);
         const f = fila.querySelector(".compra-conf");
         f.importe.focus();
         f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());
@@ -494,7 +494,7 @@
         });
         return;
       }
-      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se quita de los egresos en Finanzas.")) return;
+      if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !confirm("¿Regresar la compra a pendiente? Se quita de los egresos en Dinero.")) return;
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
@@ -503,7 +503,7 @@
     c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
     c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
       const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
-      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se quita de Finanzas${p.comprobante ? " y se borra su comprobante" : ""}.`)) return;
+      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`)) return;
       try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
@@ -567,7 +567,7 @@
   };
   document.addEventListener("modulo", e => { if (e.detail === "agenda" || e.detail === "pagos") cargar(); });
   document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden || !$("#mod-pagos").hidden) cargar(); });
-  if (location.hash === "#agenda" || location.hash === "#pagos") cargar();
+  if (["agenda", "pagos"].includes(EC.ruta().mod)) cargar();
 
   // ---- Un solo botón para sincronizar todo ----
   $("#sync-todo").addEventListener("click", async e => {

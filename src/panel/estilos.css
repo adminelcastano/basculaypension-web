@@ -707,7 +707,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 @media (max-width: 640px) {
   header.bar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--surface); }
   header.bar h1 { display: block; margin-right: auto; }
-  header.bar .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
+  header.bar .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0;
     max-width: none; border-radius: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid rgba(255,255,255,.08); overflow: visible; }
   header.bar .modulos button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 2px; font-size: var(--t-2xs); letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--muted-2); border-radius: 10px; min-height: 48px; justify-content: center; }
   header.bar .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
@@ -760,7 +760,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 .ini-cal .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .ini-cal .cal-head h3 { margin: 0; }
 .ini-cal .cal .d { min-height: 46px; }
-@media (max-width: 640px) { .fcols { grid-template-columns: 1fr; } .ini-cal .cal .d { min-height: 38px; } header.bar .modulos { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; } header.bar .modulos button { font-size: var(--t-2xs) !important; padding: 4px 0 !important; } header.bar .modulos .mi { width: 22px !important; height: 22px !important; } }
+@media (max-width: 640px) { .fcols { grid-template-columns: 1fr; } .ini-cal .cal .d { min-height: 38px; } }
 
 /* ---- Categorías ---- */
 .cat-ico { display: inline-block; vertical-align: -3px; flex: none; }
@@ -843,3 +843,8 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
 .fsaldo-c { width: 120px; text-align: right; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); color: var(--fg); font: inherit; }
 #f-mov [hidden] { display: none; }
 .card { min-width: 0; grid-template-columns: minmax(0, 1fr); } .card > * { min-width: 0; }
+
+/* ---- Dinero: pestañas de la sección (Resumen, Pagos y compras, Cuentas y sobres, Transferencias, Bitácora) ---- */
+.dsub { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-top: 12px; padding-bottom: 2px; }
+.dsub::-webkit-scrollbar { display: none; }
+.dsub .ptab { flex: none; min-height: 40px; }

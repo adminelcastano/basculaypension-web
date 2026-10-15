@@ -16,13 +16,12 @@
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
   <h1>El Castaño</h1>
   <nav class="modulos" aria-label="Sección">
-    <button type="button" data-mod="inicio" aria-current="page"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
-    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-tablet"/></svg><span>Turnos</span></button>
-    <button type="button" data-mod="pagos"><svg class="mi" aria-hidden="true"><use href="#i-carrito"/></svg><span class="largo">Pagos y compras</span><span class="corto">Pagos</span></button>
-    <button type="button" data-mod="finanzas"><svg class="mi" aria-hidden="true"><use href="#i-tendencia"/></svg><span>Finanzas</span></button>
-    <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span class="largo">Facturación</span><span class="corto">Facturas</span></button>
-    <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
+    <button type="button" data-mod="inicio" aria-current="page"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Hoy</span></button>
+    <button type="button" data-mod="caja"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Caja</span></button>
+    <button type="button" data-mod="dinero"><svg class="mi" aria-hidden="true"><use href="#i-tendencia"/></svg><span>Dinero</span></button>
     <button type="button" data-mod="agenda"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Agenda</span></button>
+    <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span>Facturas</span></button>
+    <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
   </nav>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
@@ -184,7 +183,7 @@
 </main>
 <main class="mod" id="mod-facturacion" hidden>
 <div class="titlebar">
-  <h2 id="titulo">Pendientes.</h2>
+  <h2 id="titulo">Facturas.</h2>
   <p id="subtitulo" class="note"></p>
 </div>
 <div class="tools">
@@ -248,7 +247,7 @@
 </main>
 <main class="mod" id="mod-caja" hidden>
 <div class="titlebar">
-  <h2 id="c-titulo">Turnos.</h2>
+  <h2 id="c-titulo">Caja.</h2>
   <p id="c-subtitulo" class="note"></p>
 </div>
 <div class="tools">
@@ -280,8 +279,9 @@
 </main>
 <main class="mod" id="mod-pagos" hidden>
 <div class="titlebar">
-  <h2>Pagos y compras.</h2>
+  <h2>Dinero.</h2>
   <p id="pg-subtitulo" class="note">Lo que paga y compra la administración: sale de los sobres (efectivo) o del banco, nunca de la caja de un turno.</p>
+  <nav class="ptabs dsub" aria-label="Dinero"><button class="ptab" type="button" data-dv="resumen" aria-selected="false">Resumen</button><button class="ptab" type="button" data-dv="pagos" aria-selected="true">Pagos y compras</button><button class="ptab" type="button" data-dv="cuentas" aria-selected="false">Cuentas y sobres</button><button class="ptab" type="button" data-dv="transferencias" aria-selected="false">Transferencias</button><button class="ptab" type="button" data-dv="bitacora" aria-selected="false">Bitácora y reportes</button></nav>
 </div>
 <div class="tools">
   <div class="ptabs" role="tablist" aria-label="Pagos y compras" id="pg-tabs">
@@ -295,8 +295,9 @@
 </main>
 <main class="mod" id="mod-finanzas" hidden>
 <div class="titlebar">
-  <h2>Finanzas.</h2>
+  <h2 id="f-titulo">Dinero.</h2>
   <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale y dónde está el efectivo.</p>
+  <nav class="ptabs dsub" aria-label="Dinero"><button class="ptab" type="button" data-dv="resumen" aria-selected="true">Resumen</button><button class="ptab" type="button" data-dv="pagos" aria-selected="false">Pagos y compras</button><button class="ptab" type="button" data-dv="cuentas" aria-selected="false">Cuentas y sobres</button><button class="ptab" type="button" data-dv="transferencias" aria-selected="false">Transferencias</button><button class="ptab" type="button" data-dv="bitacora" aria-selected="false">Bitácora y reportes</button></nav>
 </div>
 <div class="tools">
   <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>

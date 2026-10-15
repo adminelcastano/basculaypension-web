@@ -60,8 +60,8 @@
     const hojaSinLigar = (j.transf_hoja || []).filter(h => !h.ligada);
     const ticketTxt = h => `${SVC[h.servicio] || h.servicio} ${h.folio}`;
     const posibles = Object.fromEntries((j.transf_posibles || []).map(x => [x.id, x.tickets]));
-    $("#f-cuerpo").innerHTML = `
-      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
+    const S = {
+      resumen: () => `      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
         <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
         <div class="fcols">
           <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta (Mercado Pago)", i.tarjeta], ["Tickets por transferencia (hoja)", i.transf_hoja], ...(i.transf_manual ? [["Transferencias capturadas sin ticket", i.transf_manual]] : []), ["Otros ingresos (rentas)", i.otros], ...(i.sobrantes ? [["Sobrantes de caja", i.sobrantes]] : []), ["Total", i.total, "tot"]])}</div>
@@ -69,39 +69,34 @@
         </div>
         <div class="fgraf">${graf(j.por_dia)}</div>
         ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
-      </section>
-
-      <section class="card"><h3>Diferencias de caja</h3>
+      </section>`,
+      diferencias: () => `      <section class="card"><h3>Diferencias de caja</h3>
         <p class="note" style="margin:4px 0 10px">Lo que el encargado contó contra lo que el sistema esperaba, y el cambio que dejó un turno contra el que recibió el siguiente. Lo que falta cuenta como egreso; lo que sobra, como ingreso.</p>
         <div class="ctot" style="margin:0 0 10px"><div class="k"><span>Faltó</span><b style="color:#ff8a80">${D(df.faltantes)}</b></div><div class="k"><span>Sobró</span><b style="color:#7ee2a0">${D(df.sobrantes)}</b></div><div class="k dest"><span>Neto</span><b>${D(df.sobrantes - df.faltantes)}</b></div></div>
         ${df.lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Diferencias de caja"><table class="cmovs"><thead><tr><th>Día</th><th>Turno</th><th>Encargado</th><th>Qué</th><th class="n">Diferencia</th></tr></thead><tbody>
           ${df.lista.map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${x.persona ? avP(x.persona) + esc(x.persona) : ""}</td><td>${esc(x.concepto)}</td><td class="n"><b style="color:${x.dif < 0 ? "#ff8a80" : "#7ee2a0"}">${D(x.dif)}</b></td></tr>`).join("")}
         </tbody></table></div>` : `<p class="note">Todos los cortes entregados cuadran.</p>`}
-      </section>
-
-      <section class="card"><h3>Sueldos del mes</h3>
+      </section>`,
+      sueldos: () => `      <section class="card"><h3>Sueldos del mes</h3>
         <p class="note" style="margin:4px 0 10px">Lo que cada encargado se cobró del turno (gastos de caja o retiros del corte con categoría <b>Sueldos</b>, aunque lo junte en varios turnos) y lo que pagaste tú (pagos con categoría Sueldos, en efectivo de los sobres o por banco). Para verlos por persona, pon su nombre en el concepto del pago.</p>
         <div class="ctot" style="margin:0 0 10px"><div class="k"><span>Cobrado del turno</span><b>${D(su.total_caja)}</b></div><div class="k"><span>Pagado por ti</span><b>${D(su.total_admin)}</b></div><div class="k dest"><span>Total</span><b>${D(su.total)}</b></div></div>
         ${su.caja.length || su.admin.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Sueldos"><table class="cmovs"><thead><tr><th>Quién o concepto</th><th>De dónde</th><th class="n">Pagos</th><th class="n">Total</th></tr></thead><tbody>
           ${su.caja.map(x => `<tr><td>${avP(x.persona)}${esc(x.persona)}</td><td>Del turno</td><td class="n">${x.n}</td><td class="n">${D(x.total)}</td></tr>`).join("")}
           ${su.admin.map(x => `<tr><td>${esc(x.concepto)}</td><td>Pagado por ti</td><td class="n">${x.n}</td><td class="n">${D(x.total)}</td></tr>`).join("")}
         </tbody></table></div>` : `<p class="note">Sin sueldos registrados este mes.</p>`}
-      </section>
-
-      <section class="card"><h3>Egresos por categoría</h3>
+      </section>`,
+      categorias: () => `      <section class="card"><h3>Egresos por categoría</h3>
         ${(j.por_categoria || []).length ? `<div class="fcat">${j.por_categoria.map(x => `<div class="fcat-f" style="--c:${esc(x.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(x.icono)}"/></svg></span><span class="fn">${esc(x.nombre)}${x.caja && x.total - x.caja > 0.004 ? `<small>caja ${D(x.caja)} · administración ${D(x.total - x.caja)}</small>` : ""}</span><span class="fb"><i style="width:${Math.max(2, 100 * x.total / j.por_categoria[0].total)}%"></i></span><b>${D(x.total)}</b></div>`).join("")}</div>` : `<p class="note">Sin egresos este mes.</p>`}
-      </section>
-
-      <section class="card" id="f-efectivo"><h3>Efectivo en sobres</h3>
+      </section>`,
+      efectivo: () => `      <section class="card" id="f-efectivo"><h3>Efectivo en sobres</h3>
         <p class="note" style="margin:4px 0 10px">Entra lo que los turnos entregan en sobre y lo que retiras del banco; sale lo que pagas o compras en efectivo, lo que depositas y el cambio que pones en la caja. El saldo pasa solo de un mes al siguiente: captúralo solo cuando cuentes los sobres, y verás si cuadra con lo calculado.</p>
         ${abierto ? `<form class="fsaldo" id="f-saldo" novalidate><label>Efectivo contado al empezar ${esc(nomMes(j.mes).toLowerCase())}<input name="efectivo" inputmode="decimal" placeholder="${e.calculado != null ? esc(e.calculado.toFixed(2)) + " (calculado)" : "Ej. 12500.00"}" value="${e.capturado ? esc(e.inicial) : ""}" autocomplete="off"></label><button class="btn btn-primary" type="submit">Guardar</button>${e.capturado && e.inicial_actualizado ? `<span class="note">Guardado ${esc(cuando(e.inicial_actualizado))}</span>` : ""}${e.inicial == null ? `<span class="note" style="color:var(--warn)">Falta un saldo de partida: cuenta los sobres y escríbelo una vez; después se calcula solo.</span>` : ""}<span class="err"></span></form>` : ""}
         <div class="ctot" style="margin:12px 0"><div class="k"><span>Saldo inicial</span><b>${e.inicial != null ? D(e.inicial) : "—"}</b>${origenSaldo(e)}</div><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(e.recibido)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(e.gastado)}</b></div><div class="k dest"><span>Debería quedar</span><b>${e.saldo != null ? D(e.saldo) : "—"}</b></div></div>
         ${e.movimientos.length ? `<details ${e.movimientos.length <= 12 ? "open" : ""}><summary class="note" style="cursor:pointer;font-weight:600">Movimientos del efectivo (${e.movimientos.length})</summary><div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos del efectivo"><table class="cmovs"><thead><tr><th>Día</th><th>Movimiento</th><th>Concepto</th><th class="n">Entró</th><th class="n">Salió</th><th class="n">Saldo</th></tr></thead><tbody>
           ${e.movimientos.map(m => `<tr><td>${esc(diaTxt(m.dia))}</td><td>${esc(CAT1[m.tipo] || m.tipo)}</td><td>${m.persona ? avP(m.persona) : ""}${esc(m.concepto)}</td><td class="n">${m.entrada ? D(m.entrada) : ""}</td><td class="n">${m.salida ? D(m.salida) : ""}</td><td class="n">${m.saldo != null ? D(m.saldo) : "—"}</td></tr>`).join("")}
         </tbody></table></div></details>` : `<p class="note">Sin movimientos de efectivo este mes.</p>`}
-      </section>
-
-      <section class="card" id="f-banco"><h3>Cuentas y tarjetas</h3>
+      </section>`,
+      cuentas: () => `      <section class="card" id="f-banco"><h3>Cuentas y tarjetas</h3>
         <p class="note" style="margin:4px 0 10px">Débito: saldo = inicial + lo que entra − lo que sale. Crédito: deuda = inicial + lo que cargas − lo que le pagas. Lo que compras con tarjeta de crédito cuenta como gasto el día de la compra; pagar la tarjeta es un traspaso, no otro gasto. El saldo pasa solo al mes siguiente; escríbelo solo cuando veas el saldo real en el banco (así ves si cuadra).</p>
         <div class="ctot" style="margin:0 0 12px"><div class="k"><span>Dinero en cuentas</span><b style="color:#7ee2a0">${b.dinero != null ? D(b.dinero) : "—"}</b></div><div class="k"><span>Deuda en tarjetas</span><b style="color:#ff8a80">${b.deuda != null ? D(b.deuda) : "—"}</b></div><div class="k"><span>Cobros con tarjeta${mc ? ` (a ${esc(mc.nombre)})` : ""}</span><b>${D(b.tarjeta)}</b><span class="note">comisión ${D(b.comision)} · neto ${D(b.tarjeta_neto)}</span></div><div class="k"><span>Transferencias de clientes</span><b>${D(b.transferencias)}</b></div></div>
         ${mc && !(mc.pct > 0) ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Falta la comisión de ${esc(mc.nombre)}: escríbela en «Administrar cuentas».</p>` : ""}
@@ -133,9 +128,8 @@
           <form id="f-cuentas" novalidate style="margin-top:12px"><label class="fcuentas">Notas de las cuentas <span class="ayuda">(terminaciones, CLABE, para qué se usa…)</span><textarea name="texto" rows="3" maxlength="4000">${esc(b.cuentas)}</textarea></label>
             <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar notas</button><span class="err"></span></div></form>
         </details>
-      </section>
-
-      <section class="card"><h3>Transferencias de clientes</h3>
+      </section>`,
+      transferencias: () => `      <section class="card"><h3>Transferencias de clientes</h3>
         <p class="note" style="margin:4px 0 10px">Los tickets que en la hoja dicen <b>TRANSFERENCIA</b> cuentan solos como ingreso. Si además capturas la transferencia aquí, elige su ticket para no contarla dos veces (y para saber a qué cuenta llegó). Captura sin ticket solo lo que no pasó por la báscula ni la pensión.</p>
         ${enCurso ? `<form class="cform" id="f-ftransf" novalidate style="margin:6px 0 12px">
           <label class="wide">Nombre del cliente<input name="cliente" maxlength="120" required autocomplete="off"></label>
@@ -151,9 +145,8 @@
           ${enCurso && pos.length ? `<div class="note" style="margin:2px 0 10px;color:var(--warn);display:flex;gap:8px;align-items:center;flex-wrap:wrap">¿Es la misma que un ticket de la hoja? Si sí, lígala para no contarla dos veces: ${pos.map(r => { const h = j.transf_hoja.find(z => z.ref === r); return `<button class="btn btn-line" type="button" data-tligar="${esc(x.id)}" data-ref="${esc(r)}" style="min-height:32px;padding:0 10px">Es el ticket ${esc(h ? ticketTxt(h) : r)}</button>`; }).join(" ")}</div>` : ""}
           ${enCurso && x.ticket_ref ? `<div style="margin:2px 0 10px"><button class="btn btn-line" type="button" data-tligar="${esc(x.id)}" data-ref="" style="min-height:32px;padding:0 10px">Quitar el ticket</button></div>` : ""}`; }).join("")}</div>` : (j.transf_hoja || []).length ? "" : `<p class="note">No hay transferencias de clientes este mes.</p>`}
         <p class="note" style="margin:8px 0 0">Entran al banco: suman a los ingresos, pero no a la caja de ningún turno.</p>
-      </section>
-
-      <section class="card"><h3>Egresos de la administración</h3>
+      </section>`,
+      admin: () => `      <section class="card"><h3>Egresos de la administración</h3>
         ${j.admin.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Egresos de la administración"><table class="cmovs"><thead><tr><th>Día</th><th>Tipo</th><th>Concepto</th><th>Pagado con</th><th class="n">Monto</th></tr></thead><tbody>
           ${j.admin.slice().sort((a, b) => b.dia.localeCompare(a.dia)).map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(CAT1[x.cat])}</td><td>${esc(x.concepto)}${x.comprobante ? ` · <a href="/panel/api/agenda/pagos/${esc(x.comprobante)}/comprobante" target="_blank" rel="noopener">📎</a>` : ""}</td><td>${esc(FORMA[x.forma] || x.forma)}${x.forma !== "EFECTIVO" ? (x.cuenta ? ` · ${esc(((b.lista || []).find(c => c.id === x.cuenta) || { nombre: x.cuenta }).nombre)}` : ` · <span style="color:var(--warn)">sin cuenta</span>`) : ""}</td><td class="n">${D(x.monto)}</td></tr>`).join("")}
         </tbody></table></div>` : `<p class="note">Sin pagos ni compras este mes.</p>`}
@@ -161,18 +154,27 @@
           ${j.retiros.slice().sort((a, b) => b.dia.localeCompare(a.dia)).map(r => `<tr><td>${esc(diaTxt(r.dia))}</td><td>${avP(r.persona)}${esc(TURNO_TXT[r.turno] || r.turno)}</td><td>${esc(r.concepto)}</td><td>${window.catChip ? window.catChip(r.categoria) : esc(r.categoria)}</td><td class="n">${D(r.monto)}</td></tr>`).join("")}
         </tbody></table></div>` : ""}
         <button class="btn btn-line" type="button" data-ir-pagos style="margin-top:10px">Ir a Pagos y compras ›</button>
-      </section>
-
-      <section class="card"><h3>Bitácora de cambios</h3>
+      </section>`,
+      bitacora: () => `      <section class="card"><h3>Bitácora de cambios</h3>
         <p class="note" style="margin:4px 0 10px">Quién registró, cambió o borró pagos, compras, traspasos, saldos, transferencias y gastos de caja. Sirve para saber por qué cambió una cifra.</p>
         <details id="f-bit"><summary class="note" style="cursor:pointer;font-weight:600">Ver los últimos cambios</summary><div id="f-bit-lista" style="margin-top:8px"><p class="note">Cargando…</p></div></details>
-      </section>
-
-      <section class="card"><h3>Reportes en Google Sheets</h3>
+      </section>`,
+      reportes: () => `      <section class="card"><h3>Reportes en Google Sheets</h3>
         <p class="note" style="margin:4px 0 10px">Al cerrar cada mes se crean solos tres reportes, cada uno en su carpeta de Drive: <b>Turnos</b> (TURNOS), <b>Finanzas</b> (ADMIN FINANZAS) y <b>Facturación</b> (FACTURACION). Aquí puedes generarlos para cualquiera de los últimos 13 meses; si ya existen, se reemplazan.</p>
         <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="f-rep-mes" aria-label="Mes del reporte"></select><button class="btn btn-primary" id="f-rep-gen" type="button">Generar los tres</button><span class="note" id="f-rep-estado" role="status"></span></div>
         <div id="f-rep-lista"></div>
-      </section>`;
+      </section>`
+    };
+    // Cada vista de Dinero muestra solo lo suyo
+    const VISTA = {
+      resumen: ["resumen", "diferencias", "sueldos", "categorias", "admin"],
+      cuentas: ["efectivo", "cuentas"],
+      transferencias: ["transferencias"],
+      bitacora: ["bitacora", "reportes"]
+    };
+    const vista = VISTA[EC.finVista] ? EC.finVista : "resumen";
+    $("#f-subtitulo").textContent = { resumen: "Lo que entró, lo que salió y el resultado del mes, con diferencias de caja y sueldos.", cuentas: "Dónde está el dinero: efectivo en sobres, cuentas de banco y tarjetas.", transferencias: "Transferencias de clientes: tickets de la hoja y las que capturas aquí.", bitacora: "Quién cambió qué y los reportes mensuales en Google Sheets." }[vista];
+    $("#f-cuerpo").innerHTML = VISTA[vista].map(k => S[k]()).join("\n");
     conectar();
   }
 
@@ -218,9 +220,9 @@
     c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta")));
     c.querySelectorAll("[data-ccom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada"); }));
     const cnu = $("#f-cnueva");
-    cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
+    if (cnu) cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
     const cu = $("#f-cuentas");
-    cu.addEventListener("submit", async ev => {
+    if (cu) cu.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
       try { await post("finanzas/cuentas", { texto: cu.texto.value }); toast("Cuentas guardadas"); } catch (e) { if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message; }
       b.disabled = false;
@@ -244,7 +246,7 @@
       try { await post(`caja/transferencias/${encodeURIComponent(b.dataset.tligar)}/ligar`, { ticket_ref: b.dataset.ref }); toast(b.dataset.ref ? "Ligada al ticket: ya no cuenta dos veces" : "Ticket quitado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
     }));
     const bit = $("#f-bit");
-    bit.addEventListener("toggle", async () => {
+    if (bit) bit.addEventListener("toggle", async () => {
       if (!bit.open || bit.dataset.cargado) return;
       const l = $("#f-bit-lista");
       try {
@@ -253,14 +255,14 @@
         l.innerHTML = r.bitacora.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Bitácora"><table class="cmovs"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Detalle</th></tr></thead><tbody>${r.bitacora.map(x => `<tr><td>${esc(cuando(x.cuando))}</td><td>${esc((x.quien || "").split("@")[0])}</td><td>${esc((r.acciones[x.accion] || x.accion) + " · " + x.que)}</td><td class="note" style="font-size:var(--t-xs)">${esc(det(x.detalle))}${x.detalle && x.detalle.antes && typeof x.detalle.antes === "object" ? esc(" · antes: " + det(x.detalle.antes) + " · ahora: " + det(x.detalle.ahora)) : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="note">Sin cambios registrados todavía.</p>`;
       } catch (e) { if (e.message !== "sesion") l.innerHTML = `<p class="note">${esc(e.message)}</p>`; }
     });
-    c.querySelector("[data-ir-pagos]").addEventListener("click", () => window.agendaAbrir && window.agendaAbrir("hechos"));
-    if (window.reporteWidget) { st.cargarRep = window.reporteWidget({ tipos: ["turnos", "finanzas", "facturacion"], sel: $("#f-rep-mes"), btn: $("#f-rep-gen"), est: $("#f-rep-estado"), lista: $("#f-rep-lista") }); st.cargarRep(); }
+    const irPagos = c.querySelector("[data-ir-pagos]"); if (irPagos) irPagos.addEventListener("click", () => window.agendaAbrir && window.agendaAbrir("hechos"));
+    if (window.reporteWidget && $("#f-rep-mes")) { st.cargarRep = window.reporteWidget({ tipos: ["turnos", "finanzas", "facturacion"], sel: $("#f-rep-mes"), btn: $("#f-rep-gen"), est: $("#f-rep-estado"), lista: $("#f-rep-lista") }); st.cargarRep(); }
   }
 
   $("#f-mes").addEventListener("change", e => { st.mes = e.target.value; cargar(); });
   // Desde el Inicio: abrir Finanzas con el formulario de transferencia listo
-  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA("finanzas"); };
-  document.addEventListener("modulo", e => { if (e.detail === "finanzas") cargar(); });
+  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA("finanzas", { historia: "push", vista: foco === "transf" ? "transferencias" : "resumen" }); };
+  document.addEventListener("modulo", e => { if (e.detail === "finanzas") { if (st.datos) pintar(); cargar(); } });
   document.addEventListener("recargar-todo", () => { if (!$("#mod-finanzas").hidden) cargar(); });
-  if (location.hash === "#finanzas") cargar();
+  if (EC.ruta().mod === "finanzas") cargar();
 })();
