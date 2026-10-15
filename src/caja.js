@@ -1,5 +1,6 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
+import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -497,8 +498,11 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!(importe > 0) || importe > 10000000) errores.importe = "Escribe un importe válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos de la transferencia.", errores }, 422);
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null).run();
+    // Cuenta a la que llegó (por defecto, la marcada para transferencias de clientes)
+    await asegurarEsquemaCuentas(env);
+    const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
+    await env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null, cta).run();
     return json({ ok: true, id });
   }
 

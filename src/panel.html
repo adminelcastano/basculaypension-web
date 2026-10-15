@@ -837,6 +837,11 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
 .btn-pagado svg { width: 16px; height: 16px; }
 .aitem.pagado-ok { opacity: 1; }
 .aitem.hecho.pagado-ok .tt { text-decoration: none; color: var(--fg); }
+
+.fsub { margin: 16px 0 6px; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: #a1a1a6; }
+.fcuentas-t td { vertical-align: middle; }
+.fsaldo-c { width: 120px; text-align: right; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: #0b0b0c; color: var(--fg); font: inherit; }
+#f-mov [hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -1213,6 +1218,25 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
   window.catIco = (nombre, tam = 16) => { const c = window.catInfo(nombre); return `<svg class="cat-ico" style="width:${tam}px;height:${tam}px;color:${c.color}" aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg>`; };
   window.catChip = nombre => nombre ? `<span class="cat-chip">${window.catIco(nombre, 14)}${esc(nombre)}</span>` : "";
   window.campoCategoria = (valor = "", clase = "w2") => `<label class="${clase}">Categoría <span class="ayuda">(elige o escribe una nueva)</span><input name="categoria" list="dl-cats" maxlength="40" value="${esc(valor || "")}" placeholder="Ej. Servicios" autocomplete="off"></label>`;
+  // ---- Cuentas (cómo se pagó: efectivo de los sobres, una cuenta de débito o una tarjeta de crédito) ----
+  window.CUENTAS = window.CUENTAS || [];
+  window.valorMedio = (forma, cuenta) => cuenta ? "C:" + cuenta : (forma || "");
+  window.medioTxt = (forma, cuenta) => {
+    if (forma === "EFECTIVO") return "Efectivo (sobres)";
+    const c = cuenta && window.CUENTAS.find(x => x.id === cuenta);
+    if (c) return (c.tipo === "credito" ? "Crédito " : "") + c.nombre;
+    return { TRANSFERENCIA: "Transferencia (sin cuenta)", TARJETA: "Tarjeta (sin cuenta)" }[forma] || forma || "";
+  };
+  window.opcionesMedio = (valor, efectivo = true) => {
+    const C = window.CUENTAS, deb = C.filter(c => c.tipo !== "credito"), cred = C.filter(c => c.tipo === "credito");
+    const porDef = (C.find(c => c.def_pago) || deb[0] || {}).id;
+    const v = valor || (porDef ? "C:" + porDef : "EFECTIVO");
+    const op = (val, t) => `<option value="${esc(val)}" ${val === v ? "selected" : ""}>${esc(t)}</option>`;
+    const viejo = ["TRANSFERENCIA", "TARJETA"].includes(v) ? op(v, window.medioTxt(v)) : "";
+    return (efectivo ? op("EFECTIVO", "Efectivo (sobres)") : "") + viejo +
+      (deb.length ? `<optgroup label="Cuentas (transferencia o débito)">${deb.map(c => op("C:" + c.id, c.nombre)).join("")}</optgroup>` : "") +
+      (cred.length ? `<optgroup label="Tarjetas de crédito">${cred.map(c => op("C:" + c.id, c.nombre)).join("")}</optgroup>` : "");
+  };
   window.avP = (clave, grande) => `<img class="avp${grande ? " g" : ""}" src="/panel/api/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${grande ? 36 : 22}" height="${grande ? 36 : 22}" loading="lazy">`;
   async function api(ruta, opciones = {}) {
     const r = await fetch("/panel/api/" + ruta, { ...opciones, headers: { "X-Panel": "1", ...(opciones.body ? { "Content-Type": "application/json" } : {}) } });
@@ -2504,6 +2528,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       const j = await api("caja" + consulta());
       st.datos = j;
       if (j.categorias) window.ponerCategorias(j.categorias);
+      if (j.cuentas) window.CUENTAS = j.cuentas;
       $("#c-nmovs").textContent = (j.movimientos || []).length;
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
@@ -2834,6 +2859,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     try {
       const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
       st.datos = j; st.mes = j.mes;
+      if (j.cuentas_activas) window.CUENTAS = j.cuentas_activas;
       const sel = $("#f-mes");
       if (!sel.options.length) sel.innerHTML = j.meses.map((m, i) => `<option value="${m}">${esc(nomMes(m))}${i === 0 ? " (en curso)" : ""}</option>`).join("");
       sel.value = j.mes;
@@ -2887,10 +2913,35 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
         </tbody></table></div></details>` : `<p class="note">Sin sobres ni pagos en efectivo este mes.</p>`}
       </section>
 
-      <section class="card"><h3>Banco</h3>
-        <div class="ctot" style="margin:6px 0 12px"><div class="k"><span>Cobros con tarjeta (Mercado Pago)</span><b style="color:#7ee2a0">${D(b.tarjeta)}</b></div><div class="k"><span>Transferencias de clientes</span><b style="color:#7ee2a0">${D(b.transferencias)}</b></div><div class="k"><span>Total que entró</span><b style="color:#7ee2a0">${D(b.entradas)}</b></div><div class="k"><span>Salió (pagos con transferencia o tarjeta)</span><b style="color:#ff8a80">${D(b.salidas)}</b></div></div>
-        <form id="f-cuentas" novalidate><label class="fcuentas">Cuentas bancarias <span class="ayuda">(escríbelas como quieras: banco, terminación, para qué se usa…)</span><textarea name="texto" rows="4" maxlength="4000" placeholder="Ej. BBVA terminación 1234 · cuenta del negocio, aquí caen las transferencias de clientes">${esc(b.cuentas)}</textarea></label>
-          <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar cuentas</button><span class="note">Las mismas para todos los meses. Después las convertimos en una lista para elegir la cuenta en cada pago.</span><span class="err"></span></div></form>
+      <section class="card" id="f-banco"><h3>Cuentas y tarjetas</h3>
+        <p class="note" style="margin:4px 0 10px">Débito: saldo = inicial + lo que entra − lo que sale. Crédito: deuda = inicial + lo que cargas − lo que le pagas. Lo que compras con tarjeta de crédito cuenta como gasto el día de la compra; pagar la tarjeta es un traspaso, no otro gasto. Escribe el saldo inicial de cada cuenta el día 1.</p>
+        <div class="ctot" style="margin:0 0 12px"><div class="k"><span>Dinero en cuentas</span><b style="color:#7ee2a0">${b.dinero != null ? D(b.dinero) : "—"}</b></div><div class="k"><span>Deuda en tarjetas</span><b style="color:#ff8a80">${b.deuda != null ? D(b.deuda) : "—"}</b></div><div class="k"><span>Cobros con tarjeta (a MDO PAGO)</span><b>${D(b.tarjeta)}</b></div><div class="k"><span>Transferencias de clientes</span><b>${D(b.transferencias)}</b></div></div>
+        ${b.dinero == null || b.deuda == null ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Para ver los totales escribe el saldo inicial de todas las cuentas.</p>` : ""}
+        ${["debito", "credito"].map(tipo => { const l = (b.lista || []).filter(c => c.tipo === tipo && c.activa); return l.length ? `<h4 class="fsub">${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}</h4><div class="tabla-scroll" tabindex="0" role="region" aria-label="${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}"><table class="cmovs fcuentas-t"><thead><tr><th>${tipo === "credito" ? "Tarjeta" : "Cuenta"}</th><th class="n">${tipo === "credito" ? "Deuda inicial" : "Saldo inicial"}</th><th class="n">${tipo === "credito" ? "Cargos" : "Entró"}</th><th class="n">${tipo === "credito" ? "Pagos" : "Salió"}</th><th class="n">${tipo === "credito" ? "Deuda" : "Saldo"}</th></tr></thead><tbody>
+          ${l.map(c => { const cargos = tipo === "credito" ? c.salidas : c.entradas, abonos = tipo === "credito" ? c.entradas : c.salidas; const det = [c.detalle.tarjeta ? "tarjeta " + D(c.detalle.tarjeta) : "", c.detalle.transferencias ? "transferencias " + D(c.detalle.transferencias) : "", c.detalle.recibido ? (tipo === "credito" ? "pagos " : "recibido ") + D(c.detalle.recibido) : "", c.detalle.pagos ? (tipo === "credito" ? "compras " : "pagos ") + D(c.detalle.pagos) : "", c.detalle.enviado ? "enviado " + D(c.detalle.enviado) : ""].filter(Boolean).join(" · ");
+            return `<tr><td><b>${esc(c.nombre)}</b>${c.tarjeta ? ` <span class="cat-chip">cobros con tarjeta</span>` : ""}${c.def_transf ? ` <span class="cat-chip">transferencias de clientes</span>` : ""}${det ? `<div class="note" style="font-size:12px">${esc(det)}</div>` : ""}</td><td class="n"><input class="fsaldo-c" data-cuenta="${esc(c.id)}" inputmode="decimal" value="${c.inicial != null ? esc(c.inicial) : ""}" placeholder="—" aria-label="Saldo inicial de ${esc(c.nombre)}"></td><td class="n">${D(cargos)}</td><td class="n">${D(abonos)}</td><td class="n"><b style="color:${tipo === "credito" ? "#ff8a80" : "#7ee2a0"}">${c.saldo != null ? D(c.saldo) : "—"}</b></td></tr>`; }).join("")}
+        </tbody></table></div>` : ""; }).join("")}
+        ${b.sin_cuenta && (b.sin_cuenta.pagos || b.sin_cuenta.transferencias) ? `<p class="note" style="margin:8px 0 0">Sin cuenta asignada (registrados antes de las cuentas): pagos ${D(b.sin_cuenta.pagos)} · transferencias ${D(b.sin_cuenta.transferencias)}. Puedes asignarla con «Editar» en cada pago.</p>` : ""}
+
+        <h4 class="fsub">Traspasos, pagos de tarjeta, depósitos y retiros</h4>
+        <form class="cform" id="f-mov" novalidate>
+          <label>Movimiento<select name="tipo"><option value="traspaso">Traspaso entre cuentas</option><option value="pago_tarjeta">Pago de tarjeta de crédito</option><option value="deposito">Depósito en efectivo (de los sobres)</option><option value="retiro">Retiro de efectivo (a los sobres)</option></select></label>
+          <label class="m-or">De<select name="origen"></select></label>
+          <label class="m-de">A<select name="destino"></select></label>
+          <label>Importe<input name="importe" inputmode="decimal" placeholder="0.00"></label>
+          <label>Fecha<input type="date" name="fecha" value="${esc(enCurso ? hoyMx() : j.mes + "-01")}"></label>
+          <label class="wide">Nota <span style="font-weight:400">(opcional)</span><input name="nota" maxlength="200" placeholder="Ej. traspaso de cobros de la semana" autocomplete="off"></label>
+          <span class="err" style="grid-column:1/-1"></span>
+          <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Registrar movimiento</button></div>
+        </form>
+        ${(b.movs || []).length ? `<div class="alist" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc"><button class="del" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
+
+        <details style="margin-top:14px"><summary class="note" style="cursor:pointer;font-weight:600">Administrar cuentas</summary>
+          <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem" style="opacity:${c.activa ? 1 : .55}"><span class="tt">${esc(c.nombre)}</span><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select>${c.tipo !== "credito" && !c.def_pago ? `<button class="btn btn-line" type="button" data-cdef="${esc(c.id)}" data-k="def_pago" style="min-height:34px;padding:0 10px">Por defecto para pagos</button>` : c.def_pago ? `<span class="cat-chip">por defecto para pagos</span>` : ""}${c.tipo !== "credito" && !c.def_transf ? `<button class="btn btn-line" type="button" data-cdef="${esc(c.id)}" data-k="def_transf" style="min-height:34px;padding:0 10px">Por defecto para transferencias</button>` : ""}<button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span></div>`).join("")}</div>
+          <form class="aform" id="f-cnueva" style="margin-top:10px"><label class="w2">Nueva cuenta<input name="nombre" maxlength="40" placeholder="Ej. SANTANDER" autocomplete="off"></label><label>Tipo<select name="tipo"><option value="debito">Débito</option><option value="credito">Crédito</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
+          <form id="f-cuentas" novalidate style="margin-top:12px"><label class="fcuentas">Notas de las cuentas <span class="ayuda">(terminaciones, CLABE, para qué se usa…)</span><textarea name="texto" rows="3" maxlength="4000">${esc(b.cuentas)}</textarea></label>
+            <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar notas</button><span class="err"></span></div></form>
+        </details>
       </section>
 
       <section class="card"><h3>Transferencias de clientes</h3>
@@ -2899,9 +2950,10 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
           <label>Importe<input name="importe" inputmode="decimal" placeholder="0.00" required></label>
           <label>Fecha<input type="date" name="fecha" value="${esc(hoyMx())}" min="${esc(j.mes)}-01" max="${esc(hoyMx())}" required></label>
           <label class="wide">Factura <span style="font-weight:400">(opcional)</span><input name="factura" maxlength="60" placeholder="Número o folio de la factura" autocomplete="off"></label>
+          <label>Llegó a<select name="cuenta">${(j.cuentas_activas || []).filter(c => c.tipo !== "credito").map(c => `<option value="${esc(c.id)}" ${c.def_transf ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>
           <span class="err" style="grid-column:1/-1"></span>
           <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Agregar transferencia</button></div></form>` : ""}
-        ${j.transferencias.length ? `<div class="alist">${j.transferencias.map(x => `<div class="aitem"><span class="grav pagado" title="Transferencia">${'<svg aria-hidden="true"><use href="#i-transf"/></svg>'}</span><span class="tt">${esc(x.cliente)}</span><span class="acc">${enCurso ? `<button class="del" type="button" data-tdel="${esc(x.id)}" aria-label="Eliminar transferencia de ${esc(x.cliente)}"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>` : ""}</span><span class="mm"><span><b>${D(x.importe)}</b></span><span>${esc(diaTxt(x.fecha))}</span><span>${x.factura ? "Factura " + esc(x.factura) : "Sin factura"}</span></span></div>`).join("")}</div>` : `<p class="note">No hay transferencias de clientes este mes.</p>`}
+        ${j.transferencias.length ? `<div class="alist">${j.transferencias.map(x => `<div class="aitem"><span class="grav pagado" title="Transferencia">${'<svg aria-hidden="true"><use href="#i-transf"/></svg>'}</span><span class="tt">${esc(x.cliente)}</span><span class="acc">${enCurso ? `<button class="del" type="button" data-tdel="${esc(x.id)}" aria-label="Eliminar transferencia de ${esc(x.cliente)}"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>` : ""}</span><span class="mm"><span><b>${D(x.importe)}</b></span><span>${esc(diaTxt(x.fecha))}</span><span>${x.factura ? "Factura " + esc(x.factura) : "Sin factura"}</span>${x.cuenta ? `<span>a ${esc(((j.cuentas_activas || []).find(c => c.id === x.cuenta) || { nombre: x.cuenta }).nombre)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note">No hay transferencias de clientes este mes.</p>`}
         <p class="note" style="margin:8px 0 0">Entran al banco: suman a los ingresos, pero no a la caja de ningún turno.</p>
       </section>
 
@@ -2928,6 +2980,36 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       try { await post("finanzas/saldo", { mes: st.mes, efectivo: sal.efectivo.value.replace(/[$,\s]/g, "") }); toast("Saldo inicial guardado"); await cargar(); }
       catch (e) { if (e.message !== "sesion") sal.querySelector(".err").textContent = e.message; b.disabled = false; }
     });
+    // Cuentas: saldo inicial (se guarda al salir del campo), movimientos y administración
+    const j = st.datos, todas = j.banco.lista || [], activas = todas.filter(c => c.activa);
+    c.querySelectorAll(".fsaldo-c").forEach(inp => inp.addEventListener("change", async () => {
+      try { await post("finanzas/saldo-cuenta", { mes: st.mes, cuenta: inp.dataset.cuenta, saldo: inp.value }); toast("Saldo inicial guardado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    const fm = $("#f-mov");
+    const opc = (l, sel) => l.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.nombre)}</option>`).join("");
+    const pintarMov = () => {
+      const t = fm.tipo.value, deb = activas.filter(x => x.tipo !== "credito"), cred = activas.filter(x => x.tipo === "credito");
+      const mp = (activas.find(x => x.tarjeta) || {}).id, pyme = (activas.find(x => x.def_pago) || {}).id;
+      fm.querySelector(".m-or").hidden = t === "deposito"; fm.querySelector(".m-de").hidden = t === "retiro";
+      fm.origen.innerHTML = opc(t === "pago_tarjeta" ? deb : activas, t === "traspaso" ? mp : pyme);
+      fm.destino.innerHTML = opc(t === "pago_tarjeta" ? cred : t === "deposito" ? deb : activas, t === "traspaso" ? pyme : t === "deposito" ? pyme : (cred[0] || {}).id);
+    };
+    fm.tipo.addEventListener("change", pintarMov); pintarMov();
+    fm.addEventListener("submit", async ev => {
+      ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); bt.disabled = true; fm.querySelector(".err").textContent = "";
+      try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value }); toast("Movimiento registrado"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") fm.querySelector(".err").textContent = e.message; bt.disabled = false; }
+    });
+    c.querySelectorAll("[data-mdel]").forEach(bt => bt.addEventListener("click", async () => {
+      if (!bt.classList.contains("armed")) { bt.classList.add("armed"); setTimeout(() => bt.classList.remove("armed"), 3000); return; }
+      try { await post(`finanzas/mov/${encodeURIComponent(bt.dataset.mdel)}/eliminar`); toast("Movimiento eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
+    const guardarCuenta = async (datos, msg) => { try { await post("finanzas/cuenta", datos); toast(msg); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); } };
+    c.querySelectorAll("[data-ctipo]").forEach(x => x.addEventListener("change", () => guardarCuenta({ id: x.dataset.ctipo, tipo: x.value }, "Tipo guardado")));
+    c.querySelectorAll("[data-cdef]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cdef, [x.dataset.k]: 1 }, "Guardado")));
+    c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta")));
+    const cnu = $("#f-cnueva");
+    cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
     const cu = $("#f-cuentas");
     cu.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
@@ -2937,7 +3019,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     const ft = $("#f-ftransf");
     if (ft) ft.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); b.disabled = true; ft.querySelector(".err").textContent = "";
-      try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value }); toast("Transferencia guardada"); await cargar(); }
+      try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value }); toast("Transferencia guardada"); await cargar(); }
       catch (e) { if (e.message !== "sesion") ft.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     });
     c.querySelectorAll("[data-tdel]").forEach(b => b.addEventListener("click", async () => {
@@ -3320,6 +3402,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       const j = await api("agenda");
       st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || []; st.mesesAbiertos = j.meses_abiertos || [];
       if (j.categorias) window.ponerCategorias(j.categorias);
+      if (j.cuentas) window.CUENTAS = j.cuentas;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
       for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
@@ -3355,7 +3438,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       <button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     if (tipo === "pago") return `<form class="aform" data-tipo="pago"><label class="w2">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
-      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>${window.campoCategoria()}<label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
+      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>${window.campoCategoria()}<label>Se paga con<select name="forma">${window.opcionesMedio("")}</select></label>
       <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Finanzas.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
       <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label>${window.campoCategoria("", "w2")}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
@@ -3377,7 +3460,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
     if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
     if (it.tipo === "compra" || it.tipo === "pago") campos.push(window.campoCategoria(it.categoria));
-    if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con${sel("forma", [["TRANSFERENCIA", "Transferencia"], ["TARJETA", "Tarjeta"], ["EFECTIVO", "Efectivo (sobres)"]], it.forma || "TRANSFERENCIA")}</label>`);
+    if (it.tipo === "pago") campos.push(`<label>Próximo pago<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label><label>Importe aproximado<input name="importe" inputmode="decimal" value="${it.importe != null ? esc(it.importe) : ""}"></label><label>Se repite${sel("frecuencia", Object.entries(st.frecuencias || {}), it.frecuencia || "mensual")}</label><label>Se paga con<select name="forma">${window.opcionesMedio(window.valorMedio(it.forma, it.cuenta))}</select></label>`);
     if (it.tipo === "tarea") campos.push(`<label class="chkl w2"><input type="checkbox" name="para_turno" ${it.para_turno ? "checked" : ""}>Que la haga el encargado (tablet)</label><label>Turno${sel("turno", [["", "Cualquiera"], ...Object.entries(T)], it.turno || "")}</label>`);
     if (it.tipo === "incidencia") campos.push(`<label>Gravedad${sel("gravedad", [["leve", "Leve"], ["media", "Media"], ["grave", "Grave"]], it.gravedad)}</label><label>Dónde<input name="area" maxlength="40" value="${esc(it.area || "")}"></label>`);
     if (it.tipo === "aviso") {
@@ -3402,7 +3485,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       return `<div class="aitem ${hecho ? "hecho pagado-ok" : ""}"><span class="grav ${pagadoMes ? "pagado" : venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico(pagadoMes ? "i-check" : "i-billete")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc">${pagadoMes ? `<span class="btn btn-pagado" title="${ult ? "Pagado el " + esc(diaTxt(ult.fecha)) + " por " + M(ult.importe) : "Pagado"}">${ico("i-check")}Pagado</span>` : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
-        <span class="mm">${window.catChip(it.categoria)}${!pagadoMes && venc ? `<span class="tag vencida">Vencido</span>` : !pagadoMes && hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? "" : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc({ TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (sobres)" }[it.forma] || "")}</span></span>
+        <span class="mm">${window.catChip(it.categoria)}${!pagadoMes && venc ? `<span class="tag vencida">Vencido</span>` : !pagadoMes && hoyP ? `<span class="tag hoy">Hoy</span>` : ""}${hecho ? "" : `<span>Próximo: <b>${esc(diaTxt(it.fecha))}</b></span>`}${it.importe != null ? `<span>aprox. ${M(it.importe)}</span>` : ""}<span>${esc((st.frecuencias || {})[it.frecuencia] || "")}</span><span>${esc(window.medioTxt(it.forma, it.cuenta))}</span></span>
         ${hist ? `<span class="mm informes">${hist}</span>` : ""}</div>`;
     }
     if (it.tipo === "incidencia") {
@@ -3440,7 +3523,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
     return `<div class="aitem"><span class="grav pagado" title="Pagado">${ico("i-check")}</span>
       <span class="tt">${esc(p.titulo || "Pago")}</span>
       <span class="acc">${editable ? `<button class="btn btn-line edit" type="button" data-editar-pago="${esc(p.id)}">Editar</button><button class="del" type="button" data-borrar-pago="${esc(p.id)}" aria-label="Eliminar pago de ${esc(p.titulo || "")}">${ico("i-trash")}</button>` : ""}</span>
-      <span class="mm"><span class="tag" style="background:#12301d;color:#30d158">Pagado</span>${window.catChip(p.categoria)}<span><b>${MXN(p.importe)}</b></span><span>${esc(diaTxt(p.fecha))}</span><span>${esc(FORMA_TXT[p.forma] || p.forma)}</span><span>${p.item_id ? "Programado" : "No programado"}</span>${p.comprobante ? `<a href="/panel/api/agenda/pagos/${esc(p.id)}/comprobante" target="_blank" rel="noopener">📎 ver comprobante</a>` : `<span>Sin comprobante</span>`}${p.nota ? `<span>${esc(p.nota)}</span>` : ""}</span></div>`;
+      <span class="mm"><span class="tag" style="background:#12301d;color:#30d158">Pagado</span>${window.catChip(p.categoria)}<span><b>${MXN(p.importe)}</b></span><span>${esc(diaTxt(p.fecha))}</span><span>${esc(window.medioTxt(p.forma, p.cuenta))}</span><span>${p.item_id ? "Programado" : "No programado"}</span>${p.comprobante ? `<a href="/panel/api/agenda/pagos/${esc(p.id)}/comprobante" target="_blank" rel="noopener">📎 ver comprobante</a>` : `<span>Sin comprobante</span>`}${p.nota ? `<span>${esc(p.nota)}</span>` : ""}</span></div>`;
   }
   function listaPagosHechos() {
     const ps = st.pagosHechos || [];
@@ -3477,14 +3560,14 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       <li><b>Próximo pago:</b> la fecha en que vence.</li>
       <li><b>Se repite:</b> cada mes, cada 2, 3, 6 o 12 meses, o una sola vez.</li>
       <li><b>Categoría:</b> elígela de la lista o escribe una nueva (por ejemplo «Servicios» o «Tarjetas y créditos»). Sirve para ver en qué se va el dinero.</li>
-      <li><b>Se paga con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» sale de los sobres que entregan los turnos. Ninguno toca la caja de los turnos.</li>
+      <li><b>Se paga con:</b> «Efectivo (sobres)», la cuenta de la que sale o la tarjeta de crédito. Al registrar el pago lo puedes cambiar. Ninguno toca la caja de los turnos.</li>
     </ol>Aparece en el calendario y te llega en el correo diario 3 días antes. Cuando lo pagues, toca «Registrar pago».`;
     const d = ventana("Programar un pago", guia, `<form class="aform" novalidate>
       <label class="w4">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
       <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
       <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (sobres)</option></select></label>
+      <label>Se paga con<select name="forma">${window.opcionesMedio("")}</select></label>
       ${window.campoCategoria("", "w4")}
       <span class="err"></span><div class="botones"><button class="btn btn-primary" type="submit">Programar</button><button class="btn btn-line" type="button" data-cerrar>Cancelar</button></div></form>`);
     const f = d.querySelector("form"); f.titulo.focus();
@@ -3499,14 +3582,14 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
   // modo: "programado" (registrar el pago de un programado), "hecho" (pago sin programar), "editar" (corregir un pago ya registrado)
   function ventanaPago(modo, it, pago) {
     const mesAb = (st.mesesAbiertos || []).slice().sort()[0] || st.hoy.slice(0, 7);
-    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "TRANSFERENCIA", titulo: "", nota: "", categoria: it && it.categoria || "" };
+    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "", cuenta: it && it.cuenta || null, titulo: "", nota: "", categoria: it && it.categoria || "" };
     const suelto = modo === "hecho" || (modo === "editar" && !pago.item_id);
     const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago o gasto ya hecho" : "Registrar pago: " + it.titulo;
     const guia = `<b>Cómo llenarlo</b><ol>
       ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE», «Refacción de la pluma» o «Gasolina».</li>` : ""}
       <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser de un mes abierto (el actual, o el anterior mientras no se cierra).</li>
       <li><b>Importe pagado:</b> lo que realmente pagaste, con centavos si los hay.</li>
-      <li><b>Pagado con:</b> transferencia o tarjeta salen del banco; «Efectivo (sobres)» se descuenta del efectivo en sobres de Finanzas. No toca la caja de ningún turno.</li>
+      <li><b>Pagado con:</b> «Efectivo (sobres)», la cuenta de la que salió (transferencia o débito) o la tarjeta de crédito con que se pagó. Así cuadran los saldos de Finanzas. No toca la caja de ningún turno.</li>
       <li><b>Categoría:</b> elígela de la lista o escribe una nueva.</li>
       <li><b>Comprobante (opcional):</b> toma foto del ticket o sube la captura o el PDF de la transferencia. Se guarda en Drive.</li>
       <li><b>Nota (opcional):</b> folio, referencia o lo que sirva para identificarlo.</li>
@@ -3515,7 +3598,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       ${suelto ? `<label class="w4">Qué pagaste<input name="titulo" maxlength="140" value="${esc(v.titulo || "")}" placeholder="Ej. Recibo de luz CFE" autocomplete="off"></label>` : ""}
       <label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(v.fecha)}" min="${esc(mesAb)}-01" max="${esc(st.hoy)}"></label>
       <label>Importe pagado<input name="importe" inputmode="decimal" placeholder="$0.00" value="${esc(v.importe)}" autocomplete="off"></label>
-      <label class="w2">Pagado con<select name="forma">${Object.entries(FORMA_TXT).map(([k, t]) => `<option value="${k}" ${v.forma === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="w2">Pagado con<select name="forma">${window.opcionesMedio(window.valorMedio(v.forma, v.cuenta || (it && it.forma === v.forma ? it.cuenta : null)))}</select></label>
       ${window.campoCategoria(v.categoria, "w2")}
       ${campoComp}${modo === "editar" && pago.comprobante ? `<label class="chkl w4" style="flex-direction:row"><input type="checkbox" name="quitar"> Quitar el comprobante actual (<a href="/panel/api/agenda/pagos/${esc(pago.id)}/comprobante" target="_blank" rel="noopener">ver</a>)</label>` : ""}
       <label class="w4">Nota <span class="ayuda">(opcional)</span><input name="nota" maxlength="300" value="${esc(v.nota || "")}" placeholder="Ej. referencia 123456" autocomplete="off"></label>
@@ -3778,7 +3861,7 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
       if (!on && b.dataset.fin === "comprado") {
         const fila = b.closest(".aitem");
         if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
-        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma"><option value="EFECTIVO">Efectivo (sobres)</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option></select></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se suma a los egresos de la administración (Finanzas). No toca la caja de ningún turno.</span></form>`);
+        fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Importe de la compra<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label><label>Pagada con<select name="forma">${window.opcionesMedio("EFECTIVO")}</select></label><button class="btn btn-primary" type="submit">Confirmar compra</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se suma a los egresos de la administración (Finanzas). No toca la caja de ningún turno.</span></form>`);
         const f = fila.querySelector(".compra-conf");
         f.importe.focus();
         f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());

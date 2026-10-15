@@ -6,6 +6,7 @@
 import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, sumarMesesCaja, montoUsuario } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias } from "./categorias.js";
+import { asegurarEsquemaCuentas, listaCuentas, estadoCuentas, cuentasRutas, TIPOS_MOV } from "./cuentas.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -17,6 +18,7 @@ export async function asegurarEsquemaFinanzas(env) {
   await asegurarEsquemaCaja(env);
   await asegurarEsquemaAgenda(env);
   await asegurarEsquemaCategorias(env);
+  await asegurarEsquemaCuentas(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_saldos (mes TEXT PRIMARY KEY, efectivo REAL NOT NULL, actualizado TEXT NOT NULL, por TEXT)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_config (clave TEXT PRIMARY KEY, valor TEXT, actualizado TEXT NOT NULL)").run();
   esquemaListo = true;
@@ -45,6 +47,7 @@ export const FORMA_ADMIN = { EFECTIVO: "Efectivo (sobres)", TRANSFERENCIA: "Tran
 export async function datosFinanzas(env, mes) {
   await asegurarEsquemaFinanzas(env);
   const { movs, gastos, gastosAdmin, transf, conteos, extras, inicios } = await leerMes(env, [mes]);
+  await asegurarEsquemaCuentas(env);
   const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
   const t = totalesMes(cortes, transf);
   const admin = await clasificarAdmin(env, gastosAdmin);
@@ -54,12 +57,17 @@ export async function datosFinanzas(env, mes) {
   const egresos = { caja: suma(gastos), programado: suma(admin, x => x.cat === "programado"), no_programado: suma(admin, x => x.cat === "no_programado"), compra: suma(admin, x => x.cat === "compra"), otro: suma(admin, x => x.cat === "otro") };
   egresos.total = r2(egresos.caja + egresos.programado + egresos.no_programado + egresos.compra + egresos.otro);
 
+  // Cuentas: saldo o deuda de cada una, traspasos, pagos de tarjeta, depósitos y retiros de efectivo
+  const cu = await estadoCuentas(env, mes, { tarjetaMes: t.tarjeta, transf, gastosAdmin });
+  const nomCuenta = id => id === "sobres" ? "Efectivo (sobres)" : (cu.cuentas.find(c => c.id === id) || { nombre: id }).nombre;
+
   // Efectivo en sobres
   const ini = await env.DB.prepare("SELECT efectivo, actualizado, por FROM fin_saldos WHERE mes = ?").bind(mes).first();
   const TURNO = { "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" };
   const movsEf = [
     ...conteos.filter(c => c.sobre > 0).map(c => ({ dia: c.dia, orden: c.dia + ({ "MAÑANA": "1", TARDE: "2", NOCHE: "3" }[c.turno] || "4"), tipo: "sobre", concepto: `Sobre del turno de la ${TURNO[c.turno] || c.turno}`, persona: c.persona, entrada: r2(c.sobre), salida: 0 })),
-    ...admin.filter(x => x.forma === "EFECTIVO").map(x => ({ dia: x.dia, orden: x.dia + "5" + x.creado, tipo: x.cat, concepto: x.concepto, persona: null, entrada: 0, salida: r2(x.monto) }))
+    ...admin.filter(x => x.forma === "EFECTIVO").map(x => ({ dia: x.dia, orden: x.dia + "5" + x.creado, tipo: x.cat, concepto: x.concepto, persona: null, entrada: 0, salida: r2(x.monto) })),
+    ...cu.movs.filter(m => m.origen === "sobres" || m.destino === "sobres").map(m => ({ dia: m.fecha, orden: m.fecha + "6" + m.creado, tipo: m.tipo, concepto: m.tipo === "deposito" ? `Depósito a ${nomCuenta(m.destino)}` : `Retiro de ${nomCuenta(m.origen)}`, persona: null, entrada: m.destino === "sobres" ? r2(m.importe) : 0, salida: m.origen === "sobres" ? r2(m.importe) : 0 }))
   ].sort((a, b) => a.orden.localeCompare(b.orden));
   let acum = ini ? ini.efectivo : 0;
   for (const m of movsEf) { acum = r2(acum + m.entrada - m.salida); m.saldo = ini ? acum : null; delete m.orden; }
@@ -67,8 +75,17 @@ export async function datosFinanzas(env, mes) {
   const efectivo = { inicial: ini ? ini.efectivo : null, inicial_actualizado: ini ? ini.actualizado : null, recibido, gastado, saldo: ini ? r2(ini.efectivo + recibido - gastado) : null, movimientos: movsEf.reverse() };
 
   // Banco: entradas (transferencias de clientes y cobros con tarjeta, que caen en Mercado Pago) y salidas (pagos con transferencia o tarjeta)
-  const cuentas = await env.DB.prepare("SELECT valor, actualizado FROM fin_config WHERE clave = 'cuentas'").first();
-  const banco = { entradas: r2(t.transferencias + t.tarjeta), transferencias: r2(t.transferencias), tarjeta: r2(t.tarjeta), salidas: suma(admin, x => x.forma !== "EFECTIVO"), cuentas: cuentas ? cuentas.valor || "" : "", cuentas_actualizado: cuentas ? cuentas.actualizado : null };
+  const notas = await env.DB.prepare("SELECT valor, actualizado FROM fin_config WHERE clave = 'cuentas'").first();
+  const deb = cu.cuentas.filter(c => c.tipo !== "credito" && c.activa), cred = cu.cuentas.filter(c => c.tipo === "credito" && c.activa);
+  const banco = {
+    entradas: r2(t.transferencias + t.tarjeta), transferencias: r2(t.transferencias), tarjeta: r2(t.tarjeta), salidas: suma(admin, x => x.forma !== "EFECTIVO"),
+    cuentas: notas ? notas.valor || "" : "", cuentas_actualizado: notas ? notas.actualizado : null,
+    lista: cu.cuentas, sin_cuenta: cu.sin_cuenta,
+    movs: cu.movs.map(m => ({ ...m, tipo_txt: TIPOS_MOV[m.tipo] || m.tipo, origen_txt: nomCuenta(m.origen), destino_txt: nomCuenta(m.destino) })),
+    // Totales: dinero en cuentas de débito y deuda en tarjetas (solo de las que tienen saldo inicial)
+    dinero: deb.every(c => c.saldo != null) ? r2(deb.reduce((a, c) => a + c.saldo, 0)) : null,
+    deuda: cred.every(c => c.saldo != null) ? r2(cred.reduce((a, c) => a + c.saldo, 0)) : null
+  };
 
   // Por día (para la gráfica): ingresos contra egresos
   const dias = {};
@@ -102,9 +119,11 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     const mes = RE_MES.test(url.searchParams.get("mes") || "") && meses.includes(url.searchParams.get("mes")) ? url.searchParams.get("mes") : meses[0];
     const d = await datosFinanzas(env, mes);
     delete d.cortes; delete d.gastos_caja;
+    d.cuentas_activas = await listaCuentas(env);
     return json({ ok: true, meses, ...d });
   }
   if (request.method !== "POST") return json({ ok: false, error: "Ruta no encontrada." }, 404);
+  if (["cuenta", "saldo-cuenta", "mov"].includes(partes[1])) return await cuentasRutas(request, env, partes, usuario, meses);
   let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
   const quien = usuario && usuario.email || null, ahora = new Date().toISOString();
   if (partes[1] === "saldo") {

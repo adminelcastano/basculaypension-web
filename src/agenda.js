@@ -1,6 +1,13 @@
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
+import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
+// "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
+async function normalizarMedio(env, c) {
+  if (!c || typeof c.forma !== "string") return;
+  const m = await leerMedio(env, c.forma, null);
+  if (m) { c.forma = m.forma; c.cuenta = m.cuenta; }
+}
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
 
@@ -211,21 +218,24 @@ async function validarPagoHecho(env, c, fila) {
 }
 // Pagos, compras y otros gastos de la administración: salen de los sobres (efectivo) o del banco, no de la caja
 // de ningún turno, así que no llevan turno y no cuentan en los cortes (origen = 'admin').
-const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin', ?)";
+const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria, cuenta) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin', ?, ?)";
+// Cuenta del pago: la elegida; si no se eligió y no es en efectivo, la de antes o la cuenta por defecto para pagos
+const cuentaDe = async (env, c, previo, forma) => forma === "EFECTIVO" ? null : ("cuenta" in c ? c.cuenta : null) || previo || await cuentaDefecto(env, "pago");
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
   // Pago hecho sin programar
   if (partes[2] === "hecho" && partes.length === 3 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await normalizarMedio(env, c);
     const v = await validarPagoHecho(env, c, null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
     await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null, cat).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota, cat).run();
+      .bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null, cat, await cuentaDe(env, c, null, v.forma)).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota, cat, await cuentaDe(env, c, null, v.forma)).run();
     return json({ ok: true, id: pid });
   }
   const pid = partes[2];
@@ -262,12 +272,14 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
   }
   if (accion === "editar") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await normalizarMedio(env, c);
     const v = await validarPagoHecho(env, { ...c, titulo: c.titulo ?? pago.titulo }, pago.item_id ? pago : null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const titulo = pago.item_id ? pago.titulo : v.titulo;
     const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
-    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, pago.id).run();
-    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, pago.gasto_id).run();
+    const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
+    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, cta, pago.id).run();
+    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, cta, pago.gasto_id).run();
     return json({ ok: true });
   }
   if (accion === "eliminar") {
@@ -295,6 +307,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   await asegurarEsquemaAgenda(env);
   await asegurarEsquemaCaja(env);
   await asegurarEsquemaCategorias(env);
+  await asegurarEsquemaCuentas(env);
   const ahora = new Date().toISOString();
 
   if (partes.length === 1 && request.method === "GET") {
@@ -322,12 +335,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
     const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
-    const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
+    const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, p.cuenta, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
     // Forma de pago de las compras ya compradas (está en su egreso)
-    const gc = await deIds("SELECT id, forma FROM caja_gastos WHERE id IN (?)", items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id));
-    for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; }
-    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
+    const gc = await deIds("SELECT id, forma, cuenta FROM caja_gastos WHERE id IN (?)", items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id));
+    for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; it.cuenta_gasto = g ? g.cuenta : null; }
+    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), cuentas: await listaCuentas(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
@@ -359,13 +372,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
 
   if (partes.length === 1 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await normalizarMedio(env, c);
     const tipo = String(c.tipo || "");
     if (!TIPOS.includes(tipo)) return json({ ok: false, error: "Tipo inválido." }, 422);
     const { d, e } = validar(tipo, c);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const id = crypto.randomUUID();
     await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora);
-    if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
+    if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
     if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
     return json({ ok: true, id });
   }
@@ -376,6 +390,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
 
   if (partes.length === 2 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await normalizarMedio(env, c);
     const { d, e } = validar(fila.tipo, c, fila);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
@@ -393,7 +408,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
       await env.DB.prepare(GASTO_ADMIN)
-        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC).run();
+        .bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, await cuentaDe(env, c, null, forma)).run();
       await env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id).run();
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).run();
@@ -401,7 +416,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     }
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para) WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, id).run();
-    if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, id).run();
+    if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, fila.cuenta, d.forma), id).run();
     if ((fila.tipo === "pago" || fila.tipo === "compra") && "categoria" in c) {
       const cat = await resolverCategoria(env, c.categoria);
       if (cat) {
@@ -416,6 +431,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   // Registrar un pago programado: fecha en que se pagó, importe y forma → gasto; el pago se mueve al siguiente periodo
   if (partes[2] === "pagar" && request.method === "POST" && fila.tipo === "pago") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await normalizarMedio(env, c);
     const v = await validarPagoHecho(env, c, fila);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const { fecha, importe, forma } = v;
@@ -427,10 +443,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     }
     const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
+    const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma);
     await env.DB.prepare(GASTO_ADMIN)
-      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null, cat).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota, cat).run();
+      .bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null, cat, cta).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota, cat, cta).run();
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
     else {
