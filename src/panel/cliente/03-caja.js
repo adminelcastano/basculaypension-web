@@ -110,6 +110,66 @@
     $("#c-fgasto").concepto.focus();
   }
 
+  // ---- Ficha de conciliación del corte: se lee de arriba abajo y cada paso dice si cuadra ----
+  // cambio recibido → ventas e ingresos → gastos → debería haber → contado → reparto → cambio dejado
+  function ficha(c, j, dia, turno) {
+    const ahora = turnoActual(), enCurso = dia === ahora.dia && turno === ahora.turno;
+    const k = c.conteo, ct = c.cambio_turno, cs = c.cambio_siguiente;
+    const marca = (estado, txt) => `<span class="cf-m ${estado}">${estado === "ok" ? "✓" : estado === "mal" ? "!" : estado === "esp" ? "…" : "·"}<span class="sr"> ${esc(txt)}</span></span>`;
+    const paso = (estado, titulo, valor, detalle = "", extra = "") => `<li class="cf-p ${estado}">${marca(estado, titulo)}<div class="cf-c"><div class="cf-l"><span>${titulo}</span><b>${valor}</b></div>${detalle ? `<p>${detalle}</p>` : ""}${extra}</div></li>`;
+    const dif = v => Math.abs(v) < 1 ? "cuadra" : v < 0 ? `faltan ${dinero(-v)}` : `sobran ${dinero(v)}`;
+    const est = v => v == null ? "" : Math.abs(v) < 1 ? "ok" : "mal";
+    const pasos = [];
+    // 1. Cambio recibido
+    const cambio = c.cambio && c.cambio.n ? c.cambio.importe : null;
+    pasos.push(paso(ct ? est(ct.dif) : cambio != null ? "" : "esp", "Cambio inicial", cambio != null ? dinero(cambio) : "—",
+      ct ? `${avP(ct.de.persona)}${esc(ct.de.persona)} dejó ${dinero(ct.dejado)} · ${avP(ct.recibio)}${esc(ct.recibio)} recibió ${dinero(ct.recibido)}${Math.abs(ct.dif) >= 1 ? ` · <b class="rojo">${dif(ct.dif)}</b>` : ""}`
+        : cambio != null ? (c.cambio.fuente === "tablet" ? `Declarado en la tablet por ${avP(c.cambio.persona)}${esc(c.cambio.persona)}.` : "De la hoja (renglón CAMBIO o FONDO).") : "Nadie declaró el cambio con el que empezó."));
+    // 2. Ventas e ingresos que entran a la caja
+    pasos.push(paso("", "+ Ventas en efectivo", dinero(c.efectivo), `Báscula ${dinero(c.bascula.EFECTIVO)} · pensión ${dinero(c.pension.EFECTIVO)}`));
+    if (c.extra && c.extra.n) pasos.push(paso("", "+ Ingresos extra", dinero(c.extra.importe), `${c.extra.ingreso ? `Rentas y otros ${dinero(c.extra.ingreso)}` : ""}${c.extra.importe - c.extra.ingreso ? `${c.extra.ingreso ? " · " : ""}aumento de cambio ${dinero(c.extra.importe - c.extra.ingreso)}` : ""}`));
+    if (c.caja && c.caja.n) pasos.push(paso("", "Renglones de caja de la hoja", dinero(c.caja.importe), `${c.caja.n} sin folio de ticket (aparecen en Movimientos de caja).`));
+    // 3. Gastos
+    pasos.push(paso("", "− Gastos de caja", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.n_gastos ? `${c.n_gastos} ${c.n_gastos === 1 ? "gasto capturado" : "gastos capturados"} en el turno.` : "Sin gastos en el turno."));
+    // 4. Debería haber
+    const esperado = k ? (k.esperado ?? c.efectivo_caja) : c.efectivo_caja;
+    pasos.push(`<li class="cf-p cf-tot"><span class="cf-m"></span><div class="cf-c"><div class="cf-l"><span>= Debería haber en la caja</span><b>${dinero(esperado)}</b></div>${k && !k.con_cambio && c.cambio && c.cambio.n ? `<p>Este corte se contó sin el fondo de cambio (antes del 14 oct).</p>` : ""}</div></li>`);
+    // 5. Contado
+    if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), Math.abs(k.dif_efectivo) < 1 ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
+    else pasos.push(paso(enCurso ? "esp" : "mal", "Corte ciego", "—", enCurso ? "El turno sigue abierto: el encargado entrega el corte en la tablet al terminar." : "Nadie entregó el corte de este turno en la tablet."));
+    // 6. Reparto
+    if (k && k.sobre != null) {
+      const rets = k.retiros || [], rep = (k.sobre || 0) + rets.reduce((a, r) => a + r.monto, 0) + (k.cambio_sig || 0), d = Math.round((k.efectivo - rep) * 100) / 100;
+      pasos.push(paso(Math.abs(d) < 0.01 ? "ok" : "mal", "Reparto", dinero(rep),
+        `Sobre ${dinero(k.sobre || 0)}${rets.length ? " · retiros " + rets.map((r, i) => `${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") : ""} · cambio que dejó ${dinero(k.cambio_sig || 0)}${Math.abs(d) >= 0.01 ? ` · <b class="rojo">${d > 0 ? "faltan " + dinero(d) + " por repartir" : "sobran " + dinero(-d)}</b>` : ""}`));
+    }
+    // 7. Cambio dejado al siguiente turno
+    if (k && k.cambio_sig != null) pasos.push(paso(cs ? est(cs.dif) : "esp", "Cambio para el siguiente turno", dinero(k.cambio_sig),
+      cs ? `${avP(cs.recibio)}${esc(cs.recibio)} dijo recibir ${dinero(cs.recibido)}${Math.abs(cs.dif) >= 1 ? ` · <b class="rojo">${dif(cs.dif)}</b>` : " · cuadra"}` : "El siguiente turno todavía no declara su cambio inicial."));
+    // Tarjeta: tickets contra la terminal
+    const tj = k && k.tarjeta != null ? paso(est(k.dif_tarjeta), "Tarjeta: tickets contra la terminal", dinero(c.tarjeta), `La terminal dice ${dinero(k.tarjeta)}${Math.abs(k.dif_tarjeta) >= 1 ? ` · <b class="rojo">${dif(k.dif_tarjeta)}</b>` : " · cuadra"}`) : paso("", "Tickets con tarjeta", dinero(c.tarjeta), `Báscula ${dinero(c.bascula.TARJETA)} · pensión ${dinero(c.pension.TARJETA)} (van a Mercado Pago, no a la caja).`);
+    // Resumen arriba: ¿cuadra todo?
+    const problemas = [];
+    if (ct && Math.abs(ct.dif) >= 1) problemas.push("cambio recibido " + dif(ct.dif));
+    if (k && Math.abs(k.dif_efectivo) >= 1) problemas.push("efectivo " + dif(k.dif_efectivo));
+    if (k && k.dif_tarjeta != null && Math.abs(k.dif_tarjeta) >= 1) problemas.push("tarjeta " + dif(k.dif_tarjeta));
+    if (cs && Math.abs(cs.dif) >= 1) problemas.push("cambio dejado " + dif(cs.dif));
+    if (!k && !enCurso) problemas.push("falta el corte");
+    const estado = problemas.length ? "mal" : !k ? "esp" : "ok";
+    const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
+    return `<section class="card cficha ${estado}"><h3>Corte</h3>
+      <div class="cf-res ${estado}">${estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") : "Revisar: " + esc(problemas.join(" · "))}</div>
+      <ol class="cf">${pasos.join("")}</ol>
+      <ol class="cf cf-aparte">${tj}</ol>
+      ${c.fuera.n ? `<p class="note">No pasan por la caja: ${c.fuera.n} registros (${esc(fuera)}). Las transferencias cuentan como ingreso en Dinero.</p>` : ""}
+      ${k ? `<p class="note">${esc(fechaHora(k.actualizado))}${k.veces > 1 ? ` · corregido ${k.veces - 1} ${k.veces === 2 ? "vez" : "veces"}` : ""}${k.notas ? " · " + esc(k.notas) : ""}</p>` : ""}
+      ${(j.historial || []).length > 1 ? `<details><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
+        <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+        ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${avP(x.persona)}${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
+        </tbody></table></div></details>` : ""}
+    </section>`;
+  }
+
   async function abrir(k) {
     st.actual = k;
     document.querySelectorAll("#c-lista .item").forEach(b => b.dataset.k === k ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current"));
@@ -128,49 +188,7 @@
       <div class="detail-head"><h2>${esc(diaTxt(dia))} · ${esc(TURNO_TXT[turno] || turno)}</h2><span class="note">${j.movs.length} ${j.movs.length === 1 ? "registro" : "registros"} de la hoja · ${j.gastos.length} ${j.gastos.length === 1 ? "gasto" : "gastos"}</span></div>
       <div style="display:grid;gap:20px;min-width:0">
       <div class="cols">
-          <section class="card"><h3>Corte</h3>
-            <div class="cres">
-              <span class="h">Ingresos</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
-              ${fila("Báscula", dinero(c.bascula.EFECTIVO), dinero(c.bascula.TARJETA))}
-              ${fila("Pensión", dinero(c.pension.EFECTIVO), dinero(c.pension.TARJETA))}
-              ${fila("Total", dinero(c.efectivo), dinero(c.tarjeta), "tot")}
-              ${c.cambio && c.cambio.n ? fila(c.cambio.fuente === "tablet" ? `Cambio inicial (${avP(c.cambio.persona)}${esc(c.cambio.persona)}, tablet)` : "Cambio inicial", "+" + dinero(c.cambio.importe), "") : ""}
-              ${c.extra && c.extra.n ? fila(`Ingresos extra (${c.extra.n})`, "+" + dinero(c.extra.importe), "") : ""}
-              ${fila("Gastos de caja", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.gastos.TARJETA ? "−" + dinero(c.gastos.TARJETA) : dinero(0))}
-              ${c.caja.n ? fila(`Renglones de caja de la hoja (${c.caja.n})`, dinero(c.caja.importe), "") : ""}
-              <span class="fin">Efectivo en caja</span><span class="n fin">${dinero(c.efectivo_caja)}</span><span class="fin"></span>
-            </div>
-            ${c.conteo ? `<div class="conteo"><h4>Corte ciego de la tablet</h4>
-              <div class="cres">
-                <span class="h">Entregó ${avP(c.conteo.persona)}${esc(c.conteo.persona)}</span><span class="h">Efectivo</span><span class="h">Tarjeta</span>
-                ${fila("Contado", dinero(c.conteo.efectivo), c.conteo.tarjeta != null ? dinero(c.conteo.tarjeta) : "—")}
-                ${fila(!c.conteo.con_cambio && c.cambio && c.cambio.n ? "Según el sistema (sin cambio)" : "Según el sistema", dinero(c.conteo.esperado ?? c.efectivo_caja), dinero(c.tarjeta))}
-                <span class="fin">Diferencia</span><span class="n">${difEtq(c.conteo.dif_efectivo)}</span><span class="n">${c.conteo.dif_tarjeta != null ? difEtq(c.conteo.dif_tarjeta) : ""}</span>
-              </div>
-              ${c.conteo.sobre != null ? `<h4 style="margin-top:14px">Reparto del efectivo (informe final)</h4>
-              <div class="cres">
-                ${fila("Efectivo en sobre", dinero(c.conteo.sobre || 0), "")}
-                ${(c.conteo.retiros || []).map((r, i) => fila(`${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}Retiro: ${esc(r.concepto)}`, dinero(r.monto), "")).join("")}
-                ${fila("Cambio para el siguiente turno", dinero(c.conteo.cambio_sig || 0), "")}
-                ${(() => { const rep = (c.conteo.sobre || 0) + (c.conteo.retiros || []).reduce((x, r) => x + r.monto, 0) + (c.conteo.cambio_sig || 0), d = Math.round((c.conteo.efectivo - rep) * 100) / 100; return `<span class="fin">Repartido</span><span class="n fin">${dinero(rep)}</span><span class="n">${Math.abs(d) < 0.01 ? "✓ cuadra" : d > 0 ? "faltan " + dinero(d) : "sobran " + dinero(-d)}</span>`; })()}
-              </div>` : ""}
-              ${c.cambio_turno || c.cambio_siguiente ? `<h4 style="margin-top:14px">Cambio entre turnos</h4><div class="cres">
-                <span class="h"></span><span class="h">Dejó</span><span class="h">Recibió</span>
-                ${c.cambio_turno ? fila(`Del turno anterior (${avP(c.cambio_turno.de.persona)}${esc(c.cambio_turno.de.persona)} → ${avP(c.cambio_turno.recibio)}${esc(c.cambio_turno.recibio)})`, dinero(c.cambio_turno.dejado), dinero(c.cambio_turno.recibido)) + `<span class="fin">Diferencia</span><span class="n"></span><span class="n">${difEtq(c.cambio_turno.dif)}</span>` : ""}
-                ${c.cambio_siguiente ? fila(`Al turno siguiente (→ ${avP(c.cambio_siguiente.recibio)}${esc(c.cambio_siguiente.recibio)})`, dinero(c.cambio_siguiente.dejado), dinero(c.cambio_siguiente.recibido)) + `<span class="fin">Diferencia</span><span class="n"></span><span class="n">${difEtq(c.cambio_siguiente.dif)}</span>` : ""}
-              </div><p class="note">Si el cambio que declara quien entra no es el que dejó quien sale, la diferencia cuenta como faltante o sobrante en Dinero.</p>` : ""}
-              ${(j.historial || []).length > 1 ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
-                <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-                ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${avP(x.persona)}${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
-                </tbody></table></div></details>` : ""}
-              <p class="note">${esc(fechaHora(c.conteo.actualizado))}${c.conteo.veces > 1 ? ` · corregido ${c.conteo.veces - 1} ${c.conteo.veces === 2 ? "vez" : "veces"}` : ""}${c.conteo.notas ? " · " + esc(c.conteo.notas) : ""}</p>
-              <p class="note">Si el turno sigue abierto o la hoja no se ha sincronizado, la diferencia puede cambiar.</p></div>` : ""}
-            ${c.fuera.n ? `<p class="note">No suman al corte: ${c.fuera.n} registros (${esc(fuera)}).</p>` : ""}
-            ${c.caja.n ? `<p class="note">Renglones de caja de la hoja: registros sin folio de ticket (retiros, sueldos o compras). Llevan folio de movimiento y no cuentan como ingresos.</p>` : ""}
-            ${c.cambio && c.cambio.n ? `<p class="note">El cambio inicial se suma al efectivo en caja y no cuenta como ingreso.${c.conteo && !c.conteo.con_cambio ? " Este corte se contó sin el fondo de cambio (antes del 14 oct), así que se compara sin él." : ""}</p>` : ""}
-            ${c.extra && c.extra.n ? `<p class="note">Ingresos extra: rentas y otros ingresos suman a la caja y a los ingresos${c.extra.importe - c.extra.ingreso ? `; el aumento de cambio (${dinero(c.extra.importe - c.extra.ingreso)}) solo suma a la caja` : ""}.</p>` : ""}
-            ${c.gastos.TRANSFERENCIA ? `<p class="note">Gastos por transferencia: ${dinero(c.gastos.TRANSFERENCIA)} (no salen de la caja).</p>` : ""}
-          </section>
+          ${ficha(c, j, dia, turno)}
           <section class="card"><h3>Gastos de caja del turno</h3>
             ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${g.folio_mc ? `<span class="folio-mc">${esc(g.folio_mc)}</span> ` : ""}${g.categoria ? window.catIco(g.categoria) + " " : ""}${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto de caja a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>

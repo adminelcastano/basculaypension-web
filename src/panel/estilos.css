@@ -798,3 +798,23 @@ div.work.lista-oculta > .lat-tg svg { transform: none; }
   #h-num { grid-area: num; } #h-mes { grid-area: mes; } #h-prox { grid-area: prox; }
 }
 @media (max-width: 380px) { .hoy-acc { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hoy-acc button { min-height: 60px; grid-template-columns: auto 1fr; justify-items: start; text-align: left; align-items: center; padding: 10px 12px; } }
+
+/* ---- Ficha de conciliación del corte (Caja) ---- */
+.cficha { border: 1px solid var(--line); }
+.cficha.ok { border-color: rgba(48,209,88,.35); } .cficha.mal { border-color: rgba(255,105,97,.55); }
+.cf-res { font-weight: 700; font-size: var(--t-md); padding: 10px 12px; border-radius: var(--r-sm); background: var(--fill); margin: 8px 0 12px; }
+.cf-res.ok { background: var(--ok-soft); color: var(--ok); } .cf-res.mal { background: var(--bad-soft); color: #ffb3ad; } .cf-res.esp { background: var(--warn-soft); color: var(--warn); }
+.cf { list-style: none; margin: 0; padding: 0; display: grid; }
+.cf-aparte { margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--line-2); }
+.cf-p { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); position: relative; }
+.cf-p:last-child { border-bottom: 0; }
+.cf-m { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; background: var(--fill); color: var(--muted); margin-top: 1px; }
+.cf-m.ok { background: var(--ok); color: #04210f; } .cf-m.mal { background: var(--bad); color: #fff; } .cf-m.esp { background: var(--warn-soft); color: var(--warn); }
+.cf-l { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.cf-l span { font-weight: 600; } .cf-l b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cf-c p { margin: 3px 0 0; color: var(--muted); font-size: var(--t-sm); }
+.cf-c .avp { width: 18px; height: 18px; vertical-align: -4px; margin-right: 3px; }
+.cf-tot { background: var(--bg-2); border-radius: var(--r-sm); padding-left: 0; }
+.cf-tot .cf-l b { font-size: var(--t-lg); }
+.cf-tot .cf-m { visibility: hidden; }
+.cf .rojo { color: #ff8a80; }
