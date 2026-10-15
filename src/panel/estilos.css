@@ -967,3 +967,21 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .push-card .push-t { margin: 0; color: var(--muted); font-size: var(--t-base); line-height: 1.45; }
 .push-card .push-t b { color: var(--fg); }
 .push-card .btn { justify-self: start; }
+
+/* Compras agrupadas por lugar */
+.lg-grupo + .lg-grupo { margin-top: 18px; }
+.lg-h { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: var(--t-md); }
+.lg-h svg { width: 18px; height: 18px; color: #bf5af2; }
+.lg-h .n { font-variant-numeric: tabular-nums; font-size: var(--t-sm); padding: 0 8px; border-radius: 999px; background: var(--line); color: var(--fg); }
+.lg-grupo.sin .lg-h { color: var(--warn); }
+.lg-grupo.sin .lg-h svg { color: var(--warn); }
+.lugar-sel { max-width: 170px; min-height: 36px; padding: 6px 10px; }
+.lg-adm { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.lg-adm summary { cursor: pointer; font-weight: 600; }
+.lg-lista { display: grid; gap: 8px; margin-bottom: 8px; }
+.lg-fila { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+#lg-nuevo { grid-template-columns: minmax(0, 1fr) auto; }
+.lg-fila input, .lugar-sel { padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; min-width: 0; }
+@media (max-width: 640px) { .lugar-sel { max-width: 130px; } }
+.lg-fila .btn { padding: 0 12px; min-height: 36px; font-size: var(--t-sm); }
+.lg-lista, #lg-nuevo { max-width: 620px; }

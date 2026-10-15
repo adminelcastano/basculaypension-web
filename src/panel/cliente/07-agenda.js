@@ -57,6 +57,7 @@
       if (!st.sel) st.sel = j.hoy;
       for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
       st.frecuencias = j.frecuencias || {};
+      st.lugares = j.lugares || [];
       // Avisos de los encargados sin leer: el contador se pone en rojo con cuántos son
       const nA = $("#an-aviso"); nA.classList.toggle("rojo", !!j.avisos_sin_leer); if (j.avisos_sin_leer) nA.textContent = j.avisos_sin_leer;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
@@ -92,7 +93,7 @@
       <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>${window.campoCategoria()}<label>Se paga con<select name="forma">${window.opcionesMedio("")}</select></label>
       <button class="btn btn-primary" type="submit">Programar</button><span class="err"></span><p class="note" style="margin:0;grid-column:1/-1;flex-basis:100%">Te llega en el correo diario cuando esté por vencer. Al pagarlo, confirma la fecha y el importe y se suma a Dinero.</p></form>`;
     if (tipo === "compra") return `<form class="aform" data-tipo="compra"><label class="w2">Qué hay que comprar<input name="titulo" maxlength="140" placeholder="Ej. Rollos de papel térmico" autocomplete="off"></label>
-      <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label>${window.campoCategoria("", "w2")}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
+      <label>Cantidad<input name="cantidad" maxlength="40" placeholder="Ej. 2 cajas"></label><label>Urgencia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Urgente</option></select></label><label>Dónde se compra${selLugar("")}</label>${window.campoCategoria("", "w2")}<button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>`;
     return `<form class="aform" data-tipo="incidencia"><label class="w4">Qué pasó<input name="titulo" maxlength="140" placeholder="Ej. Falla en la pluma de salida" autocomplete="off"></label>
       <label class="w4">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <label>Fecha<input type="date" name="fecha" value="${esc(st.hoy)}"></label><label>Turno<select name="turno"><option value="">—</option>${Object.entries(TURNO_TXT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
@@ -105,6 +106,8 @@
 
   // ---- Elementos de lista ----
   // Edición de un registro ya creado (título, nota, fecha, prioridad, turno, destinatarios…)
+  // Lugar donde se compra (lo elige la administración)
+  const selLugar = (v, extra = "") => `<select name="lugar"${extra}><option value="">Sin lugar</option>${(st.lugares || []).map(l => `<option value="${esc(l.id)}" ${v === l.id ? "selected" : ""}>${esc(l.nombre)}</option>`).join("")}</select>`;
   function formEditar(it) {
     const sel = (n, ops, v) => `<select name="${n}">${ops.map(([k, t]) => `<option value="${esc(k)}" ${String(v ?? "") === k ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`;
     const T = TURNO_TXT, p = it.para || {};
@@ -112,6 +115,7 @@
       `<label class="w4">${it.tipo === "tarea" ? "Nota para el encargado" : "Detalle"}<textarea name="detalle" rows="2" maxlength="1000">${esc(it.detalle || "")}</textarea></label>`];
     if (["evento", "tarea", "incidencia", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Mostrar desde" : "Fecha"}<input type="date" name="fecha" value="${esc(it.fecha || "")}"></label>`);
     if (it.tipo === "evento") campos.push(`<label>Hora<input type="time" name="hora" value="${esc(it.hora || "")}"></label>`);
+    if (it.tipo === "compra") campos.push(`<label>Dónde se compra${selLugar(it.lugar || "")}</label>`);
     if (["tarea", "compra", "aviso"].includes(it.tipo)) campos.push(`<label>${it.tipo === "aviso" ? "Importancia" : "Prioridad"}${sel("prioridad", [["normal", "Normal"], ["alta", it.tipo === "aviso" ? "Importante" : it.tipo === "compra" ? "Urgente" : "Alta"]], it.prioridad || "normal")}</label>`);
     if (it.tipo === "compra") campos.push(`<label>Cantidad<input name="cantidad" maxlength="40" value="${esc(it.cantidad || "")}"></label>`);
     if (it.tipo === "compra" || it.tipo === "pago") campos.push(window.campoCategoria(it.categoria));
@@ -170,7 +174,7 @@
     const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
     const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${avP(r.persona)}${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}"${it.gasto_id ? ' data-gasto="1"' : ""} data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
-      <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
+      <span class="tt">${esc(it.titulo)}</span><span class="acc">${it.tipo === "compra" && !hecho ? selLugar(it.lugar || "", ` class="lugar-sel" data-lugar="${esc(it.id)}" aria-label="Dónde se compra ${esc(it.titulo)}"`) : ""}${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
   // ---- Pagos hechos (programados o no) ----
@@ -321,6 +325,26 @@
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
   }
 
+  // ---- Compras agrupadas por el lugar donde se compran ----
+  function vistaCompras() {
+    const todos = st.items.filter(x => x.tipo === "compra");
+    const ab = todos.filter(abierto).sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta") || (a.creado || "").localeCompare(b.creado || ""));
+    const ce = todos.filter(x => !abierto(x));
+    const lugares = st.lugares || [], ids = new Set(lugares.map(l => l.id));
+    const sin = ab.filter(x => !x.lugar || !ids.has(x.lugar));
+    const grupo = (nombre, l, cls = "") => `<div class="lg-grupo ${cls}"><h3 class="lg-h">${ico("i-carrito")}<span>${esc(nombre)}</span><span class="n">${l.length}</span>${l.some(x => x.prioridad === "alta") ? `<span class="tag alta">Urgente</span>` : ""}</h3><div class="alist">${l.map(item).join("")}</div></div>`;
+    const grupos = (sin.length ? grupo("Sin lugar · elige dónde se compra", sin, "sin") : "")
+      + lugares.map(l => { const x = ab.filter(i => i.lugar === l.id); return x.length ? grupo(l.nombre, x) : ""; }).join("");
+    const adm = `<details class="lg-adm"><summary>Lugares de compra (${lugares.length})</summary>
+        <p class="note" style="margin:6px 0 10px">Tú decides dónde se compra cada cosa; la tablet solo pide qué hace falta. Si algo ya se compró antes en un lugar, la compra nueva se va sola a ese lugar.</p>
+        <div class="lg-lista">${lugares.map(l => `<form class="lg-fila" data-lid="${esc(l.id)}"><input name="nombre" value="${esc(l.nombre)}" maxlength="40" aria-label="Nombre del lugar"><button class="btn btn-line btn-sm" type="submit">Guardar</button><button class="btn btn-line btn-sm" type="button" data-lquitar="${esc(l.id)}" aria-label="Quitar ${esc(l.nombre)}">Quitar</button></form>`).join("")}</div>
+        <form class="lg-fila" id="lg-nuevo"><input name="nombre" maxlength="40" placeholder="Nuevo lugar (ej. Ferretería Martínez)" aria-label="Nuevo lugar"><button class="btn btn-primary btn-sm" type="submit">Agregar</button></form>
+      </details>`;
+    return `<section class="card">${formulario("compra")}</section>
+      <section class="card">${ab.length ? grupos : `<p class="note">No hay compras pendientes.</p>`}${adm}
+      ${ce.length ? `<details class="hechos"><summary>Compradas en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
+  }
+
   // ---- Pagos y compras (sección propia) ----
   function vistaPagos() {
     const mes = (st.hoy || "").slice(0, 7);
@@ -339,7 +363,7 @@
     if (st.ptab === "hechos") return resumen + `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
       <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
-    if (st.ptab === "compra") return resumen + vistaLista("compra");
+    if (st.ptab === "compra") return resumen + vistaCompras();
     if (st.ptab === "categorias") {
       const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
       return `<section class="card"><h3>Categorías</h3><p class="note" style="margin:4px 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario; aquí le eliges su icono.</p>
@@ -485,6 +509,29 @@
   }
 
   function conectar(c) {
+    // Compras: cambiar dónde se compra, y administrar los lugares
+    c.querySelectorAll("select.lugar-sel").forEach(sl => sl.addEventListener("change", async () => {
+      sl.disabled = true;
+      try { await post(`agenda/${sl.dataset.lugar}/lugar`, { lugar: sl.value }); const it = st.items.find(x => x.id === sl.dataset.lugar); if (it) it.lugar = sl.value || null; pintar(); }
+      catch (e) { if (e.message !== "sesion") toast(e.message); sl.disabled = false; }
+    }));
+    c.querySelectorAll("form.lg-fila").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const b = f.querySelector("button[type=submit]"); b.disabled = true;
+      const abierto = !!f.closest("details[open]");
+      try {
+        const r = await post(f.id === "lg-nuevo" ? "agenda/lugares" : `agenda/lugares/${f.dataset.lid}/nombre`, { nombre: f.nombre.value });
+        st.lugares = r.lugares; toast(f.id === "lg-nuevo" ? "Lugar agregado" : "Lugar guardado"); pintar();
+        if (abierto) { const d = $("#pg-cuerpo .lg-adm"); if (d) d.open = true; }
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
+    c.querySelectorAll("[data-lquitar]").forEach(b => b.addEventListener("click", async () => {
+      const l = (st.lugares || []).find(x => x.id === b.dataset.lquitar); if (!l) return;
+      const n = st.items.filter(x => x.tipo === "compra" && abierto(x) && x.lugar === l.id).length;
+      if (!(await EC.confirmar(`¿Quitar ${l.nombre}?`, n ? `${n} ${n === 1 ? "compra pendiente queda" : "compras pendientes quedan"} sin lugar.` : "Ninguna compra pendiente es de este lugar.", "Quitar"))) return;
+      try { const r = await post(`agenda/lugares/${l.id}/quitar`, {}); st.lugares = r.lugares; for (const it of st.items) if (it.lugar === l.id) it.lugar = null; toast("Lugar quitado"); pintar(); const d = $("#pg-cuerpo .lg-adm"); if (d) d.open = true; }
+      catch (e) { if (e.message !== "sesion") toast(e.message); }
+    }));
     c.querySelectorAll("[data-editar]").forEach(b => b.addEventListener("click", () => { st.editando = b.dataset.editar; pintar(); const f = c.querySelector("form.editar"); f && f.titulo.focus(); }));
     c.querySelectorAll("form.editar [data-cancelar]").forEach(b => b.addEventListener("click", () => { st.editando = null; pintar(); }));
     c.querySelectorAll("form.editar").forEach(f => f.addEventListener("submit", async ev => {

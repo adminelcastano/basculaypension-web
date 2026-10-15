@@ -13,7 +13,7 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
-import { repetirTarea, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
+import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
@@ -462,7 +462,8 @@ export async function turnoRuta(request, env, url, h) {
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe qué hay que comprar.", errores: e }, 422);
     const id = crypto.randomUUID();
     await insertarItem(env, id, "compra", d, `tablet:${s.persona}`, ahora, { reporto: s.persona });
-    await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind(adivinarCategoria(d.titulo), id).run();
+    // La tablet no elige dónde se compra: si ya se compró antes, va al mismo lugar; si no, la administración lo asigna
+    await env.DB.prepare("UPDATE agenda_items SET categoria = ?, lugar = ? WHERE id = ?").bind(adivinarCategoria(d.titulo), await lugarSugerido(env, d.titulo).catch(() => null), id).run();
     await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Compra urgente" : "Compra"} pedida por ${s.nombre}`, cuerpo: d.titulo + (d.cantidad ? " · " + d.cantidad : "") + (d.detalle ? "\n" + d.detalle : ""), sec: "compra", url: "/panel?abrir=compra", etiqueta: "compra-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }

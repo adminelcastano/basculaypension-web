@@ -67,7 +67,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"], ["lugar", "TEXT"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
@@ -137,6 +137,33 @@ function validar(tipo, c, previo = {}) {
   if (d.aviso && !d.fecha) e.aviso = "Para recordarte, ponle fecha.";
   if (d.repetir && !d.fecha) e.fecha = "Para repetirla, elige el día en que empieza.";
   return { d, e };
+}
+
+// Lugares donde se compra (los define la administración; la tablet no elige). Se crean los más comunes la primera vez.
+const LUGARES_INICIALES = ["Office Depot", "Home Depot", "Compusistemas", "Fix", "Liverpool", "Gasolinera", "Gasera", "Supermercado"];
+let lugaresListos = false;
+export async function asegurarLugares(env) {
+  if (lugaresListos) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS compra_lugares (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, orden INTEGER DEFAULT 0, creado TEXT)").run();
+  const n = await env.DB.prepare("SELECT COUNT(*) n FROM compra_lugares").first();
+  if (!n || !n.n) {
+    const ahora = new Date().toISOString();
+    await env.DB.batch(LUGARES_INICIALES.map((x, i) => env.DB.prepare("INSERT OR IGNORE INTO compra_lugares (id, nombre, orden, creado) VALUES (?, ?, ?, ?)").bind(claveLugar(x), x, i + 1, ahora)));
+  }
+  lugaresListos = true;
+}
+const claveLugar = n => String(n).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+export async function listaLugares(env) {
+  await asegurarLugares(env);
+  return (await env.DB.prepare("SELECT id, nombre, orden FROM compra_lugares ORDER BY orden, nombre").all()).results;
+}
+// Si lo mismo ya se compró antes en un lugar, la compra nueva va a ese lugar
+const normTitulo = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+export async function lugarSugerido(env, titulo) {
+  await asegurarLugares(env);
+  const previas = (await env.DB.prepare("SELECT titulo, lugar FROM agenda_items WHERE tipo = 'compra' AND lugar IS NOT NULL ORDER BY actualizado DESC LIMIT 400").all()).results;
+  const t = normTitulo(titulo), f = previas.find(x => normTitulo(x.titulo) === t);
+  return f ? f.lugar : null;
 }
 
 // Tareas que se repiten: al cumplirse se crea la siguiente (un día, una semana o un mes después, nunca en el pasado)
@@ -430,7 +457,43 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Forma de pago de las compras ya compradas (está en su egreso)
     const gc = await deIds("SELECT id, forma, cuenta FROM caja_gastos WHERE id IN (?)", items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id));
     for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; it.cuenta_gasto = g ? g.cuenta : null; }
-    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), cuentas: await listaCuentas(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
+    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), cuentas: await listaCuentas(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS, lugares: await listaLugares(env) });
+  }
+
+  // Lugares de compra: agregar, renombrar, quitar (las compras de un lugar quitado quedan "sin lugar")
+  if (partes[1] === "lugares" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await asegurarLugares(env);
+    const nombre = texto(c.nombre, 40);
+    if (partes.length === 2) {
+      const id = claveLugar(nombre);
+      if (nombre.length < 2 || !id) return json({ ok: false, error: "Escribe el nombre del lugar." }, 422);
+      if (await env.DB.prepare("SELECT 1 FROM compra_lugares WHERE id = ?").bind(id).first()) return json({ ok: false, error: "Ese lugar ya existe." }, 409);
+      const ord = await env.DB.prepare("SELECT COALESCE(MAX(orden), 0) + 1 o FROM compra_lugares").first();
+      await env.DB.prepare("INSERT INTO compra_lugares (id, nombre, orden, creado) VALUES (?, ?, ?, ?)").bind(id, nombre, ord.o, ahora).run();
+      return json({ ok: true, id, lugares: await listaLugares(env) });
+    }
+    const l = await env.DB.prepare("SELECT * FROM compra_lugares WHERE id = ?").bind(partes[2]).first();
+    if (!l) return json({ ok: false, error: "Ese lugar ya no existe." }, 404);
+    if (partes[3] === "quitar") {
+      await env.DB.batch([env.DB.prepare("UPDATE agenda_items SET lugar = NULL WHERE tipo = 'compra' AND lugar = ?").bind(l.id), env.DB.prepare("DELETE FROM compra_lugares WHERE id = ?").bind(l.id)]);
+      return json({ ok: true, lugares: await listaLugares(env) });
+    }
+    if (partes[3] === "nombre") {
+      if (nombre.length < 2) return json({ ok: false, error: "Escribe el nombre del lugar." }, 422);
+      await env.DB.prepare("UPDATE compra_lugares SET nombre = ? WHERE id = ?").bind(nombre, l.id).run();
+      return json({ ok: true, lugares: await listaLugares(env) });
+    }
+  }
+  // Cambiar el lugar de una compra
+  if (partes.length === 3 && partes[2] === "lugar" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const it = await env.DB.prepare("SELECT id FROM agenda_items WHERE id = ? AND tipo = 'compra'").bind(partes[1]).first();
+    if (!it) return json({ ok: false, error: "Esa compra ya no existe." }, 404);
+    const lugar = c.lugar ? String(c.lugar) : null;
+    if (lugar && !(await listaLugares(env)).some(l => l.id === lugar)) return json({ ok: false, error: "Lugar inválido." }, 422);
+    await env.DB.prepare("UPDATE agenda_items SET lugar = ?, actualizado = ? WHERE id = ?").bind(lugar, ahora, it.id).run();
+    return json({ ok: true });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
@@ -479,6 +542,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
     if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
     if (d.repetir) await env.DB.prepare("UPDATE agenda_items SET repetir = ? WHERE id = ?").bind(d.repetir, id).run();
+    if (tipo === "compra") {
+      const lugares = await listaLugares(env);
+      const lugar = lugares.some(l => l.id === c.lugar) ? c.lugar : await lugarSugerido(env, d.titulo);
+      if (lugar) await env.DB.prepare("UPDATE agenda_items SET lugar = ? WHERE id = ?").bind(lugar, id).run();
+    }
     const push = pushTablet(tipo, d, id);
     if (push) await notificar(env, "tablet", push);
     return json({ ok: true, id });
@@ -547,6 +615,10 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Compra que pidió un encargado desde la tablet: al comprarla, la tablet se entera
     if (fila.tipo === "compra" && fila.reporto && d.estado === "comprado" && fila.estado !== "comprado")
       await notificar(env, "tablet", { titulo: "Ya se compró: " + d.titulo, cuerpo: `La pidió ${fila.reporto}${d.cantidad ? " · " + d.cantidad : ""}`, sec: "inicio", url: "/turno", etiqueta: "compra-" + id });
+    if (fila.tipo === "compra" && "lugar" in c) {
+      const lugar = c.lugar && (await listaLugares(env)).some(l => l.id === c.lugar) ? c.lugar : null;
+      await env.DB.prepare("UPDATE agenda_items SET lugar = ? WHERE id = ?").bind(lugar, id).run();
+    }
     if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, fila.cuenta, d.forma), id).run();
     if ((fila.tipo === "pago" || fila.tipo === "compra") && "categoria" in c) {
       const cat = await resolverCategoria(env, c.categoria);
