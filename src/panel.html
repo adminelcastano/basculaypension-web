@@ -348,7 +348,7 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .cal .d:hover:not(.sel) { background: #2a2a2d; }
 .cal .pts { display: flex; gap: 3px; flex-wrap: wrap; }
 .cal .pt { width: 7px; height: 7px; border-radius: 50%; }
-.pt.evento, .tag.evento { background: #a78bfa; } .pt.tarea, .tag.tarea { background: #64d2ff; } .pt.incidencia, .tag.incidencia { background: #ff6961; } .pt.pago { background: #30d158; }
+.pt.evento, .tag.evento { background: #a78bfa; } .pt.tarea, .tag.tarea { background: #64d2ff; } .pt.incidencia, .tag.incidencia { background: #ff6961; } .pt.pago { background: #30d158; } .pt.pagado { background: transparent; box-shadow: inset 0 0 0 2px #30d158; }
 .cal .d.sel .pt { box-shadow: 0 0 0 1.5px var(--amber-ink); }
 .cal-ley { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: #d2d2d7; }
 .cal-ley span { display: inline-flex; align-items: center; gap: 6px; }
@@ -366,6 +366,29 @@ header.bar .modulos { margin-right: auto; margin-left: 8px; }
 .crep select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; }
 .crep .rl { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: .9rem; }
 .crep .rl a { color: #64d2ff; }
+dialog.vent { border: 0; padding: 0; background: var(--surface); color: var(--fg); border-radius: 20px; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+dialog.vent::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(4px); }
+.vent-in { padding: 22px 20px 20px; display: grid; gap: 14px; }
+.vent-h { display: flex; align-items: center; gap: 10px; }
+.vent-h h3 { margin: 0; font-size: 1.3rem; flex: 1; }
+.vent-x { width: 40px; height: 40px; border-radius: 50%; border: 0; background: #2a2a2d; color: var(--fg); font-size: 20px; cursor: pointer; }
+.vent-guia { background: #12301d; border-radius: 14px; padding: 12px 14px; font-size: .9rem; line-height: 1.45; }
+.vent-guia b { color: var(--ok); }
+.vent-guia ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+.vent .aform { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vent .aform label.w2, .vent .aform label.w4 { grid-column: 1 / -1; }
+.vent .aform .ayuda { font-weight: 400; font-size: .8rem; color: var(--muted); }
+.vent .dup { grid-column: 1 / -1; background: var(--warn-soft); border-radius: 12px; padding: 10px 12px; font-size: .9rem; display: grid; gap: 8px; }
+.vent .botones { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.comp-in { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.comp-in input[type=file] { padding: 8px; }
+.pago-acc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pago-acc .btn { min-height: 52px; justify-content: center; gap: 8px; }
+.pago-acc .btn svg { width: 22px; height: 22px; flex: none; }
+@media (max-width: 560px) { .pago-acc { grid-template-columns: 1fr; } .vent .aform { grid-template-columns: 1fr; } }
+.ph-mes { font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 0 2px; }
+.ph-mes b { color: var(--ok); margin-left: 6px; letter-spacing: 0; }
+.grav.pagado { background: #12301d; color: var(--ok); }
 .compra-conf { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; padding: 12px; border-radius: 14px; background: #1f1f21; }
 .compra-conf label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); }
 .compra-conf input, .compra-conf select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: #0b0b0c; color: var(--fg); font: inherit; min-width: 9em; }
@@ -695,8 +718,9 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   .arriba { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   /* Agenda: el estado y el botón de borrar van debajo del título */
   .aitem { grid-template-columns: auto minmax(0, 1fr); }
-  .aitem .mm { grid-row: 2; }
-  .aitem .acc { grid-row: 3; grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+  .aitem .mm { grid-row: auto; grid-column: 2; }
+  .aitem .acc { grid-row: auto; order: 9; grid-column: 2; justify-content: flex-start; flex-wrap: wrap; }
+  .aitem > .grav, .aitem > .chk { grid-row: 1 / span 2; align-self: start; }
 }
 </style>
 </head>
@@ -828,7 +852,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
         <b class="ini-num" id="i-pg">$0</b><span class="note" id="i-pg-nota"></span>
       </div>
       <div class="ini-card cat-f s2 ag-mini" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158"><div class="ini-top"><span class="ibadge"><svg><use href="#i-cal"/></svg></span><span class="ini-k">Próximos pagos</span><b class="mini-n" id="n-pagos">0</b></div><div id="m-pagos"></div></div>
-      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos programados registrados en los últimos 6 meses.</p><div id="g-pagos"></div></section>
+      <section class="ini-card cat-f s2"><h3>Pagado por mes</h3><p class="note">Pagos registrados (programados y no programados) en los últimos 6 meses.</p><div id="g-pagos"></div></section>
       <section class="ini-card cat-f s2"><h3>Este mes por concepto</h3><div class="dona" id="d-pagos"></div></section>
       <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
       <section class="ini-card cat-e s2" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
@@ -2903,7 +2927,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
   async function cargar() {
     try {
       const j = await api("agenda");
-      st.items = j.items; st.hoy = j.hoy;
+      st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || []; st.mesesAbiertos = j.meses_abiertos || [];
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
       for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
@@ -2974,7 +2998,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (it.tipo === "pago") {
       const M = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const venc = !hecho && it.fecha && it.fecha < st.hoy, hoyP = !hecho && it.fecha === st.hoy;
-      const hist = (it.pagos || []).map(x => `<span>Pagado ${esc(diaTxt(x.fecha))} · ${M(x.importe)}</span>`).join("");
+      const hist = (it.pagos || []).map(x => `<span>Pagado ${esc(diaTxt(x.fecha))} · ${M(x.importe)}${x.comprobante ? " · 📎" : ""}</span>`).join("");
       return `<div class="aitem ${hecho ? "hecho" : ""}"><span class="grav ${venc ? "grave" : hoyP ? "media" : "leve"}" title="Pago programado">${ico("i-billete")}</span>
         <span class="tt">${esc(it.titulo)}</span>
         <span class="acc">${hecho ? "" : `<button class="btn btn-primary" type="button" data-pagar="${esc(it.id)}" style="min-height:40px;padding:0 14px">Registrar pago</button>`}${del}</span>
@@ -3007,6 +3031,127 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       <span class="tt">${esc(it.titulo)}</span><span class="acc">${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${it.tipo === "tarea" && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
+  // ---- Pagos hechos (programados o no) ----
+  const MXN = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const FORMA_TXT = { TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" };
+  function filaPagoHecho(p) {
+    const editable = (st.mesesAbiertos || []).includes(p.fecha.slice(0, 7));
+    return `<div class="aitem"><span class="grav pagado" title="Pagado">${ico("i-check")}</span>
+      <span class="tt">${esc(p.titulo || "Pago")}</span>
+      <span class="acc">${editable ? `<button class="btn btn-line edit" type="button" data-editar-pago="${esc(p.id)}">Editar</button><button class="del" type="button" data-borrar-pago="${esc(p.id)}" aria-label="Eliminar pago de ${esc(p.titulo || "")}">${ico("i-trash")}</button>` : ""}</span>
+      <span class="mm"><span class="tag" style="background:#12301d;color:#30d158">Pagado</span><span><b>${MXN(p.importe)}</b></span><span>${esc(diaTxt(p.fecha))}</span><span>${esc(FORMA_TXT[p.forma] || p.forma)}</span><span>${p.item_id ? "Programado" : "No programado"}</span>${p.comprobante ? `<a href="/panel/api/agenda/pagos/${esc(p.id)}/comprobante" target="_blank" rel="noopener">📎 ver comprobante</a>` : `<span>Sin comprobante</span>`}${p.nota ? `<span>${esc(p.nota)}</span>` : ""}</span></div>`;
+  }
+  function listaPagosHechos() {
+    const ps = st.pagosHechos || [];
+    if (!ps.length) return `<p class="note">Todavía no hay pagos registrados.</p>`;
+    const meses = [...new Set(ps.map(p => p.fecha.slice(0, 7)))];
+    const bloque = m => { const del = ps.filter(p => p.fecha.slice(0, 7) === m); return `<p class="ph-mes">${esc(mayus(fMes.format(new Date(m + "-15T12:00:00Z"))))}<b>${MXN(del.reduce((a, p) => a + p.importe, 0))}</b></p><div class="alist">${del.map(filaPagoHecho).join("")}</div>`; };
+    return meses.slice(0, 2).map(bloque).join("") + (meses.length > 2 ? `<details class="hechos"><summary>Meses anteriores (${meses.length - 2})</summary>${meses.slice(2).map(bloque).join("")}</details>` : "");
+  }
+
+  // Ventana (diálogo) con instrucciones de llenado
+  function ventana(titulo, guia, cuerpo) {
+    const d = document.createElement("dialog"); d.className = "vent";
+    d.innerHTML = `<div class="vent-in"><div class="vent-h"><h3>${esc(titulo)}</h3><button class="vent-x" type="button" aria-label="Cerrar">×</button></div><div class="vent-guia">${guia}</div>${cuerpo}</div>`;
+    document.body.appendChild(d);
+    d.querySelector(".vent-x").addEventListener("click", () => d.close());
+    d.addEventListener("close", () => d.remove());
+    d.showModal();
+    return d;
+  }
+  const campoComp = `<label class="w4">Comprobante <span class="ayuda">(opcional · foto o PDF, máximo 10 MB)</span><input type="file" name="comprobante" accept="image/*,application/pdf"></label>`;
+  async function subirComprobante(id, archivo) {
+    let tipo = (archivo.type || "").toLowerCase();
+    if (!tipo) tipo = /\.pdf$/i.test(archivo.name) ? "application/pdf" : /\.hei[cf]$/i.test(archivo.name) ? "image/heic" : "image/jpeg";
+    if (archivo.size > 10 * 1024 * 1024) throw new Error("El comprobante pesa más de 10 MB.");
+    const r = await fetch(`/panel/api/agenda/pagos/${encodeURIComponent(id)}/comprobante`, { method: "POST", headers: { "X-Panel": "1", "Content-Type": tipo }, body: archivo });
+    const j = await r.json().catch(() => ({ ok: false, error: "No se pudo subir el comprobante." }));
+    if (!j.ok) throw new Error(j.error);
+  }
+
+  function ventanaProgramar() {
+    const guia = `<b>Cómo llenarlo</b><ol>
+      <li><b>Qué se paga:</b> un nombre claro, por ejemplo «Plan Telcel 962…», «Tarjeta BBVA» o «Netflix».</li>
+      <li><b>Importe aproximado:</b> lo que pagas normalmente. Al registrar el pago escribes el importe real.</li>
+      <li><b>Próximo pago:</b> la fecha en que vence.</li>
+      <li><b>Se repite:</b> cada mes, cada 2, 3, 6 o 12 meses, o una sola vez.</li>
+      <li><b>Se paga con:</b> transferencia o tarjeta no tocan el efectivo de la caja; «Efectivo (caja)» sí se descuenta del corte.</li>
+    </ol>Aparece en el calendario y te llega en el correo diario 3 días antes. Cuando lo pagues, toca «Registrar pago».`;
+    const d = ventana("Programar un pago", guia, `<form class="aform" novalidate>
+      <label class="w4">Qué se paga<input name="titulo" maxlength="140" placeholder="Ej. Plan Telcel, tarjeta BBVA, Netflix" autocomplete="off"></label>
+      <label>Importe aproximado<input name="importe" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
+      <label>Próximo pago<input type="date" name="fecha" value="${esc(st.hoy)}"></label>
+      <label>Se repite<select name="frecuencia">${Object.entries(st.frecuencias || {}).map(([k, v]) => `<option value="${k}" ${k === "mensual" ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label>Se paga con<select name="forma"><option value="TRANSFERENCIA">Transferencia</option><option value="TARJETA">Tarjeta</option><option value="EFECTIVO">Efectivo (caja)</option></select></label>
+      <span class="err"></span><div class="botones"><button class="btn btn-primary" type="submit">Programar</button><button class="btn btn-line" type="button" data-cerrar>Cancelar</button></div></form>`);
+    const f = d.querySelector("form"); f.titulo.focus();
+    d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
+    f.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
+      try { await post("agenda", { tipo: "pago", titulo: f.titulo.value, importe: f.importe.value, fecha: f.fecha.value, frecuencia: f.frecuencia.value, forma: f.forma.value }); d.close(); toast("Pago programado"); await cargar(); }
+      catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
+    });
+  }
+
+  // modo: "programado" (registrar el pago de un programado), "hecho" (pago sin programar), "editar" (corregir un pago ya registrado)
+  function ventanaPago(modo, it, pago) {
+    const mesAb = (st.mesesAbiertos || []).slice().sort()[0] || st.hoy.slice(0, 7);
+    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "TRANSFERENCIA", titulo: "", nota: "" };
+    const suelto = modo === "hecho" || (modo === "editar" && !pago.item_id);
+    const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago ya hecho" : "Registrar pago: " + it.titulo;
+    const guia = `<b>Cómo llenarlo</b><ol>
+      ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE» o «Refacción de la pluma».</li>` : ""}
+      <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser del mes abierto en Ingresos y gastos.</li>
+      <li><b>Importe pagado:</b> lo que realmente pagaste, con centavos si los hay.</li>
+      <li><b>Pagado con:</b> transferencia o tarjeta no tocan la caja; «Efectivo (caja)» se descuenta del efectivo de ese turno.</li>
+      <li><b>Comprobante (opcional):</b> toma foto del ticket o sube la captura o el PDF de la transferencia. Se guarda en Drive.</li>
+      <li><b>Nota (opcional):</b> folio, referencia o lo que sirva para identificarlo.</li>
+    </ol>${modo === "editar" ? "Al guardar se corrige también su gasto en Ingresos y gastos." : `Al guardar se agrega a los gastos y aparece en el calendario como pagado${modo === "programado" && it.frecuencia !== "unica" ? "; el pago programado pasa al siguiente periodo" : ""}.`}`;
+    const d = ventana(titulo, guia, `<form class="aform" novalidate>
+      ${suelto ? `<label class="w4">Qué pagaste<input name="titulo" maxlength="140" value="${esc(v.titulo || "")}" placeholder="Ej. Recibo de luz CFE" autocomplete="off"></label>` : ""}
+      <label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(v.fecha)}" min="${esc(mesAb)}-01" max="${esc(st.hoy)}"></label>
+      <label>Importe pagado<input name="importe" inputmode="decimal" placeholder="$0.00" value="${esc(v.importe)}" autocomplete="off"></label>
+      <label class="w4">Pagado con<select name="forma">${Object.entries(FORMA_TXT).map(([k, t]) => `<option value="${k}" ${v.forma === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      ${campoComp}${modo === "editar" && pago.comprobante ? `<label class="chkl w4" style="flex-direction:row"><input type="checkbox" name="quitar"> Quitar el comprobante actual (<a href="/panel/api/agenda/pagos/${esc(pago.id)}/comprobante" target="_blank" rel="noopener">ver</a>)</label>` : ""}
+      <label class="w4">Nota <span class="ayuda">(opcional)</span><input name="nota" maxlength="300" value="${esc(v.nota || "")}" placeholder="Ej. referencia 123456" autocomplete="off"></label>
+      <div class="dup" hidden></div><span class="err"></span>
+      <div class="botones"><button class="btn btn-primary" type="submit">${modo === "editar" ? "Guardar cambios" : "Confirmar pago"}</button><button class="btn btn-line" type="button" data-cerrar>Cancelar</button></div></form>`);
+    const f = d.querySelector("form");
+    (f.titulo || f.importe).focus();
+    d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
+    let forzar = false;
+    const enviar = async () => {
+      const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
+      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}) };
+      let id;
+      try {
+        if (modo === "editar") { await post(`agenda/pagos/${pago.id}/editar`, cuerpo); id = pago.id; }
+        else if (modo === "hecho") id = (await post("agenda/pagos/hecho", cuerpo)).id;
+        else {
+          const r = await fetch(`/panel/api/agenda/${encodeURIComponent(it.id)}/pagar`, { method: "POST", headers: { "X-Panel": "1", "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+          const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida." }));
+          if (j.duplicado) {
+            const dup = f.querySelector(".dup");
+            dup.innerHTML = `<span>⚠️ ${esc(j.error)} ¿Es un pago distinto? Si solo querías corregir aquel, cancela y usa «Editar» en ese pago (en «Pagos hechos»).</span><div><button class="btn btn-primary" type="button" data-otro>Sí, es otro pago</button></div>`;
+            dup.hidden = false; b.disabled = false;
+            dup.querySelector("[data-otro]").addEventListener("click", () => { forzar = true; dup.hidden = true; enviar(); });
+            return;
+          }
+          if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; throw e; }
+          id = j.id;
+        }
+      } catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; return; }
+      let aviso = "";
+      try {
+        if (f.quitar && f.quitar.checked) await post(`agenda/pagos/${id}/quitar-comprobante`);
+        const arch = f.comprobante.files[0];
+        if (arch) { b.textContent = "Subiendo comprobante…"; await subirComprobante(id, arch); }
+      } catch (e) { aviso = " · " + e.message + " Puedes subirlo después con «Editar»."; }
+      d.close(); toast((modo === "editar" ? "Pago corregido" : "Pago registrado en gastos") + aviso); await cargar();
+    };
+    f.addEventListener("submit", ev => { ev.preventDefault(); enviar(); });
+  }
+
   function vistaLista(tipo) {
     const todos = st.items.filter(x => x.tipo === tipo);
     const ab = todos.filter(abierto), ce = todos.filter(x => !abierto(x));
@@ -3016,6 +3161,11 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     if (tipo === "pago") ab.sort((a, b) => (a.fecha || "9999").localeCompare(b.fecha || "9999"));
     const vacio = { tarea: "No hay nada por hacer. 🎉", compra: "No hay compras pendientes.", incidencia: "No hay incidencias abiertas.", pago: "No hay pagos programados." }[tipo];
     const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
+    if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago ya hecho</button></div>
+        <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago hecho. Todo pasa a los gastos y aparece en el calendario.</p></section>
+      <section class="card"><h3>Programados</h3><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
+      ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>
+      <section class="card"><h3>Pagos hechos</h3>${listaPagosHechos()}</section>`;
     return `<section class="card">${formulario(tipo)}</section>
       <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
@@ -3136,22 +3286,25 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     const inicio = new Date(primero); inicio.setUTCDate(1 - ((primero.getUTCDay() + 6) % 7)); // semana inicia en lunes
     const porDia = {};
     for (const it of st.items) if (it.tipo !== "aviso" && (it.fecha && abierto(it) || (it.fecha && it.tipo === "evento"))) (porDia[it.fecha] = porDia[it.fecha] || []).push(it);
+    for (const p of st.pagosHechos || []) (porDia[p.fecha] = porDia[p.fecha] || []).push({ tipo: "pagado" });
     let celdas = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map(d => `<span class="dow">${d}</span>`).join("");
     for (let i = 0; i < 42; i++) {
       const d = new Date(inicio); d.setUTCDate(inicio.getUTCDate() + i);
       const iso = d.toISOString().slice(0, 10);
       const its = porDia[iso] || [];
       const tipos = [...new Set(its.map(x => x.tipo))].filter(t => t !== "compra");
-      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${its.length ? `, ${its.length} pendientes` : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span></button>`;
+      const nPend = its.filter(x => x.tipo !== "pagado").length;
+      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${nPend ? `, ${nPend} pendientes` : ""}${tipos.includes("pagado") ? ", con pagos hechos" : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span></button>`;
       if (i >= 34 && d.getUTCMonth() !== m - 1 && d.getUTCDay() === 0) break;
     }
     const delDia = st.items.filter(x => x.fecha === st.sel && x.tipo !== "aviso").sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
+    const pagDia = (st.pagosHechos || []).filter(p => p.fecha === st.sel);
     return `<div class="ag-cal">
       <section class="card"><div class="cal-head"><h3>${esc(mayus(fMes.format(primero)))}</h3><div class="cal-nav"><button type="button" data-mes="-1" aria-label="Mes anterior">‹</button><button type="button" data-mes="hoy" aria-label="Hoy" style="width:auto;padding:0 12px;font-size:14px">Hoy</button><button type="button" data-mes="1" aria-label="Mes siguiente">›</button></div></div>
         <div class="cal">${celdas}</div>
-        <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span><span><i class="pt pago"></i>Pagos</span></div></section>
+        <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span><span><i class="pt pago"></i>Pagos por hacer</span><span><i class="pt pagado"></i>Pagos hechos</span></div></section>
       <section class="card"><h3>${esc(mayus(fLargo.format(new Date(st.sel + "T12:00:00Z"))))}</h3>
-        <div class="alist">${delDia.length ? delDia.map(item).join("") : `<p class="note">Nada programado este día.</p>`}</div>
+        <div class="alist">${delDia.length || pagDia.length ? delDia.map(item).join("") + pagDia.map(filaPagoHecho).join("") : `<p class="note">Nada programado este día.</p>`}</div>
         ${formulario("evento", st.sel)}</section></div>`;
   }
 
@@ -3206,19 +3359,13 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
       b.classList.toggle("on");
       try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
-    c.querySelectorAll("[data-pagar]").forEach(b => b.addEventListener("click", () => {
-      const fila = b.closest(".aitem"), it = st.items.find(x => x.id === b.dataset.pagar);
-      if (fila.querySelector(".compra-conf")) { fila.querySelector(".compra-conf input").focus(); return; }
-      const fs = { TRANSFERENCIA: "Transferencia", TARJETA: "Tarjeta", EFECTIVO: "Efectivo (caja)" };
-      fila.insertAdjacentHTML("beforeend", `<form class="compra-conf" novalidate><label>Fecha en que se pagó<input type="date" name="fecha" value="${esc(st.hoy)}" max="${esc(st.hoy)}"></label><label>Importe pagado<input name="importe" inputmode="decimal" placeholder="$0.00" value="${it && it.importe != null ? esc(it.importe) : ""}" autocomplete="off"></label><label>Pagado con<select name="forma">${Object.entries(fs).map(([k, v]) => `<option value="${k}" ${it && it.forma === k ? "selected" : ""}>${v}</option>`).join("")}</select></label><button class="btn btn-primary" type="submit">Confirmar pago</button><button class="btn btn-line" type="button" data-cancelar>Cancelar</button><span class="err"></span><span class="note" style="flex-basis:100%">Se agrega a los gastos con esa fecha${it && it.frecuencia !== "unica" ? " y el pago pasa al siguiente periodo" : ""}.</span></form>`);
-      const f = fila.querySelector(".compra-conf");
-      f.importe.focus(); f.importe.select();
-      f.querySelector("[data-cancelar]").addEventListener("click", () => f.remove());
-      f.addEventListener("submit", async ev => {
-        ev.preventDefault(); const bt = f.querySelector("[type=submit]"); bt.disabled = true; f.querySelector(".err").textContent = "";
-        try { await post("agenda/" + b.dataset.pagar + "/pagar", { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value }); toast("Pago registrado en gastos"); await cargar(); }
-        catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.message; bt.disabled = false; }
-      });
+    c.querySelectorAll("[data-pagar]").forEach(b => b.addEventListener("click", () => { const it = st.items.find(x => x.id === b.dataset.pagar); if (it) ventanaPago("programado", it); }));
+    c.querySelectorAll("[data-nuevo-pago]").forEach(b => b.addEventListener("click", () => b.dataset.nuevoPago === "hecho" ? ventanaPago("hecho") : ventanaProgramar()));
+    c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
+    c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
+      const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
+      if (!confirm(`¿Eliminar el pago de «${p.titulo || "Pago"}» del ${diaTxt(p.fecha)} por ${MXN(p.importe)}? También se borra su gasto${p.comprobante ? " y su comprobante" : ""}.`)) return;
+      try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }

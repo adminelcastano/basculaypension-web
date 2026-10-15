@@ -1,4 +1,4 @@
-import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
@@ -71,6 +71,8 @@ export async function asegurarEsquemaAgenda(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS agenda_pagos (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, fecha TEXT NOT NULL, programado TEXT, importe REAL NOT NULL, forma TEXT NOT NULL, gasto_id TEXT, creado TEXT NOT NULL, creado_por TEXT, titulo TEXT)").run();
   const colsP = new Set((await env.DB.prepare("PRAGMA table_info(agenda_pagos)").all()).results.map(r => r.name));
   if (!colsP.has("titulo")) await env.DB.prepare("ALTER TABLE agenda_pagos ADD COLUMN titulo TEXT").run();
+  // Pagos hechos sin programar (item_id = ''), comprobante (foto o PDF) y nota
+  for (const c of ["comprobante", "nota", "comp_tipo"]) if (!colsP.has(c)) await env.DB.prepare(`ALTER TABLE agenda_pagos ADD COLUMN ${c} TEXT`).run();
   listo = true;
 }
 
@@ -167,7 +169,9 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE tipo = 'aviso' AND estado = 'activo' AND autor IS NOT NULL AND autor != 'admin' AND creado < ?")
     .bind(ahora.toISOString(), ahora.toISOString(), tresDias).run();
   // Historial de pagos hechos: 13 meses
-  await env.DB.prepare("DELETE FROM agenda_pagos WHERE fecha < ?").bind(sumarMeses(hoyMx(), -13)).run();
+  const lim13 = sumarMeses(hoyMx(), -13);
+  for (const f of (await env.DB.prepare("SELECT comprobante FROM agenda_pagos WHERE fecha < ? AND comprobante IS NOT NULL LIMIT 50").bind(lim13).all()).results) await borrarArchivo(env, f.comprobante).catch(() => {});
+  await env.DB.prepare("DELETE FROM agenda_pagos WHERE fecha < ?").bind(lim13).run();
   // 40 días (y no 30) para que el reporte mensual incluya todo lo cerrado durante el mes
   const limite = new Date(ahora.getTime() - 40 * 864e5).toISOString();
   const diaLimite = limite.slice(0, 10);
@@ -193,6 +197,99 @@ export async function resumenAgenda(env) {
   const eventosHoy = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'evento' AND fecha = ?`).bind(hoy).first()).n;
   const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha LIMIT 4`).all()).results;
   return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, incidencias, pagos };
+}
+
+// ---- Pagos hechos (de un pago programado o sueltos) ----
+// Cada pago hecho crea su gasto en Ingresos y gastos; se puede corregir o borrar mientras su mes siga abierto.
+async function validarPagoHecho(env, c, fila) {
+  const fecha = String(c.fecha || ""), importe = leerMonto(c.importe);
+  const forma = FORMAS.includes(c.forma) ? c.forma : (fila && fila.forma) || "TRANSFERENCIA";
+  const errores = {};
+  await asegurarEsquemaCaja(env);
+  const meses = await mesesAbiertos(env);
+  if (!RE_DIA.test(fecha) || fecha > hoyMx()) errores.fecha = "Escribe la fecha en que se pagó (no futura).";
+  else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró en Ingresos y gastos; usa una fecha del mes abierto.";
+  if (!(importe > 0) || importe > 1000000) errores.importe = "Escribe el importe pagado.";
+  const titulo = texto(c.titulo, 140);
+  if (!fila && titulo.length < 2) errores.titulo = "Escribe qué pagaste (ej. Recibo de luz CFE).";
+  const nota = texto(c.nota, 300) || null;
+  return { fecha, importe, forma, titulo, nota, errores, meses };
+}
+const turnoDe = (fecha, pedido) => { const t = turnoAhora(); return TURNOS.includes(pedido) ? pedido : fecha === t.dia ? t.turno : "MAÑANA"; };
+const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+
+async function pagosHechosRutas(request, env, partes, usuario, ahora) {
+  // Pago hecho sin programar
+  if (partes[2] === "hecho" && partes.length === 3 && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const v = await validarPagoHecho(env, c, null);
+    if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
+    const gid = crypto.randomUUID(), pid = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(gid, v.fecha.slice(0, 7), v.fecha, turnoDe(v.fecha, c.turno), ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, usuario && usuario.email || null, v.titulo, v.nota).run();
+    return json({ ok: true, id: pid });
+  }
+  const pid = partes[2];
+  const pago = pid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
+  if (!pago) return json({ ok: false, error: "No existe ese pago." }, 404);
+  const accion = partes[3];
+  if (accion === "comprobante" && request.method === "GET") {
+    if (!pago.comprobante) return new Response("Sin comprobante.", { status: 404 });
+    const { value, metadata } = await leerArchivo(env, pago.comprobante);
+    if (!value) return new Response("Archivo no disponible.", { status: 404 });
+    const tipo = (metadata && metadata.tipo) || pago.comp_tipo || "application/octet-stream";
+    return new Response(value, { headers: { "Content-Type": tipo, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'" } });
+  }
+  if (request.method !== "POST") return json({ ok: false, error: "Ruta no encontrada." }, 404);
+  await asegurarEsquemaCaja(env);
+  const meses = await mesesAbiertos(env);
+  if (!meses.includes(pago.fecha.slice(0, 7))) return json({ ok: false, error: "Ese pago es de un mes ya cerrado en Ingresos y gastos; ya no se puede cambiar." }, 409);
+
+  if (accion === "comprobante") {
+    const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+    if (!TIPOS_COMP.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG, HEIC) o un PDF." }, 415);
+    const bytes = await request.arrayBuffer();
+    if (!bytes.byteLength || bytes.byteLength > 10 * 1024 * 1024) return json({ ok: false, error: "El archivo está vacío o pesa más de 10 MB." }, 413);
+    const llave = "pc:" + pago.id;
+    const nombre = `${pago.fecha} ${String(pago.titulo || "Pago").replace(/[^\p{L}\p{N} .-]/gu, "").slice(0, 60)}.${tipo === "application/pdf" ? "pdf" : (tipo.split("/")[1] || "jpg").replace("jpeg", "jpg")}`;
+    await guardarArchivo(env, llave, bytes, { tipo, nombre, carpeta: ["Comprobantes de pago", pago.fecha.slice(0, 7)] });
+    await env.DB.prepare("UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ? WHERE id = ?").bind(llave, tipo, pago.id).run();
+    return json({ ok: true });
+  }
+  if (accion === "quitar-comprobante") {
+    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
+    await env.DB.prepare("UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL WHERE id = ?").bind(pago.id).run();
+    return json({ ok: true });
+  }
+  if (accion === "editar") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const v = await validarPagoHecho(env, { ...c, titulo: c.titulo ?? pago.titulo }, pago.item_id ? pago : null);
+    if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
+    const titulo = pago.item_id ? pago.titulo : v.titulo;
+    await env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, pago.id).run();
+    if (pago.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), pago.gasto_id).run();
+    return json({ ok: true });
+  }
+  if (accion === "eliminar") {
+    if (pago.gasto_id) await env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(pago.gasto_id).run();
+    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
+    await env.DB.prepare("DELETE FROM agenda_pagos WHERE id = ?").bind(pago.id).run();
+    // Si era el último pago de un pago programado, el vencimiento regresa a como estaba antes de registrarlo
+    let regreso = null;
+    if (pago.item_id && pago.programado) {
+      const it = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(pago.item_id).first();
+      const otro = await env.DB.prepare("SELECT 1 FROM agenda_pagos WHERE item_id = ? AND creado > ? LIMIT 1").bind(pago.item_id, pago.creado).first();
+      if (it && !otro) {
+        const n = MESES_FREC[it.frecuencia || "mensual"];
+        if (!n && it.estado === "pagado") { await env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id).run(); regreso = pago.programado; }
+        else if (n && it.fecha === sumarMeses(pago.programado, n)) { await env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id).run(); regreso = pago.programado; }
+      }
+    }
+    return json({ ok: true, regreso });
+  }
+  return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }
 
 // Rutas: /panel/api/agenda...
@@ -221,16 +318,18 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     for (const it of items) if (it.tipo === "tarea") it.reportes = rep.filter(r => r.item_id === it.id);
     // Últimos pagos hechos de cada pago programado
     const pg = (await deIds("SELECT * FROM agenda_pagos WHERE item_id IN (?)", items.filter(it => it.tipo === "pago").map(it => it.id))).sort((a, b) => b.fecha.localeCompare(a.fecha) || b.creado.localeCompare(a.creado));
-    for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6);
+    for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6).map(x => ({ id: x.id, fecha: x.fecha, importe: x.importe, forma: x.forma, comprobante: x.comprobante ? 1 : 0 }));
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
     const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
-    return json({ ok: true, items, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
+    const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
+    const abiertosMes = (await mesesAbiertos(env).catch(() => []));
+    return json({ ok: true, items, pagos_hechos: pagosHechos, meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS });
   }
 
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
   // Pagos programados para el Inicio: próximos, vencidos, totales del mes y pagado por mes
-  if (partes[1] === "pagos" && request.method === "GET") {
+  if (partes[1] === "pagos" && partes.length === 2 && request.method === "GET") {
     const hoy = hoyMx(), mes = hoy.slice(0, 7);
     const finMes = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const abiertos = (await env.DB.prepare(`SELECT id, titulo, fecha, importe, frecuencia, forma FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha`).all()).results;
@@ -244,6 +343,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       pagado_mes: delMes.reduce((a, x) => a + x.importe, 0), n_pagado_mes: delMes.length, por_mes: porMes,
       por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total) });
   }
+
+  if (partes[1] === "pagos" && partes.length >= 3) return await pagosHechosRutas(request, env, partes, usuario, ahora);
 
   if (partes.length === 1 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
@@ -294,21 +395,20 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   // Registrar un pago programado: fecha en que se pagó, importe y forma → gasto; el pago se mueve al siguiente periodo
   if (partes[2] === "pagar" && request.method === "POST" && fila.tipo === "pago") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const fecha = String(c.fecha || ""), importe = leerMonto(c.importe), forma = FORMAS.includes(c.forma) ? c.forma : (fila.forma || "TRANSFERENCIA");
-    const errores = {};
-    await asegurarEsquemaCaja(env);
-    const meses = await mesesAbiertos(env);
-    if (!RE_DIA.test(fecha) || fecha > hoyMx()) errores.fecha = "Escribe la fecha en que se pagó (no futura).";
-    else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró en Ingresos y gastos; usa una fecha del mes actual.";
-    if (!(importe > 0) || importe > 1000000) errores.importe = "Escribe el importe pagado.";
-    if (Object.keys(errores).length) return json({ ok: false, error: Object.values(errores).join(" "), errores }, 422);
-    const ahoraT = turnoAhora();
-    const turno = TURNOS.includes(c.turno) ? c.turno : fecha === ahoraT.dia ? ahoraT.turno : "MAÑANA";
-    const gid = crypto.randomUUID();
+    const v = await validarPagoHecho(env, c, fila);
+    if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
+    const { fecha, importe, forma } = v;
+    // Evita registrar dos veces el mismo periodo (por ejemplo, al corregir la fecha y volver a confirmar)
+    if (!c.forzar) {
+      const mesP = (fila.fecha || fecha).slice(0, 7);
+      const dup = await env.DB.prepare("SELECT fecha, importe FROM agenda_pagos WHERE item_id = ? AND (substr(fecha, 1, 7) = ? OR substr(COALESCE(programado, ''), 1, 7) = ?) ORDER BY creado DESC LIMIT 1").bind(fila.id, fecha.slice(0, 7), mesP).first();
+      if (dup) return json({ ok: false, duplicado: dup, error: `Ya registraste un pago de «${fila.titulo}» el ${dup.fecha} por $${Number(dup.importe).toFixed(2)}.` }, 409);
+    }
+    const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(gid, fecha.slice(0, 7), fecha, turno, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
-    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo).run();
+      .bind(gid, fecha.slice(0, 7), fecha, turnoDe(fecha, c.turno), ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, usuario && usuario.email || null).run();
+    await env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, usuario && usuario.email || null, fila.titulo, v.nota).run();
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     if (!meses_) await env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id).run();
     else {
@@ -316,7 +416,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const sig = sumarMeses(fila.fecha || fecha, meses_);
       await env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sig, ahora, fila.id).run();
     }
-    return json({ ok: true, gasto_id: gid });
+    return json({ ok: true, gasto_id: gid, id: pid });
   }
 
   if (partes[2] === "eliminar" && request.method === "POST") {
