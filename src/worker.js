@@ -1,6 +1,8 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
+// Los tickets ya no se leen con IA: el administrador captura los datos a mano viendo la foto
+const LEER_TICKET_IA = false;
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
 import PANEL_HTML from "./panel.html";
 import { expedientePagina, expedienteApi, personalPanel, recordatoriosAutomaticos } from "./personal.js";
@@ -46,7 +48,7 @@ export default {
       if (request.method === "POST" && (url.pathname === "/api/solicitud" || url.pathname === "/api/revisar-ticket" || url.pathname.startsWith("/api/expediente/")) && await enAhorro(env))
         return json({ ok: false, error: "Por ahora no podemos recibir archivos en línea. Escríbenos por WhatsApp al 962 564 2170 y te ayudamos." }, 503);
       if (url.pathname === "/api/solicitud") return await crearSolicitud(request, env, ctx);
-      if (url.pathname === "/api/revisar-ticket") return await revisarTicketApi(request, env);
+      if (url.pathname === "/api/revisar-ticket") return LEER_TICKET_IA ? await revisarTicketApi(request, env) : json({ ok: false, desactivado: true });
       if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
       if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
@@ -205,7 +207,7 @@ async function crearSolicitud(request, env, ctx) {
 
   // Revisar el ticket con IA antes de guardar (se reutiliza la revisión hecha al tomar la foto)
   let lectura = null, avisoTicket = null;
-  if (env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
+  if (LEER_TICKET_IA && env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
     let rev = null;
     try { rev = await conLimite(revisarTicket(env, ticketBuf, ticket.type, servicio), 20000); }
     catch (e) { console.error("revisar ticket", e && e.message); rev = null; }
@@ -262,7 +264,7 @@ async function crearSolicitud(request, env, ctx) {
   if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
     ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", e)));
   }
-  if (ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
+  if (LEER_TICKET_IA && ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
     // Si la lectura falló o tardó, se reintenta en segundo plano
     ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", e && e.message)));
   }
@@ -588,7 +590,7 @@ async function panel(request, env, url) {
         return json({ ok: true });
       }
       if (partes[2] === "leer-ticket") {
-        if (!env.AI) return json({ ok: false, error: "La lectura automática no está activada." }, 503);
+        if (!LEER_TICKET_IA || !env.AI) return json({ ok: false, error: "La lectura automática del ticket está desactivada: captura los datos a mano." }, 410);
         const r = await leerTicket(env, id, true);
         if (r.error) return json({ ok: false, error: r.error }, 422);
         return json({ ok: true, datos: r.datos });

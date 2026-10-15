@@ -398,6 +398,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 
   // Pregunta al servidor qué ticket es (pensión, báscula o no es ticket)
   async function revisarTicketServidor(listo) {
+    return null; // La revisión con IA está desactivada: la administración revisa la foto a mano
     try {
       const d = new FormData(); d.append("ticket", listo); d.append("servicio", form.servicio.value);
       const r = await fetch("/api/revisar-ticket", { method: "POST", body: d });

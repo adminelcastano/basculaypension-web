@@ -17,7 +17,7 @@ Plan: **Workers Paid** (5 USD al mes, desde el 14 oct 2026). `wrangler.jsonc` fi
 - Guardián de consumo (`src/consumo.js`): cada hora lee el uso del mes con la API de analítica (secreto `CF_API_TOKEN`, token de solo lectura "Account Analytics"; `CF_ACCOUNT_ID` en `wrangler.jsonc`). Al 60 % de cualquier límite incluido manda correo; al 85 % activa el **modo ahorro** (pausa formularios públicos, IA y la sincronización cada 10 min de la hoja) hasta el mes siguiente. El estado se ve en Inicio → "Consumo de Cloudflare y archivos".
 - Fotos y PDFs en Google Drive (ver "Archivos"), no en el almacenamiento de Cloudflare.
 
-Workers AI (lectura de tickets y documentos) tiene tope diario de 9 000 neuronas (`src/neuronas.js`), debajo de las 10 000 gratis, para que nunca genere cobro. Al llegar al tope, la lectura automática se apaga hasta las 6 p.m. de Tapachula (00:00 UTC) y los datos se capturan a mano; lo demás sigue funcionando.
+Workers AI (lectura de documentos del expediente; los tickets de factura ya no se leen con IA: `LEER_TICKET_IA = false` en `src/worker.js`, el administrador los captura a mano viendo la foto y quedan con botón Copiar) tiene tope diario de 9 000 neuronas (`src/neuronas.js`), debajo de las 10 000 gratis, para que nunca genere cobro. Al llegar al tope, la lectura automática se apaga hasta las 6 p.m. de Tapachula (00:00 UTC) y los datos se capturan a mano; lo demás sigue funcionando.
 
 ## Archivos (en `public/`)
 

@@ -1025,6 +1025,7 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     };
     const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
     const esBascula = s.servicio === "bascula";
+    const capturado = !!(s.folio_ticket || s.importe);
 
     d.innerHTML = `
       <button class="btn btn-line back" id="volver" type="button">← Volver a la lista</button>
@@ -1060,13 +1061,24 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
           </details>
           </section>
           <section class="card">
-            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Revisa el folio y el importe contra la foto del ticket (paso 6). Si corriges algo, guarda.</p>
+            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura a mano el folio y el importe viendo la foto del ticket (paso 6). Al guardar quedan listos para copiar.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
             ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.aviso_ticket ? `<p class="warn"><b>Ojo:</b> ${esc(s.aviso_ticket)}</p>` : ""}
-            ${s.ticket_leido ? `<p class="note">Datos leídos de la foto del ticket. Verifícalos contra la imagen.</p>` : ""}
+            ${(() => {
+              const imp = s.importe ? dinero(s.importe) : "";
+              const filas = [campo("Folio del ticket", s.folio_ticket)];
+              if (esBascula || s.servicio === "ambos") filas.push(campo("Cliente en el ticket", s.cliente));
+              if (!esBascula) filas.push(campo("Placas", s.placas), campo("Descripción auto", s.descripcion), campo("Tarifa", s.tarifa));
+              filas.push(campo(esBascula ? "Tarifa" : "Total impreso", imp ? Number(s.importe).toFixed(2) : ""));
+              if (s.anotacion) filas.push(campo("Anotación a mano", s.anotacion));
+              filas.push(campo("WhatsApp del cliente", s.telefono));
+              return `<div id="ticket-vista" ${capturado ? "" : "hidden"}><div class="fields">${filas.join("")}</div><div class="row"><button class="btn btn-line" id="editar-ticket" type="button">Editar datos del ticket</button></div></div>`;
+            })()}
+            <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
+            <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
             <div class="grid-form">
               <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="${esBascula ? "Ej. 17372" : "Ej. 15013"}" autocomplete="off"></label>
               ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
@@ -1077,7 +1089,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
               <label class="wide${s.anotacion ? " marcado" : ""}">Anotación a mano en el ticket<input id="t-anot" value="${esc(s.anotacion)}" placeholder="Si alguien escribió otra cantidad, aparece aquí" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
-            <div class="row"><button class="btn btn-line" id="guardar-ticket" type="button">Guardar</button>${!s.archivos_borrados && /^image\/(jpeg|png|webp)$/.test(s.ticket_tipo || "") ? `<button class="btn btn-line" id="leer-ticket" type="button">${s.ticket_leido ? "Leer ticket otra vez" : "Leer datos del ticket"}</button>` : ""}<span class="note" id="ticket-estado"></span></div>
+            <div class="row"><button class="btn btn-primary" id="guardar-ticket" type="button">Guardar</button>${capturado ? `<button class="btn btn-line" id="cancelar-ticket" type="button">Cancelar</button>` : ""}<span class="note" id="ticket-estado"></span></div>
+            </div>
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">3</span>Factura en Facturador</h3><p class="note fguia">Abre Facturador en otra pestaña, emite la factura con los datos de los pasos 1 y 2 y regresa aquí.</p>
@@ -1164,13 +1177,8 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
     });
     $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
     $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
-    $("#leer-ticket")?.addEventListener("click", async e => {
-      const b = e.currentTarget; b.disabled = true; $("#ticket-estado").textContent = "Leyendo la foto del ticket…";
-      try {
-        const r = await api(`solicitudes/${s.id}/leer-ticket`, { method: "POST", body: "{}" });
-        toast("Datos leídos del ticket"); await cargarLista(); await abrir(s.id);
-      } catch (err) { if (err.message !== "sesion") $("#ticket-estado").textContent = err.message; b.disabled = false; }
-    });
+    $("#editar-ticket")?.addEventListener("click", () => { $("#ticket-vista").hidden = true; $("#ticket-edicion").hidden = false; $("#t-ticket").focus(); });
+    $("#cancelar-ticket")?.addEventListener("click", () => { $("#ticket-edicion").hidden = true; $("#ticket-vista").hidden = false; });
     const waLink = () => {
       const num = $("#t-tel").value.replace(/\D/g, "").slice(-10);
       const a = $("#wa-enviar");
