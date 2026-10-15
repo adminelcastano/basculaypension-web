@@ -94,6 +94,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .enviar { width: 100%; min-height: 58px; font-size: 1.2rem; }
 .alerta { background: var(--bad-soft); border-radius: 10px; padding: 12px 14px; font-weight: 500; }
 .alerta:empty { display: none; }
+.alerta.cerrado { background: var(--card, #f2f2f4); font-weight: 400; line-height: 1.5; }
+.alerta.cerrado b { display: block; font-size: 1.15rem; margin-bottom: 4px; }
+.solicitud { border: 2px solid #ffcc00; border-radius: 14px; padding: 14px 16px; margin: 0 0 18px; line-height: 1.45; }
+.solicitud b { display: block; }
+.solicitud ul { margin: 6px 0 0; padding-left: 20px; }
 .ya { background: var(--ok-soft); color: var(--ok); border-radius: 12px; padding: 12px 14px; font-weight: 600; }
 .hecho { display: grid; gap: 14px; justify-items: start; background: var(--surface); border-radius: 22px; padding: 24px 20px; }
 .hecho h1 { font-size: 2.2rem; }
@@ -121,6 +126,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       <p id="intro-p">Sube la foto de tus documentos y revisa tus datos. Los llenamos leyendo tus documentos para que escribas menos. Si después necesitas corregir algo, vuelve a abrir este mismo enlace.</p>
     </div>
 
+    <div class="solicitud" id="solicitud" hidden></div>
     <p class="ya" id="ya" hidden></p>
 
     <form id="form" novalidate>
@@ -274,7 +280,18 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     let j;
     try { j = await (await fetch(api)).json(); } catch { j = { ok: false, error: "No hay conexión. Intenta de nuevo." }; }
     $("#cargando").hidden = true;
-    if (!j.ok) { $("#fatal").textContent = j.error || "No se pudo abrir el enlace."; $("#fatal").hidden = false; return; }
+    if (!j.ok) {
+      if (j.cerrado) { $("#fatal").classList.add("cerrado"); $("#fatal").innerHTML = `<b>Enlace cerrado</b>${esc(j.error)}`; }
+      else $("#fatal").textContent = j.error || "No se pudo abrir el enlace.";
+      $("#fatal").hidden = false; return;
+    }
+    if (j.solicitud && j.solicitud.hasta) {
+      const lim = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(j.solicitud.hasta + "T12:00:00Z"));
+      $("#solicitud").innerHTML = j.solicitud.nombre
+        ? `<b>${esc(j.solicitud.nombre)}</b>Tienes hasta el ${esc(lim)}.${j.solicitud.pide.length ? ` Te falta:<ul>${j.solicitud.pide.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : " Ya entregaste lo que se pidió; puedes revisar tus datos."}`
+        : `<b>Tu enlace está abierto hasta el ${esc(lim)}.</b>Después se cierra; aprovecha para subir todos tus documentos.`;
+      $("#solicitud").hidden = false;
+    }
     for (const k of ["estado_civil", "escolaridad"]) $("#sel-" + k).insertAdjacentHTML("beforeend", j.listas[k].map(v => `<option>${esc(v)}</option>`).join(""));
     for (const [k, v] of Object.entries(j.datos || {})) { const el = form.elements[k]; if (el && el.type !== "checkbox" && el.type !== "file") el.value = v; }
     if (j.tipo === "externo") {
