@@ -319,7 +319,7 @@
     const fin = { tarea: "Hechas", compra: "Compradas", incidencia: "Resueltas", pago: "Pagos únicos ya hechos" }[tipo];
     if (tipo === "pago") return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="programar">${ico("i-cal")}Programar un pago</button><button class="btn btn-line" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
         <p class="note" style="margin:10px 0 0">Programa lo que pagas seguido (planes, suscripciones, tarjetas). Si ya pagaste algo que no estaba programado, regístralo como pago o gasto hecho. Todo aparece en el calendario y se suma a Dinero.</p></section>
-      <section class="card"><h3>Programados</h3><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
+      <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
       ${ce.length ? `<details class="hechos"><summary>${fin} en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
     return `<section class="card">${formulario(tipo)}</section>
       <section class="card"><div class="alist">${ab.length ? ab.map(item).join("") : `<p class="note">${vacio}</p>`}</div>
@@ -411,7 +411,7 @@
   function vistaHechos() {
     return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
-      <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
+      <section class="card">${listaPagosHechos()}</section>`;
   }
   // Contadores de cada bloque (en su título y en el submenú)
   function contadores() {

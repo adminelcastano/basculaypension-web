@@ -253,7 +253,7 @@
     const filtro = st.filtroMov || "";
     const lista = ms.filter(m => !filtro || m.tipo === filtro);
     const suma = t => ms.filter(m => m.tipo === t).reduce((a, m) => a + m.monto, 0);
-    c.innerHTML = `<section class="card"><h3>Movimientos de caja</h3>
+    c.innerHTML = `<section class="card">
       <p class="note" style="margin:4px 0 10px">Todo lo que entra o sale de la caja de un turno, salvo los tickets y el cambio inicial. Cada movimiento tiene un folio único (MC-AAMM-número) que no cambia.</p>
       <div class="ptabs mfil" role="tablist" aria-label="Tipo de movimiento">
         <button class="ptab" type="button" data-f="" aria-selected="${!filtro}">Todos <span class="n">${ms.length}</span></button>
@@ -273,7 +273,7 @@
     const cs = j.cortes.filter(x => x.conteo);
     const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
-    c.innerHTML = `<section class="card"><h3>Entregas de los turnos</h3>
+    c.innerHTML = `<section class="card">
       <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
       <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas de turnos sin tablet</summary>
         <div class="cform" style="display:block;margin:0 0 14px">

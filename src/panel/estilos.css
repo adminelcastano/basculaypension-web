@@ -472,7 +472,8 @@ dialog.vent::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
 .enc input.pin { width: 7.5em; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
 .enc input.nom { width: 10em; }
 .exp-sel { display: flex; align-items: center; gap: 8px; font-size: var(--t-sm); color: var(--muted); flex-basis: 100%; }
-.exp-sel select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; max-width: 100%; }
+.exp-sel { min-width: 0; }
+.exp-sel select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; max-width: 100%; min-width: 0; flex: 1 1 0; text-overflow: ellipsis; }
 .enc .ajustes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
 .enc .aj { display: flex; gap: 6px; align-items: center; }
 .btn-aj { min-height: 38px; padding: 0 12px; }
@@ -1049,7 +1050,7 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .sub-nav [data-ir][aria-current="true"] svg { color: var(--amber); }
 .sn-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sn-n, .bq-n { font-variant-numeric: tabular-nums; font-size: var(--t-2xs); font-weight: 700; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--line); color: var(--fg); display: inline-grid; place-items: center; }
-.sn-n.rojo, .bq-n.rojo { background: #ff453a; color: #fff; }
+.sn-n.rojo, .bq-n.rojo { background: #d70015; color: #fff; }
 .sn-n[hidden], .bq-n[hidden] { display: none; }
 /* Colapsado: solo iconos y contadores */
 .mod.sn-col .sub-lay { grid-template-columns: 64px minmax(0, 1fr); }
