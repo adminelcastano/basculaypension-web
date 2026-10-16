@@ -63,38 +63,39 @@
   window.avP = (clave, grande) => `<img class="avp${grande ? " g" : ""}" src="/panel/api/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${grande ? 36 : 22}" height="${grande ? 36 : 22}" loading="lazy">`;
   const api = EC.api;
 
+  // Todas las solicitudes a la vista, agrupadas por estado (el submenú baja a cada grupo)
+  const ESTADOS = ["pendiente", "facturada", "rechazada", "historico"];
+  const NOM_EST = { pendiente: "Pendientes", facturada: "Facturadas", rechazada: "Rechazadas", historico: "Histórico" };
+  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", rechazada: "i-x", historico: "i-arch" };
   async function cargarLista() {
-    const p = new URLSearchParams({ estado: estadoState.estado });
-    if (estadoState.q) p.set("q", estadoState.q);
-    // Páginas de 200: al cambiar de pestaña o búsqueda se vuelve a la primera
-    const clavePag = estadoState.estado + "|" + (estadoState.q || "");
-    if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.limite = 200; }
-    p.set("limite", estadoState.limite);
     const lista = $("#lista");
+    estadoState.lim = estadoState.lim || {};
+    const clavePag = estadoState.q || "";
+    if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.lim = {}; }
     try {
-      const j = await api("solicitudes?" + p);
-      for (const e of ["pendiente", "facturada", "rechazada", "historico"]) { const n = j.conteos[e] || 0; $("#n-" + e).textContent = n; $("#n-" + e).hidden = !n; }
-      const dias = j.dias_retencion || 90;
-      const nombres = { pendiente: "Pendientes.", facturada: "Facturadas.", rechazada: "Rechazadas.", historico: "Histórico." };
-      const subt = { pendiente: "Por facturar, de la más antigua a la más reciente.", facturada: "Resueltas en los últimos 7 días.", rechazada: "Rechazadas en los últimos 7 días. Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de resolverse, con respaldo a tu correo.` };
-      $("#titulo").textContent = nombres[estadoState.estado];
-      $("#subtitulo").textContent = `${j.conteos[estadoState.estado] || 0} · ${subt[estadoState.estado]}`;
-      if (!j.solicitudes.length) {
-        lista.innerHTML = `<p class="empty">${estadoState.q ? "Sin resultados para esa búsqueda." : { pendiente: "No hay solicitudes pendientes. Las nuevas aparecen aquí.", facturada: "Las facturadas de los últimos 7 días aparecen aquí; las anteriores pasan a Histórico.", rechazada: "Las rechazadas de los últimos 7 días aparecen aquí; las anteriores pasan a Histórico.", historico: "Todavía no hay solicitudes en el histórico." }[estadoState.estado]}</p>`;
-        return;
-      }
+      const rs = await Promise.all(ESTADOS.map(e => { const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 }); if (estadoState.q) p.set("q", estadoState.q); return api("solicitudes?" + p); }));
+      const conteos = rs[0].conteos || {}, dias = rs[0].dias_retencion || 90;
+      for (const e of ESTADOS) EC.bloqueN("facturacion", e, conteos[e] || 0, e === "pendiente" && (conteos[e] || 0) > 0);
+      $("#titulo").textContent = "Facturas.";
+      $("#subtitulo").textContent = `${conteos.pendiente || 0} pendientes · ${conteos.facturada || 0} facturadas y ${conteos.rechazada || 0} rechazadas en los últimos 7 días · ${conteos.historico || 0} en el histórico`;
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
-      const aviso = estadoState.estado === "historico" ? `<p class="note" style="padding:10px 16px;margin:0;border-bottom:1px solid var(--line)">Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Sheets, en tu carpeta FACTURACION de Drive.</p>` : "";
-      const deslizable = estadoState.estado === "rechazada";
-      lista.innerHTML = aviso + j.solicitudes.filter(s => !borrandoIds.has(s.id)).map(s => `${deslizable ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
+      const VACIO = { pendiente: "No hay solicitudes pendientes. Las nuevas aparecen aquí.", facturada: "Sin facturas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
+      const AYUDA = { rechazada: "Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Drive.` };
+      lista.innerHTML = ESTADOS.map((e, i) => {
+        const j = rs[i], n = conteos[e] || 0, l = j.solicitudes.filter(s => !borrandoIds.has(s.id));
+        return `<h4 class="lgrp" data-bloque="${e}"><svg aria-hidden="true"><use href="#${ICO_EST[e]}"/></svg><span>${NOM_EST[e]}</span><b class="bq-n ${e === "pendiente" && n ? "rojo" : ""}" ${n ? "" : "hidden"}>${n}</b></h4>`
+          + (AYUDA[e] && l.length ? `<p class="note lgrp-n">${AYUDA[e]}</p>` : "")
+          + (l.length ? l.map(s => `${e === "rechazada" ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
           ${iconoServicio(s.servicio)}
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
-          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${estadoState.estado === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
-        </button>${deslizable ? "</div>" : ""}`).join("") + (j.hay_mas ? `<button class="btn btn-line" type="button" id="ver-mas" style="width:100%;margin-top:12px">Ver ${Math.min(200, (j.conteos[estadoState.estado] || 0) - j.limite) > 0 ? Math.min(200, (j.conteos[estadoState.estado] || 0) - j.limite) : 200} más (se muestran ${j.limite} de ${j.conteos[estadoState.estado] || "más"})</button>` : "");
-      const vm = $("#ver-mas"); if (vm) vm.addEventListener("click", () => { estadoState.limite += 200; vm.disabled = true; cargarLista(); });
+          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
+        </button>${e === "rechazada" ? "</div>" : ""}`).join("") : `<p class="note lgrp-n">${estadoState.q ? "Sin resultados." : VACIO[e]}</p>`)
+          + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "");
+      }).join("");
+      lista.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => { estadoState.lim[b.dataset.mas] = (estadoState.lim[b.dataset.mas] || 200) + 200; b.disabled = true; cargarLista(); }));
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
   }
 
@@ -562,14 +563,6 @@
       if (it.dataset.deslizado === "1") { it.dataset.deslizado = ""; return; }
       const sw = it.closest(".swipe.abierto"); if (sw) { cerrarSwipe(sw); return; }
       abrir(it.dataset.id);
-    }
-    const tab = e.target.closest(".tab");
-    if (tab) {
-      document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === tab ? "true" : "false"));
-      estadoState.estado = tab.dataset.estado; estadoState.actual = null;
-      $("#detalle").innerHTML = `<p class="empty">Elige una solicitud de la lista.</p>`;
-      $("#work").classList.remove("ver-detalle");
-      cargarLista();
     }
   });
   let h; $("#q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { estadoState.q = e.target.value.trim(); cargarLista(); }, 300); });

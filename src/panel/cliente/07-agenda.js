@@ -55,11 +55,10 @@
       if (j.cuentas) window.CUENTAS = j.cuentas;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
       if (!st.sel) st.sel = j.hoy;
-      for (const t of ["tarea", "compra", "incidencia", "aviso", "pago"]) $("#an-" + t).textContent = j.abiertos[t] || 0;
       st.frecuencias = j.frecuencias || {};
       st.lugares = j.lugares || [];
       // Avisos de los encargados sin leer: el contador se pone en rojo con cuántos son
-      const nA = $("#an-aviso"); nA.classList.toggle("rojo", !!j.avisos_sin_leer); if (j.avisos_sin_leer) nA.textContent = j.avisos_sin_leer;
+      st.avisosSinLeer = j.avisos_sin_leer || 0;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
       const a = j.abiertos;
       $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.incidencia || 0} incidencias abiertas`;
@@ -69,12 +68,12 @@
 
   // La Agenda (calendario, por hacer, incidencias, avisos) y Pagos y compras comparten datos y formularios
   function pintar() {
-    document.querySelectorAll("#a-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.tab ? "true" : "false"));
-    document.querySelectorAll("#pg-tabs .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === st.ptab ? "true" : "false"));
-    $("#ag-cuerpo").innerHTML = st.tab === "calendario" ? vistaCalendario() : st.tab === "aviso" ? vistaAvisos() : vistaLista(st.tab);
-    conectar($("#ag-cuerpo"));
-    $("#pg-cuerpo").innerHTML = vistaPagos();
-    conectar($("#pg-cuerpo"));
+    // Todo a la vista, un bloque por tipo: Agenda (calendario, por hacer, incidencias, avisos) y, en Dinero,
+    // pagos programados, compras por hacer y pagos hechos
+    const B = { "ab-calendario": vistaCalendario, "ab-tarea": () => vistaLista("tarea"), "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
+      "pg-prog": vistaProgramados, "pg-comp": () => resumenPagos("compras") + vistaCompras(), "pg-hechos": vistaHechos };
+    for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { el.innerHTML = f(); conectar(el); } }
+    contadores();
     pintarConfig();
   }
 
@@ -389,8 +388,10 @@
     if (cl) { cl.innerHTML = vistaLugares(); conectar(cl); }
   }
 
-  // ---- Pagos y compras (sección propia) ----
-  function vistaPagos() {
+  // ---- Pagos y compras (bloques de Dinero) ----
+  // Resumen del mes: va arriba de los pagos programados (y, compacto, arriba de las compras)
+  function resumenPagos(donde) {
+    if (donde === "compras") return "";
     const mes = (st.hoy || "").slice(0, 7);
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const prog = st.items.filter(x => x.tipo === "pago" && abierto(x));
@@ -404,11 +405,25 @@
         <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
         <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
       </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Dinero.</p></section>`;
-    if (st.ptab === "hechos") return resumen + `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
+    return resumen;
+  }
+  function vistaProgramados() { return resumenPagos() + vistaLista("pago"); }
+  function vistaHechos() {
+    return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
       <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
-    if (st.ptab === "compra") return resumen + vistaCompras();
-    return resumen + vistaLista("pago");
+  }
+  // Contadores de cada bloque (en su título y en el submenú)
+  function contadores() {
+    const N = t => st.items.filter(x => x.tipo === t && abierto(x));
+    const tareas = N("tarea"), inc = N("incidencia"), pagos = N("pago"), compras = N("compra").filter(x => !x.pospuesta);
+    EC.bloqueN("agenda", "tarea", tareas.length, tareas.some(x => x.fecha && x.fecha < st.hoy));
+    EC.bloqueN("agenda", "incidencia", inc.length, inc.some(x => x.gravedad === "grave"));
+    EC.bloqueN("agenda", "aviso", st.avisosSinLeer || N("aviso").length, !!st.avisosSinLeer);
+    EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
+    EC.bloqueN("finanzas", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
+    const mes = (st.hoy || "").slice(0, 7);
+    EC.bloqueN("finanzas", "hechos", (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes).length);
   }
 
   // ---- Avisos para la tablet ----
@@ -698,24 +713,25 @@
     }));
   }
 
-  $("#a-tabs").addEventListener("click", e => { const b = e.target.closest(".ptab[data-t]"); if (b) { st.tab = b.dataset.t; pintar(); } });
-  $("#pg-tabs").addEventListener("click", e => { const b = e.target.closest(".ptab[data-t]"); if (b) { st.ptab = b.dataset.t; st.editando = null; pintar(); } });
   // Abrir la agenda (o Pagos y compras) en una pestaña y con el formulario listo (desde el Inicio)
-  window.agendaDia = dia => { st.sel = dia; st.mes = dia.slice(0, 7); st.tab = "calendario"; if (window.irA) window.irA("agenda"); };
+  window.agendaDia = dia => { st.sel = dia; st.mes = dia.slice(0, 7); if (st.hoy) pintar(); if (window.irA) window.irA("agenda", { historia: "push", vista: "calendario" }); };
+  // Bloque de cada tipo: los de pagos y compras viven en Dinero
+  const BLOQUE_DE = { pago: ["finanzas", "programados", "pg-prog"], compra: ["finanzas", "compras", "pg-comp"], hechos: ["finanzas", "hechos", "pg-hechos"],
+    calendario: ["agenda", "calendario", "ab-calendario"], tarea: ["agenda", "tarea", "ab-tarea"], incidencia: ["agenda", "incidencia", "ab-incidencia"], aviso: ["agenda", "aviso", "ab-aviso"] };
   window.agendaAbrir = async (tab, accion) => {
-    const pagos = ["pago", "compra", "hechos"].includes(tab);
-    if (pagos) st.ptab = tab; else st.tab = tab || "calendario";
-    if (window.irA) window.irA(pagos ? "pagos" : "agenda");
+    const [mod, clave, cont] = BLOQUE_DE[tab] || BLOQUE_DE.calendario;
+    if (window.irA) window.irA(mod, { historia: "push", vista: clave });
     if (accion && !st.hoy) await cargar();
     setTimeout(() => {
       if (accion === "programar") return ventanaProgramar();
       if (accion === "hecho") return ventanaPago("hecho");
-      const n = $(pagos ? "#pg-cuerpo form.aform input[name=titulo]" : "#ag-cuerpo form.aform input[name=titulo]"); n && n.focus();
+      if (!accion) return;
+      const n = $(`#${cont} form.aform input[name=titulo]`); n && n.focus({ preventScroll: true });
     }, 300);
   };
-  document.addEventListener("modulo", e => { if (e.detail === "agenda" || e.detail === "pagos") cargar(); });
-  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden || !$("#mod-pagos").hidden) cargar(); });
-  if (["agenda", "pagos"].includes(EC.ruta().mod)) cargar();
+  document.addEventListener("modulo", e => { if (e.detail === "agenda" || e.detail === "finanzas") cargar(); });
+  document.addEventListener("recargar-todo", () => { if (!$("#mod-agenda").hidden || !$("#mod-finanzas").hidden) cargar(); });
+  if (["agenda", "finanzas"].includes(EC.ruta().mod)) cargar();
 
   // ---- Un solo botón para sincronizar todo ----
   $("#sync-todo").addEventListener("click", async e => {

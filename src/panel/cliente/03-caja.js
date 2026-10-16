@@ -33,7 +33,9 @@
       st.datos = j;
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
-      $("#c-nmovs").textContent = (j.movimientos || []).length;
+      EC.bloqueN("caja", "movs", (j.movimientos || []).length);
+      EC.bloqueN("caja", "cortes", j.cortes.length);
+      EC.bloqueN("caja", "entregas", j.cortes.filter(x => x.conteo).length);
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
       const s = j.sync;
@@ -46,10 +48,8 @@
       $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tarjeta (va a Mercado Pago)", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Sobres entregados", sobres, "dest"]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
-      if (st.vista === "movs") { vistaMovs(j); return; }
-      if (st.vista === "entregas") { vistaEntregas(j); return; }
-      if (st.vista === "curso") { vistaCurso(j); return; }
-      if (st.vista === "encargados") return;
+      // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
+      for (const [f, id] of [[vistaCurso, "#c-curso"], [vistaMovs, "#c-movs"], [vistaEntregas, "#c-entregas"]]) try { f(j); } catch (er) { console.error(er); $(id).innerHTML = `<p class="note">No se pudo mostrar: ${esc(er.message)}</p>`; }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
       const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
@@ -91,9 +91,8 @@
       try {
         await api("caja/gastos", { method: "POST", body: JSON.stringify(cuerpo) });
         toast("Gasto de caja guardado");
-        if (st.vista !== "cortes") cambiarVista("cortes", false);
         await cargar();
-        abrir(cuerpo.dia + "|" + cuerpo.turno);
+        abrirCorte(cuerpo.dia + "|" + cuerpo.turno);
       } catch (e) { if (e.message !== "sesion") $("#c-ferr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     });
   }
@@ -250,8 +249,7 @@
   // ---- Movimientos de caja con folio ----
   const TIPO_MOV = { gasto: ["Gasto de caja", "#ff7a70"], ingreso: ["Ingreso extra", "#30d158"], retiro: ["Retiro en el corte", "#ff9f0a"], hoja: ["Renglón de la hoja", "#64d2ff"] };
   function vistaMovs(j) {
-    const c = $("#c-curso"), ms = j.movimientos || [];
-    $("#t-cuerpo").innerHTML = "";
+    const c = $("#c-movs"), ms = j.movimientos || [];
     const filtro = st.filtroMov || "";
     const lista = ms.filter(m => !filtro || m.tipo === filtro);
     const suma = t => ms.filter(m => m.tipo === t).reduce((a, m) => a + m.monto, 0);
@@ -266,12 +264,12 @@
         ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
     c.querySelectorAll(".mfil .ptab").forEach(b => b.addEventListener("click", () => { st.filtroMov = b.dataset.f; vistaMovs(j); }));
-    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(b.dataset.k)); }));
+    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
   }
 
   // ---- Entregas: lo que cada turno entregó en el corte ciego ----
   function vistaEntregas(j) {
-    const c = $("#c-curso"); $("#t-cuerpo").innerHTML = "";
+    const c = $("#c-entregas");
     const cs = j.cortes.filter(x => x.conteo);
     const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
@@ -288,7 +286,7 @@
       ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
-    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(b.dataset.k)); }));
+    c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
     const EST = { nueva: ["Se agrega", "ok"], reemplaza: ["Reemplaza la captura anterior", "ok"], tablet: ["Ya entregó en la tablet", "no"], vacia: ["Sin datos", "no"], fuera: ["Fuera del mes", "no"], repetida: ["Repetida", "no"] };
     const enviar = async aplicar => {
       const r = $("#c-imp-r"), t = $("#c-imp-t").value;
@@ -316,35 +314,23 @@
     $("#c-curso").innerHTML = `<section class="card"><h3>Corte en curso · ${esc(TURNO_TXT[a.turno])} del ${esc(diaTxt(a.dia))}</h3>
       ${c ? `<div class="ctot" style="margin:8px 0"><div class="k"><span>Tickets en efectivo</span><b>${dinero(c.efectivo)}</b></div><div class="k"><span>Tickets con tarjeta</span><b>${dinero(c.tarjeta)}</b></div><div class="k"><span>Cambio inicial</span><b>${dinero(c.cambio.importe)}</b></div><div class="k"><span>Ingresos extra</span><b>${dinero(c.extra.importe)}</b></div><div class="k"><span>Gastos de caja</span><b>${dinero(c.gastos.EFECTIVO)}</b></div><div class="k dest"><span>Efectivo en caja</span><b>${dinero(c.efectivo_caja)}</b></div></div>
         <button class="btn btn-line" type="button" id="c-ver-curso">Ver el detalle del corte</button>` : `<p class="note">Todavía no hay registros en este turno.</p>`}</section>`;
-    const v = $("#c-ver-curso"); if (v) v.addEventListener("click", () => { cambiarVista("cortes", false); cargar().then(() => abrir(a.dia + "|" + a.turno)); });
+    const v = $("#c-ver-curso"); if (v) v.addEventListener("click", () => abrirCorte(a.dia + "|" + a.turno));
     if (window.turnoVista) window.turnoVista("curso");
   }
 
-  // ---- Vistas y periodo ----
-  function cambiarVista(v, recargar = true) {
-    st.vista = v; st.actual = null;
-    document.querySelectorAll("#c-vistas .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.v === v ? "true" : "false"));
-    $("#c-detalle").innerHTML = `<p class="empty">Elige un corte de turno.</p>`;
-    $("#c-work").classList.remove("ver-detalle");
-    const lista = v === "cortes";
-    $("#c-work").hidden = !lista; $("#c-full").hidden = lista;
-    $("#c-per").hidden = $("#c-totales").hidden = v === "curso" || v === "encargados";
-    $("#c-gasto").hidden = v === "encargados";
-    $("#c-curso").innerHTML = ""; $("#t-cuerpo").innerHTML = "";
-    if (v === "encargados" && window.turnoVista) window.turnoVista("encargados");
-    if (recargar && v !== "encargados") cargar();
-  }
+  // ---- Bloques y periodo ----
+  // Abre un corte en su bloque (desde movimientos, entregas o el turno en curso)
+  function abrirCorte(k) { if (EC.irBloque) EC.irBloque("caja", "cortes", { suave: true }); abrir(k); }
+  function cambiarVista(v) { if (EC.irBloque) EC.irBloque("caja", v === "encargados" ? null : v, { suave: true }); }
   window.turnosVista = v => cambiarVista(v);
   // Abrir un corte desde Hoy (dia|turno): cambia el periodo si el día no está en el que se ve
   window.cajaAbrirCorte = async k => {
     const dia = k.split("|")[0], hoy = hoyMx();
-    if (window.irA) window.irA("caja");
-    cambiarVista("cortes", false);
+    if (window.irA) window.irA("caja", { historia: "push", vista: "cortes" });
     const fuera = st.desde || st.hasta ? (st.desde && dia < st.desde) || (st.hasta && dia > st.hasta) : dia.slice(0, 7) !== hoy.slice(0, 7);
     if (fuera) { st.desde = dia.slice(0, 7) === hoy.slice(0, 7) ? "" : dia; st.hasta = st.desde ? dia : ""; st.rapido = st.desde ? "" : "mes"; $("#c-desde").value = st.desde; $("#c-hasta").value = st.hasta; document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === st.rapido ? "true" : "false")); }
     await cargar(); abrir(k);
   };
-  $("#c-vistas").addEventListener("click", e => { const b = e.target.closest(".ptab[data-v]"); if (b) cambiarVista(b.dataset.v); });
   function periodo(desde, hasta, rapido) {
     st.desde = desde; st.hasta = hasta; st.rapido = rapido;
     $("#c-desde").value = desde; $("#c-hasta").value = hasta;
@@ -363,8 +349,8 @@
   });
   for (const id of ["#c-desde", "#c-hasta"]) $(id).addEventListener("change", () => periodo($("#c-desde").value, $("#c-hasta").value, ""));
   $("#c-gasto").addEventListener("click", nuevoGasto);
-  document.addEventListener("modulo", e => { if (e.detail === "caja") { if (st.vista === "encargados") window.turnoVista && window.turnoVista("encargados"); else cargar(); } });
-  document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { if (st.vista === "encargados") { window.turnoVista && window.turnoVista("encargados"); return; } await cargar(); if (st.actual) abrir(st.actual); } });
+  document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
+  document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { await cargar(); if (st.actual) abrir(st.actual); } });
   if (EC.ruta().mod === "caja") cargar();
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);

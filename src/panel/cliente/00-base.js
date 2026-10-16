@@ -40,25 +40,37 @@
   // ---- Secciones y direcciones (#hash) ----
   // Menú: Hoy (inicio) · Caja · Dinero · Agenda · Facturas · Personal. Dinero tiene vistas: resumen, pagos, cuentas,
   // transferencias y bitacora; "pagos" vive en #mod-pagos y las demás en #mod-finanzas. Los enlaces viejos siguen sirviendo.
-  const VISTAS_DINERO = ["resumen", "pagos", "cuentas", "transferencias", "bitacora"];
-  const MODS = ["inicio", "caja", "finanzas", "pagos", "agenda", "facturacion", "personal", "config"];
+  // Desde el 15 oct 2026 Dinero es una sola pantalla con bloques; la "vista" es el bloque al que se baja
+  const VISTAS_DINERO = ["resumen", "pagos", "programados", "compras", "hechos", "efectivo", "cuentas", "transferencias", "bitacora"];
+  const MODS = ["inicio", "caja", "finanzas", "agenda", "facturacion", "personal", "config"];
   // Configuración (engranaje): #config o #config/<apartado> (tablet, cuentas, categorias, lugares, notificaciones, conexiones, sistema)
   function ruta(hash = location.hash) {
     const h = String(hash || "").replace(/^#/, "");
     if (!h || h === "inicio" || h === "hoy") return { mod: "inicio" };
     if (h === "turno") return { mod: "caja" };
-    if (h === "finanzas") return { mod: "finanzas", vista: "resumen" };
-    if (h === "pagos") return { mod: "pagos", vista: "pagos" };
+    if (h === "finanzas") return { mod: "finanzas", vista: null };
+    if (h === "pagos") return { mod: "finanzas", vista: "programados" };
     if (h === "config" || h.startsWith("config/")) return { mod: "config", vista: h.split("/")[1] || null };
     if (h === "dinero" || h.startsWith("dinero/")) {
-      const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : "resumen";
-      return v === "pagos" ? { mod: "pagos", vista: "pagos" } : { mod: "finanzas", vista: v };
+      const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : null;
+      return { mod: "finanzas", vista: v === "pagos" ? "programados" : v };
     }
-    return MODS.includes(h) ? { mod: h } : { mod: "inicio" };
+    const [m, v] = h.split("/");
+    return MODS.includes(m) ? { mod: m, vista: v || null } : { mod: "inicio" };
   }
   const seccionDe = mod => mod === "finanzas" || mod === "pagos" ? "dinero" : mod;
-  const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "config" ? "#config" + (vista ? "/" + vista : "") : mod === "pagos" ? "#dinero/pagos" : mod === "finanzas" ? "#dinero" + (vista && vista !== "resumen" ? "/" + vista : "") : "#" + mod;
-  window.EC = { $, $$, esc, toast, api, post, TZ, hoyMx, dinero, ruta, seccionDe, hashDe, VISTAS_DINERO, finVista: ruta().vista && ruta().vista !== "pagos" ? ruta().vista : "resumen" };
+  // Contador de un bloque (título del bloque y submenú lateral); urgente = en rojo
+  function bloqueN(mod, clave, n, urgente = false) {
+    // El bloque puede ser una sección (.bloque) o un grupo dentro de una lista (Facturas, Personal)
+    const b = document.querySelector(`#mod-${mod} [data-bloque="${clave}"]`);
+    (EC.cuentas = EC.cuentas || {})[mod + "|" + clave] = [n, urgente];
+    for (const el of [b && b.querySelector(".bq-n"), document.querySelector(`#mod-${mod} .sub-nav [data-ir="${clave}"] .sn-n`)]) {
+      if (!el) continue;
+      el.hidden = n == null || n === "" || n === 0; el.textContent = n == null ? "" : n; el.classList.toggle("rojo", !!urgente);
+    }
+  }
+  const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "config" ? "#config" + (vista ? "/" + vista : "") : mod === "finanzas" ? "#dinero" + (vista ? "/" + vista : "") : "#" + mod + (vista ? "/" + vista : "");
+  window.EC = { $, $$, esc, toast, api, post, TZ, hoyMx, dinero, ruta, seccionDe, hashDe, bloqueN, VISTAS_DINERO };
 })();
 
 // ---- Confirmación con el diseño del panel (en vez de la ventana del navegador) ----

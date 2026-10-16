@@ -14,32 +14,27 @@
   // opciones.historia === "push": el cambio queda en el historial (el botón atrás del celular regresa)
   function mostrar(mod, opciones = {}) {
     if (mod === "turno") mod = "caja";
-    // Dinero abre la última vista que se usó (Pagos y compras o una de Finanzas)
-    if (mod === "dinero") mod = EC.ultimoDinero === "pagos" ? "pagos" : "finanzas";
-    if (mod === "finanzas" && opciones.vista) EC.finVista = opciones.vista;
-    if (mod === "pagos" || mod === "finanzas") EC.ultimoDinero = mod;
+    // Dinero es una sola pantalla con bloques; "pagos" (enlaces viejos) baja a Pagos programados
+    if (mod === "pagos") { mod = "finanzas"; opciones = { ...opciones, vista: opciones.vista && opciones.vista !== "pagos" ? opciones.vista : "programados" }; }
+    if (mod === "dinero") mod = "finanzas";
     const sec = EC.seccionDe(mod);
+    const yaVisible = !($("#mod-" + mod) || {}).hidden;
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === sec) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     const eng = $("#cfg-abrir"); if (eng) { if (mod === "config") eng.setAttribute("aria-current", "page"); else eng.removeAttribute("aria-current"); }
-    for (const m of ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda", "config"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    const vista = mod === "pagos" ? "pagos" : mod === "finanzas" ? EC.finVista : mod === "config" ? opciones.vista || null : null;
-    document.querySelectorAll(".dsub [data-dv]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.dv === vista)));
-    document.title = ({ inicio: "Hoy", personal: "Personal", caja: "Caja", pagos: "Dinero · Pagos y compras", finanzas: "Dinero", agenda: "Agenda", config: "Configuración" }[mod] || "Facturas") + " · El Castaño";
+    for (const m of ["inicio", "facturacion", "personal", "caja", "finanzas", "agenda", "config"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    // La vista es el bloque al que se baja (o el apartado de Configuración)
+    const vista = opciones.vista || null;
+    document.title = ({ inicio: "Hoy", personal: "Personal", caja: "Caja", finanzas: "Dinero", agenda: "Agenda", config: "Configuración" }[mod] || "Facturas") + " · El Castaño";
     const url = EC.hashDe(mod, vista) || location.pathname;
     const estado = { mod, vista };
     if (opciones.historia === "push" && ((history.state || {}).mod !== mod || (history.state || {}).vista !== vista)) history.pushState(estado, "", url);
     else history.replaceState(estado, "", url);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     if (mod === "config") EC.cfgVista = vista;
+    if (vista && mod !== "config" && EC.irBloque) EC.irBloque(mod, vista);
+    else if (!yaVisible) scrollTo({ top: 0 });
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
-  // Pestañas de Dinero: Pagos y compras es su propia pantalla; las demás son vistas de Finanzas
-  document.addEventListener("click", e => {
-    const b = e.target.closest(".dsub [data-dv]"); if (!b) return;
-    const v = b.dataset.dv;
-    if (v === "pagos") mostrar("pagos");
-    else mostrar("finanzas", { vista: v });
-  });
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-mod]"); if (b) mostrar(b.dataset.mod, { historia: "push" }); });
 
   // ---- Personal ----
@@ -76,34 +71,47 @@
 
   // Expedientes vinculados a un encargado de la tablet: muestran su imagen de perfil
   let VINC = {};
+  // Todo a la vista: colaboradores, externos y campañas en una sola lista, agrupados (el submenú baja a cada grupo).
+  // Activos/Inactivos y el filtro de expediente aplican a colaboradores y externos.
+  const filaCamp = c => `<button class="pitem" type="button" data-tipo="campanas" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
+        <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
+        <span class="t">${esc(c.nombre)}</span>
+        <span class="m">${pillCamp(c)}<span>${c.abierta ? "Hasta" : "Límite"} ${esc(fecha(c.limite))}</span></span>
+        <span class="m"><span class="mini ${c.completos === c.total ? "ok" : ""}"><i style="width:${c.total ? c.completos / c.total * 100 : 0}%"></i></span><span>${c.completos} de ${c.total} completaron</span></span>
+      </button>`;
   async function cargar() {
-    if (CAMP()) return cargarCampanas();
     const lista = $("#p-lista");
-    api("colaboradores/campanas").then(c => { $("#pn-campanas").textContent = c.campanas.filter(x => x.abierta).length; }).catch(() => {});
-    const p = new URLSearchParams({ tipo: st.tipo, estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q);
+    const q = tipo => { const p = new URLSearchParams({ tipo, estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q); return api("colaboradores?" + p); };
     try {
-      const [j, v] = await Promise.all([api("colaboradores?" + p), api("turno/vinculos").catch(() => ({}))]);
+      const [jc, je, jk, v] = await Promise.all([q("colaborador"), q("externo"), api("colaboradores/campanas").catch(() => ({ campanas: [] })), api("turno/vinculos").catch(() => ({}))]);
       VINC = (v && v.vinculos) || {};
-      for (const k of ["colaborador", "externo", "activo", "inactivo", "todos", "incompletos", "completos"]) $("#pn-" + k).textContent = j.conteos[k] || 0;
-      st.config = j.config || {};
+      st.camps = jk.campanas || [];
+      const suma = k => (jc.conteos[k] || 0) + (je.conteos[k] || 0);
+      for (const k of ["activo", "inactivo", "todos", "incompletos", "completos"]) { const el = $("#pn-" + k); if (el) el.textContent = suma(k); }
+      st.config = jc.config || {};
       $("#p-drive-nota").textContent = st.config.drive ? "Drive conectado: los documentos se copian solos a la carpeta." : "Drive sin conectar.";
       $("#p-drive").textContent = st.config.drive ? "Volver a probar Drive" : "Probar conexión con Drive";
-      const inac = st.estatus === "inactivo";
-      const grupo = EXT() ? "externos" : "colaboradores";
-      $("#p-titulo").textContent = { todos: inac ? "Inactivos." : EXT() ? "Externos." : "Personal.", incompletos: "Incompletos.", completos: "Completos." }[st.filtro];
-      $("#p-subtitulo").textContent = inac ? `${j.conteos.todos} ${grupo} dados de baja. Sus enlaces ya no funcionan.` : EXT() ? `${j.conteos.todos} externos activos (lavado, venta de ropa o comida) · ${j.conteos.incompletos} con registro incompleto.` : `${j.conteos.todos} colaboradores activos · ${j.conteos.incompletos} con expediente incompleto.`;
-      if (!j.colaboradores.length) {
-        lista.innerHTML = `<p class="empty">${st.q ? "Sin resultados para esa búsqueda." : st.estatus === "inactivo" && st.filtro === "todos" ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : st.filtro === "incompletos" ? "Nadie tiene pendientes. ¡Todo completo!" : (EXT() ? "Agrega a la primera persona externa con el botón «Nuevo externo»." : "Agrega a tu primer colaborador con el botón «Nuevo colaborador».")}</p>`;
-        return;
-      }
-      lista.innerHTML = j.colaboradores.map(c => `<button class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
+      const inac = st.estatus === "inactivo", activas = st.camps.filter(x => x.abierta).length;
+      $("#p-titulo").textContent = "Personal.";
+      $("#p-subtitulo").textContent = inac ? `Dados de baja: ${jc.conteos.todos || 0} colaboradores y ${je.conteos.todos || 0} externos. Sus enlaces ya no funcionan.`
+        : `${jc.conteos.todos || 0} colaboradores y ${je.conteos.todos || 0} externos activos · ${suma("incompletos")} con expediente incompleto · ${activas} campaña${activas === 1 ? "" : "s"} activa${activas === 1 ? "" : "s"}.`;
+      const campsVis = st.q ? st.camps.filter(c => c.nombre.toLowerCase().includes(st.q.toLowerCase())) : st.camps;
+      EC.bloqueN("personal", "colaborador", jc.colaboradores.length);
+      EC.bloqueN("personal", "externo", je.colaboradores.length);
+      EC.bloqueN("personal", "campanas", activas);
+      const grupo = (tipo, txt, ico, items, vacio) => `<h4 class="lgrp" data-bloque="${tipo}"><svg aria-hidden="true"><use href="#${ico}"/></svg><span>${txt}</span><b class="bq-n" ${items.length ? "" : "hidden"}>${items.length}</b></h4>`
+        + (items.length ? items.join("") : `<p class="note lgrp-n">${st.q ? "Sin resultados." : vacio}</p>`);
+      const filas = (j, tipo) => j.colaboradores.map(c => `<button data-tipo="${tipo}" class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
         ${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}
         <span class="t">${esc(c.nombre)}</span>
         <span class="m"><span class="folio">${esc(c.folio)}</span></span>
         <span class="m">${c.puesto || c.actividad ? `<span>${esc(c.puesto || c.actividad)}</span>` : ""}</span>
         <span class="m"><span class="mini ${c.entregados === c.total ? "ok" : ""}"><i style="width:${c.entregados / c.total * 100}%"></i></span><span>${c.entregados}/${c.total} documentos</span>${estadoPill(c)}</span>
-      </button>`).join("");
+      </button>`);
+      lista.innerHTML = grupo("colaborador", inac ? "Colaboradores inactivos" : "Colaboradores", "i-persona", filas(jc, "colaborador"), inac ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : "Sin colaboradores.")
+        + grupo("externo", inac ? "Externos inactivos" : "Externos", "i-activo", filas(je, "externo"), inac ? "No hay externos inactivos." : "Sin externos.")
+        + grupo("campanas", "Campañas", "i-doc", campsVis.map(filaCamp), "Todavía no hay campañas. Lanza una con «+ Campaña» cuando necesites pedir documentos.");
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
@@ -472,29 +480,13 @@
   const masDias = (d, n) => new Date(new Date(d + "T12:00:00Z").getTime() + n * 864e5).toISOString().slice(0, 10);
 
   function irACampanas(ids) {
-    const t = document.querySelector('#mod-personal .ptipo .ptab[data-tipo="campanas"]');
-    t.click();
+    st.tipo = "campanas";
+    if (EC.irBloque) EC.irBloque("personal", "campanas", { suave: true });
     nuevaCampana(ids);
   }
 
-  async function cargarCampanas() {
-    const lista = $("#p-lista");
-    try {
-      const j = await api("colaboradores/campanas");
-      st.camps = j.campanas;
-      const activas = j.campanas.filter(c => c.abierta).length;
-      $("#pn-campanas").textContent = activas;
-      $("#p-titulo").textContent = "Campañas.";
-      $("#p-subtitulo").textContent = `${activas} activa${activas === 1 ? "" : "s"}. El enlace de cada colaborador solo funciona durante una campaña o los primeros 14 días después de su alta.`;
-      if (!j.campanas.length) { lista.innerHTML = `<p class="empty">Todavía no hay campañas. Lanza una con «Nueva campaña» cuando necesites pedir documentos.</p>`; return; }
-      lista.innerHTML = j.campanas.map(c => `<button class="pitem" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
-        <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
-        <span class="t">${esc(c.nombre)}</span>
-        <span class="m">${pillCamp(c)}<span>${c.abierta ? "Hasta" : "Límite"} ${esc(fecha(c.limite))}</span></span>
-        <span class="m"><span class="mini ${c.completos === c.total ? "ok" : ""}"><i style="width:${c.total ? c.completos / c.total * 100 : 0}%"></i></span><span>${c.completos} de ${c.total} completaron</span></span>
-      </button>`).join("");
-    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
-  }
+  // Las campañas se ven en la misma lista que el personal
+  async function cargarCampanas() { return cargar(); }
 
   async function nuevaCampana(pre = []) {
     st.actual = null;
@@ -625,8 +617,8 @@
     d.querySelectorAll("[data-quitar]").forEach(b => armar(b, "¿Quitar?", () => accion("quitar", { colaborador: b.dataset.quitar }, () => toast("Quitado de la campaña"))));
     d.querySelectorAll("[data-copiar]").forEach(b => b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(msgCampana(cp, cp.personas.find(p => p.id === b.dataset.copiar))); toast("Mensaje copiado"); } catch { toast("No se pudo copiar"); } }));
     d.querySelectorAll("[data-ver]").forEach(b => b.addEventListener("click", () => {
-      document.querySelector('#mod-personal .ptipo .ptab[data-tipo="colaborador"]').click();
-      setTimeout(() => abrir(b.dataset.ver), 50);
+      st.tipo = "colaborador";
+      abrir(b.dataset.ver);
     }));
   }
 
@@ -679,23 +671,17 @@
     $("#p-alta [data-k=nombre]").focus();
   }
 
-  $("#p-lista").addEventListener("click", e => { const it = e.target.closest(".pitem"); if (it) (CAMP() ? abrirCampana : abrir)(it.dataset.id); });
-  document.querySelectorAll(".ptabs").forEach(g => g.addEventListener("click", e => {
+  // Al abrir un registro, su tipo decide cómo se ve el detalle
+  $("#p-lista").addEventListener("click", e => { const it = e.target.closest(".pitem"); if (!it) return; st.tipo = it.dataset.tipo || "colaborador"; (CAMP() ? abrirCampana : abrir)(it.dataset.id); });
+  document.querySelectorAll("#mod-personal .ptabs").forEach(g => g.addEventListener("click", e => {
     const t = e.target.closest(".ptab"); if (!t) return;
     g.querySelectorAll(".ptab").forEach(x => x.setAttribute("aria-selected", x === t ? "true" : "false"));
-    if (t.dataset.tipo) {
-      st.tipo = t.dataset.tipo; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige ${EXT() ? "a una persona externa" : "un colaborador"} o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle");
-      $("#p-nuevo").textContent = CAMP() ? "+ Nueva campaña" : EXT() ? "+ Nuevo externo" : "+ Nuevo colaborador";
-      for (const el of [document.querySelector("#mod-personal .pest"), document.querySelector("#mod-personal .pfil"), $("#p-q")]) el.hidden = CAMP();
-      if (CAMP()) $("#p-detalle").innerHTML = `<p class="empty">Elige una campaña o lanza una nueva.</p>`;
-      $("#p-q").placeholder = EXT() ? "Buscar por nombre, folio, actividad o teléfono" : "Buscar por nombre, folio, puesto o teléfono";
-    }
-    else if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
+    if (t.dataset.estatus) { st.estatus = t.dataset.estatus; st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); }
     else st.filtro = t.dataset.filtro;
     cargar();
   }));
   let h; $("#p-q").addEventListener("input", e => { clearTimeout(h); h = setTimeout(() => { st.q = e.target.value.trim(); cargar(); }, 300); });
-  $("#p-nuevo").addEventListener("click", () => CAMP() ? nuevaCampana() : nuevo());
+  document.querySelectorAll("#mod-personal [data-nuevo]").forEach(b => b.addEventListener("click", () => { st.tipo = b.dataset.nuevo; CAMP() ? nuevaCampana() : nuevo(); }));
 
   const inicial = EC.ruta();
   if (inicial.mod !== "inicio") mostrar(inicial.mod, { vista: inicial.vista });

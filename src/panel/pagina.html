@@ -74,6 +74,7 @@
   <symbol id="i-cat-transporte" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="6.6" cy="17.4" r="1.8"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="17" cy="17.4" r="1.8"/></symbol>
   <symbol id="i-cat-limpieza" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.6 3.2l-4.2 8.6M6.6 12h7.6l2 8.8H4.6zM8.6 16.4v4.4M11.6 16.4v4.4"/></symbol>
   <symbol id="i-engrane" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></g></symbol>
+  <symbol id="i-todo" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></g></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <main class="mod" id="mod-inicio">
@@ -197,18 +198,12 @@
   <div class="gtip" id="gtip" role="status" hidden></div>
 <p class="cfg-ir"><a href="#config/notificaciones" data-cfg="notificaciones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Notificaciones y sistema</a></p>
 </main>
-<main class="mod" id="mod-facturacion" hidden>
+<main class="mod" id="mod-facturacion" data-sub data-sub-items="pendiente|Pendientes|i-inbox;facturada|Facturadas|i-ok;rechazada|Rechazadas|i-x;historico|Histórico|i-arch" hidden>
 <div class="titlebar">
   <h2 id="titulo">Facturas.</h2>
   <p id="subtitulo" class="note"></p>
 </div>
 <div class="tools">
-  <div class="tabs" role="tablist" aria-label="Estado">
-    <button class="tab" role="tab" data-estado="pendiente" aria-selected="true"><svg class="ti" aria-hidden="true"><use href="#i-inbox"/></svg><span class="tl">Pendientes</span> <span class="n" id="n-pendiente">0</span></button>
-    <button class="tab" role="tab" data-estado="facturada" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-ok"/></svg><span class="tl">Facturadas</span> <span class="n" id="n-facturada">0</span></button>
-    <button class="tab" role="tab" data-estado="rechazada" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-x"/></svg><span class="tl">Rechazadas</span> <span class="n" id="n-rechazada">0</span></button>
-    <button class="tab" role="tab" data-estado="historico" aria-selected="false"><svg class="ti" aria-hidden="true"><use href="#i-arch"/></svg><span class="tl">Histórico</span> <span class="n" id="n-historico">0</span></button>
-  </div>
   <input class="search" id="q" type="search" placeholder="Buscar por RFC, nombre, correo o folio" aria-label="Buscar">
   <button class="btn btn-line" id="recargar" type="button" hidden>Actualizar</button>
   <details class="export" id="fa-rep">
@@ -226,17 +221,12 @@
   <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
 </div>
 </main>
-<main class="mod" id="mod-personal" hidden>
+<main class="mod" id="mod-personal" data-sub data-sub-items="colaborador|Colaboradores|i-persona;externo|Externos|i-activo;campanas|Campañas|i-doc" hidden>
 <div class="titlebar">
   <h2 id="p-titulo">Personal.</h2>
   <p id="p-subtitulo" class="note"></p>
 </div>
 <div class="tools">
-  <div class="ptabs ptipo" role="tablist" aria-label="Grupo">
-    <button class="ptab" role="tab" data-tipo="colaborador" aria-selected="true">Colaboradores <span class="n" id="pn-colaborador">0</span></button>
-    <button class="ptab" role="tab" data-tipo="externo" aria-selected="false">Externos <span class="n" id="pn-externo">0</span></button>
-    <button class="ptab" role="tab" data-tipo="campanas" aria-selected="false">Campañas <span class="n" id="pn-campanas">0</span></button>
-  </div>
   <div class="ptabs pest" role="tablist" aria-label="Estatus">
     <button class="ptab" role="tab" data-estatus="activo" aria-selected="true"><span class="est activo sm"><svg aria-hidden="true"><use href="#i-activo"/></svg></span>Activos <span class="n" id="pn-activo">0</span></button>
     <button class="ptab" role="tab" data-estatus="inactivo" aria-selected="false"><span class="est inactivo sm"><svg aria-hidden="true"><use href="#i-inactivo"/></svg></span>Inactivos <span class="n" id="pn-inactivo">0</span></button>
@@ -247,7 +237,7 @@
     <button class="ptab" role="tab" data-filtro="completos" aria-selected="false">Completos <span class="n" id="pn-completos">0</span></button>
   </div>
   <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, folio, puesto o teléfono" aria-label="Buscar colaborador">
-  <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
+  <span class="p-nuevos"><button class="btn btn-primary" id="p-nuevo" type="button" data-nuevo="colaborador">+ Colaborador</button><button class="btn btn-line" type="button" data-nuevo="externo">+ Externo</button><button class="btn btn-line" type="button" data-nuevo="campanas">+ Campaña</button></span>
 </div>
 <div class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
@@ -255,18 +245,12 @@
 </div>
 <p class="cfg-ir"><a href="#config/conexiones" data-cfg="conexiones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Conexión con Drive</a></p>
 </main>
-<main class="mod" id="mod-caja" hidden>
+<main class="mod" id="mod-caja" data-sub hidden>
 <div class="titlebar">
   <h2 id="c-titulo">Caja.</h2>
   <p id="c-subtitulo" class="note"></p>
 </div>
 <div class="tools">
-  <div class="ptabs" role="tablist" aria-label="Turnos" id="c-vistas">
-    <button class="ptab" role="tab" data-v="curso" aria-selected="false">En curso</button>
-    <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes</button>
-    <button class="ptab" role="tab" data-v="movs" aria-selected="false">Movimientos de caja <span class="n" id="c-nmovs">0</span></button>
-    <button class="ptab" role="tab" data-v="entregas" aria-selected="false">Entregas</button>
-  </div>
   <div class="cper" role="group" aria-label="Periodo" id="c-per">
     <div class="ptabs" id="c-rapidos" role="tablist" aria-label="Periodo rápido">
       <button class="ptab" type="button" role="tab" data-r="hoy">Hoy</button>
@@ -280,55 +264,48 @@
   <div class="ctot" id="c-totales" aria-live="polite"></div>
   <button class="btn btn-primary" id="c-gasto" type="button">+ Gasto de caja</button>
 </div>
-<div class="work" id="c-work">
+<div class="ag bloques" id="c-bloques">
+  <section class="bloque" data-bloque="curso"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-reloj"/></svg><span>Turno en curso</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div id="t-cuerpo"></div><div id="c-curso"></div></div></section>
+  <section class="bloque" data-bloque="cortes"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-billete"/></svg><span>Cortes</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div class="work" id="c-work">
   <nav class="list" id="c-lista" aria-label="Cortes de turno"></nav>
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
+</div></div></section>
+  <section class="bloque" data-bloque="movs"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-transf"/></svg><span>Movimientos de caja</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div id="c-movs"></div></div></section>
+  <section class="bloque" data-bloque="entregas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-gasto"/></svg><span>Entregas</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div id="c-entregas"></div></div></section>
 </div>
-<div class="ag" id="c-full" hidden><div id="t-cuerpo"></div><div id="c-curso"></div></div>
 <p class="cfg-ir"><a href="#config/tablet" data-cfg="tablet"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Encargados de la tablet</a></p>
 </main>
-<main class="mod" id="mod-pagos" hidden>
-<div class="titlebar">
-  <h2>Dinero.</h2>
-  <p id="pg-subtitulo" class="note">Lo que paga y compra la administración: sale de los sobres (efectivo) o del banco, nunca de la caja de un turno.</p>
-  <nav class="ptabs dsub" aria-label="Dinero"><button class="ptab" type="button" data-dv="resumen" aria-selected="false">Resumen</button><button class="ptab" type="button" data-dv="pagos" aria-selected="true">Pagos y compras</button><button class="ptab" type="button" data-dv="cuentas" aria-selected="false">Cuentas y sobres</button><button class="ptab" type="button" data-dv="transferencias" aria-selected="false">Transferencias</button><button class="ptab" type="button" data-dv="bitacora" aria-selected="false">Bitácora y reportes</button></nav>
-</div>
-<div class="tools">
-  <div class="ptabs" role="tablist" aria-label="Pagos y compras" id="pg-tabs">
-    <button class="ptab" role="tab" data-t="pago" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Programados <span class="n" id="an-pago">0</span></button>
-    <button class="ptab" role="tab" data-t="hechos" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-check"/></svg>Pagos y gastos hechos</button>
-    <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
-  </div>
-</div>
-<div class="ag" id="pg-cuerpo"></div>
-<p class="cfg-ir"><a href="#config/categorias" data-cfg="categorias"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Categorías y lugares de compra</a></p>
-</main>
-<main class="mod" id="mod-finanzas" hidden>
+<main class="mod" id="mod-finanzas" data-sub hidden>
 <div class="titlebar">
   <h2 id="f-titulo">Dinero.</h2>
-  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale y dónde está el efectivo.</p>
-  <nav class="ptabs dsub" aria-label="Dinero"><button class="ptab" type="button" data-dv="resumen" aria-selected="true">Resumen</button><button class="ptab" type="button" data-dv="pagos" aria-selected="false">Pagos y compras</button><button class="ptab" type="button" data-dv="cuentas" aria-selected="false">Cuentas y sobres</button><button class="ptab" type="button" data-dv="transferencias" aria-selected="false">Transferencias</button><button class="ptab" type="button" data-dv="bitacora" aria-selected="false">Bitácora y reportes</button></nav>
+  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale, lo que se paga y se compra, y dónde está el dinero.</p>
 </div>
 <div class="tools">
   <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
 </div>
-<div class="ag" id="f-cuerpo"><p class="empty">Cargando…</p></div>
-<p class="cfg-ir"><a href="#config/cuentas" data-cfg="cuentas"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Administrar cuentas</a></p>
+<div class="ag bloques" id="f-cuerpo">
+  <section class="bloque" data-bloque="resumen"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Resumen del mes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-resumen"></div></section>
+  <section class="bloque" data-bloque="programados"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cal"/></svg><span>Pagos programados</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-prog"></div></section>
+  <section class="bloque" data-bloque="compras"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-carrito"/></svg><span>Compras por hacer</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-comp"></div></section>
+  <section class="bloque" data-bloque="hechos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Pagos y gastos hechos</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-hechos"></div></section>
+  <section class="bloque" data-bloque="efectivo"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-billete"/></svg><span>Efectivo en sobres</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-efectivo"></div></section>
+  <section class="bloque" data-bloque="cuentas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Cuentas y tarjetas</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-cuentas"></div></section>
+  <section class="bloque" data-bloque="transferencias"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-transf"/></svg><span>Transferencias</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-transf"></div></section>
+  <section class="bloque" data-bloque="bitacora"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Bitácora y reportes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-bitacora"></div></section>
+</div>
+<p class="cfg-ir"><a href="#config/cuentas" data-cfg="cuentas"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Cuentas, categorías y lugares de compra</a></p>
 </main>
-<main class="mod" id="mod-agenda" hidden>
+<main class="mod" id="mod-agenda" data-sub hidden>
 <div class="titlebar">
   <h2 id="a-titulo">Agenda.</h2>
   <p id="a-subtitulo" class="note"></p>
 </div>
-<div class="tools">
-  <div class="ptabs" role="tablist" aria-label="Agenda" id="a-tabs">
-    <button class="ptab" role="tab" data-t="calendario" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Calendario</button>
-    <button class="ptab" role="tab" data-t="tarea" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-tarea"/></svg>Por hacer <span class="n" id="an-tarea">0</span></button>
-    <button class="ptab" role="tab" data-t="incidencia" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-alerta"/></svg>Incidencias <span class="n" id="an-incidencia">0</span></button>
-    <button class="ptab" role="tab" data-t="aviso" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-aviso"/></svg>Avisos <span class="n" id="an-aviso">0</span></button>
-  </div>
+<div class="ag bloques" id="ag-cuerpo">
+  <section class="bloque" data-bloque="calendario"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cal"/></svg><span>Calendario</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-calendario"></div></section>
+  <section class="bloque" data-bloque="tarea"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tarea"/></svg><span>Por hacer</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-tarea"></div></section>
+  <section class="bloque" data-bloque="incidencia"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-incidencia"></div></section>
+  <section class="bloque" data-bloque="aviso"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-aviso"></div></section>
 </div>
-<div class="ag" id="ag-cuerpo"></div>
 </main>
 <datalist id="dl-cats"></datalist>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

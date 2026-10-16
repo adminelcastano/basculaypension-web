@@ -19,7 +19,7 @@
   const st = { mes: "", datos: null, cargarRep: null };
 
   async function cargar() {
-    const c = $("#f-cuerpo");
+    const c = $("#fb-resumen");
     try {
       const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
       st.datos = j; st.mes = j.mes;
@@ -173,7 +173,7 @@
         ${(j.retiros || []).length ? `<h4 class="fsub">Retiros del corte</h4><div class="tabla-scroll" tabindex="0" role="region" aria-label="Retiros del corte"><table class="cmovs"><thead><tr><th>Día</th><th>Turno</th><th>Concepto</th><th>Categoría</th><th class="n">Monto</th></tr></thead><tbody>
           ${j.retiros.slice().sort((a, b) => b.dia.localeCompare(a.dia)).map(r => `<tr><td>${esc(diaTxt(r.dia))}</td><td>${avP(r.persona)}${esc(TURNO_TXT[r.turno] || r.turno)}</td><td>${esc(r.concepto)}</td><td>${window.catChip ? window.catChip(r.categoria) : esc(r.categoria)}</td><td class="n">${D(r.monto)}</td></tr>`).join("")}
         </tbody></table></div>` : ""}
-        <button class="btn btn-line" type="button" data-ir-pagos style="margin-top:10px">Ir a Pagos y compras ›</button>
+        <button class="btn btn-line" type="button" data-ir-pagos style="margin-top:10px">Ver pagos y gastos hechos ›</button>
       </section>`,
       bitacora: () => `      <section class="card"><h3>Bitácora de cambios</h3>
         <p class="note" style="margin:4px 0 10px">Quién registró, cambió o borró pagos, compras, traspasos, saldos, transferencias y gastos de caja. Sirve para saber por qué cambió una cifra.</p>
@@ -185,16 +185,11 @@
         <div id="f-rep-lista"></div>
       </section>`
     };
-    // Cada vista de Dinero muestra solo lo suyo
-    const VISTA = {
-      resumen: ["resumen", "diferencias", "sueldos", "categorias", "admin"],
-      cuentas: ["efectivo", "cuentas"],
-      transferencias: ["transferencias"],
-      bitacora: ["bitacora", "reportes"]
-    };
-    const vista = VISTA[EC.finVista] ? EC.finVista : "resumen";
-    $("#f-subtitulo").textContent = { resumen: "Lo que entró, lo que salió y el resultado del mes, con diferencias de caja y sueldos.", cuentas: "Dónde está el dinero: efectivo en sobres, cuentas de banco y tarjetas.", transferencias: "Transferencias de clientes: tickets de la hoja y las que capturas aquí.", bitacora: "Quién cambió qué y los reportes mensuales en Google Sheets." }[vista];
-    $("#f-cuerpo").innerHTML = VISTA[vista].map(k => S[k]()).join("\n");
+    // Dinero muestra todo a la vez, en bloques (los de pagos y compras los pinta la Agenda)
+    const BLOQUES = { "fb-resumen": ["resumen", "diferencias", "sueldos", "categorias", "admin"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["bitacora", "reportes"] };
+    for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
+    EC.bloqueN("finanzas", "transferencias", hojaSinLigar.length || null, hojaSinLigar.length > 0);
+    EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
     conectar();
     pintarConfigCuentas();
   }
@@ -215,8 +210,10 @@
       b.disabled = false;
     });
   }
+  // Los bloques de Finanzas (sin tocar los de pagos y compras, que viven en la misma pantalla)
+  const misBloques = () => ["fb-resumen", "fb-efectivo", "fb-cuentas", "fb-transf", "fb-bitacora"].map(id => $("#" + id)).filter(Boolean);
   function conectar() {
-    const c = $("#f-cuerpo");
+    const c = { querySelectorAll: q => misBloques().flatMap(b => [...b.querySelectorAll(q)]), querySelector: q => misBloques().map(b => b.querySelector(q)).find(Boolean) || null };
     const sal = $("#f-saldo");
     if (sal) sal.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = sal.querySelector("button"); b.disabled = true; sal.querySelector(".err").textContent = "";

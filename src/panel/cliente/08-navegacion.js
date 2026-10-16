@@ -120,9 +120,9 @@
       return;
     }
     if (st.detalle && !(z && z.w.classList.contains("ver-detalle"))) { history.replaceState({ mod: st.mod }, "", location.href); return; }
-    const actualMod = ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda", "config"].find(m => { const el = document.getElementById("mod-" + m); return el && !el.hidden; });
+    const actualMod = ["inicio", "facturacion", "personal", "caja", "finanzas", "agenda", "config"].find(m => { const el = document.getElementById("mod-" + m); return el && !el.hidden; });
     const destino = st.mod || "inicio";
-    if ((destino !== actualMod || (destino === "finanzas" && st.vista && st.vista !== EC.finVista)) && window.irA) window.irA(destino, { vista: st.vista });
+    if ((destino !== actualMod || st.vista) && window.irA) window.irA(destino, { vista: st.vista });
   });
 
   // ---- Teclado: ← → anterior y siguiente, Esc vuelve a la lista ----
