@@ -985,3 +985,11 @@ dialog.confirmar .btn { min-height: var(--tap); }
 @media (max-width: 640px) { .lugar-sel { max-width: 130px; } }
 .lg-fila .btn { padding: 0 12px; min-height: 36px; font-size: var(--t-sm); }
 .lg-lista, #lg-nuevo { max-width: 620px; }
+/* Filtro "Para comprar en" y compras dejadas para otra ocasión */
+.lg-filtro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; font-weight: 600; }
+.lg-filtro select { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; font-weight: 400; min-width: 0; max-width: 460px; flex: 1 1 220px; }
+.lg-otra-h { margin: 16px 0 2px; font-size: var(--t-sm); color: var(--muted); font-weight: 600; }
+.lg-otra .aitem .tt { color: var(--muted); }
+.lg-listo { margin: 6px 0 0; color: #30d158; }
+.tag.otra { background: var(--line); color: var(--muted); }
+.aitem .btn-otra { min-height: 36px; padding: 0 10px; font-size: var(--t-sm); white-space: nowrap; }

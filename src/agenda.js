@@ -67,7 +67,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"], ["lugar", "TEXT"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"], ["lugar", "TEXT"], ["pospuesta", "INTEGER"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
@@ -496,6 +496,15 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     return json({ ok: true });
   }
 
+  // Compra dejada para otra ocasión: sigue pendiente en su lugar, pero aparte de lo que hay que comprar en esta visita
+  if (partes.length === 3 && partes[2] === "posponer" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const it = await env.DB.prepare(`SELECT id FROM agenda_items WHERE id = ? AND tipo = 'compra' AND ${ABIERTO}`).bind(partes[1]).first();
+    if (!it) return json({ ok: false, error: "Esa compra ya no está pendiente." }, 404);
+    await env.DB.prepare("UPDATE agenda_items SET pospuesta = ?, actualizado = ? WHERE id = ?").bind(c.v ? 1 : null, ahora, it.id).run();
+    return json({ ok: true });
+  }
+
   if (partes[1] === "resumen" && request.method === "GET") return json({ ok: true, ...(await resumenAgenda(env)) });
   // Pagos programados para el Inicio: próximos, vencidos, totales del mes y pagado por mes
   if (partes[1] === "pagos" && partes.length === 2 && request.method === "GET") {
@@ -599,7 +608,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
       const cta = await cuentaDe(env, c, null, forma);
       junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
-        env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ? WHERE id = ?").bind(importe, gid, id),
+        env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL WHERE id = ?").bind(importe, gid, id),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Compra", ref: id, mes: dia.slice(0, 7), detalle: { dia, concepto, importe, forma, cuenta: cta, categoria: catC } }));
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).first();

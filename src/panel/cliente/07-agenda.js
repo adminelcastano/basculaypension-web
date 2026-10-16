@@ -159,6 +159,7 @@
     const meta = [
       it.tipo === "compra" ? window.catChip(it.categoria) : "",
       it.tipo === "compra" && it.reporto ? `<span class="tag tablet" title="Pedida desde la tablet">${avP(it.reporto)}Pidió ${esc(it.reporto)}${it.turno ? " · " + esc((TURNO_TXT[it.turno] || it.turno).toLowerCase()) : ""} · ${esc(cuando(it.creado))}</span>` : "",
+      it.tipo === "compra" && it.pospuesta && !hecho ? `<span class="tag otra">Para otra ocasión</span>` : "",
       it.tipo === "evento" ? `<span class="tag evento" style="color:#111">Evento</span>` : "",
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",
@@ -174,7 +175,7 @@
     const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
     const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${avP(r.persona)}${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}"${it.gasto_id ? ' data-gasto="1"' : ""} data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
-      <span class="tt">${esc(it.titulo)}</span><span class="acc">${it.tipo === "compra" && !hecho ? selLugar(it.lugar || "", ` class="lugar-sel" data-lugar="${esc(it.id)}" aria-label="Dónde se compra ${esc(it.titulo)}"`) : ""}${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
+      <span class="tt">${esc(it.titulo)}</span><span class="acc">${it.tipo === "compra" && !hecho ? `<button class="btn btn-line btn-otra" type="button" data-posponer="${esc(it.id)}" data-v="${it.pospuesta ? 0 : 1}">${it.pospuesta ? "Regresar a la lista" : "Otra ocasión"}</button>` : ""}${it.tipo === "compra" && !hecho ? selLugar(it.lugar || "", ` class="lugar-sel" data-lugar="${esc(it.id)}" aria-label="Dónde se compra ${esc(it.titulo)}"`) : ""}${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
   // ---- Pagos hechos (programados o no) ----
@@ -332,16 +333,40 @@
     const ce = todos.filter(x => !abierto(x));
     const lugares = st.lugares || [], ids = new Set(lugares.map(l => l.id));
     const sin = ab.filter(x => !x.lugar || !ids.has(x.lugar));
-    const grupo = (nombre, l, cls = "") => `<div class="lg-grupo ${cls}"><h3 class="lg-h">${ico("i-carrito")}<span>${esc(nombre)}</span><span class="n">${l.length}</span>${l.some(x => x.prioridad === "alta") ? `<span class="tag alta">Urgente</span>` : ""}</h3><div class="alist">${l.map(item).join("")}</div></div>`;
-    const grupos = (sin.length ? grupo("Sin lugar · elige dónde se compra", sin, "sin") : "")
-      + lugares.map(l => { const x = ab.filter(i => i.lugar === l.id); return x.length ? grupo(l.nombre, x) : ""; }).join("");
+    const grupo = (nombre, l, cls = "") => `<div class="lg-grupo ${cls}"><h3 class="lg-h">${ico("i-carrito")}<span>${esc(nombre)}</span><span class="n">${l.filter(x => !x.pospuesta).length}</span>${l.some(x => x.prioridad === "alta" && !x.pospuesta) ? `<span class="tag alta">Urgente</span>` : ""}</h3><div class="alist">${l.map(item).join("")}</div></div>`;
+    // Dentro de cada lugar, lo que se deja para otra ocasión va al final
+    const orden = l => [...l.filter(x => !x.pospuesta), ...l.filter(x => x.pospuesta)];
+    const deLugar = id => id === "sin" ? sin : ab.filter(i => i.lugar === id);
+    // Filtro "Para comprar en": al llegar a la tienda se ve solo lo de ahí
+    let fl = st.lugarFiltro;
+    if (fl == null) { try { fl = localStorage.getItem("ec-compras-lugar") || ""; } catch { fl = ""; } }
+    if (fl && fl !== "sin" && !ids.has(fl)) fl = "";
+    if (fl === "sin" && !sin.length) fl = "";
+    st.lugarFiltro = fl;
+    const cuenta = l => { const p = l.filter(x => !x.pospuesta).length, o = l.length - p; return `${p}${o ? ` + ${o} otra ocasión` : ""}`; };
+    const filtro = ab.length ? `<label class="lg-filtro"><span>Para comprar en</span><select id="lg-filtro" aria-label="Para comprar en">
+        <option value="">Todos los lugares (${cuenta(ab)})</option>
+        ${sin.length ? `<option value="sin" ${fl === "sin" ? "selected" : ""}>Sin lugar (${cuenta(sin)})</option>` : ""}
+        ${lugares.map(l => `<option value="${esc(l.id)}" ${fl === l.id ? "selected" : ""}>${esc(l.nombre)} (${cuenta(deLugar(l.id))})</option>`).join("")}
+      </select></label>` : "";
+    let grupos;
+    if (fl) {
+      const nombre = fl === "sin" ? "Sin lugar" : lugares.find(l => l.id === fl).nombre;
+      const lst = deLugar(fl), por = lst.filter(x => !x.pospuesta), otra = lst.filter(x => x.pospuesta);
+      grupos = `<div class="lg-grupo ${fl === "sin" ? "sin" : ""}"><h3 class="lg-h">${ico("i-carrito")}<span>${esc(nombre)}</span><span class="n">${por.length}</span>${por.some(x => x.prioridad === "alta") ? `<span class="tag alta">Urgente</span>` : ""}</h3>
+          ${por.length ? `<div class="alist">${por.map(item).join("")}</div>` : `<p class="note lg-listo">${lst.length ? "Ya no queda nada por comprar aquí en esta visita." : "No hay nada pendiente por comprar aquí."}</p>`}
+          ${otra.length ? `<h4 class="lg-otra-h">Para otra ocasión (${otra.length})</h4><div class="alist lg-otra">${otra.map(item).join("")}</div>` : ""}</div>`;
+    } else {
+      grupos = (sin.length ? grupo("Sin lugar · elige dónde se compra", orden(sin), "sin") : "")
+        + lugares.map(l => { const x = deLugar(l.id); return x.length ? grupo(l.nombre, orden(x)) : ""; }).join("");
+    }
     const adm = `<details class="lg-adm"><summary>Lugares de compra (${lugares.length})</summary>
         <p class="note" style="margin:6px 0 10px">Tú decides dónde se compra cada cosa; la tablet solo pide qué hace falta. Si algo ya se compró antes en un lugar, la compra nueva se va sola a ese lugar.</p>
         <div class="lg-lista">${lugares.map(l => `<form class="lg-fila" data-lid="${esc(l.id)}"><input name="nombre" value="${esc(l.nombre)}" maxlength="40" aria-label="Nombre del lugar"><button class="btn btn-line btn-sm" type="submit">Guardar</button><button class="btn btn-line btn-sm" type="button" data-lquitar="${esc(l.id)}" aria-label="Quitar ${esc(l.nombre)}">Quitar</button></form>`).join("")}</div>
         <form class="lg-fila" id="lg-nuevo"><input name="nombre" maxlength="40" placeholder="Nuevo lugar (ej. Ferretería Martínez)" aria-label="Nuevo lugar"><button class="btn btn-primary btn-sm" type="submit">Agregar</button></form>
       </details>`;
     return `<section class="card">${formulario("compra")}</section>
-      <section class="card">${ab.length ? grupos : `<p class="note">No hay compras pendientes.</p>`}${adm}
+      <section class="card">${filtro}${ab.length ? grupos : `<p class="note">No hay compras pendientes.</p>`}${adm}
       ${ce.length ? `<details class="hechos"><summary>Compradas en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
   }
 
@@ -514,6 +539,13 @@
       sl.disabled = true;
       try { await post(`agenda/${sl.dataset.lugar}/lugar`, { lugar: sl.value }); const it = st.items.find(x => x.id === sl.dataset.lugar); if (it) it.lugar = sl.value || null; pintar(); }
       catch (e) { if (e.message !== "sesion") toast(e.message); sl.disabled = false; }
+    }));
+    const lf = c.querySelector("#lg-filtro");
+    if (lf) lf.addEventListener("change", () => { st.lugarFiltro = lf.value; try { lf.value ? localStorage.setItem("ec-compras-lugar", lf.value) : localStorage.removeItem("ec-compras-lugar"); } catch {} pintar(); const n = $("#lg-filtro"); n && n.focus(); });
+    c.querySelectorAll("[data-posponer]").forEach(b => b.addEventListener("click", async () => {
+      b.disabled = true; const v = b.dataset.v === "1";
+      try { await post(`agenda/${b.dataset.posponer}/posponer`, { v: v ? 1 : 0 }); const it = st.items.find(x => x.id === b.dataset.posponer); if (it) it.pospuesta = v ? 1 : null; toast(v ? "Queda para otra ocasión" : "Regresó a la lista"); pintar(); }
+      catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
     }));
     c.querySelectorAll("form.lg-fila").forEach(f => f.addEventListener("submit", async ev => {
       ev.preventDefault();
