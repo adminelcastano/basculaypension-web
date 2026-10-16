@@ -33,12 +33,14 @@
   window.ponerCategorias = lista => {
     if (!Array.isArray(lista)) return;
     window.CATS = lista;
-    const dl = document.getElementById("dl-cats"); if (dl) dl.innerHTML = lista.map(c => `<option value="${esc(c.nombre)}"></option>`).join("");
+    const dl = document.getElementById("dl-cats"); if (dl) dl.innerHTML = lista.map(c => `<option value="${esc(c.etiqueta || c.nombre)}"></option>`).join("");
   };
   window.catInfo = nombre => window.CATS.find(c => c.nombre === nombre) || { nombre: nombre || "Sin categoría", icono: "otros", color: "#8e8e93" };
   window.catIco = (nombre, tam = 16) => { const c = window.catInfo(nombre); return `<svg class="cat-ico" style="width:${tam}px;height:${tam}px;color:${c.color}" aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg>`; };
-  window.catChip = nombre => nombre ? `<span class="cat-chip">${window.catIco(nombre, 14)}${esc(nombre)}</span>` : "";
-  window.campoCategoria = (valor = "", clase = "w2") => `<label class="${clase}">Categoría <span class="ayuda">(elige o escribe una nueva)</span><input name="categoria" list="dl-cats" maxlength="40" value="${esc(valor || "")}" placeholder="Ej. Servicios" autocomplete="off"></label>`;
+  // Nombre visible (se puede cambiar en Categorías; lo guardado conserva su clave)
+  window.catNombre = nombre => { const c = window.CATS.find(x => x.nombre === nombre); return c ? c.etiqueta || c.nombre : nombre || ""; };
+  window.catChip = nombre => nombre ? `<span class="cat-chip">${window.catIco(nombre, 14)}${esc(window.catNombre(nombre))}</span>` : "";
+  window.campoCategoria = (valor = "", clase = "w2") => `<label class="${clase}">Categoría <span class="ayuda">(elige o escribe una nueva)</span><input name="categoria" list="dl-cats" maxlength="40" value="${esc(window.catNombre(valor))}" placeholder="Ej. Servicios" autocomplete="off"></label>`;
   // ---- Cuentas (cómo se pagó: efectivo de los sobres, una cuenta de débito o una tarjeta de crédito) ----
   window.CUENTAS = window.CUENTAS || [];
   window.valorMedio = (forma, cuenta) => cuenta ? "C:" + cuenta : (forma || "");

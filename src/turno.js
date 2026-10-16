@@ -253,7 +253,7 @@ async function estado(env, s) {
     AND (${ABIERTO} OR (estado = 'comprado' AND reporto IS NOT NULL AND cerrado >= ?)) ORDER BY CASE WHEN estado = 'comprado' THEN 1 ELSE 0 END, CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, creado DESC LIMIT 60`)
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
-  try { categorias = (await listaCategorias(env)).map(c => c.nombre); } catch {}
+  try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
   return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 

@@ -526,7 +526,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       por_pagar_mes: pendMes.reduce((a, x) => a + (x.importe || 0), 0), n_por_pagar_mes: pendMes.length,
       pagado_mes: delMes.reduce((a, x) => a + x.importe, 0), n_pagado_mes: delMes.length, por_mes: porMes,
       por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total),
-      por_categoria: Object.entries(porCat).map(([nombre, total]) => ({ nombre, total: Math.round(total * 100) / 100, icono: (cats[nombre] || {}).icono || "otros", color: (cats[nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total),
+      por_categoria: Object.entries(porCat).map(([nombre, total]) => ({ nombre: (cats[nombre] || {}).etiqueta || nombre, clave: nombre, total: Math.round(total * 100) / 100, icono: (cats[nombre] || {}).icono || "otros", color: (cats[nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total),
       no_programados: noProg, n_no_programados: noProg.length, total_no_programados: noProg.reduce((a, x) => a + x.importe, 0) });
   }
 

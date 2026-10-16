@@ -41,6 +41,10 @@ export async function asegurarEsquemaCategorias(env) {
     const ahora = new Date().toISOString();
     await env.DB.batch(CATEGORIAS_BASE.map(([nombre, icono], i) => env.DB.prepare("INSERT OR IGNORE INTO categorias (nombre, icono, color, orden, creado) VALUES (?, ?, ?, ?, ?)").bind(nombre, icono, PALETA[i % PALETA.length], i, ahora)));
   }
+  // Nombre visible editable (etiqueta). "nombre" sigue siendo la clave guardada en los registros y la que usa el
+  // cálculo (Sueldos, Comisiones…), así cambiar el nombre no rompe los totales ni lo ya registrado.
+  const colsC = new Set((await env.DB.prepare("PRAGMA table_info(categorias)").all()).results.map(r => r.name));
+  if (!colsC.has("etiqueta")) await env.DB.prepare("ALTER TABLE categorias ADD COLUMN etiqueta TEXT").run();
   // Columna categoria donde se registran los egresos (si una tabla todavía no existe, se revisa en la siguiente llamada)
   let faltan = false;
   for (const t of ["agenda_items", "agenda_pagos", "caja_gastos"]) {
@@ -62,7 +66,12 @@ export async function asegurarEsquemaCategorias(env) {
 
 export async function listaCategorias(env) {
   await asegurarEsquemaCategorias(env);
-  return (await env.DB.prepare("SELECT nombre, icono, color FROM categorias ORDER BY orden, nombre").all()).results;
+  return (await env.DB.prepare("SELECT nombre, COALESCE(etiqueta, nombre) AS etiqueta, icono, color FROM categorias ORDER BY orden, nombre").all()).results;
+}
+// Nombre visible de una categoría guardada (si se le cambió el nombre)
+export async function etiquetasCategorias(env) {
+  const m = new Map((await listaCategorias(env)).map(c => [c.nombre, c.etiqueta]));
+  return nombre => nombre ? m.get(nombre) || nombre : nombre;
 }
 
 // Nombre válido de categoría: si no existe, se crea (icono "Otros"). Vacío → null.
@@ -70,7 +79,7 @@ export async function resolverCategoria(env, valor) {
   const nombre = String(valor ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
   if (!nombre) return null;
   await asegurarEsquemaCategorias(env);
-  const existe = await env.DB.prepare("SELECT nombre FROM categorias WHERE lower(nombre) = lower(?)").bind(nombre).first();
+  const existe = await env.DB.prepare("SELECT nombre FROM categorias WHERE lower(COALESCE(etiqueta, nombre)) = lower(?) OR lower(nombre) = lower(?) ORDER BY lower(COALESCE(etiqueta, nombre)) = lower(?) DESC").bind(nombre, nombre, nombre).first();
   if (existe) return existe.nombre;
   const bonito = nombre.charAt(0).toUpperCase() + nombre.slice(1);
   const n = (await env.DB.prepare("SELECT COUNT(*) n FROM categorias").first()).n;
@@ -83,6 +92,18 @@ export async function categoriasPanel(request, env) {
   await asegurarEsquemaCategorias(env);
   if (request.method === "GET") return json({ ok: true, categorias: await listaCategorias(env), iconos: ICONOS_CAT });
   let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+  // Cambiar el nombre visible de una categoría ya creada
+  if (c.renombrar) {
+    const fila = await env.DB.prepare("SELECT nombre FROM categorias WHERE nombre = ?").bind(String(c.renombrar)).first();
+    if (!fila) return json({ ok: false, error: "Esa categoría ya no existe." }, 404);
+    let nuevo = String(c.nombre ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (nuevo.length < 2) return json({ ok: false, error: "Escribe el nombre de la categoría." }, 422);
+    nuevo = nuevo.charAt(0).toUpperCase() + nuevo.slice(1);
+    const choca = await env.DB.prepare("SELECT 1 FROM categorias WHERE nombre != ? AND (lower(nombre) = lower(?) OR lower(COALESCE(etiqueta, nombre)) = lower(?))").bind(fila.nombre, nuevo, nuevo).first();
+    if (choca) return json({ ok: false, error: "Ya hay otra categoría con ese nombre." }, 409);
+    await env.DB.prepare("UPDATE categorias SET etiqueta = ? WHERE nombre = ?").bind(nuevo === fila.nombre ? null : nuevo, fila.nombre).run();
+    return json({ ok: true, nombre: fila.nombre, categorias: await listaCategorias(env) });
+  }
   const nombre = await resolverCategoria(env, c.nombre);
   if (!nombre) return json({ ok: false, error: "Escribe el nombre de la categoría." }, 422);
   if (c.icono) {

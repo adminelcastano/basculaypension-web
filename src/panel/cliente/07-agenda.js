@@ -391,9 +391,11 @@
     if (st.ptab === "compra") return resumen + vistaCompras();
     if (st.ptab === "categorias") {
       const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
-      return `<section class="card"><h3>Categorías</h3><p class="note" style="margin:4px 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario; aquí le eliges su icono.</p>
-        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span><b>${esc(c.nombre)}</b>
-          <div class="cat-icos" role="group" aria-label="Icono de ${esc(c.nombre)}">${ICONOS.map(i => `<button type="button" data-cat="${esc(c.nombre)}" data-ico="${i}" aria-pressed="${i === c.icono}" aria-label="${i}"><svg aria-hidden="true"><use href="#i-cat-${i}"/></svg></button>`).join("")}</div></div>`).join("")}</div>
+      const ICO_TXT = { servicios: "Foco", sueldos: "Monedas", renta: "Casa", mantenimiento: "Llave", papeleria: "Clip", combustible: "Bomba de gasolina", impuestos: "Recibo", tarjetas: "Tarjeta", suscripciones: "Pantalla", familia: "Personas", otros: "Caja", carrito: "Carrito", comida: "Cubiertos", salud: "Cruz", transporte: "Camión", limpieza: "Escoba" };
+      return `<section class="card"><h3>Categorías</h3><p class="note" style="margin:4px 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario. Aquí le cambias el nombre (con «Guardar») y el icono (se guarda al elegirlo). Al cambiar el nombre, lo ya registrado y los totales siguen igual, con el nombre nuevo.</p>
+        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
+          <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría" autocomplete="off"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
+          <label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i => `<option value="${i}" ${i === c.icono ? "selected" : ""}>${esc(ICO_TXT[i] || i)}</option>`).join("")}</select></label></div>`).join("")}</div>
         <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Publicidad" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></section>`;
     }
     return resumen + vistaLista("pago");
@@ -661,8 +663,13 @@
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
       try { await post(`agenda/${b.dataset.del}/eliminar`); toast("Eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
-    c.querySelectorAll("[data-cat][data-ico]").forEach(b => b.addEventListener("click", async () => {
-      try { const r = await post("categorias", { nombre: b.dataset.cat, icono: b.dataset.ico }); window.ponerCategorias(r.categorias); toast("Icono guardado"); pintar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+    c.querySelectorAll("select[data-cat]").forEach(sl => sl.addEventListener("change", async () => {
+      sl.disabled = true;
+      try { const r = await post("categorias", { nombre: sl.dataset.cat, icono: sl.value }); window.ponerCategorias(r.categorias); toast("Icono guardado"); pintar(); } catch (e) { if (e.message !== "sesion") toast(e.message); sl.disabled = false; }
+    }));
+    c.querySelectorAll("form[data-renombrar]").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = f.querySelector("button"); b.disabled = true;
+      try { const r = await post("categorias", { renombrar: f.dataset.renombrar, nombre: f.nombre.value }); window.ponerCategorias(r.categorias); toast("Nombre guardado"); pintar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
     }));
     const cn = c.querySelector("#cat-nueva");
     if (cn) cn.addEventListener("submit", async ev => {

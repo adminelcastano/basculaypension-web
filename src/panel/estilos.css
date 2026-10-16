@@ -788,6 +788,14 @@ div.work.ver-detalle .detail.suelta { transition: transform .2s ease, opacity .2
 .cat-fila { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .cat-fila .ci { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
 .cat-fila .ci svg { width: 20px; height: 20px; }
+.cat-fila { grid-template-columns: 34px minmax(0, 1fr) auto; }
+.cat-nom { display: flex; gap: 8px; min-width: 0; }
+.cat-nom input, .cat-sel select { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; min-width: 0; }
+.cat-nom input { flex: 1 1 auto; font-weight: 600; }
+.cat-nom .btn { min-height: 40px; padding: 0 12px; font-size: var(--t-sm); }
+.cat-sel { display: flex; align-items: center; gap: 8px; font-size: var(--t-sm); color: var(--muted); }
+.cat-sel select { min-width: 170px; }
+@media (max-width: 640px) { .cat-fila { grid-template-columns: 34px minmax(0, 1fr); } .cat-sel { grid-column: 2; } .cat-sel select { flex: 1; min-width: 0; } }
 .cat-icos { display: flex; flex-wrap: wrap; gap: 4px; }
 .cat-icos button { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg-2); display: grid; place-items: center; cursor: pointer; }
 .cat-icos button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
@@ -993,3 +1001,18 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .lg-listo { margin: 6px 0 0; color: #30d158; }
 .tag.otra { background: var(--line); color: var(--muted); }
 .aitem .btn-otra { min-height: 36px; padding: 0 10px; font-size: var(--t-sm); white-space: nowrap; }
+
+/* Administrar cuentas: usos (una cuenta puede tener varios) y nombre editable */
+.cusos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+.cuso { display: grid; gap: 6px; font-weight: 600; font-size: var(--t-sm); }
+.cuso small { display: block; font-weight: 400; color: var(--muted); }
+.cuso select, .cnom input { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); color: var(--fg); font: inherit; min-width: 0; }
+.cfila { grid-template-columns: minmax(0, 1fr) auto; }
+.cfila .mm { grid-column: 1; }
+.cnom { display: flex; gap: 8px; min-width: 0; grid-column: 1; }
+.cnom input { flex: 1 1 auto; font-weight: 600; max-width: 320px; }
+.cnom .btn { min-height: 40px; padding: 0 12px; font-size: var(--t-sm); }
+@media (max-width: 640px) { .cfila { grid-template-columns: minmax(0, 1fr); } .cfila .acc { grid-column: 1; } }
+.cfila .fcom { grid-column: 1 / -1; }
+.cfila .cnom { order: 1; } .cfila .acc { order: 2; grid-column: 2; grid-row: 1; } .cfila .mm { order: 3; } .cfila .fcom { order: 4; }
+@media (max-width: 640px) { .cfila .acc { grid-column: 1; grid-row: auto; justify-content: flex-start; } }

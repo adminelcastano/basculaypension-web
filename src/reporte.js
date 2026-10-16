@@ -8,6 +8,7 @@ import { asegurarEsquemaCaja, calcularCortes, unirConteos, totalesMes, leerRetir
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaPersonal, resumenFila } from "./personal.js";
 import { datosFinanzas, CAT_TXT, FORMA_ADMIN } from "./finanzas.js";
+import { etiquetasCategorias } from "./categorias.js";
 import { listaBitacora, ACCIONES } from "./bitacora.js";
 
 export const TIPOS_REPORTE = { turnos: "Turnos", finanzas: "Finanzas", facturacion: "Facturación" };
@@ -33,6 +34,7 @@ const q = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).all().then(r => r.r
 async function hojasTurnos(env, mes) {
   await asegurarEsquemaCaja(env); await asegurarEsquemaAgenda(env); await asegurarEsquemaPersonal(env);
   const { movs, gastos, conteos, extras, inicios } = await leerMes(env, [mes]);
+  const et = await etiquetasCategorias(env);
   const hist = await q(env, "SELECT * FROM turno_cortes_hist WHERE mes = ? ORDER BY creado", mes);
   const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).slice().reverse();
   const t = totalesMes(cortes, []);
@@ -76,7 +78,7 @@ async function hojasTurnos(env, mes) {
       lista.slice().reverse().map(x => [x.folio || "", x.dia, TURNO[x.turno] || x.turno, String(x.cuando || "").slice(11, 16), TIPO_MOV[x.tipo], x.concepto, x.detalle || "", x.monto, x.persona ? x.persona + " (tablet)" : x.por || "", x.foto ? "Sí" : ""])),
     ...["bascula", "pension"].map(sv => hoja(sv === "bascula" ? "Báscula" : "Pensión", ["Fecha y hora", "Día del corte", "Turno", "Folio", "Matrícula", "Cliente", sv === "bascula" ? "Tarifa" : "Recibido", "Forma de pago", "En el corte", "Folio de movimiento"],
       movs.filter(m => m.servicio === sv).slice().reverse().map(m => [String(m.fecha).replace("T", " "), m.dia, TURNO[m.turno] || m.turno, m.folio, m.matricula, m.cliente, m.importe, m.forma, m.tipo === "caja" ? (esCambio(m) ? "Cambio inicial" : "Movimiento de caja") : FORMAS_CONTADAS.includes(m.forma) ? "Sí" : "No", m.folio_mc || ""]))),
-    hoja("Gastos de caja", ["Folio", "Día", "Turno", "Categoría", "Concepto", "Monto", "Capturado por", "Foto"], gastos.slice().reverse().map(g => [folio["g:" + g.id] || "", g.dia, TURNO[g.turno] || g.turno, g.categoria || "", g.concepto, g.monto, g.persona ? g.persona + " (tablet)" : g.creado_por || "", g.foto ? "Sí" : ""])),
+    hoja("Gastos de caja", ["Folio", "Día", "Turno", "Categoría", "Concepto", "Monto", "Capturado por", "Foto"], gastos.slice().reverse().map(g => [folio["g:" + g.id] || "", g.dia, TURNO[g.turno] || g.turno, et(g.categoria) || "", g.concepto, g.monto, g.persona ? g.persona + " (tablet)" : g.creado_por || "", g.foto ? "Sí" : ""])),
     hoja("Ingresos extra", ["Folio", "Día", "Turno", "Concepto", "Detalle", "Monto", "Cuenta como ingreso", "Capturado por"], extras.slice().reverse().map(x => [folio["x:" + x.id] || "", x.dia, TURNO[x.turno] || x.turno, x.concepto, x.detalle || "", x.monto, x.ingreso ? "Sí" : "No (solo caja)", x.persona ? x.persona + " (tablet)" : x.creado_por || ""])),
     hoja("Cambio inicial", ["Día", "Turno", "Encargado", "Cambio inicial", "Capturado"], inicios.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(i => [i.dia, TURNO[i.turno] || i.turno, i.persona, i.cambio, local(i.actualizado)])),
     hoja("Entregas", ["Día", "Turno", "Entregó", "Efectivo contado", "Sobre para la administración", "Retiros", "Detalle de retiros", "Cambio para el siguiente turno"],
@@ -98,6 +100,7 @@ async function hojasTurnos(env, mes) {
 // ---------------- Finanzas ----------------
 async function hojasFinanzas(env, mes) {
   const d = await datosFinanzas(env, mes);
+  const et = await etiquetasCategorias(env);
   const pagos = await q(env, "SELECT p.*, COALESCE(p.titulo, i.titulo) AS concepto FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE substr(p.fecha, 1, 7) = ? ORDER BY p.fecha", mes);
   const programados = await q(env, "SELECT * FROM agenda_items WHERE tipo = 'pago' ORDER BY COALESCE(fecha, '9999')");
   const compras = (await q(env, "SELECT a.*, g.forma AS forma_gasto FROM agenda_items a LEFT JOIN caja_gastos g ON g.id = a.gasto_id WHERE a.tipo = 'compra' ORDER BY a.creado")).filter(i => mesLocal(i.creado) === mes || (i.cerrado && mesLocal(i.cerrado) === mes));
@@ -116,13 +119,13 @@ async function hojasFinanzas(env, mes) {
     ]),
     hoja("Cuentas", ["Cuenta", "Tipo", "Saldo inicial", "Inicial", "Ajuste", "Entró", "Salió", "Saldo o deuda final"],
       d.banco.lista.map(c => [c.nombre, c.tipo === "credito" ? "Crédito" : "Débito", c.inicial ?? "", c.inicial == null ? "" : c.capturado ? "Contado" : "Calculado", c.ajuste ?? "", c.tipo === "credito" ? c.salidas : c.entradas, c.tipo === "credito" ? c.entradas : c.salidas, c.saldo ?? ""])),
-    hoja("Retiros del corte", ["Día", "Turno", "Encargado", "Concepto", "Categoría", "Monto"], d.retiros.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(r => [r.dia, TURNO[r.turno] || r.turno, r.persona, r.concepto, r.categoria, r.monto])),
+    hoja("Retiros del corte", ["Día", "Turno", "Encargado", "Concepto", "Categoría", "Monto"], d.retiros.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(r => [r.dia, TURNO[r.turno] || r.turno, r.persona, r.concepto, et(r.categoria), r.monto])),
     hoja("Diferencias de caja", ["Día", "Turno", "Encargado", "Qué", "Diferencia (− faltó, + sobró)"], d.diferencias.lista.map(x => [x.dia, TURNO[x.turno] || x.turno, x.persona, x.concepto, x.dif])),
     hoja("Sueldos", ["Quién o concepto", "De dónde", "Pagos", "Total"], [...d.sueldos.caja.map(x => [x.persona, "Cobrado del turno", x.n, x.total]), ...d.sueldos.admin.map(x => [x.concepto, "Pagado por la administración", x.n, x.total])]),
     hoja("Efectivo en sobres", ["Día", "Movimiento", "Concepto", "Encargado", "Entrada", "Salida", "Saldo"],
       [["", "Saldo inicial", "", "", e.inicial ?? "", "", e.inicial ?? ""], ...e.movimientos.slice().reverse().map(m => [m.dia, ({ sobre: "Sobre recibido", deposito: "Depósito al banco", retiro: "Retiro del banco", pago_tarjeta: "Pago de tarjeta", traspaso: "Traspaso" })[m.tipo] || CAT_TXT[m.tipo] || "Gasto", m.concepto, m.persona || "", m.entrada || "", m.salida || "", m.saldo ?? ""])]),
     hoja("Egresos de administración", ["Día", "Tipo", "Categoría", "Concepto", "Monto", "Pagado con", "Nota", "Comprobante", "Registró"],
-      d.admin.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(x => [x.dia, CAT_TXT[x.cat], x.categoria, x.concepto, x.monto, FORMA_ADMIN[x.forma] || x.forma, x.nota, x.comprobante ? "Sí (Drive: Comprobantes de pago)" : "", x.por])),
+      d.admin.slice().sort((a, b) => a.dia.localeCompare(b.dia)).map(x => [x.dia, CAT_TXT[x.cat], et(x.categoria), x.concepto, x.monto, FORMA_ADMIN[x.forma] || x.forma, x.nota, x.comprobante ? "Sí (Drive: Comprobantes de pago)" : "", x.por])),
     hoja("Transferencias de clientes", ["Fecha", "Origen", "Cliente", "Ticket", "Importe", "Factura", "Capturado por"], [
       ...d.transf_hoja.map(h => [h.fecha, "Ticket de la hoja", h.ligada ? h.ligada.cliente : h.cliente, `${h.servicio === "bascula" ? "Báscula" : "Pensión"} ${h.folio}`, h.importe, h.ligada && h.ligada.factura || "", ""]),
       ...d.transferencias.filter(x => !x.ticket_ref || !d.transf_hoja.some(h => h.ref === x.ticket_ref)).map(x => [x.fecha, "Capturada en el panel", x.cliente, "", x.importe, x.factura || "", x.creado_por || ""])

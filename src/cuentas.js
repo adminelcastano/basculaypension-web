@@ -182,6 +182,8 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         else return json({ ok: false, error: "Escribe la comisión como porcentaje (ej. 3.50)." }, 422);
       }
       if ("comision_iva" in c) iva = c.comision_iva ? 1 : 0;
+      if ("nombre" in c && nombre.length < 2) return json({ ok: false, error: "Escribe el nombre de la cuenta." }, 422);
+      if (nombre && nombre !== f.nombre && await env.DB.prepare("SELECT 1 FROM fin_cuentas WHERE id != ? AND upper(nombre) = ?").bind(c.id, nombre).first()) return json({ ok: false, error: "Ya hay otra cuenta con ese nombre." }, 409);
       const st = [env.DB.prepare("UPDATE fin_cuentas SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ? WHERE id = ?").bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo, "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id)];
       for (const k of ["def_transf", "def_pago", "tarjeta"]) if (c[k]) st.push(env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 0`), env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 1 WHERE id = ?`).bind(c.id));
       st.push(stmtBitacora(env, { quien, accion: "editar", que: "Cuenta", ref: f.id, detalle: { cuenta: f.nombre, cambios: Object.fromEntries(Object.entries(c).filter(([k]) => k !== "id")) } }));

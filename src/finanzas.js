@@ -233,7 +233,7 @@ export async function datosFinanzas(env, mes) {
   for (const x of admin) add(x.categoria, x.monto, false);
   if (comision) add(CAT_COMISION, comision, false);
   if (dif.faltantes) add(CAT_FALTANTE, dif.faltantes, true);
-  const porCategoria = Object.values(pc).map(x => ({ ...x, total: r2(x.total), caja: r2(x.caja), icono: (cats[x.nombre] || {}).icono || "otros", color: (cats[x.nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total);
+  const porCategoria = Object.values(pc).map(x => ({ ...x, total: r2(x.total), caja: r2(x.caja), clave: x.nombre, nombre: (cats[x.nombre] || {}).etiqueta || x.nombre, icono: (cats[x.nombre] || {}).icono || "otros", color: (cats[x.nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total);
 
   return {
     mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, retiros,
