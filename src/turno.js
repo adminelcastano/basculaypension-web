@@ -13,7 +13,7 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
-import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado } from "./agenda.js";
+import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
@@ -215,10 +215,10 @@ async function estado(env, s) {
   const hoy = local().dia;
   const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p) }));
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
-  const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
+  const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
   const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
   const avisos = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50)
-    .map(a => ({ ...a, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id) }));
+    .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id) }));
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
   const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
@@ -248,9 +248,9 @@ async function estado(env, s) {
   const desde = new Date(Date.parse(hoy + "T12:00:00Z") - 35 * 864e5).toISOString().slice(0, 10), hasta = new Date(Date.parse(hoy + "T12:00:00Z") + 70 * 864e5).toISOString().slice(0, 10);
   const calendario = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, estado, hecho_por, cerrado, repetir FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND fecha BETWEEN ? AND ? AND estado != 'archivado' ORDER BY fecha, COALESCE(hora, '99'), creado LIMIT 300`).bind(desde, hasta).all()).results;
-  // Compras para la administración: las pendientes (para no pedir dos veces lo mismo) y las compradas en los últimos 3 días
-  const compras = (await env.DB.prepare(`SELECT id, titulo, cantidad, detalle, prioridad, estado, reporto, turno, creado, cerrado FROM agenda_items WHERE tipo = 'compra'
-    AND (${ABIERTO} OR (estado = 'comprado' AND reporto IS NOT NULL AND cerrado >= ?)) ORDER BY CASE WHEN estado = 'comprado' THEN 1 ELSE 0 END, CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, creado DESC LIMIT 60`)
+  // Compras que pidieron los encargados (NUNCA las que agrega la administración): las pendientes, para no pedir dos veces lo mismo, y las compradas en los últimos 3 días
+  const compras = (await env.DB.prepare(`SELECT id, titulo, cantidad, detalle, prioridad, estado, reporto, turno, creado, cerrado FROM agenda_items WHERE tipo = 'compra' AND reporto IS NOT NULL
+    AND (${ABIERTO} OR (estado = 'comprado' AND cerrado >= ?)) ORDER BY CASE WHEN estado = 'comprado' THEN 1 ELSE 0 END, CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, creado DESC LIMIT 60`)
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
@@ -408,8 +408,11 @@ export async function turnoRuta(request, env, url, h) {
   if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
     const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
+    // Foto opcional (llega ya comprimida desde la tablet)
+    let foto = null;
+    try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
-    await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona });
+    await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona, ...(foto ? { foto } : {}) });
     await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Aviso urgente" : "Aviso"} de ${s.nombre}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : ""), sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }

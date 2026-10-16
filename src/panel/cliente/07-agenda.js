@@ -449,6 +449,7 @@
       <span class="tt">${nuevo ? `<span class="tag hoy" style="margin-right:6px">Nuevo</span>` : ""}${esc(it.titulo)}</span>
       <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:40px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:40px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Reactivar</button>`}${it.autor === "admin" ? `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}">Editar</button>` : ""}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button></span>
       <span class="mm"><span>De <b>${esc(deTxt(it))}</b> para <b>${esc(paraTxt(it.para || {}))}</b></span>${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}${deEnc && paraAdmin && leidoAdmin(it) ? `<span class="lect si">✓ Leído por ti</span>` : ""}</span>
+      ${fotosDe(it).length ? `<span class="inc-gal">${fotosDe(it).map((k, i) => `<span class="inc-th"><a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a></span>`).join("")}</span>` : ""}
       <span class="mm" style="margin-top:4px">${lecturas(it)}</span></div>`;
     };
     const r = st.resp || {}; st.resp = null;
@@ -458,6 +459,9 @@
       <label class="w4">Mensaje <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <div class="w4 para-op"><span>Para</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>
       <label>Mostrar desde<input type="date" name="fecha"></label><label>Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
+      <div class="w4 inc-fotos"><span class="lbl">Foto <span style="font-weight:400">(opcional · hasta 8)</span></span>
+        <div class="inc-fbtns"><label class="btn btn-line"><input type="file" accept="image/*" capture="environment" class="inc-f" hidden>Tomar foto</label><label class="btn btn-line"><input type="file" accept="image/*" multiple class="inc-f" hidden>Subir fotos</label></div>
+        <div class="inc-prev"></div></div>
       <button class="btn btn-primary" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado". Los encargados también pueden dejarte avisos a ti o entre ellos; aquí los ves todos.</p></section>
       <section class="card"><div class="alist">${act.length ? act.map(fila).join("") : `<p class="note">No hay avisos activos.</p>`}</div>
@@ -624,7 +628,7 @@
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = c.querySelector("form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     }));
-    c.querySelectorAll("form.aform[data-tipo=incidencia]").forEach(conectarFotos);
+    c.querySelectorAll("form.aform[data-tipo=incidencia], form.aform[data-tipo=aviso]").forEach(conectarFotos);
     // Fotos de incidencias ya registradas: agregar más o quitar una
     c.querySelectorAll("[data-fmas]").forEach(inp => inp.addEventListener("change", async () => {
       const lab = inp.closest(".inc-mas"); lab.classList.add("cargando");

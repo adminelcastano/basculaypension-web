@@ -542,8 +542,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const id = crypto.randomUUID();
     // Incidencia desde el panel: fotos tomadas o subidas (opcional, varias)
     let fotos = [];
-    if (tipo === "incidencia" && Array.isArray(c.fotos) && c.fotos.length) {
-      if (c.fotos.length > FOTOS_INC_MAX) return json({ ok: false, error: `Máximo ${FOTOS_INC_MAX} fotos por incidencia.` }, 422);
+    // También los avisos llevan foto opcional
+    if ((tipo === "incidencia" || tipo === "aviso") && Array.isArray(c.fotos) && c.fotos.length) {
+      if (c.fotos.length > FOTOS_INC_MAX) return json({ ok: false, error: `Máximo ${FOTOS_INC_MAX} fotos.` }, 422);
       try { fotos = await guardarFotosInc(env, c.fotos, d.titulo); } catch (er) { return json({ ok: false, error: er.message, errores: { fotos: er.message } }, 422); }
     }
     await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora, fotos.length ? { foto: fotos[0] } : {});

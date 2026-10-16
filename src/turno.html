@@ -240,6 +240,8 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 .chips .chip { min-height: 44px; font-size: .95rem; }
 .foto { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .foto img { width: 88px; height: 88px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.av-fotos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.av-fotos img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); display: block; }
 .foto input { display: none; }
 
 /* Cambio inicial (pantalla de entrada al turno) */
@@ -732,6 +734,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       <span class="acc">${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</span>
       <span class="mm"><span>${a.propio ? "Lo dejaste tú" : `De <b>${esc(de)}</b>`} para ${esc(paraTxt(a.para))}</span><span>${esc(fechaCorta(a.creado))}</span></span>
       ${a.detalle ? `<span class="det">${esc(a.detalle)}</span>` : ""}
+      ${(a.fotos || []).length ? `<span class="det av-fotos">${a.fotos.map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</span>` : ""}
       <span class="acc2">${!a.leido ? `<button class="btn btn-primary btn-sm" type="button" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : a.propio ? "" : `<span class="etq e-ok">${svg("i-check")}Enterado</span>`}
         ${a.propio ? `<button class="btn btn-line btn-sm" type="button" data-quitar="${esc(a.id)}">Quitar aviso</button>` : `<button class="btn btn-line btn-sm" type="button" data-responder="${esc(a.id)}">Responder</button>`}</span>
     </div>`;
@@ -1047,18 +1050,20 @@ dialog .acciones .btn { flex: 1 1 160px; }
     elegirChip("#i-area", () => {}); elegirChip("#i-grav", () => {});
   }
   function hojaAviso(base = {}) {
+    let fotoAviso = null;
     const ops = [["admin", "Administración"], ["todos", "Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "Turno " + TURNO_TXT[t]]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, esc(p.clave)])];
     const sel = base.para || ["admin"];
     hoja(`<h2>${base.titulo ? "Responder aviso" : "Nuevo aviso"}</h2><p class="muted" style="margin:0 0 14px">Para la administración, para todos o para un turno o encargado. La administración ve todos los avisos.</p>
       <div class="campo"><span class="lb">¿Para quién?</span>${chips("a-para", ops, sel, true)}</div>
       <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
       <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
+      <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("a-foto", "Tomar foto")}</div>
       <label class="campo" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="alta" style="width:22px;height:22px;accent-color:var(--amber)"><span style="margin:0">Es importante</span></label>`,
       async f => {
         const v = marcados("a-para");
         if (!v.length) throw new Error("Elige para quién es el aviso.");
         const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
-        const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para });
+        const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para, foto: fotoAviso });
         toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Aviso publicado."); await refrescar();
       });
     // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
@@ -1069,6 +1074,7 @@ dialog .acciones .btn { flex: 1 1 160px; }
       if (on && b.dataset.v === "todos") $("#a-para").querySelectorAll('.chip[data-v^="t:"], .chip[data-v^="p:"]').forEach(x => x.setAttribute("aria-pressed", "false"));
       if (on && /^[tp]:/.test(b.dataset.v)) { const t = $('#a-para .chip[data-v="todos"]'); t && t.setAttribute("aria-pressed", "false"); }
     });
+    activarFoto("a-foto", x => { fotoAviso = x; });
   }
   // Compras que tiene que hacer la administración: llegan a su lista de Compras con el nombre de quien las pidió
   function hojaCompra() {
