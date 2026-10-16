@@ -25,10 +25,11 @@
   function pintar() {
     if (!caja) return;
     const p = soporta ? Notification.permission : "nada";
-    caja.hidden = p === "granted";
-    if (p === "granted") return;
-    const top = `<div class="ini-top"><span class="ibadge" style="--c:#ffb340"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Notificaciones</span></div>`;
-    caja.innerHTML = top + (p === "nada"
+    // Vive en Configuración: siempre visible, con el estado de este aparato
+    const top = `<div class="ini-top"><span class="ibadge" style="--c:${p === "granted" ? "#30d158" : "#ffb340"}"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Notificaciones en este aparato</span></div>`;
+    caja.innerHTML = top + (p === "granted"
+      ? `<p class="push-t"><b>Activadas.</b> Aquí llegan los cortes, incidencias, avisos e informes de tareas de la tablet. Cada celular o computadora se activa por separado.</p><button class="btn btn-line" type="button" id="push-prueba">Enviar una prueba</button>`
+      : p === "nada"
       ? `<p class="push-t">Este navegador no recibe notificaciones. En Android abre el panel en <b>Chrome</b>.</p>`
       : p === "denied"
         ? `<p class="push-t">Están <b>bloqueadas</b> en este celular. Permítelas en Chrome: <b>⋮ → Configuración → Notificaciones → basculaypension.com</b>, y vuelve a abrir el panel.</p>`
@@ -36,6 +37,8 @@
   }
 
   if (caja) caja.addEventListener("click", async e => {
+    const pr = e.target.closest("#push-prueba");
+    if (pr && !pr.disabled) { pr.disabled = true; try { const r = await post("push/prueba"); toast(r.enviados ? "Te mandé una notificación de prueba." : "La prueba no llegó. Intenta de nuevo."); } catch (er) { toast(String(er && er.message || er)); } pr.disabled = false; return; }
     const b = e.target.closest("#push-act"); if (!b || b.disabled) return;
     b.disabled = true; b.textContent = "Activando…";
     try {

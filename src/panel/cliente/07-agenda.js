@@ -75,6 +75,7 @@
     conectar($("#ag-cuerpo"));
     $("#pg-cuerpo").innerHTML = vistaPagos();
     conectar($("#pg-cuerpo"));
+    pintarConfig();
   }
 
   // ---- Formularios ----
@@ -360,14 +361,32 @@
       grupos = (sin.length ? grupo("Sin lugar · elige dónde se compra", orden(sin), "sin") : "")
         + lugares.map(l => { const x = deLugar(l.id); return x.length ? grupo(l.nombre, orden(x)) : ""; }).join("");
     }
-    const adm = `<details class="lg-adm"><summary>Lugares de compra (${lugares.length})</summary>
-        <p class="note" style="margin:6px 0 10px">Tú decides dónde se compra cada cosa; la tablet solo pide qué hace falta. Si algo ya se compró antes en un lugar, la compra nueva se va sola a ese lugar.</p>
-        <div class="lg-lista">${lugares.map(l => `<form class="lg-fila" data-lid="${esc(l.id)}"><input name="nombre" value="${esc(l.nombre)}" maxlength="40" aria-label="Nombre del lugar"><button class="btn btn-line btn-sm" type="submit">Guardar</button><button class="btn btn-line btn-sm" type="button" data-lquitar="${esc(l.id)}" aria-label="Quitar ${esc(l.nombre)}">Quitar</button></form>`).join("")}</div>
-        <form class="lg-fila" id="lg-nuevo"><input name="nombre" maxlength="40" placeholder="Nuevo lugar (ej. Ferretería Martínez)" aria-label="Nuevo lugar"><button class="btn btn-primary btn-sm" type="submit">Agregar</button></form>
-      </details>`;
     return `<section class="card">${formulario("compra")}</section>
-      <section class="card">${filtro}${ab.length ? grupos : `<p class="note">No hay compras pendientes.</p>`}${adm}
+      <section class="card">${filtro}${ab.length ? grupos : `<p class="note">No hay compras pendientes.</p>`}
       ${ce.length ? `<details class="hechos"><summary>Compradas en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
+  }
+
+  // ---- Configuración (engranaje): lugares de compra y categorías ----
+  function vistaLugares() {
+    const lugares = st.lugares || [];
+    return `<p class="note" style="margin:0 0 10px">Tú decides dónde se compra cada cosa; la tablet solo pide qué hace falta. Si algo ya se compró antes en un lugar, la compra nueva se va sola a ese lugar. Si quitas un lugar, sus compras pendientes quedan «Sin lugar».</p>
+        <div class="lg-lista">${lugares.map(l => `<form class="lg-fila" data-lid="${esc(l.id)}"><input name="nombre" value="${esc(l.nombre)}" maxlength="40" aria-label="Nombre del lugar"><button class="btn btn-line btn-sm" type="submit">Guardar</button><button class="btn btn-line btn-sm" type="button" data-lquitar="${esc(l.id)}" aria-label="Quitar ${esc(l.nombre)}">Quitar</button></form>`).join("")}</div>
+        <form class="lg-fila" id="lg-nuevo"><input name="nombre" maxlength="40" placeholder="Nuevo lugar (ej. Ferretería Martínez)" aria-label="Nuevo lugar"><button class="btn btn-primary btn-sm" type="submit">Agregar</button></form>`;
+  }
+  function vistaCategorias() {
+    const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
+      const ICO_TXT = { servicios: "Foco", sueldos: "Monedas", renta: "Casa", mantenimiento: "Llave", papeleria: "Clip", combustible: "Bomba de gasolina", impuestos: "Recibo", tarjetas: "Tarjeta", suscripciones: "Pantalla", familia: "Personas", otros: "Caja", carrito: "Carrito", comida: "Cubiertos", salud: "Cruz", transporte: "Camión", limpieza: "Escoba" };
+      return `<section class="card"><p class="note" style="margin:0 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario. Aquí le cambias el nombre (con «Guardar») y el icono (se guarda al elegirlo). Al cambiar el nombre, lo ya registrado y los totales siguen igual, con el nombre nuevo.</p>
+        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
+          <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría" autocomplete="off"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
+          <label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i => `<option value="${i}" ${i === c.icono ? "selected" : ""}>${esc(ICO_TXT[i] || i)}</option>`).join("")}</select></label></div>`).join("")}</div>
+        <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Publicidad" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></section>`;
+  }
+  function pintarConfig() {
+    const m = $("#mod-config"); if (!m || m.hidden || !st.hoy) return;
+    const cc = $("#cfg-categorias-c"), cl = $("#cfg-lugares-c");
+    if (cc) { cc.innerHTML = vistaCategorias(); conectar(cc); }
+    if (cl) { cl.innerHTML = vistaLugares(); conectar(cl); }
   }
 
   // ---- Pagos y compras (sección propia) ----
@@ -389,15 +408,6 @@
         <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
       <section class="card"><h3>Pagos y gastos hechos</h3>${listaPagosHechos()}</section>`;
     if (st.ptab === "compra") return resumen + vistaCompras();
-    if (st.ptab === "categorias") {
-      const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
-      const ICO_TXT = { servicios: "Foco", sueldos: "Monedas", renta: "Casa", mantenimiento: "Llave", papeleria: "Clip", combustible: "Bomba de gasolina", impuestos: "Recibo", tarjetas: "Tarjeta", suscripciones: "Pantalla", familia: "Personas", otros: "Caja", carrito: "Carrito", comida: "Cubiertos", salud: "Cruz", transporte: "Camión", limpieza: "Escoba" };
-      return `<section class="card"><h3>Categorías</h3><p class="note" style="margin:4px 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario. Aquí le cambias el nombre (con «Guardar») y el icono (se guarda al elegirlo). Al cambiar el nombre, lo ya registrado y los totales siguen igual, con el nombre nuevo.</p>
-        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
-          <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría" autocomplete="off"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
-          <label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i => `<option value="${i}" ${i === c.icono ? "selected" : ""}>${esc(ICO_TXT[i] || i)}</option>`).join("")}</select></label></div>`).join("")}</div>
-        <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Publicidad" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></section>`;
-    }
     return resumen + vistaLista("pago");
   }
 
@@ -444,7 +454,9 @@
   let modoTablet = "encargados";
   async function vistaTablet(modo) {
     if (modo) modoTablet = modo; else modo = modoTablet;
-    const c = $("#t-cuerpo");
+    // "curso" se ve en Caja; los encargados, en Configuración
+    const c = modo === "curso" ? $("#t-cuerpo") : $("#cfg-tablet-c");
+    if (!c) return;
     if (!c.innerHTML.trim()) c.innerHTML = `<p class="empty">Cargando…</p>`;
     let j, act = null, colabs = [];
     try {
@@ -506,6 +518,8 @@
     });
   }
   window.turnoVista = vistaTablet;
+  // Al abrir Configuración: encargados, categorías y lugares
+  document.addEventListener("modulo", e => { if (e.detail !== "config") return; vistaTablet("encargados"); if (st.hoy) pintarConfig(); else cargar(); });
 
   function vistaCalendario() {
     const [a, m] = st.mes.split("-").map(Number);

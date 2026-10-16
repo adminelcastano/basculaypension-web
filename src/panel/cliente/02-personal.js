@@ -20,15 +20,17 @@
     if (mod === "pagos" || mod === "finanzas") EC.ultimoDinero = mod;
     const sec = EC.seccionDe(mod);
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === sec) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-    for (const m of ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
-    const vista = mod === "pagos" ? "pagos" : mod === "finanzas" ? EC.finVista : null;
+    const eng = $("#cfg-abrir"); if (eng) { if (mod === "config") eng.setAttribute("aria-current", "page"); else eng.removeAttribute("aria-current"); }
+    for (const m of ["inicio", "facturacion", "personal", "caja", "pagos", "finanzas", "agenda", "config"]) { const el = $("#mod-" + m); if (el) el.hidden = mod !== m; }
+    const vista = mod === "pagos" ? "pagos" : mod === "finanzas" ? EC.finVista : mod === "config" ? opciones.vista || null : null;
     document.querySelectorAll(".dsub [data-dv]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.dv === vista)));
-    document.title = ({ inicio: "Hoy", personal: "Personal", caja: "Caja", pagos: "Dinero · Pagos y compras", finanzas: "Dinero", agenda: "Agenda" }[mod] || "Facturas") + " · El Castaño";
+    document.title = ({ inicio: "Hoy", personal: "Personal", caja: "Caja", pagos: "Dinero · Pagos y compras", finanzas: "Dinero", agenda: "Agenda", config: "Configuración" }[mod] || "Facturas") + " · El Castaño";
     const url = EC.hashDe(mod, vista) || location.pathname;
     const estado = { mod, vista };
     if (opciones.historia === "push" && ((history.state || {}).mod !== mod || (history.state || {}).vista !== vista)) history.pushState(estado, "", url);
     else history.replaceState(estado, "", url);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
+    if (mod === "config") EC.cfgVista = vista;
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
   // Pestañas de Dinero: Pagos y compras es su propia pantalla; las demás son vistas de Finanzas

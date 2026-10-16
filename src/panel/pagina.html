@@ -25,6 +25,7 @@
     <button type="button" data-mod="facturacion"><svg class="mi" aria-hidden="true"><use href="#i-doc"/></svg><span>Facturas</span></button>
     <button type="button" data-mod="personal"><svg class="mi" aria-hidden="true"><use href="#i-persona"/></svg><span>Personal</span></button>
   </nav>
+  <button class="sync cfg-btn" id="cfg-abrir" type="button" title="Configuración" aria-label="Configuración"><svg aria-hidden="true"><use href="#i-engrane"/></svg><span>Configuración</span></button>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
   <small id="yo"></small>
 </header>
@@ -72,6 +73,7 @@
   <symbol id="i-cat-salud" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/></symbol>
   <symbol id="i-cat-transporte" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M2.8 6.4h10.6v9.8H2.8zM13.4 9.6h4.2l3.2 3.4v3.2h-7.4"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="6.6" cy="17.4" r="1.8"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="17" cy="17.4" r="1.8"/></symbol>
   <symbol id="i-cat-limpieza" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.6 3.2l-4.2 8.6M6.6 12h7.6l2 8.8H4.6zM8.6 16.4v4.4M11.6 16.4v4.4"/></symbol>
+  <symbol id="i-engrane" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></g></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
 <main class="mod" id="mod-inicio">
@@ -81,7 +83,6 @@
       <p class="note" id="i-fecha"></p>
     </div>
     <div class="ini-grid">
-      <section class="ini-card full s3 push-card" id="i-push" aria-label="Notificaciones" hidden></section>
       <section class="ini-card full s3 ini-aten" id="i-aten" aria-label="Pide atención" hidden>
         <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Pide atención</span><b class="ia-n" id="i-aten-n"></b></div>
         <div class="ia-chips" id="i-aten-l"></div>
@@ -190,12 +191,11 @@
         </div>
       </div>
 
-      <h3 class="sec-h cat-e"><span class="pt" aria-hidden="true"></span><span>Sistema</span><span class="ln" aria-hidden="true"></span></h3>
-      <section class="ini-card cat-e full s3" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section>
     </div>
     <p class="note ini-pie" id="i-pie"></p>
   </div>
   <div class="gtip" id="gtip" role="status" hidden></div>
+<p class="cfg-ir"><a href="#config/notificaciones" data-cfg="notificaciones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Notificaciones y sistema</a></p>
 </main>
 <main class="mod" id="mod-facturacion" hidden>
 <div class="titlebar">
@@ -248,18 +248,12 @@
   </div>
   <input class="search" id="p-q" type="search" placeholder="Buscar por nombre, folio, puesto o teléfono" aria-label="Buscar colaborador">
   <button class="btn btn-primary" id="p-nuevo" type="button">+ Nuevo colaborador</button>
-  <details class="ajustes">
-  <summary class="btn btn-line">Ajustes</summary>
-  <div class="plim">
-    <button class="btn btn-line" id="p-drive" type="button">Probar conexión con Drive</button>
-    <span class="note" id="p-drive-nota"></span>
-  </div>
-  </details>
 </div>
 <div class="work" id="p-work">
   <nav class="list" id="p-lista" aria-label="Colaboradores"></nav>
   <div class="detail" id="p-detalle"><p class="empty">Elige un colaborador o agrega uno nuevo.</p></div>
 </div>
+<p class="cfg-ir"><a href="#config/conexiones" data-cfg="conexiones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Conexión con Drive</a></p>
 </main>
 <main class="mod" id="mod-caja" hidden>
 <div class="titlebar">
@@ -272,7 +266,6 @@
     <button class="ptab" role="tab" data-v="cortes" aria-selected="true">Cortes</button>
     <button class="ptab" role="tab" data-v="movs" aria-selected="false">Movimientos de caja <span class="n" id="c-nmovs">0</span></button>
     <button class="ptab" role="tab" data-v="entregas" aria-selected="false">Entregas</button>
-    <button class="ptab" role="tab" data-v="encargados" aria-selected="false">Encargados</button>
   </div>
   <div class="cper" role="group" aria-label="Periodo" id="c-per">
     <div class="ptabs" id="c-rapidos" role="tablist" aria-label="Periodo rápido">
@@ -292,6 +285,7 @@
   <div class="detail" id="c-detalle"><p class="empty">Elige un corte de turno.</p></div>
 </div>
 <div class="ag" id="c-full" hidden><div id="t-cuerpo"></div><div id="c-curso"></div></div>
+<p class="cfg-ir"><a href="#config/tablet" data-cfg="tablet"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Encargados de la tablet</a></p>
 </main>
 <main class="mod" id="mod-pagos" hidden>
 <div class="titlebar">
@@ -304,10 +298,10 @@
     <button class="ptab" role="tab" data-t="pago" aria-selected="true"><svg class="aico" aria-hidden="true"><use href="#i-cal"/></svg>Programados <span class="n" id="an-pago">0</span></button>
     <button class="ptab" role="tab" data-t="hechos" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-check"/></svg>Pagos y gastos hechos</button>
     <button class="ptab" role="tab" data-t="compra" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-carrito"/></svg>Compras <span class="n" id="an-compra">0</span></button>
-    <button class="ptab" role="tab" data-t="categorias" aria-selected="false"><svg class="aico" aria-hidden="true"><use href="#i-cat-otros"/></svg>Categorías</button>
   </div>
 </div>
 <div class="ag" id="pg-cuerpo"></div>
+<p class="cfg-ir"><a href="#config/categorias" data-cfg="categorias"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Categorías y lugares de compra</a></p>
 </main>
 <main class="mod" id="mod-finanzas" hidden>
 <div class="titlebar">
@@ -319,6 +313,7 @@
   <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
 </div>
 <div class="ag" id="f-cuerpo"><p class="empty">Cargando…</p></div>
+<p class="cfg-ir"><a href="#config/cuentas" data-cfg="cuentas"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Administrar cuentas</a></p>
 </main>
 <main class="mod" id="mod-agenda" hidden>
 <div class="titlebar">
@@ -338,6 +333,27 @@
 <datalist id="dl-cats"></datalist>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
+<main class="mod" id="mod-config" hidden>
+<div class="titlebar">
+  <h2>Configuración.</h2>
+  <p class="note">Lo que se configura una vez: encargados, cuentas, categorías, lugares, notificaciones y conexiones. Lo del día a día sigue en su sección.</p>
+</div>
+<nav class="cfg-indice" aria-label="Apartados de configuración">
+  <a href="#config/tablet" data-cfg="tablet">Tablet y encargados</a><a href="#config/cuentas" data-cfg="cuentas">Cuentas</a><a href="#config/categorias" data-cfg="categorias">Categorías</a><a href="#config/lugares" data-cfg="lugares">Lugares de compra</a><a href="#config/notificaciones" data-cfg="notificaciones">Notificaciones</a><a href="#config/conexiones" data-cfg="conexiones">Conexiones</a><a href="#config/sistema" data-cfg="sistema">Sistema</a>
+</nav>
+<div class="cfg">
+  <div class="cfg-ap" id="cfg-tablet"><h3 class="cfg-h">Tablet y encargados <small>antes en Caja</small></h3><div id="cfg-tablet-c"><p class="note">Cargando…</p></div></div>
+  <div class="cfg-ap" id="cfg-cuentas"><h3 class="cfg-h">Cuentas <small>antes en Dinero → Cuentas y sobres</small></h3><section class="card" id="cfg-cuentas-c"><p class="note">Cargando…</p></section></div>
+  <div class="cfg-ap" id="cfg-categorias"><h3 class="cfg-h">Categorías <small>antes en Dinero → Pagos y compras</small></h3><div id="cfg-categorias-c"><p class="note">Cargando…</p></div></div>
+  <div class="cfg-ap" id="cfg-lugares"><h3 class="cfg-h">Lugares de compra <small>antes en Dinero → Compras</small></h3><section class="card" id="cfg-lugares-c"><p class="note">Cargando…</p></section></div>
+  <div class="cfg-ap" id="cfg-notificaciones"><h3 class="cfg-h">Notificaciones <small>antes en Hoy</small></h3><section class="ini-card push-card" id="i-push" aria-label="Notificaciones"></section></div>
+  <div class="cfg-ap" id="cfg-conexiones"><h3 class="cfg-h">Conexiones <small>antes en Personal → Ajustes</small></h3><section class="card"><p class="note" style="margin:0 0 10px">Google Drive guarda los documentos de los expedientes y los comprobantes de pago.</p><div class="plim">
+    <button class="btn btn-line" id="p-drive" type="button">Probar conexión con Drive</button>
+    <span class="note" id="p-drive-nota"></span>
+  </div></section></div>
+  <div class="cfg-ap" id="cfg-sistema"><h3 class="cfg-h">Sistema <small>antes en Hoy</small></h3><section class="ini-card" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section></div>
+</div>
+</main>
 <button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
 
 </body>

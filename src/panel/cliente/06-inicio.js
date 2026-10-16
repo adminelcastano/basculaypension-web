@@ -157,6 +157,7 @@
     } catch (e) { if (e.message !== "sesion") el.textContent = "No se pudo leer el consumo: " + e.message; }
   }
 
+  window.pintarConsumo = pintarConsumo;
   // Pide atención: una ficha corta por cosa (lo urgente en rojo), y tocarla lleva a donde se resuelve
   function irA(dest) {
     if (!dest || !window.irA) return;

@@ -23,6 +23,7 @@
     try {
       const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
       st.datos = j; st.mes = j.mes;
+      try { pintarConfigCuentas(); } catch (er) { console.error(er); }
       if (j.cuentas_activas) window.CUENTAS = j.cuentas_activas;
       const sel = $("#f-mes");
       if (!sel.options.length) sel.innerHTML = j.meses.map((m, i) => `<option value="${m}">${esc(nomMes(m))}${i === 0 ? " (en curso)" : ""}</option>`).join("");
@@ -51,6 +52,32 @@
 
   // Saldo inicial: contado (capturado) o calculado del mes anterior, con el ajuste si hay los dos
   const origenSaldo = x => x.inicial == null ? `<span class="note" style="color:var(--warn)">sin saldo</span>` : x.capturado ? `<span class="note">contado${x.ajuste ? ` · ajuste <b style="color:${x.ajuste < 0 ? "#ff8a80" : "#7ee2a0"}">${D(x.ajuste)}</b>` : x.calculado != null ? " · cuadra con lo calculado" : ""}</span>` : `<span class="note">calculado del mes anterior</span>`;
+
+  // ---- Administrar cuentas (vive en Configuración): usos, nombre, tipo, comisión, nuevas y notas ----
+  function adminCuentas(b) {
+    return `<p class="note" style="margin:0">Las cuentas de banco y tarjetas de la administración. Los saldos y traspasos de cada mes siguen en Dinero → Cuentas y sobres.</p>
+          ${(() => {
+            // Para qué se usa cada cuenta: una misma cuenta puede tener los tres usos a la vez
+            const deb = (b.lista || []).filter(c => c.tipo !== "credito" && c.activa);
+            const uso = (k, txt, ayuda) => `<label class="cuso"><span>${txt}<small>${ayuda}</small></span><select data-cuso="${k}" aria-label="${esc(txt)}">${(b.lista || []).some(c => c[k]) ? "" : `<option value="">Elige…</option>`}${deb.map(c => `<option value="${esc(c.id)}" ${c[k] ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>`;
+            return `<div class="cusos">${uso("def_pago", "Pagos y compras", "cuenta que se propone al pagar con transferencia o débito")}${uso("def_transf", "Transferencias de clientes", "a dónde llegan por defecto")}${uso("tarjeta", "Cobros con tarjeta", "a dónde entran los cobros de la terminal")}</div>
+              <p class="note" style="margin:4px 0 0">Puedes elegir la misma cuenta en los tres. Al registrar cada movimiento puedes cambiar la cuenta.</p>`;
+          })()}
+          <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem cfila" style="opacity:${c.activa ? 1 : .55}"><form class="cnom" data-cnom="${esc(c.id)}"><input name="nombre" value="${esc(c.nombre)}" maxlength="40" aria-label="Nombre de la cuenta" autocomplete="off"><button class="btn btn-line" type="submit">Guardar</button></form><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select><button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span>
+            <span class="mm">${[c.def_pago ? "Pagos y compras" : "", c.def_transf ? "Transferencias de clientes" : "", c.tarjeta ? "Cobros con tarjeta" : ""].filter(Boolean).map(t => `<span class="cat-chip">${t}</span>`).join("")}</span>
+            ${c.tarjeta ? `<form class="fcom" data-ccom="${esc(c.id)}" novalidate style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><label class="note">Comisión por cobro con tarjeta <input class="fsaldo-c" name="pct" inputmode="decimal" value="${c.comision_pct != null ? esc(c.comision_pct) : ""}" placeholder="3.50" style="width:80px"> %</label><label class="note"><input type="checkbox" name="iva" ${c.comision_iva ? "checked" : ""}> + IVA (16 %)</label><button class="btn btn-line" type="submit" style="min-height:34px;padding:0 10px">Guardar comisión</button></form>` : ""}</div>`).join("")}</div>
+          <form class="aform" id="f-cnueva" style="margin-top:10px"><label class="w2">Nueva cuenta<input name="nombre" maxlength="40" placeholder="Ej. SANTANDER" autocomplete="off"></label><label>Tipo<select name="tipo"><option value="debito">Débito</option><option value="credito">Crédito</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
+          <form id="f-cuentas" novalidate style="margin-top:12px"><label class="fcuentas">Notas de las cuentas <span class="ayuda">(terminaciones, CLABE, para qué se usa…)</span><textarea name="texto" rows="3" maxlength="4000">${esc(b.cuentas)}</textarea></label>
+            <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar notas</button><span class="err"></span></div></form>
+`;
+  }
+  function pintarConfigCuentas() {
+    const m = $("#mod-config"), c = $("#cfg-cuentas-c");
+    if (!m || m.hidden || !c || !st.datos) return;
+    c.innerHTML = adminCuentas(st.datos.banco);
+    conectarCuentas(c);
+  }
+  document.addEventListener("modulo", e => { if (e.detail !== "config") return; if (st.datos) pintarConfigCuentas(); else cargar(); });
 
   function pintar() {
     const j = st.datos, e = j.efectivo, i = j.ingresos, g = j.egresos, b = j.banco, df = j.diferencias, su = j.sueldos;
@@ -99,8 +126,8 @@
       cuentas: () => `      <section class="card" id="f-banco"><h3>Cuentas y tarjetas</h3>
         <p class="note" style="margin:4px 0 10px">Débito: saldo = inicial + lo que entra − lo que sale. Crédito: deuda = inicial + lo que cargas − lo que le pagas. Lo que compras con tarjeta de crédito cuenta como gasto el día de la compra; pagar la tarjeta es un traspaso, no otro gasto. El saldo pasa solo al mes siguiente; escríbelo solo cuando veas el saldo real en el banco (así ves si cuadra).</p>
         <div class="ctot" style="margin:0 0 12px"><div class="k"><span>Dinero en cuentas</span><b style="color:#7ee2a0">${b.dinero != null ? D(b.dinero) : "—"}</b></div><div class="k"><span>Deuda en tarjetas</span><b style="color:#ff8a80">${b.deuda != null ? D(b.deuda) : "—"}</b></div><div class="k"><span>Cobros con tarjeta${mc ? ` (a ${esc(mc.nombre)})` : ""}</span><b>${D(b.tarjeta)}</b><span class="note">comisión ${D(b.comision)} · neto ${D(b.tarjeta_neto)}</span></div><div class="k"><span>Transferencias de clientes</span><b>${D(b.transferencias)}</b></div></div>
-        ${mc && !(mc.pct > 0) ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Falta la comisión de ${esc(mc.nombre)}: escríbela en «Administrar cuentas».</p>` : ""}
-        ${(b.faltan_saldo || []).length ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Sin saldo de partida: ${esc(b.faltan_saldo.join(", "))}. Escríbelo una vez y después se calcula solo; los totales de arriba no las incluyen. Si no usas alguna, ocúltala en «Administrar cuentas».</p>` : ""}
+        ${mc && !(mc.pct > 0) ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Falta la comisión de ${esc(mc.nombre)}: escríbela en Configuración (⚙️) → Cuentas.</p>` : ""}
+        ${(b.faltan_saldo || []).length ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Sin saldo de partida: ${esc(b.faltan_saldo.join(", "))}. Escríbelo una vez y después se calcula solo; los totales de arriba no las incluyen. Si no usas alguna, ocúltala en Configuración (⚙️) → Cuentas.</p>` : ""}
         ${["debito", "credito"].map(tipo => { const l = (b.lista || []).filter(c => c.tipo === tipo && c.activa); return l.length ? `<h4 class="fsub">${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}</h4><div class="tabla-scroll" tabindex="0" role="region" aria-label="${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}"><table class="cmovs fcuentas-t"><thead><tr><th>${tipo === "credito" ? "Tarjeta" : "Cuenta"}</th><th class="n">${tipo === "credito" ? "Deuda inicial" : "Saldo inicial"}</th><th class="n">${tipo === "credito" ? "Cargos" : "Entró"}</th><th class="n">${tipo === "credito" ? "Pagos" : "Salió"}</th><th class="n">${tipo === "credito" ? "Deuda" : "Saldo"}</th></tr></thead><tbody>
           ${l.map(c => { const cargos = tipo === "credito" ? c.salidas : c.entradas, abonos = tipo === "credito" ? c.entradas : c.salidas; const det = [c.detalle.tarjeta ? `tarjeta ${D(c.detalle.tarjeta)} − comisión ${D(c.detalle.comision)}` : "", c.detalle.transferencias ? "transferencias " + D(c.detalle.transferencias) : "", c.detalle.recibido ? (tipo === "credito" ? "pagos " : "recibido ") + D(c.detalle.recibido) : "", c.detalle.pagos ? (tipo === "credito" ? "compras " : "pagos ") + D(c.detalle.pagos) : "", c.detalle.enviado ? "enviado " + D(c.detalle.enviado) : ""].filter(Boolean).join(" · ");
             const ini = abierto ? `<input class="fsaldo-c" data-cuenta="${esc(c.id)}" inputmode="decimal" value="${c.capturado ? esc(c.inicial) : ""}" placeholder="${c.calculado != null ? esc(c.calculado.toFixed(2)) : "—"}" aria-label="Saldo inicial de ${esc(c.nombre)}">` : `<b>${c.inicial != null ? D(c.inicial) : "—"}</b>`;
@@ -121,21 +148,6 @@
         </form>` : `<p class="note">Mes cerrado: los movimientos ya no se pueden cambiar.</p>`}
         ${(b.movs || []).length ? `<div class="alist" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc">${abierto ? `<button class="del" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento (toca dos veces)"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>` : ""}</span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
 
-        <details style="margin-top:14px"><summary class="note" style="cursor:pointer;font-weight:600">Administrar cuentas</summary>
-          ${(() => {
-            // Para qué se usa cada cuenta: una misma cuenta puede tener los tres usos a la vez
-            const deb = (b.lista || []).filter(c => c.tipo !== "credito" && c.activa);
-            const uso = (k, txt, ayuda) => `<label class="cuso"><span>${txt}<small>${ayuda}</small></span><select data-cuso="${k}" aria-label="${esc(txt)}">${(b.lista || []).some(c => c[k]) ? "" : `<option value="">Elige…</option>`}${deb.map(c => `<option value="${esc(c.id)}" ${c[k] ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>`;
-            return `<div class="cusos">${uso("def_pago", "Pagos y compras", "cuenta que se propone al pagar con transferencia o débito")}${uso("def_transf", "Transferencias de clientes", "a dónde llegan por defecto")}${uso("tarjeta", "Cobros con tarjeta", "a dónde entran los cobros de la terminal")}</div>
-              <p class="note" style="margin:4px 0 0">Puedes elegir la misma cuenta en los tres. Al registrar cada movimiento puedes cambiar la cuenta.</p>`;
-          })()}
-          <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem cfila" style="opacity:${c.activa ? 1 : .55}"><form class="cnom" data-cnom="${esc(c.id)}"><input name="nombre" value="${esc(c.nombre)}" maxlength="40" aria-label="Nombre de la cuenta" autocomplete="off"><button class="btn btn-line" type="submit">Guardar</button></form><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select><button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span>
-            <span class="mm">${[c.def_pago ? "Pagos y compras" : "", c.def_transf ? "Transferencias de clientes" : "", c.tarjeta ? "Cobros con tarjeta" : ""].filter(Boolean).map(t => `<span class="cat-chip">${t}</span>`).join("")}</span>
-            ${c.tarjeta ? `<form class="fcom" data-ccom="${esc(c.id)}" novalidate style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><label class="note">Comisión por cobro con tarjeta <input class="fsaldo-c" name="pct" inputmode="decimal" value="${c.comision_pct != null ? esc(c.comision_pct) : ""}" placeholder="3.50" style="width:80px"> %</label><label class="note"><input type="checkbox" name="iva" ${c.comision_iva ? "checked" : ""}> + IVA (16 %)</label><button class="btn btn-line" type="submit" style="min-height:34px;padding:0 10px">Guardar comisión</button></form>` : ""}</div>`).join("")}</div>
-          <form class="aform" id="f-cnueva" style="margin-top:10px"><label class="w2">Nueva cuenta<input name="nombre" maxlength="40" placeholder="Ej. SANTANDER" autocomplete="off"></label><label>Tipo<select name="tipo"><option value="debito">Débito</option><option value="credito">Crédito</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
-          <form id="f-cuentas" novalidate style="margin-top:12px"><label class="fcuentas">Notas de las cuentas <span class="ayuda">(terminaciones, CLABE, para qué se usa…)</span><textarea name="texto" rows="3" maxlength="4000">${esc(b.cuentas)}</textarea></label>
-            <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar notas</button><span class="err"></span></div></form>
-        </details>
       </section>`,
       transferencias: () => `      <section class="card"><h3>Transferencias de clientes</h3>
         <p class="note" style="margin:4px 0 10px">Los tickets que en la hoja dicen <b>TRANSFERENCIA</b> cuentan solos como ingreso. Si además capturas la transferencia aquí, elige su ticket para no contarla dos veces (y para saber a qué cuenta llegó). Captura sin ticket solo lo que no pasó por la báscula ni la pensión.</p>
@@ -184,8 +196,25 @@
     $("#f-subtitulo").textContent = { resumen: "Lo que entró, lo que salió y el resultado del mes, con diferencias de caja y sueldos.", cuentas: "Dónde está el dinero: efectivo en sobres, cuentas de banco y tarjetas.", transferencias: "Transferencias de clientes: tickets de la hoja y las que capturas aquí.", bitacora: "Quién cambió qué y los reportes mensuales en Google Sheets." }[vista];
     $("#f-cuerpo").innerHTML = VISTA[vista].map(k => S[k]()).join("\n");
     conectar();
+    pintarConfigCuentas();
   }
 
+  function conectarCuentas(c) {
+    const guardarCuenta = async (datos, msg) => { try { await post("finanzas/cuenta", datos); toast(msg); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); } };
+    c.querySelectorAll("[data-ctipo]").forEach(x => x.addEventListener("change", () => guardarCuenta({ id: x.dataset.ctipo, tipo: x.value }, "Tipo guardado")));
+    c.querySelectorAll("[data-cuso]").forEach(x => x.addEventListener("change", () => { if (x.value) guardarCuenta({ id: x.value, [x.dataset.cuso]: 1 }, "Guardado"); }));
+    c.querySelectorAll("form[data-cnom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.cnom, nombre: f.nombre.value }, "Nombre guardado"); }));
+    c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta")));
+    c.querySelectorAll("[data-ccom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada"); }));
+    const cnu = c.querySelector("#f-cnueva");
+    if (cnu) cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
+    const cu = c.querySelector("#f-cuentas");
+    if (cu) cu.addEventListener("submit", async ev => {
+      ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
+      try { await post("finanzas/cuentas", { texto: cu.texto.value }); toast("Cuentas guardadas"); } catch (e) { if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message; }
+      b.disabled = false;
+    });
+  }
   function conectar() {
     const c = $("#f-cuerpo");
     const sal = $("#f-saldo");
@@ -222,20 +251,6 @@
       if (!bt.classList.contains("armed")) { bt.classList.add("armed"); bt.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => bt.classList.remove("armed"), 3000); return; }
       try { await post(`finanzas/mov/${encodeURIComponent(bt.dataset.mdel)}/eliminar`); toast("Movimiento eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
-    const guardarCuenta = async (datos, msg) => { try { await post("finanzas/cuenta", datos); toast(msg); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); } };
-    c.querySelectorAll("[data-ctipo]").forEach(x => x.addEventListener("change", () => guardarCuenta({ id: x.dataset.ctipo, tipo: x.value }, "Tipo guardado")));
-    c.querySelectorAll("[data-cuso]").forEach(x => x.addEventListener("change", () => { if (x.value) guardarCuenta({ id: x.value, [x.dataset.cuso]: 1 }, "Guardado"); }));
-    c.querySelectorAll("form[data-cnom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.cnom, nombre: f.nombre.value }, "Nombre guardado"); }));
-    c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta")));
-    c.querySelectorAll("[data-ccom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada"); }));
-    const cnu = $("#f-cnueva");
-    if (cnu) cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
-    const cu = $("#f-cuentas");
-    if (cu) cu.addEventListener("submit", async ev => {
-      ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
-      try { await post("finanzas/cuentas", { texto: cu.texto.value }); toast("Cuentas guardadas"); } catch (e) { if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message; }
-      b.disabled = false;
-    });
     const ft = $("#f-ftransf");
     if (ft) {
       // Al elegir el ticket se llenan el importe, la fecha y el cliente que trae la hoja

@@ -41,13 +41,15 @@
   // Menú: Hoy (inicio) · Caja · Dinero · Agenda · Facturas · Personal. Dinero tiene vistas: resumen, pagos, cuentas,
   // transferencias y bitacora; "pagos" vive en #mod-pagos y las demás en #mod-finanzas. Los enlaces viejos siguen sirviendo.
   const VISTAS_DINERO = ["resumen", "pagos", "cuentas", "transferencias", "bitacora"];
-  const MODS = ["inicio", "caja", "finanzas", "pagos", "agenda", "facturacion", "personal"];
+  const MODS = ["inicio", "caja", "finanzas", "pagos", "agenda", "facturacion", "personal", "config"];
+  // Configuración (engranaje): #config o #config/<apartado> (tablet, cuentas, categorias, lugares, notificaciones, conexiones, sistema)
   function ruta(hash = location.hash) {
     const h = String(hash || "").replace(/^#/, "");
     if (!h || h === "inicio" || h === "hoy") return { mod: "inicio" };
     if (h === "turno") return { mod: "caja" };
     if (h === "finanzas") return { mod: "finanzas", vista: "resumen" };
     if (h === "pagos") return { mod: "pagos", vista: "pagos" };
+    if (h === "config" || h.startsWith("config/")) return { mod: "config", vista: h.split("/")[1] || null };
     if (h === "dinero" || h.startsWith("dinero/")) {
       const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : "resumen";
       return v === "pagos" ? { mod: "pagos", vista: "pagos" } : { mod: "finanzas", vista: v };
@@ -55,7 +57,7 @@
     return MODS.includes(h) ? { mod: h } : { mod: "inicio" };
   }
   const seccionDe = mod => mod === "finanzas" || mod === "pagos" ? "dinero" : mod;
-  const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "pagos" ? "#dinero/pagos" : mod === "finanzas" ? "#dinero" + (vista && vista !== "resumen" ? "/" + vista : "") : "#" + mod;
+  const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "config" ? "#config" + (vista ? "/" + vista : "") : mod === "pagos" ? "#dinero/pagos" : mod === "finanzas" ? "#dinero" + (vista && vista !== "resumen" ? "/" + vista : "") : "#" + mod;
   window.EC = { $, $$, esc, toast, api, post, TZ, hoyMx, dinero, ruta, seccionDe, hashDe, VISTAS_DINERO, finVista: ruta().vista && ruta().vista !== "pagos" ? ruta().vista : "resumen" };
 })();
 

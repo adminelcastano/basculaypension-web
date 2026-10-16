@@ -1016,3 +1016,20 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .cfila .fcom { grid-column: 1 / -1; }
 .cfila .cnom { order: 1; } .cfila .acc { order: 2; grid-column: 2; grid-row: 1; } .cfila .mm { order: 3; } .cfila .fcom { order: 4; }
 @media (max-width: 640px) { .cfila .acc { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
+
+/* ---- Configuración (engranaje) ---- */
+.cfg-btn[aria-current="page"] { background: var(--amber); border-color: var(--amber); color: #111; }
+@media (max-width: 1000px) { header.bar .cfg-btn span { display: none; } header.bar .cfg-btn { padding: 7px; } }
+.cfg-indice { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; padding: 10px clamp(16px, 3vw, 32px) 0; }
+.cfg-indice a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-decoration: none; font-weight: 600; font-size: var(--t-sm); }
+.cfg-indice a:hover { background: var(--surface-2); }
+.cfg { display: grid; gap: 26px; max-width: calc(1100px + 2 * clamp(16px, 3vw, 32px)); padding: 0 clamp(16px, 3vw, 32px) 40px; }
+.cfg-ap { scroll-margin-top: 90px; display: grid; gap: 10px; }
+.cfg-h { margin: 0; font-size: var(--t-xl); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cfg-h small { font-size: var(--t-xs); font-weight: 500; color: var(--muted); }
+.cfg-ap > .ini-card { border: 1px solid var(--line); }
+.cfg-ap .card { margin: 0; }
+.cfg-ir { margin: 28px 0 8px; text-align: center; }
+.cfg-ir a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: var(--t-sm); font-weight: 600; border: 1px dashed var(--line); }
+.cfg-ir a:hover { color: var(--fg); border-style: solid; }
+.cfg-ir svg { width: 16px; height: 16px; }
