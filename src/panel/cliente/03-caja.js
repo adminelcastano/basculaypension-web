@@ -263,7 +263,8 @@
         await api("caja/pendiente/" + encodeURIComponent(f.dataset.abonar) + "/resolver", {
           method: "POST", body: JSON.stringify({
             estado: "pagado", fecha: f.elements.fecha.value, forma: f.elements.forma.value,
-            monto: f.elements.monto.value, notas: f.elements.notas.value, pago_id: crypto.randomUUID()
+            monto: f.elements.monto.value, notas: f.elements.notas.value,
+            pago_id: (f.dataset.idempotente ||= crypto.randomUUID())
           })
         });
         toast("Cobro registrado en Dinero por su fecha y forma de pago");
@@ -342,6 +343,17 @@
       ${lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos de caja"><table class="cmovs tmovs"><thead><tr><th>Folio</th><th>Día y turno</th><th>Hora</th><th>Tipo</th><th>Concepto</th><th>Quién</th><th class="n">Monto</th></tr></thead><tbody>
         ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    const cobros = j.cobros || [];
+    c.innerHTML += `<section class="card">
+      <h3>Cobros recuperados de tickets pendientes</h3>
+      <p class="note">Pagos recibidos por administración en la fecha indicada, sin alterar el corte original. Sólo se contabilizan mientras la hoja siga mostrando el ticket como pendiente.</p>
+      ${cobros.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Cobros recuperados"><table class="cmovs">
+        <thead><tr><th>Fecha del cobro</th><th>Folio</th><th>Servicio</th><th>Forma</th><th>Registró</th><th class="n">Importe</th></tr></thead>
+        <tbody>${cobros.map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(x.folio)}</td>
+          <td>${esc(x.servicio === "bascula" ? "Báscula" : "Pensión")}</td><td>${esc(x.forma)}</td>
+          <td>${esc(x.por || "Administración")}</td><td class="n">${dinero(x.monto)}</td></tr>`).join("")}</tbody>
+      </table></div>` : '<p class="note">Sin cobros recuperados en este período.</p>'}
+    </section>`;
     c.querySelectorAll(".mfil .ptab").forEach(b => b.addEventListener("click", () => { st.filtroMov = b.dataset.f; vistaMovs(j); }));
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
   }
