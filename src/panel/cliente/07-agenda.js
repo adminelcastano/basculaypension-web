@@ -744,21 +744,21 @@ window.interpretarAgenda = function (texto, hoy) {
 
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
-    const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0 };
+    const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0, nuevosEnterado: 0 };
     const leidoAdmin = (it.lecturas || []).some(l => l.persona === "ADMIN");
     const nuevo = deEnc && p.admin && abierto(it) && !leidoAdmin;
     const dest = p.todos || (p.turnos || []).length ? encargados() : encargados().filter(x => (p.personas || []).includes(x.clave));
     const lec = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
     const vistos = dest.filter(x => x.clave !== it.autor && lec.has(x.clave)), faltan = dest.filter(x => x.clave !== it.autor && !lec.has(x.clave));
     const abiertoHilo = st.abiertosAv.has(it.id);
-    return `<article class="post ${nuevo || cv.nuevos ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
+    return `<article class="post ${nuevo || cv.nuevos || cv.nuevosEnterado ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
       <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
       ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
       <div class="post-st">${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
-        <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+        <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "comentario nuevo" : "comentarios nuevos"}</span>` : ""}${cv.nuevosEnterado ? ` <span class="nuevo-n">${cv.nuevosEnterado} ${cv.nuevosEnterado === 1 ? "Enterado nuevo" : "Enterados nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
       <div class="post-acc">
         <button type="button" class="pa" data-hilo="${esc(it.id)}">${ico("i-chat")}Comentar</button>
@@ -840,7 +840,7 @@ window.interpretarAgenda = function (texto, hoy) {
       const j = await api(`agenda/${id}/conversacion`);
       st.hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const it = st.items.find(x => x.id === id);
-      if (it && it.conv) { if (it.conv.nuevos) st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1); it.conv.nuevos = 0; }
+      if (it && it.conv) { if (it.conv.nuevos || it.conv.nuevosEnterado) st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1); it.conv.nuevos = 0; it.conv.nuevosEnterado = 0; }
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
     if (st.abiertosAv.has(id)) pintarAvisos();
   }

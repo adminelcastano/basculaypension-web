@@ -72,6 +72,11 @@ const enLotes = async (env, sql, ids, extra = []) => {
   return out;
 };
 
+// Las confirmaciones tienen fecha propia y solo son nuevas tras la última vista.
+export function resumenEnterados(recibos, vistoAt) {
+  const ultimo = recibos.reduce((at, r) => r.at > at ? r.at : at, "");
+  return { nuevosEnterado: recibos.filter(r => !vistoAt || r.at > vistoAt).length, ultimoEnterado: ultimo };
+}
 // Resumen de la conversación de varios avisos para una persona ("ADMIN" o clave del encargado):
 // { [id]: { n, nuevos, ultimo: { autor, texto, creado }, actividad } }
 export async function resumenConversaciones(env, avisos, persona) {
@@ -80,10 +85,20 @@ export async function resumenConversaciones(env, avisos, persona) {
   if (!ids.length) return out;
   const coms = await enLotes(env, "SELECT item_id, autor, texto, creado, borrado FROM aviso_comentarios WHERE item_id IN (?) ORDER BY creado", ids);
   const vistos = new Map((await enLotes(env, "SELECT item_id, at FROM aviso_vistos WHERE persona = ? AND item_id IN (?)", ids, [persona])).map(v => [v.item_id, v.at]));
+  const confirmaciones = persona === "ADMIN"
+    ? await enLotes(env, "SELECT item_id, persona, at FROM agenda_lecturas WHERE persona != 'ADMIN' AND item_id IN (?)", ids)
+    : [];
   const autor = autorDe(persona);
   for (const a of avisos) {
     const l = coms.filter(c => c.item_id === a.id), vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
-    out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)), ultimo: u ? { autor: u.autor, texto: u.texto.slice(0, 140), creado: u.creado } : null, actividad: u && u.creado > a.creado ? u.creado : a.creado };
+    const recibos = persona === "ADMIN" && (a.autor || "admin") === "admin"
+      ? confirmaciones.filter(c => c.item_id === a.id) : [];
+    const conf = resumenEnterados(recibos, vistos.get(a.id));
+    const ultimoComentario = u && u.creado > a.creado ? u.creado : a.creado;
+    out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)),
+      nuevosEnterado: conf.nuevosEnterado,
+      ultimo: u ? { autor: u.autor, texto: u.texto.slice(0, 140), creado: u.creado } : null,
+      actividad: conf.ultimoEnterado > ultimoComentario ? conf.ultimoEnterado : ultimoComentario };
   }
   return out;
 }
