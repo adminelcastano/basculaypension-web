@@ -1229,8 +1229,9 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .sec-t { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
 
 /* Identidad Castagram: solo afecta a la cabecera del feed. */
-.casta-identidad { display:flex; justify-content:center; max-width:720px; margin:0 0 12px; }
-.casta-identidad img { display:block; width:min(263px,75vw); height:auto; border-radius:10px; }
+.casta-identidad { display:flex; justify-content:center; max-width:720px; margin:0 0 8px; }
+.casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
+#n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; margin-top: 14px; max-width: 720px; }
 .muro-nuevo { max-width: 720px; }

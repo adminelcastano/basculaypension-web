@@ -322,8 +322,12 @@
       $("#m-incid").innerHTML = q3(a.incidencias, "Sin incidencias abiertas", x => x.gravedad === "grave" ? "❗ " : "");
       contar($("#n-tareas"), a.abiertos.tarea || 0, v => String(Math.round(v)));
       $("#m-tareas").innerHTML = q3(a.tareas, "Nada pendiente", x => x.prioridad === "alta" ? "❗ " : "");
-      contar($("#n-avisos"), a.abiertos.aviso || 0, v => String(Math.round(v)));
-      $("#m-avisos").innerHTML = q3(a.avisos || [], "Sin publicaciones activas de Castagram");
+      const novedadesCastagram = Math.max(0, Number(a.avisos_sin_leer) || 0);
+      const indicadorCastagram = $("#n-avisos");
+      contar(indicadorCastagram, novedadesCastagram, v => String(Math.round(v)));
+      indicadorCastagram.classList.toggle("con-novedades", novedadesCastagram > 0);
+      indicadorCastagram.setAttribute("aria-label", `${novedadesCastagram} novedades pendientes de Castagram`);
+      $("#m-avisos").innerHTML = `<p class="note">${novedadesCastagram ? `${novedadesCastagram} publicaciones o conversaciones con novedades` : "Sin novedades pendientes"} · ${a.abiertos.aviso || 0} activas</p>` + q3(a.avisos || [], "Sin publicaciones activas de Castagram");
       const ia = [...a.incidencias.map(x => ({ ...x, k: "Incidencia" })), ...(a.avisos || []).map(x => ({ ...x, k: "Aviso" }))].sort((x, y) => String(y.creado).localeCompare(String(x.creado)));
       $("#m-incav").innerHTML = `<div class="mini-q">${ia.length ? ia.slice(0, 5).map(x => `<div><span class="t">${x.k === "Incidencia" ? `<span style="color:${x.gravedad === "grave" ? "#ff6961" : x.gravedad === "media" ? "#ff9f0a" : "#8e8e93"}">●</span> ` : `<span style="color:#ffcc00">●</span> `}${esc(x.titulo)}</span><span class="q">${esc(x.k)} · ${quien(x) ? esc(quien(x)) : "Administración"} · ${esc(cuando(x.creado))}</span></div>`).join("") : `<div class="vacio">Sin incidencias ni avisos</div>`}</div>`;
       $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");

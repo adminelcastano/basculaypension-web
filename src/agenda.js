@@ -316,7 +316,9 @@ export async function resumenAgenda(env) {
   const eventosHoy = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'evento' AND fecha = ?`).bind(hoy).first()).n;
   const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha LIMIT 4`).all()).results;
   const avisos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'aviso' AND ${ABIERTO} ORDER BY creado DESC LIMIT 4`).all()).results.map(a => ({ ...a, autor: a.autor || "admin" }));
-  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, compras_tablet: comprasTablet, incidencias, pagos, avisos };
+  // El contador del Inicio debe medir novedades, no publicaciones activas.
+  const avisos_sin_leer = (await avisosSinLeer(env)).length;
+  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, compras_tablet: comprasTablet, incidencias, pagos, avisos, avisos_sin_leer };
 }
 
 // ---- Pagos hechos (de un pago programado o sueltos) ----

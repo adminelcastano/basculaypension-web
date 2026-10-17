@@ -342,8 +342,10 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .t-volver { grid-column: 1 / -1; justify-self: start; align-items: center; gap: 2px; min-height: 44px; padding: 0 18px 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; }
 .t-volver svg { width: 18px; height: 18px; transform: rotate(180deg); }
 /* Identidad Castagram: solo afecta a la cabecera del feed. */
-.casta-identidad { display:flex; justify-content:center; max-width:760px; margin:0 0 12px; }
-.casta-identidad img { display:block; width:min(263px,75vw); height:auto; border-radius:10px; }
+.casta-identidad { display:flex; justify-content:center; max-width:760px; margin:0 0 8px; }
+.casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
+.casta-subtitulo { color:var(--muted); font-size:.9rem; text-align:center; max-width:760px; margin:0 0 14px; }
+.casta-alertas { display:inline-grid; place-items:center; align-self:flex-end; min-width:21px; height:21px; padding:0 6px; margin-top:auto; border-radius:999px; background:#d70015; color:#fff; font-size:12px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; max-width: 760px; }
 .muro-in { margin-top: 12px; max-width: none; }
@@ -885,7 +887,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
             <button type="button" class="accion" data-accion="gasto"><span class="ibadge" style="--c:#ff7a70"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
             <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
             <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
-            <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Publicar en Castagram</button>
+            <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Publicar en Castagram${nuevos.length ? `<span class="casta-alertas" aria-label="${nuevos.length} novedades pendientes">${nuevos.length > 99 ? "99+" : nuevos.length}</span>` : ""}</button>
             <button type="button" class="accion" data-accion="compra"><span class="ibadge" style="--c:#bf5af2"><svg><use href="#i-carrito"/></svg></span>Compras</button>
             <button type="button" class="accion" data-accion="corte"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span>${c ? "Corregir corte" : "Hacer corte"}</button>
           </div>
@@ -903,7 +905,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
           <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
         <section class="ini-card cat-c s4" data-bloque="avisos">
-          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Novedades de Castagram</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Todos los avisos (${E.avisos.length})</button></div>
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Novedades de Castagram</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Ver Castagram (${E.avisos.length})</button></div>
           ${nuevos.length ? `<div class="muro muro-in">${nuevos.map(postHtml).join("")}</div>` : `<p class="vacio" style="padding:4px 0 0">Estás al día con los avisos.</p>`}
         </section>
         <section class="ini-card cat-d s4" data-bloque="incidencias">
@@ -1025,7 +1027,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     </div>`;
   }
   function verAvisos() {
-    sec().innerHTML = titulo("Castagram.", "Lo que publican la administración y los encargados. Solo ves las publicaciones donde te etiquetaron o que publicaste tú.") + `<div class="casta-identidad"><img src="/img/castagram.webp" alt="Castagram" width="300" height="107"></div>` + `
+    sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
       <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
