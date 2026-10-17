@@ -1101,12 +1101,12 @@ window.interpretarAgenda = function (texto, hoy) {
         const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
         err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
         try {
-          await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
+          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
           const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
           if (eraRespuesta) terminarReplyAdmin(h);
           else { h.borrador = ""; h.foto = null; h.etq = []; }
           if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
-          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: new Date().toISOString() };
+          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
           await abrirHilo(id, true);
           const ta = $(`#com-${CSS.escape(id)}`); ta && ta.focus();
         } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
