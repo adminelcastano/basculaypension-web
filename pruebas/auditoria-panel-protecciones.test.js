@@ -105,5 +105,6 @@ test("Caja: Apps Script conserva importes sin convertir formatos reconocidos a c
   assert.doesNotMatch(script, /Number\(f\[idx\.importe\]\) \|\| 0/);
   assert.equal(numero("MENOS 55"), -55);
   assert.equal(numero("$1,500.25"), 1500.25);
+  assert.match(script, /if \(movimiento\) return \{ error: "Fecha inválida en "/);
   assert.equal(numero(-25), -25);
 });
