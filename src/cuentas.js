@@ -87,14 +87,11 @@ export async function cuentaDefecto(env, campo) {
 const r2 = v => Math.round(v * 100) / 100;
 
 // Comisión de un cobro con tarjeta (redondeada por cobro, como la cobra la terminal)
-export const comisionDe = (importe, cuenta) => {
-  if (!cuenta) return 0;
-  // El único procesador de tickets con tarjeta es Mercado Pago: tasa histórica constante.
-  // No usar cambios de configuración para recalcular importes de meses ya cerrados.
-  if (cuenta.tarjeta) return r2(importe * COMISION_INICIAL / 100 * (1 + IVA));
-  return !(cuenta.comision_pct > 0) ? 0 :
-    r2(importe * cuenta.comision_pct / 100 * (cuenta.comision_iva ? 1 + IVA : 1));
-};
+export const comisionDe = (importe, cuenta) => !cuenta || !(cuenta.comision_pct > 0) ? 0 : r2(importe * cuenta.comision_pct / 100 * (cuenta.comision_iva ? 1 + IVA : 1));
+// La terminal operativa es Mercado Pago: su 3.50 % + IVA nunca ha cambiado.
+// Usar esta función para cobros reales, independientemente de ajustes de cuenta.
+export const comisionMercadoPago = (importe, cuenta) =>
+  !cuenta ? 0 : r2(importe * COMISION_INICIAL / 100 * (1 + IVA));
 
 // Flujos de un mes por cuenta y en el efectivo de la administración (sobres). Función pura: recibe los registros
 // del mes (ver leerFlujos en finanzas.js) y devuelve entradas y salidas, con el detalle de cada una.
@@ -109,7 +106,7 @@ export function flujosMes(d, cuentas) {
   const tj = cuentas.find(c => c.tarjeta);
   const sinCuenta = { transferencias: 0, pagos: 0 };
   let tarjeta = 0, comision = 0;
-  for (const t of d.tarjeta || []) { tarjeta += t.importe; comision += comisionDe(t.importe, tj); }
+  for (const t of d.tarjeta || []) { tarjeta += t.importe; comision += comisionMercadoPago(t.importe, tj); }
   if (tj) { est[tj.id].entradas += tarjeta - comision; est[tj.id].detalle.tarjeta = r2(tarjeta); est[tj.id].detalle.comision = r2(comision); }
   for (const x of d.transf || []) {
     if (x.cuenta && est[x.cuenta]) { est[x.cuenta].entradas += x.importe; est[x.cuenta].detalle.transferencias += x.importe; } else sinCuenta.transferencias += x.importe;
