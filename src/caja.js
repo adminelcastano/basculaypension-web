@@ -800,20 +800,26 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
+    // Las fuentes son independientes: no encadenar lecturas de D1, KV y
+    // categorías cuando todas pueden comenzar juntas.
+    const [{ movs, gastos, transf, conteos, extras, inicios }, sync, pendientes, cobros, categorias] = await Promise.all([
+      leerMes(env, meses, periodo),
+      env.FILES.get("caja:sync", { type: "json" }),
+      env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
+        (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
+         WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
+        FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
+        ORDER BY fecha ASC LIMIT 100`).all().then(r => r.results),
+      leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" }),
+      listaCategorias(env)
+    ]);
     const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos), conteos, inicios);
     const tr = transferenciasMes(movs, transf);
-    const sync = await env.FILES.get("caja:sync", { type: "json" });
     const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    const pendientes = (await env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
-      (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
-       WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
-      FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
-      ORDER BY fecha ASC LIMIT 100`).all()).results;
-    const cobros = await leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" });
+
     const totales = totalesMes(cortes, tr.contadas);
     for (const x of cobros) {
       totales.ingresos += x.monto;
@@ -822,7 +828,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       else totales.transferencias += x.monto;
       totales[x.servicio] += x.monto;
     }
-    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
