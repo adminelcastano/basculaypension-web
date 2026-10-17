@@ -103,3 +103,12 @@ test("Actividad en tablet distingue Enterado en cola de Enterado confirmado",()=
   const bloque=turno.slice(turno.indexOf('} else if (en) {'),turno.indexOf('} else if (rp) {'));
   assert.match(bloque,/if \(r\.enCola\)[^\n]+castaRefrescarActividadTurno\(\)/);
 });
+
+test("Respuesta fallida conserva la etiqueta Responder en tablet",()=>{
+  const inicio=turno.indexOf('const r = await api(\`avisos/\${id}/comentar\`');
+  const final=turno.indexOf('sec().addEventListener("keydown"',inicio);
+  assert.ok(inicio>=0 && final>inicio);
+  const bloque=turno.slice(inicio,final);
+  assert.match(bloque,/b\.textContent = h\.responderA \? "Responder" : "Comentar"/);
+  assert.match(bloque,/b\.disabled = false/);
+});
