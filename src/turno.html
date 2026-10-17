@@ -1590,9 +1590,9 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   function hojaAviso(base = {}) {
     let fotoAviso = null;
     const ops = [["admin", "@Administración"], ["todos", "@Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "@Turno " + TURNO_TXT[t].toLowerCase()]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, "@" + esc(p.clave)])];
-    const sel = base.para || ["admin"];
+    const sel = []; // No seleccionar destinatarios automáticamente al publicar.
     hoja(`<h2>Publicar en Castagram</h2><p class="muted" style="margin:0 0 14px">Etiqueta a quién va dirigido. Solo lo ven ellos y la administración, y todos pueden comentar en la misma publicación.</p>
-      <div class="campo"><span class="lb">Etiquetar a</span>${chips("a-para", ops, sel, true)}</div>
+      <div class="campo"><span class="lb">Elige destinatarios (obligatorio)</span>${chips("a-para", ops, sel, true)}</div>
       <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
       <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("a-foto", "Tomar foto")}</div>
