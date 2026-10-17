@@ -62,8 +62,9 @@ test("Caja: abonos respaldados por historial y asiento independiente", () => {
   assert.match(backend,/CREATE TABLE IF NOT EXISTS caja_pendientes_hist/);
   assert.match(backend,/CREATE TABLE IF NOT EXISTS caja_cobros_admin/);
   assert.match(backend,/leerCobrosAdmin/);
+  assert.match(backend,/ROUND\(p\.monto \* 100\) >= ROUND\(\? \* 100\)/);
   assert.match(backend,/a\.anulado = 0/);
-  assert.match(backend,/WHERE estado IN \('pendiente', 'parcial'\)/);
+  assert.match(backend,/WHERE p\.estado IN \('pendiente', 'parcial'\)/);
 });
 
 test("Panel: interfaz de acciones administrativas válida", () => {
