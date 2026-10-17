@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { normalizarFolioTicket, claveTicket, mismaOperacion, faltantesParaFacturar } from "../src/facturacion-reglas.js";
+import { normalizarFolioTicket, folioTicketValido, claveTicket, mismaOperacion, faltantesParaFacturar } from "../src/facturacion-reglas.js";
 
 const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../src/panel/cliente/01-facturacion.js", import.meta.url), "utf8");
@@ -14,22 +14,18 @@ test("Folio normalizado identifica una operación por servicio sin confundir bá
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "17 097" }, { servicio: "bascula", folio_ticket: "17097" }), true);
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "17097" }, { servicio: "pension", folio_ticket: "17097" }), false);
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "" }, { servicio: "bascula", folio_ticket: "" }), false);
-  // Los folios numéricos actuales siguen funcionando sin exigir prefijo.
   assert.equal(normalizarFolioTicket("0017097"), "0017097");
-  // Los futuros reinicios se distinguen por su serie alfabética, de A a ZZ.
-  assert.equal(normalizarFolioTicket(" a - 17097 "), "A17097");
-  assert.equal(normalizarFolioTicket("zz 0017097"), "ZZ0017097");
-  assert.equal(claveTicket("pension", "a-17097"), "pension:A17097");
-  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "A17097" }, { servicio: "bascula", folio_ticket: "17097" }), false);
-  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "A17097" }, { servicio: "bascula", folio_ticket: "B17097" }), false);
-  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "ZZ17097" }, { servicio: "bascula", folio_ticket: "zz-17097" }), true);
+  assert.equal(folioTicketValido(" 001 - 7097 "), true);
+  assert.equal(folioTicketValido(""), false);
+  assert.equal(folioTicketValido("ABC"), false);
+  assert.equal(folioTicketValido("0"), true);
 });
 
 test("Exige datos completos antes de registrar factura emitida", () => {
   const c = { regimenes: { "612": "Actividad empresarial" }, usos: { G03: "Gastos generales" } };
   const correcto = { rfc: "RIGM800101ABC", nombre: "CLIENTE DE PRUEBA", cp: "30710", regimen: "612", uso: "G03", folio_ticket: "17097" };
   assert.deepEqual(faltantesParaFacturar(correcto, c), []);
-  assert.ok(faltantesParaFacturar({ ...correcto, cp: "", folio_ticket: "" }, c).includes("folio del ticket verificado"));
+  assert.ok(faltantesParaFacturar({ ...correcto, cp: "", folio_ticket: "" }, c).includes("folio numérico del ticket verificado"));
   assert.ok(faltantesParaFacturar({ ...correcto, regimen: "" }, c).includes("régimen fiscal"));
 });
 
@@ -103,4 +99,12 @@ test("El panel reduce conteos duplicados sin alterar respuesta de otros clientes
   assert.match(panel, /i > 0\) p\.set\("solo_lista", "1"\)/);
   assert.match(worker, /url\.searchParams\.get\("solo_lista"\) === "1"/);
   assert.match(worker, /soloLista \? null : await env\.DB\.prepare\(/);
+});
+
+test("Servidor y formulario validan folios numéricos; panel bloquea datos fiscales inválidos", () => {
+  assert.match(worker, /folioTicketValido\(folioTicket\)/);
+  assert.match(publico, /inputmode="numeric"/);
+  assert.match(panel, /j\.regimenes\?\.\[s\.regimen\]/);
+  assert.match(panel, /j\.usos\?\.\[s\.uso\]/);
+  assert.match(panel, /j\.formas_pago\?\.\[s\.forma_pago\]/);
 });
