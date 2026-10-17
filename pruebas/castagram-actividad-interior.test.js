@@ -75,3 +75,14 @@ test("Tablet: el contador se actualiza al leer conversación, sin cambiar Entera
   assert.match(turno,/nuevo\.open = abierto/);
   assert.doesNotMatch(section,/\.leido\s*=\s*true/);
 });
+
+test("Actividad de tablet: Enterado confirmado desaparece al actualizar la lista",()=>{
+  const inicio=turno.indexOf('} else if (en) {'), fin=turno.indexOf('} else if (rp) {',inicio);
+  assert.ok(inicio>=0&&fin>inicio);
+  const bloque=turno.slice(inicio,fin);
+  const confirmado=bloque.indexOf('if (a) a.leido = true;');
+  const refresco=bloque.indexOf('castaRefrescarActividadTurno();');
+  assert.ok(confirmado>=0&&refresco>confirmado, "la actividad se refresca después de confirmar Enterado");
+  assert.ok(bloque.indexOf('if (r.enCola)') < confirmado, "en cola no se presenta como confirmado");
+  assert.match(bloque,/repintarPost\(en\.dataset\.enterado\)/);
+});

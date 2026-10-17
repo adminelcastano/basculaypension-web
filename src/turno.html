@@ -1727,6 +1727,9 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         const a = E.avisos.find(x => x.id === en.dataset.enterado);
         if (a) a.leido = true;
         pintarCabecera(); repintarPost(en.dataset.enterado);
+        // Enterado ya quedó confirmado por el servidor: quitar la novedad sin
+        // cerrar la conversación ni marcar otras publicaciones como vistas.
+        castaRefrescarActividadTurno();
       } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
       const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
