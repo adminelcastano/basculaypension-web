@@ -669,7 +669,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     catch {
       if (datos !== undefined && opciones.cola !== false && actor && E &&
           actor.persona === E.persona && actor.turno === E.turno && actor.dia === E.dia && COLA_RUTAS.test(ruta)) {
-        const l = cola(); l.push({ ruta, datos, ...actor, at: new Date().toISOString() });
+        const l = cola();
+        // Una confirmación de Enterado en cola no debe duplicarse con nuevos toques.
+        if (/^avisos\/[^/]+\/enterado$/.test(ruta) && l.some(x =>
+          x.ruta === ruta && x.persona === actor.persona && x.turno === actor.turno && x.dia === actor.dia)) {
+          pintarRed();
+          return { ok: true, enCola: true };
+        }
+        l.push({ ruta, datos, ...actor, at: new Date().toISOString() });
         if (!guardarCola(l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
         pintarRed();
         return { ok: true, enCola: true };
