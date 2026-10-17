@@ -399,6 +399,29 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .com-acc { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .com-form .err { margin: 6px 0 0; }
 @media (max-width: 560px) { .post { padding: 14px 14px 4px; border-radius: 18px; } }
+
+/* Castagram: hoja inferior de comentarios; texto siempre disponible al pie. */
+dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; width:min(100%,680px); max-width:100%; height:min(82dvh,800px); max-height:calc(100dvh - 12px); padding:0; overflow:hidden; display:none; flex-direction:column; border:1px solid #38383b; border-radius:24px 24px 0 0; background:#1b1b1d; color:var(--fg); box-shadow:0 -15px 64px #0009; }
+dialog.casta-sheet[open] { display:flex; animation:casta-subir .22s ease-out both; }
+dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
+.casta-sheet-head { flex:none; min-height:64px; position:relative; display:flex; justify-content:center; align-items:center; border-bottom:1px solid var(--line); padding:18px 48px 10px; }
+.casta-sheet-head h3 { font-size:1rem; font-weight:600; margin:0; }
+.casta-sheet-grip { position:absolute; top:9px; width:42px; height:4px; border-radius:6px; background:#86868f; }
+.casta-sheet-x { position:absolute; right:12px; top:16px; width:34px; height:34px; border:0; border-radius:50%; background:#333338; color:#fff; font-size:24px; cursor:pointer; }
+.casta-sheet .hilo { display:flex; flex-direction:column; flex:1; min-height:0; padding:0; gap:0; border:0; }
+.casta-sheet .casta-sheet-list { overflow-y:auto; overscroll-behavior:contain; flex:1; min-height:0; display:grid; align-content:start; gap:14px; padding:16px 14px 22px; }
+.casta-sheet .casta-sheet-compose { border-top:1px solid var(--line); flex:none; background:#1b1b1d; padding:10px 14px calc(12px + env(safe-area-inset-bottom)); max-height:43dvh; overflow-y:auto; }
+.casta-sheet .com-form textarea { min-height:44px; max-height:110px; }
+.casta-sheet .com-etq { max-height:90px; overflow-y:auto; }
+.casta-pulgar { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:.85rem; }
+.casta-pulgar .casta-pulgar-ico { flex:none; width:22px; height:22px; }
+.casta-pulgar.is-enterado { color:#30d158; font-weight:700; }
+.casta-pulgar.is-pendiente { color:#fab219; }
+.post-acc .pa-si { color:var(--fg); }
+.post-acc .pa-si .casta-pulgar-ico { width:22px; height:22px; }
+@keyframes casta-subir { from { transform:translateY(24px); opacity:.5; } to { transform:translateY(0); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
+@media(max-width:900px) { dialog.casta-sheet { width:100%; max-width:100%; margin:0; } }
 /* ---- Agenda de la tablet: agregar rápido, Mes | Agenda, tareas agrupadas ---- */
 .ag-rapida { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .agr-prev { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
@@ -966,12 +989,44 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ---------- Avisos: muro de publicaciones con conversación ----------
   // Cada aviso es una publicación: los etiquetados y la administración comentan debajo hasta que la administración lo archiva.
   const hilos = {}, hilosAb = new Set();
+  const castaPulgar = "<svg class=\"casta-pulgar-ico\" viewBox=\"0 0 24 24\" width=\"23\" height=\"23\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\"/></svg>";
+  function cerrarSheetTurno() {
+    const dlg = sec().querySelector("dialog.casta-sheet[open]");
+    if (dlg) dlg.close();
+  }
+  function mostrarSheetTurno(id, escribir = false) {
+    if (!E || !E.avisos.some(a => a.id === id)) return;
+    cerrarSheetTurno();
+    const a = E.avisos.find(x => x.id === id);
+    hilosAb.clear(); hilosAb.add(id);
+    const dlg = document.createElement("dialog");
+    dlg.className = "casta-sheet";
+    dlg.dataset.av = id;
+    dlg.setAttribute("aria-label", "Comentarios de " + a.titulo);
+    dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" data-sheet-cerrar aria-label="Cerrar comentarios" class="casta-sheet-x">×</button></div>${hiloHtml(a)}`;
+    dlg.addEventListener("close", () => { hilosAb.delete(id); dlg.remove(); repintarPost(id); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    sec().append(dlg);
+    dlg.showModal();
+    repintarPost(id);
+    if (escribir) { const ta = dlg.querySelector(".com-form textarea"); if (ta) ta.focus({ preventScroll:true }); }
+  }
+  function repintarSheetTurno(id) {
+    const dlg = sec().querySelector("dialog.casta-sheet[open]");
+    if (!dlg || dlg.dataset.av !== id) return;
+    const a = E && E.avisos.find(x => x.id === id);
+    if (!a) { dlg.close(); return; }
+    const form = dlg.querySelector("form.com-form");
+    if (form && hilos[id]) hilos[id].borrador = form.texto.value;
+    const hilo = dlg.querySelector(".hilo");
+    if (hilo) hilo.outerHTML = hiloHtml(a);
+  }
   const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => E.personas.some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m).replace(/\n/g, "<br>");
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
   function comHtml(c) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avi(c.autor, 1)}<div class="com-b"><div class="com-burb"><b>${esc(c.autor === E.persona ? "Tú" : nombreDe(c.autor))}</b>
       ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
-      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
+      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${!c.borrado && c.autor !== E.persona ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
   }
   function hiloHtml(a) {
     const h = hilos[a.id];
@@ -979,29 +1034,30 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-re="${esc(a.id)}">Reintentar</button></p></div>`;
     const p = a.para || {}, fuera = p.todos ? [] : E.personas.filter(x => x.clave !== E.persona && x.clave !== a.autor && !(p.personas || []).includes(x.clave));
     const sel = h.etq || [];
-    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}
-      <form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
+    return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}</div>
+      <div class="casta-sheet-compose"><form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
         <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
         <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
         ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
         ${h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
         <div class="com-acc"><label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label><button class="btn btn-primary btn-sm" type="submit">Comentar</button></div>
-        <p class="err" role="alert"></p></div></form></div>`;
+        <p class="err" role="alert"></p></div></form></div></div>`;
   }
   function postHtml(a) {
     const cv = a.conv || { n: 0, nuevos: 0 }, ab = hilosAb.has(a.id), nuevo = !a.leido || cv.nuevos;
     // Sin red, una confirmación en cola NO equivale a Enterado confirmado en el servidor.
     const pendiente = !a.leido && cola().some(x => x.ruta === `avisos/${a.id}/enterado` && x.persona === E.persona && x.turno === E.turno && x.dia === E.dia);
     const f = a.fotos || [];
+    const confirmado = !!a.leido && !a.propio;
     return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st"><span>${a.leido && !a.propio ? `${svg("i-check")} Enterado` : pendiente ? `<span class="etq e-parcial" role="status">Enterado por enviar</span>` : ""}</span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      <div class="post-st"><span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado por enviar" : "Sin confirmar"}">${castaPulgar}<span>${confirmado ? "Enterado" : pendiente ? "Por enviar" : "Sin enterado"}</span></span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
-      <div class="post-acc">${!a.leido && !pendiente ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
-      ${ab ? hiloHtml(a) : ""}</article>`;
+      <div class="post-acc">${!a.leido && !pendiente ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado">${castaPulgar}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
+      </article>`;
   }
   async function abrirHilo(id) {
     const prev = hilos[id] || {};
@@ -1017,6 +1073,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   function repintarPost(id) {
     const a = E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
     if (a && el) el.outerHTML = postHtml(a);
+    repintarSheetTurno(id);
   }
   function filaTarea(t) {
     const ult = t.reportes && t.reportes[0];
@@ -1455,9 +1512,28 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     if (hv) { if (history.state && history.state.hoy) history.back(); else { vistaHoy = null; aplicarIndice(); } return; }
     if (hl) {
       const id = hl.dataset.hilo, escribir = !!hl.dataset.escribir;
-      if (hilosAb.has(id) && !escribir) hilosAb.delete(id); else hilosAb.add(id);
-      repintarPost(id);
-      if (hilosAb.has(id)) { if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } await abrirHilo(id); if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } }
+      mostrarSheetTurno(id, false);
+      await abrirHilo(id);
+      if (escribir) {
+        const t = sec().querySelector("dialog.casta-sheet[open] .com-form textarea");
+        if (t) t.focus({ preventScroll:true });
+      }
+      return;
+    }
+    const cerrarComentarios = e.target.closest("[data-sheet-cerrar]");
+    if (cerrarComentarios) { cerrarSheetTurno(); return; }
+    const responder = e.target.closest("[data-responder]");
+    if (responder) {
+      const dlg = responder.closest("dialog.casta-sheet"), id = dlg && dlg.dataset.av;
+      const ta = dlg && dlg.querySelector(".com-form textarea");
+      if (id && ta && hilos[id]) {
+        const k = responder.dataset.responder;
+        const m = k === "admin" ? "" : "@" + k + " ";
+        if (m && !ta.value.includes(m)) ta.value = m + ta.value;
+        hilos[id].borrador = ta.value;
+        ta.focus({ preventScroll:true });
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      }
       return;
     }
     if (hr) { abrirHilo(hr.dataset.hiloRe); return; }
