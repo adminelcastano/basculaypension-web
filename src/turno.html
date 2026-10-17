@@ -1786,6 +1786,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       const formPrevio = sec().querySelector("dialog.casta-sheet[open] form.com-form");
       if (formPrevio) formPrevio.remove();
       repintarPost(id);
+      // El contador de Actividad debe reflejar también el comentario enviado.
+      castaRefrescarActividadTurno();
       const t = document.getElementById("tc-" + id); t && t.focus();
       toast("Comentario publicado.");
     } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
