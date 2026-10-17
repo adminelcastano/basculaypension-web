@@ -226,7 +226,7 @@
                 </div>
               </div>` : `
               <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
-              <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              <p>${["facturada", "enviada"].includes(s.estado) ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
               ${s.estado === "facturada" ? `<div class="row"><button class="btn btn-primary" id="marcar-enviada" type="button">Confirmar envío al cliente</button></div><p class="note">Sólo después de entregarla por Facturador; este botón no envía correo.</p>` : ""}
               ${s.estado === "enviada" ? `<p class="note">Entrega confirmada: ${fecha(s.enviada_en)}</p>` : ""}
               ${s.estado === "rechazada" ? `
