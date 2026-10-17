@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { armarHoy } from "../src/hoy.js";
+import { entregasAdmin } from "../src/caja.js";
 import {
   leerTablaHistoricos, evaluarHistorico, esTurnoHistorico
 } from "../src/caja-historicos.js";
@@ -84,4 +86,46 @@ test("La carga histórica no se guarda si octubre ya está cerrado", () => {
   assert.match(ui, /No registra sobres, ingresos, retiros ni gastos contables/);
   assert.match(ui, /const historicos = new Set/);
   assert.match(ui, /j\.historico && !k/);
+});
+
+test("Los turnos anteriores a la tablet no generan alertas falsas de corte sin entregar", () => {
+  const cortes=[
+    { dia:"2026-10-13", turno:"TARDE", registros:5, conteo:null },
+    { dia:"2026-10-14", turno:"MAÑANA", registros:3, conteo:null },
+    { dia:"2026-10-14", turno:"TARDE", registros:4, conteo:null }
+  ];
+  // 15/oct a las 12:00 en México, antes de que venza la gracia de turno siguiente.
+  const p = armarHoy({ caja: { cortes }, agenda:{}, pagos:{} }, new Date("2026-10-15T18:00:00Z"));
+  const avisos = p.atencion.filter(x => x.clave === "sin-corte");
+  assert.equal(avisos.length, 1);
+  assert.match(avisos[0].titulo, /14|ayer/);
+  assert.ok(!avisos[0].detalle.includes("13 oct"));
+});
+
+test("El importador antiguo no puede convertir los 40 turnos históricos en dinero", async () => {
+  const consultas=[];
+  const env={
+    DB:{
+      prepare(sql){
+        consultas.push(sql);
+        return { bind(){return { all:async()=>({results:[]})}} };
+      },
+      batch(){throw new Error("No debía escribir en D1");}
+    }
+  };
+  const r=await entregasAdmin(env, "13-oct\tNoche\t2000\t200\t100\t150", {
+    aplicar:true, meses:["2026-10"], hoy:"2026-10-17", quien:"admin"
+  });
+  assert.equal(r.aplicado,true);
+  assert.equal(r.totales.turnos,0);
+  assert.equal(r.filas[0].estado,"fuera");
+  assert.match(r.filas[0].avisos.join(" "), /Cortes históricos/);
+  assert.equal(consultas.some(x => /INSERT INTO turno_cortes/i.test(x)), false);
+});
+
+test("Caja presenta la falta de documentos antiguos sin exigir tablet", () => {
+  const ui = readFileSync(new URL("../src/panel/cliente/03-caja.js",import.meta.url),"utf8");
+  assert.match(ui,/const esAnteriorTablet/);
+  assert.match(ui,/Registro histórico pendiente/);
+  assert.match(ui,/!anteriorTablet && !j\.historico/);
 });
