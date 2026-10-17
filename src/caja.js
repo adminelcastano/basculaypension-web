@@ -2,7 +2,7 @@ import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
-import { listarHistoricos, procesarHistoricos } from "./caja-historicos.js";
+import { esTurnoHistorico, listarHistoricos, procesarHistoricos } from "./caja-historicos.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -613,6 +613,13 @@ export async function entregasAdmin(env, textoTabla, { aplicar = false, meses, h
     const k = f.dia + "|" + f.turno, x = { ...f, retiros: [], avisos: [] };
     if (vistas.has(k)) { x.estado = "repetida"; x.avisos.push("Este turno ya venía en otra línea; se toma la primera."); lista.push(x); continue; }
     vistas.add(k);
+    // No transformar cortes anteriores al inicio de la tablet en sobres o retiros contables.
+    if (esTurnoHistorico(f.dia, f.turno)) {
+      x.estado = "fuera";
+      x.avisos.push("Turno anterior a la tablet: usa Cortes históricos (sin impacto contable).");
+      lista.push(x);
+      continue;
+    }
     if (!meses.includes(f.dia.slice(0, 7)) || f.dia > hoy) { x.estado = "fuera"; x.avisos.push("El día no está en el mes abierto."); lista.push(x); continue; }
     const ya = cortes.get(k);
     if (ya && !ya.admin) { x.estado = "tablet"; x.avisos.push("Este turno ya entregó su corte en la tablet; no se cambia."); lista.push(x); continue; }
