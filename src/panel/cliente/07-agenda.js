@@ -709,6 +709,9 @@ window.interpretarAgenda = function (texto, hoy) {
   const T_AV = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
   const encargados = () => (st.personas || []).filter(p => p.activo);
   const perfilMencion = p => p.perfil || p.nombre || p.clave;
+  document.addEventListener("perfil-admin-actualizado", () => {
+    if ($("#ab-aviso") && st.items.length) pintarAvisos();
+  });
   const nomDe = k => k === "admin" ? (EC.nombreAdmin?.() || "Administración") : (perfilMencion((st.personas || []).find(p => p.clave === k) || {clave:k}));
   const avatarMencion = p => p.avatar_url || "/panel/api/turno/avatar/c/" + encodeURIComponent(p.clave);
   const tarjetaMencion = p => `<span class="casta-mention" title="@${esc(p.clave)}"><img src="${esc(avatarMencion(p))}" alt="" width="22" height="22" loading="lazy"><b>@${esc(perfilMencion(p))}</b></span>`;
