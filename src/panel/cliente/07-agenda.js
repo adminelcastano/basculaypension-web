@@ -717,6 +717,7 @@ window.interpretarAgenda = function (texto, hoy) {
   function pintarAvisos() {
     const el = $("#ab-aviso");
     if (el) {
+      const actividadAbierta = !!el.querySelector("details.casta-actividad[open]");
       const dlg = el.querySelector("dialog.casta-sheet[open]");
       const html = vistaAvisos();
       if (dlg) {
@@ -731,6 +732,8 @@ window.interpretarAgenda = function (texto, hoy) {
         el.innerHTML = html;
         mostrarSheetAdmin();
       }
+      const actividad = el.querySelector("details.casta-actividad");
+      if (actividad) actividad.open = actividadAbierta;
       conectar(el);
       castaRestaurar(el);
     }
