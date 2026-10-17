@@ -46,7 +46,13 @@
         textos: ["i-split", "i-turnos", "d-formas", "d-serv", "cmp", "g-dias", "ini-gastos-l"],
         notas: ["i-caja-nota", "i-gastos-nota", "i-turno", "prom-txt"] },
       agenda: { numeros: ["n-incid", "n-tareas", "n-avisos", "n-compras"],
-        textos: ["m-incid", "m-tareas", "m-avisos", "m-incav", "m-eventos", "m-compras"] }
+        textos: ["m-incid", "m-tareas", "m-avisos", "m-incav", "m-eventos", "m-compras"] },
+      pagos: { numeros: ["i-pp", "i-pg", "n-pagos", "n-noprog"],
+        textos: ["m-pagos", "m-noprog", "g-pagos", "d-pagos"],
+        notas: ["i-pp-nota", "i-pg-nota"] },
+      finanzas: { numeros: ["i-f-ing", "i-f-egr", "i-f-res", "i-f-sob"],
+        notas: ["i-f-ing-nota", "i-f-egr-nota", "i-f-res-nota", "i-f-sob-nota"] },
+      calendario: { textos: ["i-calendario"] }
     };
     const grupo = conjuntos[tipo];
     if (!grupo) return;
@@ -265,7 +271,7 @@
     let todo;
     try { todo = await api("hoy"); }
     catch (e) {
-      for (const fuente of ["facturas", "personal", "caja", "agenda"]) limpiarFuenteHoy(fuente);
+      for (const fuente of ["facturas", "personal", "caja", "agenda", "pagos", "finanzas", "calendario"]) limpiarFuenteHoy(fuente);
       pintarAtencion([]);
       $("#i-pie").textContent = e.message === "sesion" ? "Tu sesión expiró. Recarga la página." : "No se pudo cargar: " + e.message;
       return;
@@ -275,9 +281,9 @@
     const fac = ok(F.facturas), caja = ok(F.caja), per = ok(F.personal), ag = ok(F.agenda);
     pintarAtencion(todo.atencion || []);
     pintarConsumo(F.consumo);
-    if (F.pagos) pintarPagos(F.pagos);
-    if (F.finanzas) pintarFinanzas(F.finanzas);
-    if (F.calendario) pintarCalendario(F.calendario);
+    if (F.pagos) pintarPagos(F.pagos); else limpiarFuenteHoy("pagos");
+    if (F.finanzas) pintarFinanzas(F.finanzas); else limpiarFuenteHoy("finanzas");
+    if (F.calendario) pintarCalendario(F.calendario); else limpiarFuenteHoy("calendario");
     const turnoMal = todo.turno && todo.turno.cambio_turno && Math.abs(todo.turno.cambio_turno.dif) >= 1 ? todo.turno.cambio_turno : null;
 
     if (fac.status === "fulfilled") {
