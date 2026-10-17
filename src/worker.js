@@ -520,6 +520,11 @@ async function rutasPanel(request, env, url, usuario) {
       if (normalizado) {
         yaFacturado = await env.DB.prepare("SELECT solicitud_id, folio_factura FROM facturas_folios WHERE servicio = ? AND folio_normalizado = ?")
           .bind(fila.servicio, normalizado).first();
+        if (!yaFacturado) {
+          // Registros históricos todavía presentes, antes de la nueva reserva única.
+          yaFacturado = await env.DB.prepare("SELECT id AS solicitud_id, folio_factura FROM solicitudes WHERE id != ? AND servicio=? AND estado IN ('facturada','enviada') AND REPLACE(REPLACE(UPPER(TRIM(folio_ticket)), ' ', ''), '-', '') = ? LIMIT 1")
+            .bind(fila.id, fila.servicio, normalizado).first();
+        }
         // La hoja de ingresos es una referencia para aclaraciones, no una autorización
         // automática para facturar ni una prueba concluyente de pago.
         try {
