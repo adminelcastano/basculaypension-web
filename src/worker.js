@@ -535,7 +535,10 @@ async function rutasPanel(request, env, url, usuario) {
           contraste = movimientos.length
             ? { encontrado: true, registros: movimientos, advertencia: null }
             : { encontrado: false, registros: [], advertencia: "El folio no aparece entre los tickets de ingresos sincronizados. Verifica el número en la foto; puedes continuar después de aclararlo." };
-          if (pend && pend.estado !== "pagado") contraste.advertencia = "El folio aparece con cobro pendiente o sin conciliación completa. Verifica antes de emitir.";
+          if (pend && ["pendiente", "parcial"].includes(pend.estado))
+            contraste.advertencia = "El folio aparece con un cobro pendiente o parcialmente abonado. Verifica antes de emitir.";
+          else if (pend && pend.estado === "cancelado")
+            contraste.advertencia = "El registro de cobro pendiente fue cancelado. Comprueba la situación del ticket antes de emitir.";
           if (movimientos.length && fila.importe && !movimientos.some(m => Math.abs(Number(m.importe) - Number(fila.importe)) < 0.01))
             contraste.advertencia = "El importe capturado no coincide con el registrado en ingresos. Comprueba la foto del ticket.";
         } catch (e) {
