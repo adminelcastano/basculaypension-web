@@ -179,7 +179,7 @@ export async function hoyPanel(env, interno) {
   const finMes = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
   const [facturas, caja, turno, agenda, pagos, finanzas, personal, consumo, avisos, cal] = await Promise.all([
     pedir("solicitudes?estado=pendiente&limite=50"),
-    pedir(`caja?desde=${[sumaDias(t.dia, -8), t.dia.slice(0, 8) + "01"].sort()[0]}&hasta=${t.dia}`),
+    pedir(`caja?desde=${[sumaDias(t.dia, -8), t.dia.slice(0, 8) + "01"].sort()[0]}&hasta=${t.dia}&resumen=1`),
     pedir("turno/activo"),
     pedir("agenda/resumen"),
     pedir("agenda/pagos"),
