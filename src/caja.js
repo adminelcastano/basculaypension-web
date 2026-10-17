@@ -223,9 +223,9 @@ export async function leerHoja(env, mes) {
       folio: folio.slice(0, 40), matricula: texto(x.matricula, 20).toUpperCase(), cliente: texto(x.cliente, 80),
       importe: x.pendiente === true ? 0 : numero(x.importe),
       forma: normForma(x.forma) || "SIN FORMA",
-      pendiente: x.pendiente === true || /^PENDIENTE\\s+DE\\s+PAGO\\b/i.test(String(x.importe || "")),
-      monto_pendiente: Number(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\\s+DE\\s+PAGO\\s*\\$?\\s*([\\d,.]+)/i)
-        ? numero(String(x.importe).replace(/^PENDIENTE\\s+DE\\s+PAGO\\s*/i, "")) : 0)
+      pendiente: x.pendiente === true || /^PENDIENTE\s+DE\s+PAGO\b/i.test(String(x.importe || "")),
+      monto_pendiente: Number(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\s+DE\s+PAGO\s*\$?\s*([\d,.]+)/i)
+        ? numero(String(x.importe).replace(/^PENDIENTE\s+DE\s+PAGO\s*/i, "")) : 0)
     };
   }).filter(x => /^\d{4}-\d{2}-\d{2}T/.test(x.fecha));
   return [...limpiar(d.bascula, "bascula"), ...limpiar(d.pension, "pension")];
