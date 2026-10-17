@@ -28,6 +28,10 @@
   </nav>
   <button class="sync cfg-btn" id="cfg-abrir" type="button" title="Configuración" aria-label="Configuración"><svg aria-hidden="true"><use href="#i-engrane"/></svg><span>Configuración</span></button>
   <button class="sync" id="sync-todo" type="button" title="Sincronizar todo" aria-label="Sincronizar todo"><svg aria-hidden="true"><use href="#i-sync"/></svg><span>Sincronizar</span></button>
+  <button id="perfil-admin-abrir" type="button" class="perfil-admin-abrir" aria-label="Personalizar mi perfil y panel" title="Mi perfil">
+    <img id="perfil-admin-cabecera-foto" src="/img/logo.png" alt="" width="36" height="36">
+    <span id="perfil-admin-cabecera-nombre">Administración</span>
+  </button>
   <small id="yo"></small>
 </header>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -332,6 +336,27 @@
   <section class="bloque cfg-ap" data-bloque="sistema" id="cfg-sistema"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Sistema</span><b class="bq-n" hidden></b></h3><section class="ini-card" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section></section>
 </div>
 </main>
+<dialog id="perfil-admin-dialog" class="perfil-admin-dialog" aria-labelledby="perfil-admin-titulo">
+  <form id="perfil-admin-form">
+    <header class="perfil-admin-encabezado"><h2 id="perfil-admin-titulo">Mi perfil y mi panel</h2><button id="perfil-admin-cerrar" type="button" aria-label="Cerrar">×</button></header>
+    <p class="note">Personaliza cómo apareces en CASTAGRAM y cómo se ve tu panel. Se conserva en esta cuenta, también si cambias de dispositivo.</p>
+    <div class="perfil-admin-foto">
+      <img id="perfil-admin-vista" src="/img/logo.png" alt="Tu imagen de perfil" width="92" height="92">
+      <div><label class="btn btn-line" for="perfil-admin-archivo">Cambiar foto</label><input type="file" id="perfil-admin-archivo" accept="image/*" hidden>
+      <button type="button" class="btn btn-line" id="perfil-admin-quitar">Usar logotipo</button></div>
+    </div>
+    <label class="perfil-admin-campo">Nombre visible en CASTAGRAM<input id="perfil-admin-nombre" maxlength="32" autocomplete="nickname" placeholder="Administración" required></label>
+    <label class="perfil-admin-campo">Color del panel<select id="perfil-admin-acento">
+      <option value="amarillo">Amarillo</option><option value="naranja">Naranja</option><option value="rosa">Rosa</option>
+      <option value="morado">Morado</option><option value="azul">Azul</option><option value="turquesa">Turquesa</option>
+    </select></label>
+    <label class="perfil-admin-campo">Tamaño del texto<select id="perfil-admin-letra">
+      <option value="normal">Normal</option><option value="grande">Grande</option><option value="muy-grande">Muy grande</option>
+    </select></label>
+    <p id="perfil-admin-error" class="perfil-admin-error" role="alert"></p>
+    <div class="perfil-admin-acciones"><button type="button" id="perfil-admin-cancelar" class="btn btn-line">Cancelar</button><button type="submit" id="perfil-admin-guardar" class="btn btn-primary">Guardar perfil</button></div>
+  </form>
+</dialog>
 <button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>
 
 </body>
