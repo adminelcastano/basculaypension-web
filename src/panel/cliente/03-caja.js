@@ -223,19 +223,26 @@
       </div>
         <section class="card" style="min-width:0">
           <h3>Pendientes de cobro</h3>
-          <p class="note">El estado lo registra administración; marcar pagado no suma dinero al corte. Para contabilizar el cobro, debe registrarse también en la hoja de Google.</p>
-          ${(j.pendientes || []).length ? (j.pendientes || []).map(p => `<div class="cgasto" data-pendiente-id="${esc(p.id)}">
+          <p class="note">Registra cuánto recibiste, la fecha y la forma. El abono se refleja en Dinero en su fecha, no altera el corte original y deja de sumarse si la hoja ya refleja ese cobro.</p>
+          ${(j.pendientes || []).length ? j.pendientes.map(p => `<div class="cgasto" data-pendiente-id="${esc(p.id)}">
             <span><b>${esc(p.servicio === "bascula" ? "Báscula" : "Pensión")} · folio ${esc(p.folio)}</b>
               <span class="note" style="display:block">${esc(p.cliente || "")} · ${esc(hora(p.fecha))} · ${esc(p.forma || "")}</span>
-              <span class="note" style="display:block">${p.estado === "pendiente" ? "Pendiente de decisión" : p.estado === "pagado" ? "Marcado como pagado" : "Cancelado"}${p.origen_activo ? "" : " · ya no figura pendiente en la hoja"}</span>
+              <span class="note" style="display:block">${esc(p.estado === "parcial" ? "Abonado parcialmente" : p.estado === "pagado" ? "Liquidado" : p.estado === "cancelado" ? "Cancelado" : "Pendiente")}${p.origen_activo ? "" : " · la hoja ya no lo considera pendiente"}</span>
               ${p.resuelto ? `<span class="note" style="display:block">Resuelto: ${esc(p.resuelto)} · ${esc(p.por || "Administración")}</span>` : ""}
             </span>
-            <b>${dinero(p.monto)} por cobrar</b>
-            <span class="row" style="grid-column:1/-1">
-              ${p.estado === "pendiente" ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pagado">Marcar pagado</button>
-                <button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar</button>` :
-                p.origen_activo ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pendiente">Reabrir pendiente</button>` : ""}
-            </span>
+            <b>${dinero(Math.max(0, p.monto - (p.abonado || 0)))} restante</b>
+            ${p.abonado ? `<span class="note" style="grid-column:1/-1">Abonado: ${dinero(p.abonado)} de ${dinero(p.monto)}</span>` : ""}
+            ${(p.abonos || []).length ? `<div style="grid-column:1/-1">${p.abonos.map(a => `<p class="note" style="margin:3px 0">${esc(a.fecha_pago)} · ${esc(a.forma)} · ${dinero(a.monto)} · ${esc(a.por || "Administración")}${a.anulado ? " · ANULADO" : ""}
+              ${!a.anulado ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="anular-abono" data-pago-id="${esc(a.id)}">Anular abono</button>` : ""}</p>`).join("")}</div>` : ""}
+            ${p.origen_activo && (p.estado === "pendiente" || p.estado === "parcial") && Math.max(0, p.monto - (p.abonado || 0)) > 0 ? `<form data-abonar="${esc(p.id)}" class="cform" style="grid-column:1/-1" novalidate>
+              <label>Importe cobrado<input name="monto" inputmode="decimal" value="${(Math.max(0, p.monto - (p.abonado || 0))).toFixed(2)}" required></label>
+              <label>Fecha de pago<input name="fecha" type="date" value="${hoyMx()}" required></label>
+              <label>Forma<select name="forma" required><option value="EFECTIVO">Efectivo (sobres)</option><option value="TARJETA">Tarjeta (Mercado Pago)</option><option value="TRANSFERENCIA">Transferencia (cuenta predeterminada)</option></select></label>
+              <label>Nota opcional<input name="notas" maxlength="240" placeholder="Referencia del pago"></label>
+              <div class="row wide"><button class="btn btn-primary" type="submit">Registrar pago</button>
+                ${!p.abonado ? `<button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>` : ""}</div>
+            </form>` : ""}
+            ${p.estado === "cancelado" && p.origen_activo ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pendiente">Reabrir pendiente</button>` : ""}
           </div>`).join("") : '<p class="note">Este corte no tiene cobros pendientes o resueltos.</p>'}
         </section>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
@@ -244,20 +251,36 @@
           </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: renglones de caja (con su folio de movimiento MC).</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
         </section>
       </div>`;
+    d.querySelectorAll("form[data-abonar]").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const b = f.querySelector('button[type="submit"]');
+      b.disabled = true;
+      try {
+        await api("caja/pendiente/" + encodeURIComponent(f.dataset.abonar) + "/resolver", {
+          method: "POST", body: JSON.stringify({
+            estado: "pagado", fecha: f.elements.fecha.value, forma: f.elements.forma.value,
+            monto: f.elements.monto.value, notas: f.elements.notas.value, pago_id: crypto.randomUUID()
+          })
+        });
+        toast("Cobro registrado en Dinero por su fecha y forma de pago");
+        await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
     d.querySelectorAll("[data-cobro-id]").forEach(b => b.addEventListener("click", async () => {
       const id = b.dataset.cobroId, estado = b.dataset.cobroEstado;
-      const mensaje = estado === "pagado"
-        ? "¿Confirmas que ya recibiste el pago? Esto no suma dinero automáticamente al corte."
-        : estado === "cancelado"
-          ? "¿Confirmas que este cobro debe cancelarse? Se conservará el historial."
-          : "¿Quieres reabrir este cobro pendiente?";
+      const mensaje = estado === "cancelado"
+        ? "¿Confirmas la cancelación? Quedará registrada en el historial."
+        : estado === "anular-abono"
+          ? "¿Anular este abono? Se corregirán los totales de Dinero mientras el mes esté abierto."
+          : "¿Reabrir este pendiente?";
       if (!window.confirm(mensaje)) return;
       b.disabled = true;
       try {
-        await api("caja/pendiente/" + encodeURIComponent(id) + "/resolver",
-          { method: "POST", body: JSON.stringify({ estado }) });
-        toast(estado === "pagado" ? "Pago confirmado (sin modificar ingresos)" :
-          estado === "cancelado" ? "Cobro cancelado" : "Cobro reabierto");
+        await api("caja/pendiente/" + encodeURIComponent(id) + "/resolver", {
+          method: "POST", body: JSON.stringify({ estado, pago_id: b.dataset.pagoId || "" })
+        });
+        toast(estado === "cancelado" ? "Pendiente cancelado" :
+          estado === "anular-abono" ? "Abono anulado" : "Pendiente reabierto");
         await cargar(); await abrir(k);
       } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
     }));
