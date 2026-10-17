@@ -221,12 +221,46 @@
               </form></div></details>
           </section>
       </div>
+        <section class="card" style="min-width:0">
+          <h3>Pendientes de cobro</h3>
+          <p class="note">El estado lo registra administración; marcar pagado no suma dinero al corte. Para contabilizar el cobro, debe registrarse también en la hoja de Google.</p>
+          ${(j.pendientes || []).length ? (j.pendientes || []).map(p => `<div class="cgasto" data-pendiente-id="${esc(p.id)}">
+            <span><b>${esc(p.servicio === "bascula" ? "Báscula" : "Pensión")} · folio ${esc(p.folio)}</b>
+              <span class="note" style="display:block">${esc(p.cliente || "")} · ${esc(hora(p.fecha))} · ${esc(p.forma || "")}</span>
+              <span class="note" style="display:block">${p.estado === "pendiente" ? "Pendiente de decisión" : p.estado === "pagado" ? "Marcado como pagado" : "Cancelado"}${p.origen_activo ? "" : " · ya no figura pendiente en la hoja"}</span>
+              ${p.resuelto ? `<span class="note" style="display:block">Resuelto: ${esc(p.resuelto)} · ${esc(p.por || "Administración")}</span>` : ""}
+            </span>
+            <b>${dinero(p.monto)} por cobrar</b>
+            <span class="row" style="grid-column:1/-1">
+              ${p.estado === "pendiente" ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pagado">Marcar pagado</button>
+                <button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar</button>` :
+                p.origen_activo ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pendiente">Reabrir pendiente</button>` : ""}
+            </span>
+          </div>`).join("") : '<p class="note">Este corte no tiene cobros pendientes o resueltos.</p>'}
+        </section>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
           ${j.movs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Registros de la hoja"><table class="cmovs"><thead><tr><th><span class="sr">Servicio</span></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
             ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${m.folio_mc ? `<span class="folio-mc">${esc(m.folio_mc)}</span> ` : ""}${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
           </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: renglones de caja (con su folio de movimiento MC).</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
         </section>
       </div>`;
+    d.querySelectorAll("[data-cobro-id]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.dataset.cobroId, estado = b.dataset.cobroEstado;
+      const mensaje = estado === "pagado"
+        ? "¿Confirmas que ya recibiste el pago? Esto no suma dinero automáticamente al corte."
+        : estado === "cancelado"
+          ? "¿Confirmas que este cobro debe cancelarse? Se conservará el historial."
+          : "¿Quieres reabrir este cobro pendiente?";
+      if (!window.confirm(mensaje)) return;
+      b.disabled = true;
+      try {
+        await api("caja/pendiente/" + encodeURIComponent(id) + "/resolver",
+          { method: "POST", body: JSON.stringify({ estado }) });
+        toast(estado === "pagado" ? "Pago confirmado (sin modificar ingresos)" :
+          estado === "cancelado" ? "Cobro cancelado" : "Cobro reabierto");
+        await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
     $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
     const be = $("#c-del-entrega");
     if (be) be.addEventListener("click", async () => {
@@ -344,7 +378,12 @@
     if (window.irA) window.irA("caja", { historia: "push", vista: "cortes" });
     const fuera = st.desde || st.hasta ? (st.desde && dia < st.desde) || (st.hasta && dia > st.hasta) : dia.slice(0, 7) !== hoy.slice(0, 7);
     if (fuera) { st.desde = dia.slice(0, 7) === hoy.slice(0, 7) ? "" : dia; st.hasta = st.desde ? dia : ""; st.rapido = st.desde ? "" : "mes"; $("#c-desde").value = st.desde; $("#c-hasta").value = st.hasta; document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === st.rapido ? "true" : "false")); }
-    await cargar(); abrir(k);
+    await cargar(); await abrir(k);
+  };
+  window.cajaAbrirPendiente = async (k, id) => {
+    await window.cajaAbrirCorte(k);
+    const el = [...document.querySelectorAll("#c-detalle [data-pendiente-id]")].find(x => x.dataset.pendienteId === id);
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.style.outline = "2px solid var(--accent, #ffcc00)"; }
   };
   function periodo(desde, hasta, rapido) {
     st.desde = desde; st.hasta = hasta; st.rapido = rapido;
