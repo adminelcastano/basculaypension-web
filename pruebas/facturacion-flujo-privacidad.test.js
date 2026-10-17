@@ -68,3 +68,12 @@ test("Aviso identifica a persona física y no afirma que se borren los respaldos
   assert.match(aviso, /respaldo en Google Drive no se elimina automáticamente/);
   assert.match(aviso, /derechos ARCO/);
 });
+
+test("No permite salir hacia Facturador con un folio corregido pero no guardado", () => {
+  assert.match(panel, /id="abrir-facturador"/);
+  assert.match(panel, /folioEnPantalla !== s\.folio_ticket/);
+  assert.match(panel, /importeEnPantalla/);
+  assert.match(panel, /e\.preventDefault\(\)/);
+  assert.match(panel, /Primero guarda el folio completo y el importe del ticket/);
+  assert.doesNotThrow(() => new Function(panel));
+});
