@@ -13,6 +13,7 @@ import { cajaPanel, sincronizarCaja, cierreMensualCaja } from "./caja.js";
 import { agendaPanel, recordatoriosAgenda, resumenDiarioAgenda, limpiarAgenda } from "./agenda.js";
 import TURNO_HTML from "./turno.html";
 import { turnoRuta, turnoAdmin } from "./turno.js";
+import { rutaPerfilAdmin } from "./perfil-admin.js";
 import { reporteArea, reportesMes, listaReportes, TIPOS_REPORTE } from "./reporte.js";
 import { finanzasPanel } from "./finanzas.js";
 import { categoriasPanel } from "./categorias.js";
@@ -435,6 +436,7 @@ async function rutasPanel(request, env, url, usuario) {
   const partes = ruta.split("/").slice(3); // tras /panel/api/
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
+  if (partes[0] === "perfil-admin") return await rutaPerfilAdmin(request, env, partes[1] || "");
   // Notificaciones push del celular del administrador
   if (partes[0] === "push") {
     if (partes.length === 1 && request.method === "GET") return json({ ok: true, clave: await clavePublica(env), aparatos: await aparatos(env, "admin") });
