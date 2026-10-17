@@ -653,7 +653,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "pendientes" && request.method === "GET") {
     const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado = 'pendiente' AND origen_activo = 1
+      FROM caja_pendientes WHERE estado = 'pendiente'
       ORDER BY fecha ASC LIMIT 100`).all()).results;
     return json({ ok: true, pendientes });
   }
@@ -669,7 +669,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
     const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado = 'pendiente' AND origen_activo = 1
+      FROM caja_pendientes WHERE estado = 'pendiente'
       ORDER BY fecha ASC LIMIT 100`).all()).results;
     return json({ ok: true, mes, meses, periodo, sync, pendientes, totales: totalesMes(cortes, tr.contadas), cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
