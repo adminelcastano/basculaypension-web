@@ -1,4 +1,5 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
+import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
@@ -136,9 +137,15 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["forma_pago", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["forma_pago", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"], ["enviada_en", "TEXT"], ["aviso_version", "TEXT"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
+  // Sólo retiene servicio y folio normalizado para prevenir un CFDI duplicado
+  // después de borrar el expediente a los 90 días. Sin RFC, correo ni fotos.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS facturas_folios (
+    servicio TEXT NOT NULL, folio_normalizado TEXT NOT NULL, solicitud_id TEXT NOT NULL,
+    folio_factura TEXT NOT NULL, creado TEXT NOT NULL, vence TEXT NOT NULL,
+    PRIMARY KEY (servicio, folio_normalizado))`).run();
   esquemaListo = true;
 }
 
@@ -183,10 +190,11 @@ async function crearSolicitud(request, env, ctx) {
   const comentario = texto(form, "comentario").slice(0, 500);
 
   if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
+  if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
-  if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
-  if (telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
+  if (email && !RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
+  if (telefono && telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
 
   if (modo === "manual" || rfc) {
@@ -255,13 +263,13 @@ async function crearSolicitud(request, env, ctx) {
 
   try {
   await env.DB.prepare(`INSERT INTO solicitudes
-    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago)
-    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago, aviso_version)
+    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, folio, ahora, servicio, folioTicket || null, modo,
       rfc || null, modo === "manual" ? nombre : (nombre || null),
       modo === "manual" ? regimen : (REGIMENES[regimen] ? regimen : null),
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
-      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket, formaPago)
+      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket, formaPago, "2026-10-17")
     .run();
   } catch (e) {
     // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
@@ -373,16 +381,16 @@ async function enviarCorreoA(env, datos) {
 // ---------------------------------------------------------------------------
 // Filas de solicitudes de factura para los reportes y respaldos en Google Sheets
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Fecha entrega manual", "Motivo rechazo", "Versión aviso de privacidad"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
-  const est = { pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" };
+  const est = { pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
       r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || ""]);
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), local(r.enviada_en), r.motivo || "", r.aviso_version || ""]);
   }
   return filas;
 }
@@ -472,13 +480,13 @@ async function rutasPanel(request, env, url, usuario) {
   }
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
-    const estado = ["pendiente", "facturada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
+    const estado = ["pendiente", "facturada", "enviada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
     const q = (url.searchParams.get("q") || "").trim().slice(0, 60);
     const lim = limiteHistorico();
     let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en, importe, tarifa, cliente FROM solicitudes WHERE ";
     const args = [];
-    if (estado === "pendiente") sql += "estado = 'pendiente'";
-    else if (estado === "historico") { sql += "estado IN ('facturada','rechazada') AND resuelta_en < ?"; args.push(lim); }
+    if (estado === "pendiente") sql += "estado IN ('pendiente','en_revision')";
+    else if (estado === "historico") { sql += "estado IN ('facturada','enviada','rechazada') AND resuelta_en < ?"; args.push(lim); }
     else { sql += "estado = ? AND resuelta_en >= ?"; args.push(estado, lim); }
     if (q) {
       sql += " AND (rfc LIKE ? OR nombre LIKE ? OR folio LIKE ? OR email LIKE ? OR folio_ticket LIKE ? OR folio_factura LIKE ?)";
@@ -490,10 +498,15 @@ async function rutasPanel(request, env, url, usuario) {
     sql += (estado === "pendiente" ? " ORDER BY creado ASC" : " ORDER BY resuelta_en DESC") + ` LIMIT ${limite + 1}`;
     const { results: todos } = await env.DB.prepare(sql).bind(...args).all();
     const hayMas = todos.length > limite, results = todos.slice(0, limite);
-    const conteos = await env.DB.prepare(
-      "SELECT CASE WHEN estado != 'pendiente' AND resuelta_en < ? THEN 'historico' ELSE estado END AS grupo, COUNT(*) AS n FROM solicitudes GROUP BY grupo"
+    // Las pantallas de Facturación cargan cinco grupos a la vez. Sólo la primera
+    // necesita los conteos; otros clientes mantienen la respuesta completa por defecto.
+    const soloLista = url.searchParams.get("solo_lista") === "1";
+    const conteos = soloLista ? null : await env.DB.prepare(
+      "SELECT CASE WHEN estado IN ('facturada','enviada','rechazada') AND resuelta_en < ? THEN 'historico' WHEN estado = 'en_revision' THEN 'pendiente' ELSE estado END AS grupo, COUNT(*) AS n FROM solicitudes GROUP BY grupo"
     ).bind(lim).all();
-    return json({ ok: true, solicitudes: results, hay_mas: hayMas, limite, conteos: Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])), dias_retencion: DIAS_RETENCION });
+    return json({ ok: true, solicitudes: results, hay_mas: hayMas, limite,
+      conteos: conteos ? Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])) : {},
+      dias_retencion: DIAS_RETENCION });
   }
 
   const id = partes[1];
@@ -504,11 +517,41 @@ async function rutasPanel(request, env, url, usuario) {
     if (partes.length === 2 && request.method === "GET") {
       let duplicados = [];
       if (fila.folio_ticket) {
-        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE folio_ticket = ? AND id != ? AND (servicio = ? OR servicio = 'ambos' OR ? = 'ambos') ORDER BY creado DESC LIMIT 5")
-          .bind(fila.folio_ticket, id, fila.servicio, fila.servicio).all();
+        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE REPLACE(REPLACE(UPPER(TRIM(folio_ticket)), ' ', ''), '-', '') = ? AND id != ? AND (servicio = ? OR servicio = 'ambos' OR ? = 'ambos') ORDER BY creado DESC LIMIT 5")
+          .bind(normalizarFolioTicket(fila.folio_ticket), id, fila.servicio, fila.servicio).all();
         duplicados = r.results;
       }
-      return json({ ok: true, solicitud: fila, duplicados, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS, formas_pago: FORMAS_PAGO });
+      const normalizado = normalizarFolioTicket(fila.folio_ticket);
+      let yaFacturado = null, contraste = null;
+      if (normalizado) {
+        yaFacturado = await env.DB.prepare("SELECT solicitud_id, folio_factura FROM facturas_folios WHERE servicio = ? AND folio_normalizado = ?")
+          .bind(fila.servicio, normalizado).first();
+        if (!yaFacturado) {
+          // Registros históricos todavía presentes, antes de la nueva reserva única.
+          yaFacturado = await env.DB.prepare("SELECT id AS solicitud_id, folio_factura FROM solicitudes WHERE id != ? AND servicio=? AND estado IN ('facturada','enviada') AND REPLACE(REPLACE(UPPER(TRIM(folio_ticket)), ' ', ''), '-', '') = ? LIMIT 1")
+            .bind(fila.id, fila.servicio, normalizado).first();
+        }
+        // La hoja de ingresos es una referencia para aclaraciones, no una autorización
+        // automática para facturar ni una prueba concluyente de pago.
+        try {
+          const movimientos = (await env.DB.prepare("SELECT folio, importe, forma, fecha FROM caja_mov WHERE servicio = ? AND tipo = 'ticket' AND REPLACE(REPLACE(UPPER(TRIM(folio)), ' ', ''), '-', '') = ? ORDER BY fecha DESC LIMIT 3")
+            .bind(fila.servicio, normalizado).all()).results;
+          const pend = (await env.DB.prepare("SELECT estado, monto FROM caja_pendientes WHERE servicio = ? AND REPLACE(REPLACE(UPPER(TRIM(folio)), ' ', ''), '-', '') = ? AND origen_activo = 1 LIMIT 1")
+            .bind(fila.servicio, normalizado).first());
+          contraste = movimientos.length
+            ? { encontrado: true, registros: movimientos, advertencia: null }
+            : { encontrado: false, registros: [], advertencia: "El folio no aparece entre los tickets de ingresos sincronizados. Verifica el número en la foto; puedes continuar después de aclararlo." };
+          if (pend && ["pendiente", "parcial"].includes(pend.estado))
+            contraste.advertencia = "El folio aparece con un cobro pendiente o parcialmente abonado. Verifica antes de emitir.";
+          else if (pend && pend.estado === "cancelado")
+            contraste.advertencia = "El registro de cobro pendiente fue cancelado. Comprueba la situación del ticket antes de emitir.";
+          if (movimientos.length && fila.importe && !movimientos.some(m => Math.abs(Number(m.importe) - Number(fila.importe)) < 0.01))
+            contraste.advertencia = "El importe capturado no coincide con el registrado en ingresos. Comprueba la foto del ticket.";
+        } catch (e) {
+          contraste = { encontrado: null, registros: [], advertencia: "No se pudo consultar ingresos. Verifica manualmente el folio del ticket." };
+        }
+      }
+      return json({ ok: true, solicitud: fila, duplicados, ya_facturado: yaFacturado, contraste, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS, formas_pago: FORMAS_PAGO });
     }
 
     if (partes[2] === "archivo" && ["ticket", "csf"].includes(partes[3]) && request.method === "GET") {
@@ -535,23 +578,59 @@ async function rutasPanel(request, env, url, usuario) {
       const cuerpo = await request.json().catch(() => ({}));
       const ahora = new Date().toISOString();
 
+      if (partes[2] === "en-revision") {
+        if (fila.estado !== "pendiente") return json({ ok: false, error: "Sólo puedes iniciar revisión de una solicitud recibida." }, 409);
+        await env.DB.prepare("UPDATE solicitudes SET estado='en_revision' WHERE id=?").bind(id).run();
+        return json({ ok: true });
+      }
+      if (partes[2] === "enviada") {
+        if (fila.estado !== "facturada") return json({ ok: false, error: "Primero registra el CFDI emitido en Facturador." }, 409);
+        await env.DB.prepare("UPDATE solicitudes SET estado='enviada', enviada_en=? WHERE id=?").bind(ahora, id).run();
+        return json({ ok: true });
+      }
       if (partes[2] === "facturar") {
+        if (![ "pendiente", "en_revision", "rechazada" ].includes(fila.estado)) return json({ ok: false, error: "Esta solicitud ya está facturada o enviada." }, 409);
         const folioFactura = String(cuerpo.folio_factura || "").trim().slice(0, 60);
         if (!folioFactura) return json({ ok: false, error: "Escribe el folio o UUID de la factura." }, 422);
         const importe = normalizarImporte(cuerpo.importe);
-        if (importe === null) return json({ ok: false, error: "El importe no es válido. Escríbelo como 350 o 1250.50" }, 422);
+        if (importe === null || !importe || Number(importe) <= 0) return json({ ok: false, error: "Indica un importe válido mayor a cero antes de marcar facturada." }, 422);
         const folioTicket = String(cuerpo.folio_ticket ?? fila.folio_ticket ?? "").trim().slice(0, 40);
-        await env.DB.prepare("UPDATE solicitudes SET estado='facturada', folio_factura=?, importe=?, folio_ticket=?, resuelta_en=?, motivo=NULL WHERE id=?")
-          .bind(folioFactura, importe || null, folioTicket || null, ahora, id).run();
+        const incompletos = faltantesParaFacturar({ ...fila, folio_ticket: folioTicket }, { regimenes: REGIMENES, usos: USOS });
+        if (incompletos.length) return json({ ok: false, error: "Antes de marcar facturada verifica: " + incompletos.join(", ") + ".", faltantes: incompletos }, 422);
+        const n = normalizarFolioTicket(folioTicket);
+        const ya = await env.DB.prepare("SELECT folio_factura FROM facturas_folios WHERE servicio=? AND folio_normalizado=?")
+          .bind(fila.servicio, n).first();
+        if (ya) return json({ ok: false, error: "Este ticket ya está facturado con el folio " + ya.folio_factura + ". Revisa y rechaza esta solicitud duplicada.", duplicado: true }, 409);
+        // Incluye facturas recientes previas a la introducción del índice.
+        const anterior = await env.DB.prepare("SELECT folio_factura FROM solicitudes WHERE id != ? AND servicio=? AND estado IN ('facturada','enviada') AND REPLACE(REPLACE(UPPER(TRIM(folio_ticket)), ' ', ''), '-', '') = ? LIMIT 1")
+          .bind(id, fila.servicio, n).first();
+        if (anterior) return json({ ok: false, error: "El ticket ya se facturó en otra solicitud (" + anterior.folio_factura + "). No se permite una segunda factura.", duplicado: true }, 409);
+        const vence = new Date();
+        vence.setFullYear(vence.getFullYear() + 5);
+        try {
+          // D1 ejecuta batch transaccional: una segunda petición simultánea
+          // no puede reservar el mismo ticket dos veces.
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO facturas_folios (servicio, folio_normalizado, solicitud_id, folio_factura, creado, vence) VALUES (?, ?, ?, ?, ?, ?)")
+              .bind(fila.servicio, n, id, folioFactura, ahora, vence.toISOString()),
+            env.DB.prepare("UPDATE solicitudes SET estado='facturada', folio_factura=?, importe=?, folio_ticket=?, resuelta_en=?, motivo=NULL WHERE id=?")
+              .bind(folioFactura, importe, folioTicket, ahora, id)
+          ]);
+        } catch (e) {
+          if (/UNIQUE|constraint/i.test(String(e?.message || ""))) return json({ ok: false, error: "El folio ya quedó reservado como facturado. No se permite duplicarlo.", duplicado: true }, 409);
+          throw e;
+        }
         return json({ ok: true });
       }
       if (partes[2] === "rechazar") {
+        if (![ "pendiente", "en_revision" ].includes(fila.estado)) return json({ ok: false, error: "Sólo pueden rechazarse solicitudes no facturadas." }, 409);
         const motivo = String(cuerpo.motivo || "").trim().slice(0, 300);
         if (!motivo) return json({ ok: false, error: "Escribe el motivo." }, 422);
         await env.DB.prepare("UPDATE solicitudes SET estado='rechazada', motivo=?, resuelta_en=? WHERE id=?").bind(motivo, ahora, id).run();
         return json({ ok: true });
       }
       if (partes[2] === "reabrir") {
+        if (fila.estado !== "rechazada") return json({ ok: false, error: "Una factura emitida no se reabre sin gestionar antes su cancelación en Facturador." }, 409);
         if (fila.archivos_borrados) return json({ ok: false, error: "Los archivos de esta solicitud ya se borraron; pide al cliente que la envíe de nuevo." }, 409);
         await env.DB.prepare("UPDATE solicitudes SET estado='pendiente', resuelta_en=NULL WHERE id=?").bind(id).run();
         return json({ ok: true });
@@ -570,6 +649,7 @@ async function rutasPanel(request, env, url, usuario) {
         return json({ ok: true });
       }
       if (partes[2] === "datos") {
+        if (![ "pendiente", "en_revision", "rechazada" ].includes(fila.estado)) return json({ ok: false, error: "Los datos de un CFDI ya emitido no se pueden alterar desde la solicitud." }, 409);
         const rfc = String(cuerpo.rfc || "").toUpperCase().replace(/[\s-]/g, "");
         const nombre = String(cuerpo.nombre || "").replace(/\s+/g, " ").trim().slice(0, 254);
         const regimen = String(cuerpo.regimen || "");
@@ -583,6 +663,7 @@ async function rutasPanel(request, env, url, usuario) {
         const telefono = "telefono" in cuerpo ? String(cuerpo.telefono || "").replace(/\D/g, "").slice(-10) : (fila.telefono || "");
         if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
         const folioTicket = "folio_ticket" in cuerpo ? String(cuerpo.folio_ticket || "").trim().slice(0, 40) : (fila.folio_ticket || "");
+        if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "Escribe únicamente el número del ticket.";
         const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
         const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
@@ -680,8 +761,10 @@ function limiteHistorico() { return new Date(Date.now() - DIAS_A_HISTORICO * 864
 async function limpiarArchivos(env) {
   await asegurarEsquema(env);
   const limite = new Date(Date.now() - DIAS_RETENCION * 86400e3).toISOString();
+  // Controles mínimos de duplicidad: cinco años, sin RFC ni copia de documentos.
+  await env.DB.prepare("DELETE FROM facturas_folios WHERE vence < ?").bind(new Date().toISOString()).run();
   const { results } = await env.DB.prepare(
-    "SELECT * FROM solicitudes WHERE estado IN ('facturada','rechazada') AND resuelta_en < ? ORDER BY resuelta_en ASC LIMIT 500"
+    "SELECT * FROM solicitudes WHERE estado IN ('facturada','enviada','rechazada') AND resuelta_en < ? ORDER BY resuelta_en ASC LIMIT 500"
   ).bind(limite).all();
   if (!results.length) { console.log("limpieza: nada que borrar"); return { borradas: 0 }; }
   if (!env.AVISO_URL || !env.AVISO_TOKEN) { console.error("limpieza: sin script de correo configurado; no se borra nada sin respaldo"); return { borradas: 0, error: "sin respaldo" }; }
@@ -696,6 +779,14 @@ async function limpiarArchivos(env) {
     return { borradas: 0, error: "respaldo no confirmado" };
   }
   for (const r of results) {
+    // También registrar las facturas emitidas ANTES de crear el índice,
+    // antes de borrar la solicitud. No altera importes ni registros contables.
+    if (["facturada", "enviada"].includes(r.estado) && r.folio_factura && normalizarFolioTicket(r.folio_ticket) && ["bascula", "pension"].includes(r.servicio)) {
+      const venceFolio = new Date(r.resuelta_en);
+      venceFolio.setFullYear(venceFolio.getFullYear() + 5);
+      await env.DB.prepare("INSERT OR IGNORE INTO facturas_folios (servicio, folio_normalizado, solicitud_id, folio_factura, creado, vence) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(r.servicio, normalizarFolioTicket(r.folio_ticket), r.id, r.folio_factura, r.resuelta_en, venceFolio.toISOString()).run();
+    }
     await borrarArchivo(env, `f:${r.id}:ticket`);
     await borrarArchivo(env, `f:${r.id}:csf`);
     await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(r.id).run();

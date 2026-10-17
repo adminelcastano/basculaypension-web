@@ -16,13 +16,13 @@
     const unidad = [s.descripcion, s.placas ? `placas ${s.placas}` : ""].filter(Boolean).join(", ");
     const ticket = (s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket") + (unidad ? ` (${unidad})` : "");
     const importe = s.importe ? ` por ${dinero(s.importe)}` : "";
-    if (s.estado === "facturada") {
-      return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. Te la enviamos a tu correo ${s.email}. Gracias por tu preferencia.`;
+    if (s.estado === "facturada" || s.estado === "enviada") {
+      return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. ${s.estado === "enviada" ? "La administración ya confirmó su entrega." : "La administración coordinará la entrega del comprobante."} Gracias por tu preferencia.`;
     }
     if (s.estado === "rechazada") {
       return `Hola, te saluda Báscula y Pensión El Castaño. No pudimos emitir la factura de tu solicitud ${s.folio}${s.folio_ticket ? ` (ticket ${s.folio_ticket})` : ""}: ${s.motivo || ""}. Puedes enviar tus datos de nuevo aquí:\nhttps://basculaypension.com/factura`;
     }
-    return `Hola, te saluda Báscula y Pensión El Castaño. Recibimos tu solicitud de factura ${s.folio}${s.folio_ticket ? ` del ticket ${s.folio_ticket}` : ""}${importe} por concepto de ${concepto}. La estamos procesando y te la enviaremos a tu correo ${s.email}.`;
+    return `Hola, te saluda Báscula y Pensión El Castaño. Recibimos tu solicitud de factura ${s.folio}${s.folio_ticket ? ` del ticket ${s.folio_ticket}` : ""}${importe} por concepto de ${concepto}. La estamos revisando.${s.email ? ` Al emitirla, coordinaremos su envío al correo ${s.email}.` : " Si necesitas aclarar o recibir tu factura, comunícate con administración indicando tu folio."}`;
   }
 
   const toast = EC.toast;
@@ -64,9 +64,9 @@
   const api = EC.api;
 
   // Todas las solicitudes a la vista, agrupadas por estado (el submenú baja a cada grupo)
-  const ESTADOS = ["pendiente", "facturada", "rechazada", "historico"];
-  const NOM_EST = { pendiente: "Pendientes", facturada: "Facturadas", rechazada: "Rechazadas", historico: "Histórico" };
-  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", rechazada: "i-x", historico: "i-arch" };
+  const ESTADOS = ["pendiente", "facturada", "enviada", "rechazada", "historico"];
+  const NOM_EST = { pendiente: "Recibidas y en revisión", facturada: "Facturadas", enviada: "Enviadas al cliente", rechazada: "Rechazadas", historico: "Histórico" };
+  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", enviada: "i-ok", rechazada: "i-x", historico: "i-arch" };
   let secuenciaLista = 0;
   async function cargarLista() {
     const solicitud = ++secuenciaLista;
@@ -75,7 +75,12 @@
     const clavePag = estadoState.q || "";
     if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.lim = {}; }
     try {
-      const rs = await Promise.all(ESTADOS.map(e => { const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 }); if (estadoState.q) p.set("q", estadoState.q); return api("solicitudes?" + p); }));
+      const rs = await Promise.all(ESTADOS.map((e, i) => {
+        const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 });
+        if (i > 0) p.set("solo_lista", "1");
+        if (estadoState.q) p.set("q", estadoState.q);
+        return api("solicitudes?" + p);
+      }));
       if (solicitud !== secuenciaLista) return;
       const conteos = rs[0].conteos || {}, dias = rs[0].dias_retencion || 90;
       for (const e of ESTADOS) EC.bloqueN("facturacion", e, conteos[e] || 0, e === "pendiente" && (conteos[e] || 0) > 0);
@@ -84,12 +89,13 @@
       const horas = masVieja ? Math.floor((Date.now() - Date.parse(masVieja)) / 36e5) : 0;
       EC.bloqueInfo("facturacion", "pendiente", { texto: !(conteos.pendiente) ? "Nada por facturar" : horas >= 48 ? `La más antigua espera ${Math.floor(horas / 24)} días` : horas >= 1 ? `La más antigua espera ${horas} h` : "Recién llegadas" });
       EC.bloqueInfo("facturacion", "facturada", { texto: "Últimos 7 días" });
+      EC.bloqueInfo("facturacion", "enviada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "rechazada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "historico", { texto: `Se borran a los ${dias} días` });
       $("#titulo").textContent = "Facturas.";
-      $("#subtitulo").textContent = `${conteos.pendiente || 0} pendientes · ${conteos.facturada || 0} facturadas y ${conteos.rechazada || 0} rechazadas en los últimos 7 días · ${conteos.historico || 0} en el histórico`;
+      $("#subtitulo").textContent = `${conteos.pendiente || 0} recibidas/en revisión · ${conteos.facturada || 0} facturadas · ${conteos.enviada || 0} enviadas · ${conteos.rechazada || 0} rechazadas · ${conteos.historico || 0} en histórico`;
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
-      const VACIO = { pendiente: "No hay solicitudes pendientes. Las nuevas aparecen aquí.", facturada: "Sin facturas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
+      const VACIO = { pendiente: "No hay solicitudes recibidas o en revisión.", facturada: "Sin facturas por enviar en los últimos 7 días.", enviada: "Sin facturas entregadas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
       const AYUDA = { rechazada: "Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Drive.` };
       lista.innerHTML = ESTADOS.map((e, i) => {
         const j = rs[i], n = conteos[e] || 0, l = j.solicitudes.filter(s => !borrandoIds.has(s.id));
@@ -101,7 +107,7 @@
           ${iconoServicio(s.servicio)}
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
-          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
+          <span class="m"><span>${fecha(["pendiente", "en_revision"].includes(s.estado) ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${s.estado === "en_revision" ? `<span>En revisión</span>` : ""}${s.estado === "enviada" ? `<span>Entregada</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
         </button>${e === "rechazada" ? "</div>" : ""}`).join("") : `<p class="note lgrp-n">${estadoState.q ? "Sin resultados." : VACIO[e]}</p>`)
           + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "") + `</div>`;
       }).join("");
@@ -133,7 +139,11 @@
       if (mime === "application/pdf") return `<div class="pdfview" data-pdf="${tipo}" aria-label="${titulo}"><p class="note">Cargando documento…</p></div><div class="row"><a class="btn btn-line" href="${archivo(tipo)}" target="_blank" rel="noopener">Abrir PDF completo</a></div>`;
       return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
     };
-    const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
+    const faltan = !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(String(s.rfc || "").toUpperCase()) ||
+      String(s.nombre || "").trim().length < 3 || !/^\d{5}$/.test(String(s.cp || "")) ||
+      !j.regimenes?.[s.regimen] || !j.usos?.[s.uso] || !j.formas_pago?.[s.forma_pago];
+    const bloqueado = s.estado === "facturada" || s.estado === "enviada";
+    const duplicada = !!(j.ya_facturado && j.ya_facturado.solicitud_id !== s.id);
     const esBascula = s.servicio === "bascula";
     const capturado = !!(s.folio_ticket || s.importe);
 
@@ -142,7 +152,7 @@
       <div class="detail-head">
         <h2>${esc(s.nombre || "Solicitud " + s.folio)}</h2>
         <span class="svc-tag">${iconoServicio(s.servicio)}${esc(j.servicios[s.servicio] || s.servicio || "")}</span>
-        <span class="pill ${s.estado}">${{ pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" }[s.estado]}</span>
+        <span class="pill ${s.estado}">${{ pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" }[s.estado]}</span>
         <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
       </div>
       <div class="fflujo">
@@ -167,14 +177,16 @@
               <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
               <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
             </div>
-            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
+            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button" ${bloqueado ? "disabled" : ""}>Guardar datos</button><span class="note" id="csf-estado"></span></div>
           </details>
           </section>
           <section class="card">
-            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura a mano el folio y el importe viendo la foto del ticket (paso 6). Al guardar quedan listos para copiar.</p>
+            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura el número de folio y el importe tal como aparecen en la foto (paso 6). Conserva los ceros iniciales. Al guardar quedan listos para copiar.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
+            ${duplicada ? `<p class="warn"><b>Ticket ya facturado:</b> aparece con la factura ${esc(j.ya_facturado.folio_factura)}. No emitas otro CFDI; si corresponde, rechaza la nueva solicitud.</p>` : ""}
+            ${j.contraste?.advertencia ? `<p class="warn"><b>Verificación de ingresos:</b> ${esc(j.contraste.advertencia)}</p>` : ""}
             ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.aviso_ticket ? `<p class="warn"><b>Ojo:</b> ${esc(s.aviso_ticket)}</p>` : ""}
             ${(() => {
@@ -185,12 +197,12 @@
               filas.push(campo(esBascula ? "Tarifa" : "Total impreso", imp ? Number(s.importe).toFixed(2) : ""));
               if (s.anotacion) filas.push(campo("Anotación a mano", s.anotacion));
               filas.push(campo("WhatsApp del cliente", s.telefono));
-              return `<div id="ticket-vista" ${capturado ? "" : "hidden"}><div class="fields">${filas.join("")}</div><div class="row"><button class="btn btn-line" id="editar-ticket" type="button">Editar datos del ticket</button></div></div>`;
+              return `<div id="ticket-vista" ${capturado ? "" : "hidden"}><div class="fields">${filas.join("")}</div><div class="row"><button class="btn btn-line" id="editar-ticket" type="button" ${bloqueado ? "hidden" : ""}>Editar datos del ticket</button></div></div>`;
             })()}
             <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
             <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="${esBascula ? "Ej. 17372" : "Ej. 15013"}" autocomplete="off"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 17372" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
               ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
               ${esBascula ? "" : `<label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
@@ -199,19 +211,20 @@
               <label class="wide${s.anotacion ? " marcado" : ""}">Anotación a mano en el ticket<input id="t-anot" value="${esc(s.anotacion)}" placeholder="Si alguien escribió otra cantidad, aparece aquí" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
-            <div class="row"><button class="btn btn-primary" id="guardar-ticket" type="button">Guardar</button>${capturado ? `<button class="btn btn-line" id="cancelar-ticket" type="button">Cancelar</button>` : ""}<span class="note" id="ticket-estado"></span></div>
+            <div class="row"><button class="btn btn-primary" id="guardar-ticket" type="button" ${bloqueado ? "disabled" : ""}>Guardar</button>${capturado ? `<button class="btn btn-line" id="cancelar-ticket" type="button">Cancelar</button>` : ""}<span class="note" id="ticket-estado"></span></div>
             </div>
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">3</span>Factura en Facturador</h3><p class="note fguia">Abre Facturador en otra pestaña, emite la factura con los datos de los pasos 1 y 2 y regresa aquí.</p>
-            <div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>
+            ${duplicada ? `<p class="warn"><b>No emitir otro CFDI:</b> este ticket ya figura como facturado. Revisa los datos y usa Rechazar con el motivo correspondiente.</p>` : `<div class="row"><a class="btn btn-primary" id="abrir-facturador" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>`}
           </section>
           <section class="card">
-            ${s.estado === "pendiente" ? `
-              <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Si la emitiste, escribe el folio de Facturador y marca facturada. La fecha se registra sola. Si no se puede facturar, recházala con el motivo.</p>
+            ${["pendiente", "en_revision"].includes(s.estado) ? `
+              <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Comprueba los datos y el ticket. Después de emitir el CFDI en Facturador, registra su folio; si no procede, rechaza la solicitud con motivo.</p>
+              ${s.estado === "pendiente" ? `<div class="row"><button class="btn btn-line" id="iniciar-revision" type="button">Iniciar revisión</button></div>` : `<p class="note">En revisión por administración.</p>`}
               <div class="row">
                 <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
-                <button class="btn btn-primary" id="facturar" type="button">Facturada</button>
+                <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>Facturada</button>
               </div>
               <p class="note">Fecha: ${fecha(new Date().toISOString())} (automática). Se guardan también el folio del ticket y el importe del paso 2.</p>
               <div class="rechazo">
@@ -220,24 +233,26 @@
                   <button class="btn btn-bad" id="rechazar" type="button">Rechazar</button>
                 </div>
               </div>` : `
-              <h3 class="fpaso"><span class="num">4</span>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
-              <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
+              <p>${["facturada", "enviada"].includes(s.estado) ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              ${s.estado === "facturada" ? `<div class="row"><button class="btn btn-primary" id="marcar-enviada" type="button">Confirmar envío al cliente</button></div><p class="note">Sólo después de entregarla por Facturador; este botón no envía correo.</p>` : ""}
+              ${s.estado === "enviada" ? `<p class="note">Entrega confirmada: ${fecha(s.enviada_en)}</p>` : ""}
               ${s.estado === "rechazada" ? `
                 <h3 style="margin-top:6px">Cambiar estatus</h3>
                 <div class="row">
                   <input type="text" id="folio-factura" placeholder="Número o UUID de la factura" aria-label="Número de la factura">
-                  <button class="btn btn-primary" id="facturar" type="button">Marcar facturada</button>
+                  <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>Marcar facturada</button>
                 </div>
                 <div class="row">
                   ${s.archivos_borrados ? "" : `<button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button>`}
                   <button class="btn btn-bad" id="eliminar" type="button">Eliminar solicitud</button>
                 </div>
                 <p class="note">Eliminar borra la solicitud, el ticket y la constancia. No se puede deshacer.</p>` :
-                (s.archivos_borrados ? "" : `<div class="row"><button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button></div>`)}`}
+                ""}`}
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
-            <p class="note">${{ pendiente: "Mientras está pendiente, el mensaje solo confirma que recibiste su solicitud. Al marcarla facturada o rechazada cambia solo al texto de ese caso.", facturada: "Texto de factura emitida: confirma el ticket, el importe y el folio de la factura.", rechazada: "Texto de rechazo: explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
+            <p class="note">${{ pendiente: "Confirma recepción.", en_revision: "Confirma que está en revisión.", facturada: "CFDI emitido, pendiente de confirmar entrega.", enviada: "Entrega registrada por administración.", rechazada: "Explica el rechazo." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
             <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
@@ -253,17 +268,42 @@
           <section class="card doc">
             <h3 class="fpaso"><span class="num">7</span>Constancia de Situación Fiscal</h3>
             ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
-            ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
+            ${!bloqueado && !s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
           </section>` : ""}
       </div>`;
 
     d.scrollTop = 0;
     d.classList.remove("entra"); void d.offsetWidth; d.classList.add("entra");
     $("#volver")?.addEventListener("click", () => $("#work").classList.remove("ver-detalle"));
+    // El CFDI se emite en Facturador, fuera de esta web. Si el administrador
+    // cambió el folio sin guardarlo, las advertencias del panel estarían obsoletas.
+    // Exigir guardar y volver a consultar los posibles duplicados antes de salir.
+    $("#abrir-facturador")?.addEventListener("click", e => {
+      if (bloqueado) return; // factura ya registrada: acceso sólo de consulta
+      const folioEnPantalla = $("#t-ticket")?.value.trim() || "";
+      const importeEnPantalla = $("#t-importe")?.value.trim() || "";
+      if (!/^\d+$/.test(folioEnPantalla.replace(/[\s-]/g, ""))) { e.preventDefault(); toast("Verifica el número de folio del ticket."); return; }
+      const importeGuardado = s.importe ? Number(s.importe).toFixed(2) : "";
+      if (!folioEnPantalla || !s.folio_ticket || folioEnPantalla !== s.folio_ticket ||
+          !importeEnPantalla || !importeGuardado || Number(importeEnPantalla) !== Number(importeGuardado)) {
+        e.preventDefault();
+        toast("Primero guarda el folio completo y el importe del ticket. Así podremos revisar si ya se facturó.");
+        return;
+      }
+      if (faltan) {
+        e.preventDefault();
+        toast("Revisa y guarda los datos fiscales completos antes de abrir Facturador.");
+      }
+    });
+    $("#iniciar-revision")?.addEventListener("click", e => accion(e.target, "en-revision", {}, "En revisión"));
+    $("#marcar-enviada")?.addEventListener("click", async e => {
+      if (!confirmarEnPagina(e.target, "¿Ya entregaste el CFDI al cliente?")) return;
+      await accion(e.target, "enviada", {}, "Entrega confirmada");
+    });
     $("#facturar")?.addEventListener("click", async e => {
       const folio = $("#folio-factura").value.trim();
       if (!folio) { toast("Escribe el folio de la factura"); $("#folio-factura").focus(); return; }
-      if ((faltan || !$("#t-importe").value.trim()) && !confirmarEnPagina(e.target, faltan ? "Faltan datos fiscales" : "Falta el importe")) return;
+      if (faltan || !$("#t-importe").value.trim() || !$("#t-ticket").value.trim()) { toast("Verifica los datos fiscales, el folio y el importe antes de facturar."); return; }
       await accion(e.target, "facturar", { folio_factura: folio, folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value }, "Marcada como facturada");
     });
     $("#rechazar")?.addEventListener("click", e => {
@@ -285,8 +325,8 @@
         await cargarLista();
       } catch (err) { if (err.message !== "sesion") toast(err.message); b.disabled = false; }
     });
-    $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
-    $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
+    if (!bloqueado) $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
+    if (!bloqueado) $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
     $("#editar-ticket")?.addEventListener("click", () => { $("#ticket-vista").hidden = true; $("#ticket-edicion").hidden = false; $("#t-ticket").focus(); });
     $("#cancelar-ticket")?.addEventListener("click", () => { $("#ticket-edicion").hidden = true; $("#ticket-vista").hidden = false; });
     const waLink = () => {
@@ -306,7 +346,7 @@
     $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes, false));
     d.querySelectorAll(".pdfview").forEach(c => mostrarPdf(c, archivo(c.dataset.pdf), s.id));
     // Lectura automática: si llegó constancia en PDF y aún no hay datos tomados de ella
-    if (s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
+    if (!bloqueado && s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
       leerCsf($("#leer-csf"), s, j.regimenes, true);
     }
   }

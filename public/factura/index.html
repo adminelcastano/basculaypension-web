@@ -73,6 +73,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .drop { display: grid; gap: 8px; justify-items: start; padding: 16px; border: 2px dashed var(--line); border-radius: 12px; background: var(--bg); }
 .drop .btn { cursor: pointer; }
 .drop input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop:focus-within .btn[for] { outline: 3px solid var(--amber); outline-offset: 4px; }
 .preview { display: flex; align-items: center; gap: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 0 22px; border-radius: 999px; transition: background .2s, transform .15s; border: 2px solid transparent; font-family: var(--font-display); font-weight: 700; font-size: 1.12rem; text-decoration: none; cursor: pointer; }
@@ -120,7 +121,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   <div id="vista-form">
     <div class="intro">
       <h1>Solicita tu factura</h1>
-      <p>Toma 2 minutos. Sube tu Constancia de Situación Fiscal o escribe tus datos, y agrega la foto de tu ticket. Te enviamos la factura a tu correo.</p>
+      <p>Adjunta una foto del ticket y elige entre subir tu constancia o escribir tus datos fiscales. Administración revisará tu solicitud y emitirá la factura por separado. Si no puedes usar el formulario o no tienes la foto, contáctanos directamente para solicitar tu CFDI.</p>
     </div>
 
     <form id="form" novalidate>
@@ -159,8 +160,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           </div>
           <span class="err" data-err="ticket"></span>
         </div>
-        <label class="f">Folio o número del ticket <span class="hint">Opcional</span>
-          <input type="text" name="folio_ticket" maxlength="40" autocomplete="off" inputmode="numeric" placeholder="Viene arriba en el ticket">
+        <label class="f">Número de folio del ticket <span class="hint">Opcional. Escríbelo tal como aparece en el ticket.</span>
+          <input type="text" name="folio_ticket" maxlength="40" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Ej. 17372">
         </label>
       </fieldset>
 
@@ -250,11 +251,11 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 
       <fieldset>
         <legend><span class="paso">3</span>¿A dónde te la enviamos?</legend>
-        <label class="f" id="g-email">Correo para recibir la factura
+        <label class="f" id="g-email">Correo para recibir la factura <span class="hint">Opcional; facilita la entrega del PDF y XML.</span>
           <input type="email" name="email" maxlength="254" autocomplete="email" inputmode="email" spellcheck="false">
           <span class="err" data-err="email"></span>
         </label>
-        <label class="f" id="g-telefono">WhatsApp <span class="hint">10 dígitos. Te avisamos por aquí cuando tu factura esté lista.</span>
+        <label class="f" id="g-telefono">WhatsApp <span class="hint">Opcional; 10 dígitos para contactarte cuando tu factura esté lista.</span>
           <input type="tel" name="telefono" maxlength="14" autocomplete="tel" inputmode="tel">
           <span class="err" data-err="telefono"></span>
         </label>
@@ -262,13 +263,14 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           <textarea name="comentario" maxlength="500"></textarea>
         </label>
         <div id="g-aviso">
-          <label class="check"><input type="checkbox" name="aviso" value="si"><span>Acepto el <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a>. Mis datos se usan solo para emitir mi factura.</span></label>
+          <label class="check"><input type="checkbox" name="aviso" value="si"><span>He leído el <a href="/aviso-de-privacidad/" target="_blank" rel="noopener">aviso de privacidad</a> sobre la gestión de mi solicitud.</span></label>
           <span class="err" data-err="aviso"></span>
         </div>
         <input type="text" name="sitio" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
       </fieldset>
 
       <div class="alerta" id="alerta" role="alert"></div>
+      <p class="hint">El folio que recibirás identifica tu solicitud, no un CFDI emitido. Si no proporcionas correo ni WhatsApp, guarda el folio y comunícate con administración para recibir tu factura. Consulta también las <a href="/condiciones-de-uso/">condiciones de uso</a>.</p>
       <button class="btn btn-amber enviar" id="enviar" type="submit">Enviar datos para factura</button>
     </form>
   </div>
@@ -278,7 +280,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       <h1>¡Listo, recibimos tus datos!</h1>
       <p>Tu folio de solicitud es:</p>
       <span class="folio" id="folio"></span>
-      <p>Guárdalo. Te enviaremos la factura a <b id="hecho-email"></b>. Si tienes dudas, escríbenos por WhatsApp con este folio.</p>
+      <p>Guárdalo. <span id="hecho-entrega"></span> Si tienes dudas, escríbenos por WhatsApp con este folio.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px">
         <a class="btn btn-wa" id="hecho-wa" href="https://wa.me/529625642170" target="_blank" rel="noopener">Escribir por WhatsApp</a>
         <a class="btn btn-line" href="/">Volver al inicio</a>
@@ -286,7 +288,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     </div>
   </div>
 </main>
-<footer class="wrap">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a></footer>
+<footer class="wrap">© 2026 Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a> · <a href="/condiciones-de-uso/">Condiciones de uso</a></footer>
 
 <script src="/factura/foto.js"></script>
 <script>
@@ -457,6 +459,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   function validar() {
     const e = {};
     if (!form.servicio.value) e.servicio = "Elige el servicio.";
+    if (form.folio_ticket.value.trim() && !/^\d+$/.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "El folio debe contener sólo números.";
     if (!form.forma_pago.value) e.forma_pago = "Elige cómo pagaste.";
     if (!archivos.ticket) e.ticket = "Agrega la foto del ticket.";
     if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia, o elige \"Escribir mis datos\".";
@@ -466,9 +469,9 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (!/^\d{5}$/.test(form.cp.value)) e.cp = "El código postal tiene 5 dígitos.";
       if (!form.regimen.value) e.regimen = "Elige tu régimen fiscal.";
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo válido.";
+    if (form.email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo válido.";
     const tel = form.telefono.value.replace(/\D/g, "");
-    if (tel.slice(-10).length !== 10) e.telefono = "Escribe tu WhatsApp a 10 dígitos.";
+    if (tel && tel.slice(-10).length !== 10) e.telefono = "Escribe tu WhatsApp a 10 dígitos.";
     if (!form.aviso.checked) e.aviso = "Acepta el aviso de privacidad para continuar.";
     return e;
   }
@@ -516,7 +519,11 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         return;
       }
       document.getElementById("folio").textContent = j.folio;
-      document.getElementById("hecho-email").textContent = form.email.value.trim();
+      const correo = form.email.value.trim(), telefono = form.telefono.value.replace(/\D/g, "");
+      document.getElementById("hecho-entrega").textContent = correo
+        ? "La administración enviará tu factura al correo " + correo + " cuando esté emitida."
+        : telefono ? "La administración podrá comunicarse contigo por WhatsApp para coordinar la entrega."
+        : "Para recibir tu factura comunícate directamente con administración indicando este folio.";
       document.getElementById("hecho-wa").href = "https://wa.me/529625642170?text=" + encodeURIComponent("Hola, envié mis datos para factura con el folio " + j.folio + ".");
       document.getElementById("vista-form").hidden = true;
       document.getElementById("vista-hecho").hidden = false;
