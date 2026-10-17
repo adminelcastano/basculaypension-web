@@ -423,7 +423,7 @@ export async function turnoRuta(request, env, url, h) {
     try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona, ...(foto ? { foto } : {}) });
-    await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Aviso urgente" : "Aviso"} de ${s.nombre}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : ""), sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
+    await notificar(env, "admin", { titulo: d.prioridad === "alta" ? "Publicación importante en Castagram" : "Nueva publicación en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }
   // Conversación de un aviso: solo la ven la administración, quien lo publicó y los etiquetados
@@ -445,8 +445,7 @@ export async function turnoRuta(request, env, url, h) {
       const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
       let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
       catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
-      const cuerpo = a.titulo + "\n" + (r.comentario.texto || "Mandó una foto");
-      if (r.notificar.admin) await notificar(env, "admin", { titulo: `${s.nombre} comentó un aviso`, cuerpo, sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
+      if (r.notificar.admin) await notificar(env, "admin", { titulo: "Nuevo comentario en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
       // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
       return recordar(json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas }));
     }

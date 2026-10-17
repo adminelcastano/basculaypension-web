@@ -205,7 +205,7 @@ export function pushTablet(tipo, d, id) {
     const p = normalizarPara(d.para);
     if (!p.todos && !p.turnos.length && !p.personas.length) return null; // solo para la administración
     const para = p.todos ? "" : "\nPara: " + [...p.turnos.map(t => "turno de " + (TURNO_TXT[t] || t.toLowerCase())), ...p.personas].join(", ");
-    return { titulo: urgente ? "Aviso urgente de la administración" : "Aviso de la administración", cuerpo: d.titulo + det + para, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
+    return { titulo: urgente ? "Novedad importante en Castagram" : "Novedad en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
   }
   if (tipo === "tarea" && d.para_turno) {
     const futura = d.fecha && d.fecha > hoyMx();
@@ -659,7 +659,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all().catch(() => ({ results: [] }))).results.map(r => r.clave);
     let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
     catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
-    if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "La administración comentó un aviso", cuerpo: fila.titulo + "\n" + (r.comentario.texto || "Mandó una foto"), sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
+    if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "Nueva actividad en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
     return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas });
   }
   if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && ["editar", "borrar"].includes(partes[4]) && request.method === "POST") {
