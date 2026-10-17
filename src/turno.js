@@ -217,7 +217,7 @@ export async function servirFoto(env, llave) {
 // ---------------------------------------------------------------------------
 async function estado(env, s) {
   const hoy = local().dia;
-  const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p) }));
+  const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, prefs FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: leerPrefs(p.prefs).apodo || p.nombre || p.clave, avatar_url: urlAvatar(p) }));
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
   // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
   // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
@@ -751,8 +751,8 @@ export async function turnoAdmin(request, env, url, partes) {
 
   if (partes.length === 1 && request.method === "GET") {
     const ahora = new Date().toISOString();
-    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
-      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
+    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, prefs, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
+      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: leerPrefs(p.prefs).apodo || p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
     // Últimos cortes entregados con su comparación
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE COALESCE(admin, 0) = 0 ORDER BY dia DESC, actualizado DESC LIMIT 12").all()).results;
     let cortes = [];
