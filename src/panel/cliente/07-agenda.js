@@ -954,10 +954,20 @@ window.interpretarAgenda = function (texto, hoy) {
       ${a.pagina > 0 || a.mas ? `<div class="arch-pag">${a.pagina > 0 ? `<button class="btn btn-line" type="button" data-archivo-pag="-1">Anteriores</button>` : ""}${a.mas ? `<button class="btn btn-line" type="button" data-archivo-pag="1">Más</button>` : ""}</div>` : ""}`}`;
   }
   async function buscarArchivo() {
-    const a = st.archivo; a.cargando = true; a.error = ""; pintarAvisos();
+    const a = st.archivo;
+    if (!a) return;
+    const solicitud = (a.solicitud || 0) + 1;
+    a.solicitud = solicitud; a.cargando = true; a.error = ""; pintarAvisos();
     const q = new URLSearchParams({ q: a.q || "", persona: a.persona || "", desde: a.desde || "", hasta: a.hasta || "", pagina: a.pagina || 0 });
-    try { const j = await api("agenda/avisos-archivo?" + q); a.items = j.items; a.mas = j.mas; } catch (e) { if (e.message !== "sesion") a.error = "No se pudo cargar el archivo: " + e.message; }
-    a.cargando = false; if (st.archivo === a) pintarAvisos();
+    try {
+      const j = await api("agenda/avisos-archivo?" + q);
+      if (st.archivo !== a || a.solicitud !== solicitud) return;
+      a.items = j.items; a.mas = j.mas;
+    } catch (e) {
+      if (st.archivo !== a || a.solicitud !== solicitud) return;
+      if (e.message !== "sesion") a.error = "No se pudo cargar el archivo: " + e.message;
+    }
+    if (st.archivo === a && a.solicitud === solicitud) { a.cargando = false; pintarAvisos(); }
   }
   async function abrirHilo(id, forzar) {
     if (!forzar && st.hilos[id] && !st.hilos[id].error) return;
