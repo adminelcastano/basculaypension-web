@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { leerHoja } from "../src/caja.js";
+import { leerHoja, numero } from "../src/caja.js";
 import { comisionDe, comisionMercadoPago, COMISION_INICIAL, IVA } from "../src/cuentas.js";
 
 async function lecturaSimulada(datos, status = 200) {
@@ -97,4 +97,13 @@ test("Dinero: tasa de Mercado Pago no se cambia desde panel ni API", () => {
   assert.match(panel, /Comisión Mercado Pago: 3\.50 % \+ IVA/);
   assert.doesNotMatch(panel, /<form class="fcom"/);
   assert.match(resumen, /pct: COMISION_INICIAL, iva: true/);
+});
+
+test("Caja: Apps Script conserva importes sin convertir formatos reconocidos a cero", () => {
+  const script = readFileSync(new URL("../herramientas/ingresos-hoja.gs", import.meta.url), "utf8");
+  assert.match(script, /importe: f\[idx\.importe\] === "" \? 0 : f\[idx\.importe\]/);
+  assert.doesNotMatch(script, /Number\(f\[idx\.importe\]\) \|\| 0/);
+  assert.equal(numero("MENOS 55"), -55);
+  assert.equal(numero("$1,500.25"), 1500.25);
+  assert.equal(numero(-25), -25);
 });
