@@ -400,8 +400,9 @@
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
     c.innerHTML = `<section class="card">
       <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
-      <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas de turnos sin tablet</summary>
+      <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas operativas (desde 14/oct tarde)</summary>
         <div class="cform" style="display:block;margin:0 0 14px">
+          <p class="note" style="margin:0 0 8px"><b>Atención: esta herramienta modifica los saldos de Dinero.</b> Para los 40 turnos anteriores al 14/oct tarde, utiliza «Cortes históricos» más abajo, que no afecta la contabilidad.</p>
           <p class="note" style="margin:0 0 8px">Pega una tabla con una línea por turno: <b>día, turno, sobre, taxi, sueldo y cambio que dejó</b> (separada por tabuladores, como al copiar de una hoja). «—» o vacío = sin dato. Primero se revisa; no se guarda nada hasta que confirmes. El sueldo o taxi que ya está como renglón en la hoja de ese turno no se cuenta dos veces, y los turnos que entregaron en la tablet no se cambian.</p>
           <textarea id="c-imp-t" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)" placeholder="01/oct&#9;Tarde&#9;$3,500&#9;$200&#9;—&#9;$130"></textarea>
           <div class="row" style="margin-top:8px"><button class="btn btn-primary" type="button" id="c-imp-rev">Revisar</button></div>
