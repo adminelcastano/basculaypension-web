@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { leerHoja } from "../src/caja.js";
+import { comisionDe, COMISION_INICIAL, IVA } from "../src/cuentas.js";
 
 async function lecturaSimulada(datos, status = 200) {
   const original = globalThis.fetch;
@@ -75,4 +76,24 @@ test("Panel administrativo: el JavaScript de las secciones editadas tiene sintax
     const fuente = readFileSync(new URL("../src/panel/cliente/" + archivo, import.meta.url), "utf8");
     assert.doesNotThrow(() => new Function(fuente), archivo);
   }
+});
+
+test("Dinero: Mercado Pago mantiene 3.50 % + IVA por cobro en meses históricos", () => {
+  assert.equal(COMISION_INICIAL, 3.5);
+  assert.equal(IVA, 0.16);
+  assert.equal(comisionDe(100, { tarjeta: 1, comision_pct: 3.5, comision_iva: 1 }), 4.06);
+  // Un valor de configuración incorrecto nunca reescribe una comisión histórica.
+  assert.equal(comisionDe(100, { tarjeta: 1, comision_pct: 9, comision_iva: 0 }), 4.06);
+  assert.equal(comisionDe(10, { tarjeta: 1, comision_pct: 0, comision_iva: 0 }), 0.41);
+  assert.equal(comisionDe(100, { tarjeta: 0, comision_pct: 2, comision_iva: 0 }), 2);
+});
+
+test("Dinero: tasa de Mercado Pago no se cambia desde panel ni API", () => {
+  const apiCuentas = readFileSync(new URL("../src/cuentas.js", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../src/panel/cliente/05-finanzas.js", import.meta.url), "utf8");
+  const resumen = readFileSync(new URL("../src/finanzas.js", import.meta.url), "utf8");
+  assert.match(apiCuentas, /f\.tarjeta && \("comision_pct" in c \|\| "comision_iva" in c\)/);
+  assert.match(panel, /Comisión Mercado Pago: 3\.50 % \+ IVA/);
+  assert.doesNotMatch(panel, /<form class="fcom"/);
+  assert.match(resumen, /pct: COMISION_INICIAL, iva: true/);
 });
