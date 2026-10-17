@@ -22,7 +22,7 @@
     if (s.estado === "rechazada") {
       return `Hola, te saluda Báscula y Pensión El Castaño. No pudimos emitir la factura de tu solicitud ${s.folio}${s.folio_ticket ? ` (ticket ${s.folio_ticket})` : ""}: ${s.motivo || ""}. Puedes enviar tus datos de nuevo aquí:\nhttps://basculaypension.com/factura`;
     }
-    return `Hola, te saluda Báscula y Pensión El Castaño. Recibimos tu solicitud de factura ${s.folio}${s.folio_ticket ? ` del ticket ${s.folio_ticket}` : ""}${importe} por concepto de ${concepto}. La estamos procesando y te la enviaremos a tu correo ${s.email}.`;
+    return `Hola, te saluda Báscula y Pensión El Castaño. Recibimos tu solicitud de factura ${s.folio}${s.folio_ticket ? ` del ticket ${s.folio_ticket}` : ""}${importe} por concepto de ${concepto}. La estamos revisando.${s.email ? ` Al emitirla, coordinaremos su envío al correo ${s.email}.` : " Si necesitas aclarar o recibir tu factura, comunícate con administración indicando tu folio."}`;
   }
 
   const toast = EC.toast;
