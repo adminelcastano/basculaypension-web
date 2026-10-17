@@ -323,7 +323,7 @@
       contar($("#n-tareas"), a.abiertos.tarea || 0, v => String(Math.round(v)));
       $("#m-tareas").innerHTML = q3(a.tareas, "Nada pendiente", x => x.prioridad === "alta" ? "❗ " : "");
       contar($("#n-avisos"), a.abiertos.aviso || 0, v => String(Math.round(v)));
-      $("#m-avisos").innerHTML = q3(a.avisos || [], "Sin avisos activos");
+      $("#m-avisos").innerHTML = q3(a.avisos || [], "Sin publicaciones activas de Castagram");
       const ia = [...a.incidencias.map(x => ({ ...x, k: "Incidencia" })), ...(a.avisos || []).map(x => ({ ...x, k: "Aviso" }))].sort((x, y) => String(y.creado).localeCompare(String(x.creado)));
       $("#m-incav").innerHTML = `<div class="mini-q">${ia.length ? ia.slice(0, 5).map(x => `<div><span class="t">${x.k === "Incidencia" ? `<span style="color:${x.gravedad === "grave" ? "#ff6961" : x.gravedad === "media" ? "#ff9f0a" : "#8e8e93"}">●</span> ` : `<span style="color:#ffcc00">●</span> `}${esc(x.titulo)}</span><span class="q">${esc(x.k)} · ${quien(x) ? esc(quien(x)) : "Administración"} · ${esc(cuando(x.creado))}</span></div>`).join("") : `<div class="vacio">Sin incidencias ni avisos</div>`}</div>`;
       $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");

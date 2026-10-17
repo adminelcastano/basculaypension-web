@@ -923,7 +923,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     const nuevos = E.avisos.filter(a => !a.leido || (a.conv && a.conv.nuevos)), imp = nuevos.some(a => a.prioridad === "alta" && !a.leido);
     const c = E.corte;
     const T = [
-      ["avisos", "i-aviso", "#ffcc00", "Novedades de Castagram", nuevos.length, nuevos.length ? (imp ? "Hay un aviso importante sin leer" : "Toca para leerlos") : "Estás al día", imp],
+      ["avisos", "i-aviso", "#ffcc00", "Novedades de Castagram", nuevos.length, nuevos.length ? (imp ? "Hay una publicación importante sin leer" : "Toca para leerlos") : "Estás al día", imp],
       ["tareas", "i-tarea", "#64d2ff", "Tareas pendientes", E.tareas.length, urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Cuéntale a la administración cómo quedaron" : "Nada pendiente", urg > 0],
       ["corte", "i-billete", "#2dd4bf", "Corte del turno", null, c ? (c.cambios_despues ? "Hay movimientos después: vuelve a entregarlo" : `Entregado a las ${hora12(c.actualizado)}`) : "Pendiente: al terminar, cuenta el efectivo", !!(c && c.cambios_despues)],
       ["incidencias", "i-alerta", "#ff6961", "Incidencias abiertas", E.incidencias.length, graves ? `${graves} ${graves === 1 ? "grave" : "graves"}` : E.incidencias.length ? "De todos los turnos" : "Ninguna abierta", graves > 0],
@@ -1027,7 +1027,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     sec().innerHTML = titulo("Castagram.", "Lo que publican la administración y los encargados. Solo ves las publicaciones donde te etiquetaron o que publicaste tú.") + `<div class="casta-identidad"><img src="/img/castagram.webp" alt="Castagram" width="300" height="107"></div>` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
-      <p class="note muro-nota">Los avisos se quedan aquí hasta que la administración los archive. Comenta en el mismo aviso para dar seguimiento.</p>`;
+      <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
   }
   // ---------- Tareas: agrupadas como en las apps de pendientes, y "Dejar un pendiente" en lenguaje natural ----------
   const diaRel = f => { if (!f) return ""; const hoy = E.hoy || E.dia, dd = Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(hoy + "T12:00:00Z")) / 864e5); return dd === 0 ? "Hoy" : dd === 1 ? "Mañana" : dd === -1 ? "Ayer" : dd > 1 && dd < 7 ? diaTxt(f).split(" ")[0].replace(/^./, x => x.toUpperCase()).replace(",", "") : new Date(f + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }); };
