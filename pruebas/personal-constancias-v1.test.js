@@ -92,3 +92,11 @@ test("La tablet y CASTAGRAM siguen fuera de la captura de constancias", () => {
   assert.doesNotMatch(src, /INSERT INTO turno_acuses/);
   assert.doesNotMatch(src, /INSERT INTO aviso_vistos/);
 });
+
+test("La exportación del expediente PDF documenta la recepción v1 sin simular una firma", () => {
+  assert.match(panel, /seccion\("Constancia digital de privacidad"\)/);
+  assert.match(panel, /fila\("Versión", "personal-aviso-v1-2026-10-17"\)/);
+  assert.match(panel, /timeStyle: "short"/);
+  assert.match(panel, /Pendiente - sin constancia digital v1/);
+  assert.match(panel, /No sustituye documentos firmados en papel/);
+});
