@@ -1,3 +1,77 @@
+// <interpretar> Lenguaje natural para agregar a la agenda (como Fantastical): "Técnico de la báscula mañana 9:30 urgente"
+// Devuelve { titulo, fecha, hora, prioridad, repetir, para_turno, turno, aviso, piezas: [texto reconocido] }. Sin dependencias (se prueba en node).
+window.interpretarAgenda = function (texto, hoy) {
+  const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const sin = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const iso = d => d.toISOString().slice(0, 10);
+  const base = new Date(hoy + "T12:00:00Z");
+  const sumar = n => { const d = new Date(base); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+  let t = " " + String(texto || "").replace(/\s+/g, " ").trim() + " ";
+  const r = { titulo: "", fecha: null, hora: null, prioridad: "normal", repetir: null, para_turno: 0, turno: null, aviso: null, piezas: [] };
+  // Cada patrón se busca sobre el texto sin acentos y se quita del título
+  const quitar = (re, fn) => {
+    const m = re.exec(sin(t)); if (!m) return false;
+    const ok = fn(m); if (ok === false) return false;
+    t = t.slice(0, m.index) + " " + t.slice(m.index + m[0].length);
+    return true;
+  };
+  quitar(/\s(urgente|importante|!+)(?=\s)/, () => { r.prioridad = "alta"; r.piezas.push("Urgente"); });
+  quitar(/\s(?:para (?:el |la )?)?(?:tablet|encargados?)(?:\s+(?:del\s+)?turno\s+(?:de\s+la\s+)?(manana|tarde|noche))?(?=\s)/, m => { r.para_turno = 1; if (m[1]) r.turno = { manana: "MAÑANA", tarde: "TARDE", noche: "NOCHE" }[m[1]]; r.piezas.push("Tablet" + (m[1] ? " · turno " + m[1].replace("manana", "mañana") : "")); });
+  quitar(/\s(?:recuerdame|recordarme|avisame|con recordatorio)(?=\s)/, () => { r.aviso = 60; r.piezas.push("Recordatorio"); });
+  // Repetición
+  quitar(/\s(?:todos los dias|cada dia|diario|diariamente)(?=\s)/, () => { r.repetir = "diaria"; r.piezas.push("Diario"); });
+  quitar(/\s(?:cada|todos los)\s+(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)(?=\s)/, m => { r.repetir = "semanal"; const w = DIAS.indexOf(m[1].replace(/(sabado|domingo)s$/, "$1")); const k = ((w - base.getUTCDay()) + 7) % 7; r.fecha = sumar(k); r.piezas.push("Cada semana"); });
+  quitar(/\s(?:cada semana|semanal|semanalmente)(?=\s)/, () => { r.repetir = "semanal"; r.piezas.push("Cada semana"); });
+  quitar(/\s(?:cada mes|mensual|mensualmente)(?=\s)/, () => { r.repetir = "mensual"; r.piezas.push("Cada mes"); });
+  // Hora: "a las 9", "9am", "9:30", "5 pm", "17:00", "a las 5 de la tarde", "mediodia"
+  quitar(/\s(?:a\s+las?\s+|a\s+la\s+)?(mediodia|medio dia)(?=\s)/, () => { r.hora = "12:00"; });
+  if (!r.hora) quitar(/\s(?:a\s+las?\s+|al?\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|hrs?|horas)?(?:\s+de\s+la\s+(manana|tarde|noche))?(?=\s)/, m => {
+    const conA = /a\s+las?\s|^\s*al?\s/.test(m[0]) || /^\sa\s/.test(m[0]);
+    if (!m[2] && !m[3] && !m[4] && !conA) return false; // un número suelto no es hora
+    let h = +m[1], mi = m[2] ? +m[2] : 0;
+    if (h > 23 || mi > 59) return false;
+    const pm = /p/.test(m[3] || "") || m[4] === "tarde" || m[4] === "noche";
+    if (pm && h < 12) h += 12;
+    if ((m[3] || "").startsWith("a") && h === 12) h = 0;
+    if (!m[3] && !m[4] && h >= 1 && h <= 6) h += 12; // "a las 5" en horario de trabajo = 5 de la tarde
+    r.hora = String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0");
+  });
+  // Fecha
+  const ponerFecha = (f, txt) => { if (!r.fecha) r.fecha = f; return txt; };
+  quitar(/\s(?:para\s+|el\s+)?pasado\s+manana(?=\s)/, () => ponerFecha(sumar(2)));
+  quitar(/\s(?:para\s+)?hoy(?=\s)/, () => ponerFecha(sumar(0)));
+  quitar(/\s(?:para\s+)?manana(?=\s)/, () => { if (r.fecha) return false; ponerFecha(sumar(1)); });
+  quitar(/\sen\s+(\d+|un|una|dos|tres|cuatro|cinco)\s+(dias?|semanas?|mes(?:es)?)(?=\s)/, m => {
+    const n = { un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5 }[m[1]] || +m[1];
+    if (m[2].startsWith("dia")) ponerFecha(sumar(n)); else if (m[2].startsWith("semana")) ponerFecha(sumar(7 * n));
+    else { const d = new Date(base); d.setUTCMonth(d.getUTCMonth() + n); ponerFecha(iso(d)); }
+  });
+  quitar(/\s(?:la\s+)?(?:proxima|siguiente)\s+semana(?=\s)/, () => ponerFecha(sumar(((8 - base.getUTCDay()) % 7) || 7)));
+  quitar(/\s(?:a\s+)?fin\s+de\s+mes(?=\s)/, () => ponerFecha(iso(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0, 12)))));
+  quitar(/\s(?:el\s+|este\s+|para\s+el\s+)?(?:(proximo|siguiente)\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)(?:\s+(?:que\s+viene|proximo))?(?=\s)/, m => {
+    const w = DIAS.indexOf(m[2]); let k = (w - base.getUTCDay() + 7) % 7;
+    if (k === 0 && !/este/.test(m[0])) k = 7;
+    ponerFecha(sumar(k));
+  });
+  quitar(/\s(?:el\s+|para\s+el\s+)?(\d{1,2})\s*(?:de\s+)?(ene|feb|mar|abr|may|jun|jul|ago|sep|sept|oct|nov|dic)[a-z]*\.?(?:\s+(?:de\s+)?(\d{4}))?(?=\s)/, m => {
+    const mes = MESES.indexOf(m[2].slice(0, 3)); let a = m[3] ? +m[3] : base.getUTCFullYear();
+    let d = new Date(Date.UTC(a, mes, +m[1], 12)); if (d.getUTCMonth() !== mes) return false;
+    if (!m[3] && iso(d) < hoy) d = new Date(Date.UTC(a + 1, mes, +m[1], 12));
+    ponerFecha(iso(d));
+  });
+  quitar(/\s(?:el\s+|para\s+el\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s)/, m => {
+    let a = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : base.getUTCFullYear();
+    let d = new Date(Date.UTC(a, +m[2] - 1, +m[1], 12)); if (d.getUTCMonth() !== +m[2] - 1) return false;
+    if (!m[3] && iso(d) < hoy) d = new Date(Date.UTC(a + 1, +m[2] - 1, +m[1], 12));
+    ponerFecha(iso(d));
+  });
+  // Si hay hora pero no fecha: hoy (o mañana si ya pasó... se deja hoy: el usuario lo ve en la vista previa)
+  r.titulo = t.replace(/\s+/g, " ").replace(/\s+(el|la|a|para|de|del|en)\s*$/i, "").replace(/^\s*(el|la|para)\s+/i, "").trim();
+  r.titulo = r.titulo.charAt(0).toUpperCase() + r.titulo.slice(1);
+  return r;
+};
+// </interpretar>
 // ---- Agenda: calendario, por hacer, compras e incidencias ----
 (() => {
   const $ = q => document.querySelector(q);
@@ -73,7 +147,7 @@
   function pintar() {
     // Todo a la vista, un bloque por tipo: Agenda (calendario, por hacer, incidencias, avisos) y, en Dinero,
     // pagos programados, compras por hacer y pagos hechos
-    const B = { "ab-calendario": vistaCalendario, "ab-tarea": () => vistaLista("tarea"), "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
+    const B = { "ab-calendario": vistaCalendario, "ab-tarea": vistaTareas, "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
       "pg-prog": vistaProgramados, "pg-comp": () => resumenPagos("compras") + vistaCompras(), "pg-hechos": vistaHechos };
     for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { el.innerHTML = f(); conectar(el); } }
     contadores();
@@ -178,7 +252,7 @@
     const RES = { cumplida: ["Cumplida", "ok"], parcial: ["En parte", "parcial"], no: ["No se pudo", "no"] };
     const informes = (it.reportes || []).slice(0, 3).map(r => `<span class="informe ${RES[r.resultado][1]}"><b>${RES[r.resultado][0]}</b> · ${avP(r.persona)}${esc(r.persona)}${r.turno ? " (" + esc((TURNO_TXT[r.turno] || r.turno).toLowerCase()) + ")" : ""} · ${esc(cuando(r.creado))}${r.nota ? " · " + esc(r.nota) : ""}${foto(r.foto)}</span>`).join("");
     return `<div class="aitem ${hecho ? "hecho" : ""}"><button class="chk ${hecho ? "on" : ""}" type="button" data-chk="${esc(it.id)}" data-fin="${fin}"${it.gasto_id ? ' data-gasto="1"' : ""} data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="${hecho ? "Marcar pendiente" : "Marcar como hecho"}">${ico("i-check")}</button>
-      <span class="tt">${esc(it.titulo)}</span><span class="acc">${it.tipo === "compra" && !hecho ? `<button class="btn btn-line btn-otra" type="button" data-posponer="${esc(it.id)}" data-v="${it.pospuesta ? 0 : 1}">${it.pospuesta ? "Regresar a la lista" : "Otra ocasión"}</button>` : ""}${it.tipo === "compra" && !hecho ? selLugar(it.lugar || "", ` class="lugar-sel" data-lugar="${esc(it.id)}" aria-label="Dónde se compra ${esc(it.titulo)}"`) : ""}${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
+      <span class="tt">${esc(it.titulo)}</span><span class="acc">${(it.tipo === "tarea" || it.tipo === "evento") && !hecho ? `<button class="btn btn-line btn-repro" type="button" data-repro="${esc(it.id)}" aria-expanded="${st.repro === it.id}">${ico("i-cal")}${it.fecha ? "Cambiar fecha" : "Poner fecha"}</button>` : ""}${it.tipo === "compra" && !hecho ? `<button class="btn btn-line btn-otra" type="button" data-posponer="${esc(it.id)}" data-v="${it.pospuesta ? 0 : 1}">${it.pospuesta ? "Regresar a la lista" : "Otra ocasión"}</button>` : ""}${it.tipo === "compra" && !hecho ? selLugar(it.lugar || "", ` class="lugar-sel" data-lugar="${esc(it.id)}" aria-label="Dónde se compra ${esc(it.titulo)}"`) : ""}${del}</span>${meta ? `<span class="mm">${meta}</span>` : ""}${(it.tipo === "tarea" || it.tipo === "compra") && it.detalle ? `<span class="mm">Nota: ${esc(it.detalle)}</span>` : ""}${informes ? `<span class="mm informes">${informes}</span>` : ""}</div>`;
   }
 
   // ---- Pagos hechos (programados o no) ----
@@ -913,19 +987,131 @@
       const its = porDia[iso] || [];
       const tipos = [...new Set(its.map(x => x.tipo))].filter(t => t !== "compra");
       const nPend = its.filter(x => x.tipo !== "pagado").length;
-      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${nPend ? `, ${nPend} pendientes` : ""}${tipos.includes("pagado") ? ", con pagos hechos" : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span></button>`;
+      celdas += `<button class="d ${d.getUTCMonth() !== m - 1 ? "fuera" : ""} ${iso === st.hoy ? "hoy" : ""} ${iso === st.sel ? "sel" : ""}" type="button" data-dia="${iso}" aria-label="${esc(fLargo.format(d))}${nPend ? `, ${nPend} pendientes` : ""}${tipos.includes("pagado") ? ", con pagos hechos" : ""}">${d.getUTCDate()}<span class="pts">${tipos.map(t => `<i class="pt ${t}"></i>`).join("")}</span>${(() => { const v = its.filter(x => x.tipo !== "pagado").sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99")); return v.length ? `<span class="d-evs">${v.slice(0, 3).map(x => `<span class="d-ev ${x.tipo}${abierto(x) ? "" : " hecho"}">${x.hora ? `<b>${esc(x.hora)}</b> ` : ""}${esc(x.titulo)}</span>`).join("")}${v.length > 3 ? `<span class="d-mas">+${v.length - 3} más</span>` : ""}</span>` : ""; })()}</button>`;
       if (i >= 34 && d.getUTCMonth() !== m - 1 && d.getUTCDay() === 0) break;
     }
     const delDia = st.items.filter(x => x.fecha === st.sel && x.tipo !== "aviso").sort((x, y) => (x.hora || "99").localeCompare(y.hora || "99"));
     const pagDia = (st.pagosHechos || []).filter(p => p.fecha === st.sel);
-    return `<div class="ag-cal">
+    const vistaTog = `<div class="seg ag-vista" role="tablist" aria-label="Vista del calendario"><button type="button" role="tab" data-ag-vista="mes" aria-selected="${st.vistaCal !== "agenda"}">Mes</button><button type="button" role="tab" data-ag-vista="agenda" aria-selected="${st.vistaCal === "agenda"}">Agenda</button></div>`;
+    if (st.vistaCal === "agenda") return `<section class="card">${barraRapida("evento")}</section>${vistaTog}${vistaAgendaLista()}`;
+    return `<section class="card">${barraRapida("evento")}</section>${vistaTog}<div class="ag-cal">
       <section class="card"><div class="cal-head"><h3>${esc(mayus(fMes.format(primero)))}</h3><div class="cal-nav"><button type="button" data-mes="-1" aria-label="Mes anterior">‹</button><button type="button" data-mes="hoy" aria-label="Hoy" style="width:auto;padding:0 12px;font-size:var(--t-sm)">Hoy</button><button type="button" data-mes="1" aria-label="Mes siguiente">›</button></div></div>
         <div class="cal">${celdas}</div>
         <div class="cal-ley"><span><i class="pt evento"></i>Eventos</span><span><i class="pt tarea"></i>Tareas con fecha</span><span><i class="pt incidencia"></i>Incidencias</span><span><i class="pt pago"></i>Pagos por hacer</span><span><i class="pt pagado"></i>Pagos hechos</span></div></section>
       <section class="card"><h3>${esc(mayus(fLargo.format(new Date(st.sel + "T12:00:00Z"))))}</h3>
-        <div class="alist">${delDia.length || pagDia.length ? delDia.map(item).join("") + pagDia.map(filaPagoHecho).join("") : `<p class="note">Nada programado este día.</p>`}</div>
-        ${formulario("evento", st.sel)}</section></div>`;
+        <div class="alist">${delDia.length || pagDia.length ? delDia.map(x => st.repro === x.id ? item(x).replace(/<\/div>\s*$/, menuRepro(x) + "</div>") : item(x)).join("") + pagDia.map(filaPagoHecho).join("") : `<p class="note">Nada programado este día.</p>`}</div>
+        <details class="cl-mas"><summary>Agregar con todos los campos</summary>${formulario("evento", st.sel)}</details></section></div>`;
   }
+
+
+  // ---- Agregar rápido con lenguaje natural (calendario y tareas) ----
+  const fCh = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const diaRel = f => { if (!f) return ""; const dd = Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(st.hoy + "T12:00:00Z")) / 864e5); return dd === 0 ? "Hoy" : dd === 1 ? "Mañana" : dd === -1 ? "Ayer" : dd > 1 && dd < 7 ? mayus(new Intl.DateTimeFormat("es-MX", { weekday: "long", timeZone: "UTC" }).format(new Date(f + "T12:00:00Z"))) : fCh.format(new Date(f + "T12:00:00Z")); };
+  function barraRapida(modo) {
+    const ph = modo === "evento" ? "Agregar… ej. Técnico de la báscula mañana 9:30" : "Nueva tarea… ej. Pintar la caseta el lunes urgente";
+    return `<form class="ag-rapida" data-modo="${modo}" autocomplete="off" novalidate><label class="sr" for="agr-${modo}">${modo === "evento" ? "Agregar al calendario" : "Nueva tarea"}</label>
+      <input id="agr-${modo}" name="q" maxlength="200" placeholder="${ph}" enterkeyhint="done"><button class="btn btn-primary" type="submit">Agregar</button>
+      <div class="agr-prev" aria-live="polite"><span class="agr-ayuda">Escribe la fecha y la hora como las dirías: «el viernes a las 5», «15 nov», «cada lunes», «urgente», «tablet turno tarde».</span></div></form>`;
+  }
+  function previaRapida(f) {
+    const q = f.q.value, box = f.querySelector(".agr-prev");
+    if (!q.trim()) { box.innerHTML = `<span class="agr-ayuda">Escribe la fecha y la hora como las dirías: «el viernes a las 5», «15 nov», «cada lunes», «urgente», «tablet turno tarde».</span>`; return; }
+    const r = window.interpretarAgenda(q, st.hoy), modo = f.dataset.modo;
+    const fecha = r.fecha || (modo === "evento" ? st.sel : null), tipo = modo === "evento" && !r.repetir && !r.para_turno ? "evento" : "tarea";
+    const chips = [`<span class="agr-c tipo ${tipo}">${tipo === "evento" ? "Evento" : "Tarea"}</span>`, r.titulo ? `<span class="agr-c t">${esc(r.titulo)}</span>` : "",
+      fecha ? `<span class="agr-c">${ico("i-cal")}${esc(diaRel(fecha))}${!r.fecha ? " (día elegido)" : ""}</span>` : `<span class="agr-c gris">Sin fecha</span>`,
+      r.hora ? `<span class="agr-c">🕘 ${esc(r.hora)}</span>` : "", ...r.piezas.map(p => `<span class="agr-c ${p === "Urgente" ? "urg" : ""}">${esc(p)}</span>`)];
+    box.innerHTML = chips.join("");
+  }
+  async function agregarRapido(f) {
+    const r = window.interpretarAgenda(f.q.value, st.hoy), modo = f.dataset.modo;
+    if (r.titulo.length < 2) throw new Error("Escribe qué hay que hacer.");
+    const tipo = modo === "evento" && !r.repetir && !r.para_turno ? "evento" : "tarea";
+    const fecha = r.fecha || (modo === "evento" ? st.sel : "");
+    const datos = { tipo, titulo: r.titulo, fecha: fecha || "", hora: r.hora || "", prioridad: r.prioridad, aviso: r.aviso || (tipo === "evento" && r.hora ? 60 : "") || "", repetir: r.repetir || "", para_turno: r.para_turno ? 1 : "", turno: r.turno || "" };
+    const j = await post("agenda", datos);
+    toastAccion(`${tipo === "evento" ? "Evento" : "Tarea"} agregado: ${r.titulo}${fecha ? " · " + diaRel(fecha) : ""}${r.hora ? " " + r.hora : ""}`, "Deshacer", async () => { await post(`agenda/${j.id}/eliminar`); toast("Se quitó"); await cargar(); });
+    if (fecha && tipo === "evento") { st.sel = fecha; st.mes = fecha.slice(0, 7); }
+  }
+  // Aviso con acción (Deshacer), como en las apps de iPhone
+  function toastAccion(msg, etq, fn) {
+    let t = $("#toast-acc");
+    if (!t) { t = document.createElement("div"); t.id = "toast-acc"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+    t.innerHTML = `<span>${esc(msg)}</span><button type="button">${esc(etq)}</button>`;
+    t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 6000);
+    t.querySelector("button").onclick = async () => { t.classList.remove("on"); try { await fn(); } catch (e) { if (e.message !== "sesion") toast(e.message); } };
+  }
+
+  // ---- Vista Agenda: lo atrasado y los próximos días en una lista (como la vista Lista de Fantastical) ----
+  function vistaAgendaLista() {
+    const hasta = (() => { const d = new Date(st.hoy + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + 45); return d.toISOString().slice(0, 10); })();
+    const con = st.items.filter(x => x.fecha && ["evento", "tarea", "pago"].includes(x.tipo));
+    const atr = con.filter(x => abierto(x) && x.fecha < st.hoy && x.tipo !== "evento").sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const prox = con.filter(x => x.fecha >= st.hoy && x.fecha <= hasta && (abierto(x) || x.tipo === "evento"));
+    const dias = [...new Set(prox.map(x => x.fecha))].sort();
+    const fila = it => `<div class="agl-it ${it.tipo} ${abierto(it) ? "" : "hecho"}"><span class="agl-h">${it.hora ? esc(it.hora) : it.tipo === "pago" ? "Vence" : "Todo el día"}</span><span class="agl-bar"></span>
+      <span class="agl-t"><b>${esc(it.titulo)}</b><span>${{ evento: "Evento", tarea: it.para_turno ? "Tarea de la tablet" : "Tarea", pago: "Pago" + (it.importe != null ? " · " + MXN(it.importe) : "") }[it.tipo]}${it.prioridad === "alta" ? ` · <span class="urg">urgente</span>` : ""}${it.repetir ? " · 🔁" : ""}${it.fecha < st.hoy ? " · " + esc(diaRel(it.fecha)) : ""}</span></span>
+      ${it.tipo === "pago" ? `<button class="btn btn-line btn-sm" type="button" data-pagar="${esc(it.id)}">Pagar</button>` : abierto(it) ? `<button class="chk" type="button" data-chk="${esc(it.id)}" data-fin="hecho" data-ini="${it.tipo === "evento" ? "programado" : "pendiente"}" aria-label="Marcar hecho: ${esc(it.titulo)}">${ico("i-check")}</button>` : `<span class="chk on">${ico("i-check")}</span>`}</div>`;
+    const orden = l => l.sort((a, b) => (a.hora || "99").localeCompare(b.hora || "99"));
+    return `<section class="card agl">${atr.length ? `<div class="agl-d atr"><h4>Atrasado <span>${atr.length}</span></h4>${atr.map(fila).join("")}</div>` : ""}
+      ${dias.length ? dias.map(d => `<div class="agl-d ${d === st.hoy ? "hoy" : ""}"><h4>${esc(diaRel(d))}<span>${esc(mayus(fLargo.format(new Date(d + "T12:00:00Z"))))}</span></h4>${orden(prox.filter(x => x.fecha === d)).map(fila).join("")}</div>`).join("") : `<p class="note">No hay nada programado en las próximas semanas.</p>`}</section>`;
+  }
+
+  // ---- Tareas: agrupadas como en Things/Recordatorios (atrasadas, hoy, mañana, esta semana, después, sin fecha) ----
+  function vistaTareas() {
+    const todos = st.items.filter(x => x.tipo === "tarea"), ab = todos.filter(abierto), ce = todos.filter(x => !abierto(x));
+    const dd = f => Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(st.hoy + "T12:00:00Z")) / 864e5);
+    const G = [["atr", "Atrasadas", x => x.fecha && dd(x.fecha) < 0], ["hoy", "Hoy", x => x.fecha && dd(x.fecha) === 0], ["man", "Mañana", x => x.fecha && dd(x.fecha) === 1],
+      ["sem", "Próximos 7 días", x => x.fecha && dd(x.fecha) > 1 && dd(x.fecha) <= 7], ["des", "Más adelante", x => x.fecha && dd(x.fecha) > 7], ["sin", "Sin fecha", x => !x.fecha]];
+    const orden = l => l.sort((a, b) => (b.prioridad === "alta") - (a.prioridad === "alta") || (a.fecha || "").localeCompare(b.fecha || "") || (a.hora || "99").localeCompare(b.hora || "99"));
+    const conMenu = it => { let h = item(it); if (st.repro === it.id) h = h.replace(/<\/div>\s*$/, menuRepro(it) + "</div>"); return h; };
+    return `<section class="card">${barraRapida("tarea")}<details class="cl-mas"><summary>Agregar con todos los campos (nota para el encargado, turno, recordatorio)</summary>${formulario("tarea")}</details></section>
+      <section class="card tar">${ab.length ? G.map(([k, t, f]) => { const l = orden(ab.filter(f)); return l.length ? `<div class="tar-g ${k}"><h4>${t} <span>${l.length}</span></h4><div class="alist">${l.map(conMenu).join("")}</div></div>` : ""; }).join("") : `<p class="note">No hay nada por hacer. 🎉</p>`}
+      ${ce.length ? `<details class="hechos"><summary>Hechas en los últimos 30 días (${ce.length})</summary><div class="alist">${ce.map(item).join("")}</div></details>` : ""}</section>`;
+  }
+  function menuRepro(it) {
+    const d = n => { const x = new Date(st.hoy + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+    const lunes = d(((8 - new Date(st.hoy + "T12:00:00Z").getUTCDay()) % 7) || 7);
+    const ops = [["Hoy", d(0)], ["Mañana", d(1)], ["El lunes", lunes], ["En una semana", d(7)], ...(it.tipo === "tarea" ? [["Sin fecha", ""]] : [])];
+    return `<div class="repro" role="group" aria-label="Reprogramar ${esc(it.titulo)}">${ops.map(([t, v]) => `<button type="button" class="cl-chip" data-repro-a="${esc(it.id)}" data-f="${v}">${t}</button>`).join("")}<label class="repro-f">Otra fecha<input type="date" data-repro-f="${esc(it.id)}" value="${esc(it.fecha || "")}"></label></div>`;
+  }
+  // Eventos de la agenda rápida, la vista Agenda y reprogramar (una vez, por delegación)
+  function conectarAgenda() {
+    for (const id of ["ab-calendario", "ab-tarea"]) {
+      const el = $("#" + id); if (!el || el._ag) continue; el._ag = true;
+      el.addEventListener("input", e => { const f = e.target.closest("form.ag-rapida"); if (f) previaRapida(f); });
+      el.addEventListener("submit", async e => {
+        const f = e.target.closest("form.ag-rapida"); if (!f) return;
+        e.preventDefault(); e.stopPropagation();
+        const b = f.querySelector("[type=submit]"); b.disabled = true;
+        try { await agregarRapido(f); f.q.value = ""; await cargar(); const n = $("#agr-" + f.dataset.modo); n && n.focus(); }
+        catch (er) { if (er.message !== "sesion") toast(er.errores ? Object.values(er.errores).join(" ") : er.message); b.disabled = false; }
+      }, true);
+      el.addEventListener("click", async e => {
+        const t = e.target.closest("button"); if (!t) return;
+        if (t.dataset.agVista) { st.vistaCal = t.dataset.agVista; try { localStorage.setItem("ec-agenda-vista", st.vistaCal); } catch {} pintar(); return; }
+        if (t.dataset.repro) { st.repro = st.repro === t.dataset.repro ? null : t.dataset.repro; pintar(); return; }
+        if (t.dataset.reproA) await reprogramar(t.dataset.reproA, t.dataset.f);
+      });
+      el.addEventListener("change", e => { const i = e.target.closest("[data-repro-f]"); if (i && i.value) reprogramar(i.dataset.reproF, i.value); });
+    }
+  }
+  async function reprogramar(id, fecha) {
+    const it = st.items.find(x => x.id === id); if (!it) return;
+    const antes = it.fecha || "";
+    try {
+      await post("agenda/" + id, { fecha: fecha || "" }); st.repro = null;
+      toastAccion(fecha ? `Para ${diaRel(fecha).toLowerCase()}: ${it.titulo}` : `Sin fecha: ${it.titulo}`, "Deshacer", async () => { await post("agenda/" + id, { fecha: antes }); await cargar(); });
+      await cargar();
+    } catch (e) { if (e.message !== "sesion") toast(e.errores ? Object.values(e.errores).join(" ") : e.message); }
+  }
+  setTimeout(conectarAgenda, 0);
+  try { st.vistaCal = localStorage.getItem("ec-agenda-vista") || "mes"; } catch { st.vistaCal = "mes"; }
+  // "N" abre el cuadro para agregar de la sección visible (como en las apps de escritorio)
+  addEventListener("keydown", e => {
+    if (e.key.toLowerCase() !== "n" || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.querySelector("dialog[open]")) return;
+    const i = [...document.querySelectorAll(".ag-rapida input, #cl-q")].find(x => x.offsetParent); if (i) { e.preventDefault(); i.focus(); }
+  });
 
   function conectar(c) {
     // Compras: cambiar dónde se compra, y administrar los lugares
@@ -1017,7 +1203,13 @@
       }
       if (on && b.dataset.fin === "comprado" && b.dataset.gasto && !(await EC.confirmar("¿Regresar la compra a pendiente?", "Se quita de los egresos en Dinero.", "Regresar", true))) return;
       b.classList.toggle("on");
-      try { await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin }); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
+      try {
+        await post("agenda/" + b.dataset.chk, { estado: on ? b.dataset.ini : b.dataset.fin });
+        const it = st.items.find(x => x.id === b.dataset.chk);
+        if (!on && it && it.repetir) toast(`Hecho: ${it.titulo} · se programó la siguiente`);
+        else if (!on && it && ["tarea", "evento"].includes(it.tipo)) toastAccion(`Hecho: ${it.titulo}`, "Deshacer", async () => { await post("agenda/" + it.id, { estado: b.dataset.ini }); await cargar(); });
+        await cargar();
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.classList.toggle("on"); }
     }));
     c.querySelectorAll("[data-pagar]").forEach(b => b.addEventListener("click", () => { const it = st.items.find(x => x.id === b.dataset.pagar); if (it) ventanaPago("programado", it); }));
     c.querySelectorAll("[data-nuevo-pago]").forEach(b => b.addEventListener("click", () => b.dataset.nuevoPago === "hecho" ? ventanaPago("hecho") : ventanaProgramar()));
