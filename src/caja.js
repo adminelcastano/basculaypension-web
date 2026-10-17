@@ -679,7 +679,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const movs = (await env.DB.prepare("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC").bind(dia, turno).all()).results;
     const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`).bind(dia, turno).all()).results;
     const pendientes = (await env.DB.prepare(`SELECT * FROM caja_pendientes WHERE dia = ? AND turno = ?
-      AND origen_activo = 1 ORDER BY fecha ASC`).bind(dia, turno).all()).results;
+      ORDER BY fecha ASC`).bind(dia, turno).all()).results;
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
