@@ -196,7 +196,7 @@ export async function leerHoja(env, mes) {
   if (d.mes !== mes)
     throw new Error("La hoja devolvió un mes diferente; se conservan los registros anteriores.");
   if ([...d.bascula, ...d.pension].some(x => !x || typeof x !== "object" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(String(x.fecha || "")) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(x.fecha || "")) ||
       x.fecha.slice(0, 7) !== mes))
     throw new Error("La hoja devolvió movimientos inválidos; se conservan los registros anteriores.");
   const limpiar = (lista, servicio) => lista.map(x => {
