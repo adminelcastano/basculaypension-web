@@ -694,7 +694,7 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueInfo("agenda", "calendario", { valor: evHoy, texto: evHoy ? pl(evHoy, "evento hoy", "eventos hoy") : "Nada programado hoy" });
     EC.bloqueInfo("agenda", "tarea", { texto: !tareas.length ? "Nada pendiente" : venc ? pl(venc, "vencida", "vencidas") : "Al día" });
     EC.bloqueInfo("agenda", "incidencia", { texto: !inc.length ? "Ninguna abierta" : graves ? pl(graves, "grave", "graves") : "Ninguna grave" });
-    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin avisos activos" });
+    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin publicaciones activas" });
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
     EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
@@ -775,7 +775,7 @@ window.interpretarAgenda = function (texto, hoy) {
     const r = st.resp || {}; st.resp = null;
     const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, p.clave])];
     const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
-    return `<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Publicar un aviso<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
+    return `<div class="casta-identidad"><img src="/img/castagram.webp" alt="Castagram" width="300" height="107"></div><section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Nueva publicación<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
       <label class="w4 extra">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <div class="w4 para-op extra"><span>Etiquetar a</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
       <label class="extra">Mostrar desde<input type="date" name="fecha"></label><label class="extra">Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
@@ -784,8 +784,8 @@ window.interpretarAgenda = function (texto, hoy) {
         <div class="inc-prev"></div></div>
       <button class="btn btn-primary extra" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note extra-n" style="margin:10px 0 0">Solo lo ven las personas etiquetadas y quien lo publica. Todos comentan en la misma publicación hasta que la archives; lo archivado se guarda con su conversación en el archivo.</p></section>
-      <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay avisos activos. Publica uno arriba.</p>`}</div>
-      <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de avisos</button>`;
+      <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay publicaciones activas. Publica una arriba.</p>`}</div>
+      <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de Castagram</button>`;
   }
 
   // ---- Archivo de avisos: todo lo archivado, con búsqueda, conversación e historial ----
@@ -813,7 +813,7 @@ window.interpretarAgenda = function (texto, hoy) {
       const d = a.det;
       if (!d) return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo</button><p class="note">Cargando…</p>`;
       const it = { ...d.aviso, conv: null };
-      return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de avisos</button>
+      return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de Castagram</button>
         <article class="post hecho"><header class="post-h">${avP(it.autor === "admin" ? "admin" : it.autor, 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))} · archivado ${esc(cuando(it.cerrado))}</span></div></header>
           <p class="post-para">Para ${etqPara(it.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
           <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
@@ -822,8 +822,8 @@ window.interpretarAgenda = function (texto, hoy) {
           <div class="hilo">${d.comentarios.length ? d.comentarios.map(c => comentarioHtml(it, c, true, false)).join("") : `<p class="note">Sin comentarios.</p>`}</div></article>
         <section class="card"><h4 class="hist-t">Historial</h4>${historialHtml(d.historial || [])}</section>`;
     }
-    return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Avisos activos</button>
-      <section class="card"><h4 class="hist-t">Archivo de avisos</h4><p class="note" style="margin:0 0 10px">Todo lo archivado se conserva con su conversación y su historial.</p>${filtros}</section>
+    return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Castagram</button>
+      <section class="card"><h4 class="hist-t">Archivo de Castagram</h4><p class="note" style="margin:0 0 10px">Todo lo archivado se conserva con su conversación y su historial.</p>${filtros}</section>
       ${a.cargando ? `<p class="note">Buscando…</p>` : a.error ? `<p class="empty">${esc(a.error)}</p>` : `<div class="arch-l">${(a.items || []).length ? a.items.map(it => `<button type="button" class="arch-i" data-archivo-ver="${esc(it.id)}">${avP(it.autor === "admin" ? "admin" : it.autor)}<span class="arch-t"><b>${esc(it.titulo)}</b><span>${esc(nomDe(it.autor))} · archivado ${esc(cuando(it.cerrado || it.actualizado))}${it.conv && it.conv.n ? ` · ${it.conv.n} ${it.conv.n === 1 ? "comentario" : "comentarios"}` : ""}</span></span></button>`).join("") : `<p class="empty">No hay avisos archivados con esos filtros.</p>`}</div>
       ${a.pagina > 0 || a.mas ? `<div class="arch-pag">${a.pagina > 0 ? `<button class="btn btn-line" type="button" data-archivo-pag="-1">Anteriores</button>` : ""}${a.mas ? `<button class="btn btn-line" type="button" data-archivo-pag="1">Más</button>` : ""}</div>` : ""}`}`;
   }
