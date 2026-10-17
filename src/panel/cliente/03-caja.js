@@ -26,10 +26,13 @@
   const consulta = () => { const q = new URLSearchParams(); if (st.desde) q.set("desde", st.desde); if (st.hasta) q.set("hasta", st.hasta); const t = q.toString(); return t ? "?" + t : ""; };
   const clave = c => c.dia + "|" + c.turno;
 
+  let secuenciaCaja = 0;
   async function cargar() {
+    const solicitud = ++secuenciaCaja;
     const lista = $("#c-lista");
     try {
       const j = await api("caja" + consulta());
+      if (solicitud !== secuenciaCaja) return;
       st.datos = j;
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
@@ -79,7 +82,7 @@
       const grupos = [];
       for (const c of j.cortes) { const g = grupos[grupos.length - 1]; if (g && g.dia === c.dia) g.cs.push(c); else grupos.push({ dia: c.dia, cs: [c] }); }
       lista.innerHTML = grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
-    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+    } catch (e) { if (solicitud === secuenciaCaja && e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
   function formGasto(dia, turno) {
