@@ -28,6 +28,7 @@ test("Servidor bloquea duplicidad con clave única; permite advertencia sin bloq
   assert.match(worker, /CREATE TABLE IF NOT EXISTS facturas_folios/);
   assert.match(worker, /PRIMARY KEY \(servicio, folio_normalizado\)/);
   assert.match(worker, /INSERT INTO facturas_folios/);
+  assert.match(worker, /INSERT OR IGNORE INTO facturas_folios/); // respaldo del índice de facturas anteriores
   assert.match(worker, /env\.DB\.batch\(\[/);
   assert.match(worker, /duplicado: true/);
   assert.match(worker, /contraste\.advertencia/);
