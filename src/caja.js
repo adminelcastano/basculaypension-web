@@ -736,8 +736,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   }
 
   if (partes[1] === "pendientes" && request.method === "GET") {
-    const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado IN ('pendiente', 'parcial')
+    const pendientes = (await env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
+      (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
+       WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
+      FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
       ORDER BY fecha ASC LIMIT 100`).all()).results;
     return json({ ok: true, pendientes });
   }
@@ -752,8 +754,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado IN ('pendiente', 'parcial')
+    const pendientes = (await env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
+      (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
+       WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
+      FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
       ORDER BY fecha ASC LIMIT 100`).all()).results;
     const cobros = await leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" });
     const totales = totalesMes(cortes, tr.contadas);
