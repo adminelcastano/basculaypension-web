@@ -372,6 +372,7 @@ export async function turnoRuta(request, env, url, h) {
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
 
   if (partes[0] === "foto" && request.method === "GET") {
+    let esFotoCastagram = false;
     let llave = "";
     try { llave = decodeURIComponent(partes[1] || ""); } catch {}
     // Las fotos de publicaciones y comentarios de Castagram deben respetar destinatarios.
@@ -383,6 +384,7 @@ export async function turnoRuta(request, env, url, h) {
         (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.foto = ?)) LIMIT 1`)
         .bind(llave, '%"' + llave + '"%', llave).first();
       if (a) {
+        esFotoCastagram = true;
         const com = await env.DB.prepare("SELECT borrado FROM aviso_comentarios WHERE item_id = ? AND foto = ? LIMIT 1")
           .bind(a.id, llave).first();
         if (!fotoAvisoPermitida(a, s.persona, s.turno, !!(com && com.borrado)))
@@ -396,7 +398,9 @@ export async function turnoRuta(request, env, url, h) {
         if (!inc) return new Response("No encontrado", { status: 404 });
       }
     }
-    return servirFoto(env, llave);
+    const respuesta = await servirFoto(env, llave);
+    if (esFotoCastagram) respuesta.headers.set("Cache-Control", "private, no-store");
+    return respuesta;
   }
 
   let c = {};
