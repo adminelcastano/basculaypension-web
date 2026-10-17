@@ -1071,7 +1071,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   }
   // Vuelve a pintar solo una publicación (para no perder lo que se está escribiendo en otras)
   function repintarPost(id) {
-    const a = E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
+    const a = E && E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
     if (a && el) el.outerHTML = postHtml(a);
     repintarSheetTurno(id);
   }
@@ -1667,7 +1667,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     // La sesión dura todo el turno (8 horas): solo se cierra sola tras 8 horas sin tocar la tablet
     if (Date.now() - ultimo > 8 * 3600e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
     // Cada minuto se actualizan avisos, tareas e incidencias si no hay un formulario a medio llenar
-    const ocupado = $("#dlg").open || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+    const ocupado = $("#dlg").open || !!sec().querySelector("dialog.casta-sheet[open]") || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (!ocupado && Date.now() - ultRef > 60e3) {
       ultRef = Date.now();
       enviarCola();
