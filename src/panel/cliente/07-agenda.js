@@ -770,11 +770,13 @@ window.interpretarAgenda = function (texto, hoy) {
     const sel = h.etq || [];
     return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}</div>
       <div class="casta-sheet-compose">${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🙌" aria-label="Insertar emoji 🙌">🙌</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button><button type="button" data-com-emoji="👏" aria-label="Insertar emoji 👏">👏</button><button type="button" data-com-emoji="🥹" aria-label="Insertar emoji 🥹">🥹</button><button type="button" data-com-emoji="😍" aria-label="Insertar emoji 😍">😍</button><button type="button" data-com-emoji="😮" aria-label="Insertar emoji 😮">😮</button><button type="button" data-com-emoji="😂" aria-label="Insertar emoji 😂">😂</button></div>
         <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
         <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
-        ${h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
-        <div class="com-acc"><label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label><button class="btn btn-primary" type="submit">Comentar</button></div>
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${!h.responderA && h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc">${!h.responderA ? `<label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label>` : ""}<button class="btn btn-primary" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
         <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div></div>`;
   }
 
@@ -881,6 +883,32 @@ window.interpretarAgenda = function (texto, hoy) {
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
     if (st.abiertosAv.has(id)) pintarAvisos();
   }
+
+  function comenzarReplyAdmin(h, nombre) {
+    if (!h.responderA) h.antesReply = { texto: h.borrador || "", foto: h.foto || null, etq: h.etq || [] };
+    h.responderA = nombre;
+    h.borrador = "@" + nombre + " ";
+    h.foto = null;
+    h.etq = [];
+  }
+  function terminarReplyAdmin(h) {
+    if (!h.responderA) return;
+    const ant = h.antesReply || {};
+    h.borrador = ant.texto || "";
+    h.foto = ant.foto || null;
+    h.etq = ant.etq || [];
+    h.responderA = null;
+    delete h.antesReply;
+  }
+  function insertarEmojiCastagram(form, emoji) {
+    const ta = form && form.querySelector('textarea[name="texto"]');
+    if (!ta) return;
+    const i = ta.selectionStart, j = ta.selectionEnd;
+    ta.setRangeText(emoji, i, j, "end");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus({ preventScroll: true });
+  }
+
   // Eventos del muro (se conectan una vez sobre el bloque; el contenido se vuelve a pintar)
   function conectarMuro() {
     const el = $("#ab-aviso"); if (!el || el._muro) return; el._muro = true;
@@ -898,13 +926,20 @@ window.interpretarAgenda = function (texto, hoy) {
         if (t.classList.contains("pa")) { const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta) ta.focus({ preventScroll: true }); }
       } else if ("sheetCerrar" in d) { const sheet = t.closest("dialog.casta-sheet"); if (sheet) sheet.close(); }
       else if (d.responder) {
-        const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av, ta = sheet && sheet.querySelector(".com-form textarea");
-        if (id && ta && st.hilos[id]) {
-          const mencion = "@" + d.responder + " ";
-          if (!ta.value.includes(mencion)) ta.value = mencion + ta.value;
-          st.hilos[id].borrador = ta.value;
-          ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length);
+        const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av;
+        if (id && st.hilos[id]) {
+          const form = sheet.querySelector(".com-form");
+          if (form) st.hilos[id].borrador = form.texto.value;
+          comenzarReplyAdmin(st.hilos[id], d.responder);
+          pintarAvisos();
+          const ta = el.querySelector("dialog.casta-sheet .com-form textarea");
+          if (ta) { ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }
         }
+      } else if ("replyCancel" in d) {
+        const sheet = t.closest("dialog.casta-sheet");
+        if (sheet && st.hilos[sheet.dataset.av]) { terminarReplyAdmin(st.hilos[sheet.dataset.av]); pintarAvisos(); }
+      } else if (d.comEmoji) {
+        insertarEmojiCastagram(t.closest("form.com-form"), d.comEmoji);
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];
@@ -928,6 +963,7 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("change", async e => {
       const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
       const f = inp.closest("form"), h = st.hilos[f.dataset.av];
+      if (h.responderA) { inp.value = ""; return; }
       try { h.foto = await comprimirFoto(inp.files[0]); h.borrador = f.texto.value; pintarAvisos(); } catch (er) { f.querySelector(".err").textContent = er.message; }
     });
     el.addEventListener("input", e => { const f = e.target.closest("form.com-form"); if (f && st.hilos[f.dataset.av]) st.hilos[f.dataset.av].borrador = e.target.value; });
@@ -939,8 +975,10 @@ window.interpretarAgenda = function (texto, hoy) {
         const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
         err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
         try {
-          await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] });
-          h.borrador = ""; h.foto = null; const etq = h.etq || []; h.etq = [];
+          await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
+          const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
+          if (eraRespuesta) terminarReplyAdmin(h);
+          else { h.borrador = ""; h.foto = null; h.etq = []; }
           if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
           const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: new Date().toISOString() };
           await abrirHilo(id, true);

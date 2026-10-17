@@ -1501,6 +1501,13 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .post-ent .si small { color: var(--muted); font-weight: 400; }
 .post-ent .no { color: var(--muted); }
 
+
+/* Los comentarios tienen foto y emojis. Las respuestas solo texto y emojis. */
+.casta-emoji-bar { display:flex; align-items:center; gap:4px; overflow-x:auto; white-space:nowrap; scrollbar-width:thin; padding:2px 0 6px; }
+.casta-emoji-bar button { flex:none; border:0; background:transparent; color:var(--fg); font-size:21px; min-width:40px; min-height:40px; border-radius:10px; cursor:pointer; }
+.casta-emoji-bar button:hover, .casta-emoji-bar button:focus-visible { background:var(--fill); }
+.casta-reply { display:flex; align-items:center; gap:8px; justify-content:space-between; padding:6px 10px; margin-bottom:8px; border-radius:10px; background:var(--fill); font-size:var(--t-sm); color:var(--fg-2); }
+.casta-reply button { border:0; color:var(--fg); background:transparent; font:inherit; font-size:22px; cursor:pointer; min-width:32px; min-height:32px; }
 /* Castagram: comentarios en hoja modal inferior, sin modificar las tarjetas. */
 dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; padding:0; border:1px solid var(--line-2); border-radius:26px 26px 0 0; width:min(100%,640px); max-width:100%; height:min(82dvh,760px); max-height:calc(100dvh - 12px); background:#1b1b1d; color:var(--fg); overflow:hidden; box-shadow:0 -18px 75px #0009; }
 dialog.casta-sheet[open] { display:flex; flex-direction:column; animation:casta-subir .22s cubic-bezier(.2,.8,.2,1) both; }
