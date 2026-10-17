@@ -103,7 +103,7 @@ window.interpretarAgenda = function (texto, hoy) {
     for (const q of [0.82, 0.7, 0.55]) { const u = cv.toDataURL("image/jpeg", q); if (u.length * 0.75 < 1_400_000) return u; }
     throw new Error(`La foto ${file.name} es demasiado grande.`);
   }
-  const fotosDe = it => { let l = []; try { l = JSON.parse(it.fotos || "[]"); } catch {} if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
+  const fotosDe = it => { let l = Array.isArray(it.fotos) ? [...it.fotos] : []; if (!Array.isArray(it.fotos)) { try { l = JSON.parse(it.fotos || "[]"); } catch {} } if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
   const urlFoto = k => "/panel/api/turno/foto/" + encodeURIComponent(k);
   // Campo de fotos del formulario de incidencia: junta las elegidas (cámara o galería) con vista previa
   function conectarFotos(f) {
@@ -732,6 +732,7 @@ window.interpretarAgenda = function (texto, hoy) {
         mostrarSheetAdmin();
       }
       conectar(el);
+      castaRestaurar(el);
     }
     contadores();
   }
@@ -780,6 +781,52 @@ window.interpretarAgenda = function (texto, hoy) {
         <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div></div>`;
   }
 
+
+  // Carrusel de fotografías solo en Castagram; las claves y rutas de fotos siguen intactas.
+  const castaFotoActual = new Map();
+  function castaFotos(fotos, id) {
+    if (!Array.isArray(fotos) || !fotos.length) return "";
+    const foto = (k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
+    const actual = Math.max(0, Math.min(fotos.length-1, castaFotoActual.get(id) || 0));
+    return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
+      <div class="casta-carrusel-pista" aria-roledescription="carrusel" tabindex="0">${fotos.map((k,i)=>`<div class="casta-carrusel-slide">${foto(k,i)}</div>`).join("")}</div>
+      <span class="casta-carrusel-num" aria-live="polite">${actual+1} / ${fotos.length}</span>
+      <button type="button" class="casta-carrusel-arrow anterior" data-casta-paso="-1" aria-label="Foto anterior" ${actual===0?"disabled":""}>‹</button>
+      <button type="button" class="casta-carrusel-arrow siguiente" data-casta-paso="1" aria-label="Foto siguiente" ${actual===fotos.length-1?"disabled":""}>›</button>
+      <div class="casta-carrusel-puntos" aria-label="Posición de fotografía">${fotos.map((_,i)=>`<button type="button" data-casta-ir="${i}" aria-label="Ver foto ${i+1} de ${fotos.length}" ${actual===i?'aria-current="true"':""}></button>`).join("")}</div>
+    </div>`;
+  }
+  function castaSincronizar(caja) {
+    if (!caja || !caja.isConnected) return;
+    const pista = caja.querySelector(".casta-carrusel-pista");
+    if (!pista || !pista.clientWidth) return;
+    const total = pista.children.length, indice = Math.max(0, Math.min(total-1, Math.round(pista.scrollLeft / pista.clientWidth)));
+    castaFotoActual.set(caja.dataset.castaCarrusel,indice);
+    const num = caja.querySelector(".casta-carrusel-num");
+    if (num) num.textContent = `${indice+1} / ${total}`;
+    for (const [paso,borde] of [[-1,0],[1,total-1]]) { const b = caja.querySelector('[data-casta-paso="'+paso+'"]'); if (b) b.disabled = indice === borde; }
+    caja.querySelectorAll("[data-casta-ir]").forEach(b=>{ if(+b.dataset.castaIr===indice)b.setAttribute("aria-current","true");else b.removeAttribute("aria-current"); });
+  }
+  function castaMover(boton) {
+    const caja = boton.closest("[data-casta-carrusel]"), pista = caja && caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const actual=Math.round(pista.scrollLeft/pista.clientWidth);
+    const destino=boton.dataset.castaIr!==undefined?+boton.dataset.castaIr:actual+Number(boton.dataset.castaPaso);
+    if(destino<0 || destino>=pista.children.length)return;
+    castaFotoActual.set(caja.dataset.castaCarrusel,destino);
+    pista.scrollTo({left:destino*pista.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+  }
+  function castaRestaurar(root) {
+    if(!root)return;
+    requestAnimationFrame(()=>root.querySelectorAll("[data-casta-carrusel]").forEach(caja=>{
+      if(!caja.isConnected)return;
+      const pista=caja.querySelector(".casta-carrusel-pista"), indice=castaFotoActual.get(caja.dataset.castaCarrusel)||0;
+      if(pista&&pista.clientWidth)pista.scrollLeft=indice*pista.clientWidth;
+      castaSincronizar(caja);
+    }));
+  }
+
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
     const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0, nuevosEnterado: 0 };
@@ -797,7 +844,7 @@ window.interpretarAgenda = function (texto, hoy) {
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
-      ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+      ${castaFotos(fotosDe(it),it.id)}
       <div class="post-st"><div class="casta-acciones">${nuevo ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-leer="${esc(it.id)}" aria-label="Confirmar mi Enterado. ${cantidadEnterados} confirmaciones registradas" title="Confirmar mi Enterado">${pulgar}<small>${cantidadEnterados}</small></button>` : `<span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" role="img" aria-label="${cantidadEnterados} confirmaciones de Enterado" title="${cantidadEnterados} confirmaciones de Enterado">${pulgar}<small>${cantidadEnterados}</small></span>`}<button type="button" class="casta-comentar" data-hilo="${esc(it.id)}" aria-label="Abrir comentarios" title="Comentar">${comentarIcono}</button></div>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
         <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "0 comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "comentario nuevo" : "comentarios nuevos"}</span>` : ""}${cv.nuevosEnterado ? ` <span class="nuevo-n">${cv.nuevosEnterado} ${cv.nuevosEnterado === 1 ? "Enterado nuevo" : "Enterados nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
@@ -856,7 +903,7 @@ window.interpretarAgenda = function (texto, hoy) {
         <article class="post hecho"><header class="post-h">${avP(it.autor === "admin" ? "admin" : it.autor, 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))} · archivado ${esc(cuando(it.cerrado))}</span></div></header>
           <p class="post-para">Para ${etqPara(it.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
           <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
-          ${(it.fotos || []).length ? `<div class="post-fotos n${Math.min(it.fotos.length, 3)}">${it.fotos.map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+          ${castaFotos(fotosDe(it),it.id)}
           <div class="post-acc"><button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button></div>
           <div class="hilo">${d.comentarios.length ? d.comentarios.map(c => comentarioHtml(it, c, true, false)).join("") : `<p class="note">Sin comentarios.</p>`}</div></article>
         <section class="card"><h4 class="hist-t">Historial</h4>${historialHtml(d.historial || [])}</section>`;
@@ -917,6 +964,7 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("click", async e => {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
       const d = t.dataset;
+      if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
       if (d.reactivar && st.archivo) { st.archivo = null; return; }
       if (d.hilo) {
         const id = d.hilo;
@@ -960,6 +1008,7 @@ window.interpretarAgenda = function (texto, hoy) {
         if (st.archivo === a) pintarAvisos();
       }
     });
+    el.addEventListener("scroll", e => { if(e.target.matches(".casta-carrusel-pista"))castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
     el.addEventListener("change", async e => {
       const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
       const f = inp.closest("form"), h = st.hilos[f.dataset.av];
