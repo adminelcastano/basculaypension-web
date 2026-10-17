@@ -769,6 +769,14 @@ async function limpiarArchivos(env) {
     return { borradas: 0, error: "respaldo no confirmado" };
   }
   for (const r of results) {
+    // También registrar las facturas emitidas ANTES de crear el índice,
+    // antes de borrar la solicitud. No altera importes ni registros contables.
+    if (["facturada", "enviada"].includes(r.estado) && r.folio_factura && normalizarFolioTicket(r.folio_ticket) && ["bascula", "pension"].includes(r.servicio)) {
+      const venceFolio = new Date(r.resuelta_en);
+      venceFolio.setFullYear(venceFolio.getFullYear() + 5);
+      await env.DB.prepare("INSERT OR IGNORE INTO facturas_folios (servicio, folio_normalizado, solicitud_id, folio_factura, creado, vence) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(r.servicio, normalizarFolioTicket(r.folio_ticket), r.id, r.folio_factura, r.resuelta_en, venceFolio.toISOString()).run();
+    }
     await borrarArchivo(env, `f:${r.id}:ticket`);
     await borrarArchivo(env, `f:${r.id}:csf`);
     await env.DB.prepare("DELETE FROM solicitudes WHERE id = ?").bind(r.id).run();
