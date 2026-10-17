@@ -28,6 +28,27 @@
     "CF_ACCOUNT_ID": "ff18e14a20fef8a9c6e49eb88f19cf46",
     "ACCESS_AUD": "a0dcf0e931c7b6a7b64cae835ae329cb05fc3bdbdc972c1af99c4619ee3fba1d"
   },
+  // Ensayo privado para esta rama: NO comparte datos ni secretos con producción.
+  // El enlace de ensayo está protegido por Cloudflare Access para administración.
+  "previews": {
+    "d1_databases": [{
+      "binding": "DB",
+      "database_name": "castano-facturacion-ensayo-20261017",
+      "database_id": "2f44c4ac-6e61-4357-91f4-f61095afafb5"
+    }],
+    "kv_namespaces": [{
+      "binding": "FILES",
+      "id": "3224a8d8159d4c468a9066ffb0bfcb43"
+    }],
+    "vars": {
+      "ADMIN_EMAILS": "administracion@basculaypension.com",
+      "TURNO_EMAILS": "",
+      "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
+      "ACCESS_AUD": "5c7f7b91f69862f76e4a82d45d02896f6ca8e0c60db4de8a00f7837f4f4bf051",
+      "INGRESOS_URL": "",
+      "CF_ACCOUNT_ID": ""
+    }
+  },
   // Plan Workers Paid: tope de 5 s de CPU por petición (lo normal es menos de 50 ms; el tope evita que algo descontrolado consuma de más) (en el plan gratuito este ajuste no se acepta
   // y el despliegue falla, así que también sirve para confirmar que el plan está activo)
   "limits": { "cpu_ms": 5000 },
