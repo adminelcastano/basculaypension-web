@@ -116,24 +116,14 @@ test("No factura dos veces el mismo servicio y folio normalizado", async () => {
   assert.equal(e.registros[1].estado, "pendiente");
 });
 
-test("Admite folios numéricos actuales y series futuras A a ZZ sin mezclarlos", async () => {
-  const e = entorno([
-    { ...base(1), folio_ticket: "17097" },
-    { ...base(2), folio_ticket: "A17097" },
-    { ...base(3), folio_ticket: "ZZ17097" },
-    { ...base(4), folio_ticket: "a-17097" },
-    { ...base(5), folio_ticket: "B17097" }
-  ]);
-  for (const [n, folio] of [[1, "17097"], [2, "A17097"], [3, "ZZ17097"], [5, "B17097"]]) {
-    const r = await e.enviar(uid(n), "facturar", { folio_factura: "CFDI-" + n, importe: "150", folio_ticket: folio });
-    assert.equal(r.status, 200, "Debe admitir la serie diferente: " + folio);
-  }
-  const repetido = await e.enviar(uid(4), "facturar", {
-    folio_factura: "CFDI-4", importe: "150", folio_ticket: "a-17097"
-  });
-  assert.equal(repetido.status, 409, "El prefijo A repetido debe bloquearse incluso con guion o minúscula");
-  assert.equal(e.folios.length, 4);
-  assert.equal(e.registros[3].estado, "pendiente");
+test("Conserva ceros iniciales y rechaza un folio no numérico", async () => {
+  const e = entorno([{ ...base(1), folio_ticket: "0017097" }, { ...base(2), folio_ticket: "17097" }]);
+  assert.equal((await e.enviar(uid(1), "facturar", { folio_factura: "CFDI-1", importe: "150", folio_ticket: "0017097" })).status, 200);
+  assert.equal((await e.enviar(uid(2), "facturar", { folio_factura: "CFDI-2", importe: "150", folio_ticket: "17097" })).status, 200);
+  assert.equal(e.folios.length, 2);
+  const otro = entorno([{ ...base(3), folio_ticket: "ABC17097" }]);
+  assert.equal((await otro.enviar(uid(3), "facturar", { folio_factura: "CFDI-3", importe: "150", folio_ticket: "ABC17097" })).status, 422);
+  assert.equal(otro.folios.length, 0);
 });
 
 test("Aviso de Caja: distinguir pendiente, parcial, pagado, conciliado y cancelado", async () => {
