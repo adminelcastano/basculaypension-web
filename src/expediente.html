@@ -380,7 +380,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (primero && primero.focus) primero.focus({ preventScroll: true });
       return;
     }
-    pintarConstancia({ aceptado_en: new Date().toISOString() });
+    pintarConstancia(j.constancia);
     const faltan = docsActual ? docsActual.total - docsActual.entregados : 0;
     const josue = esExterno ? "" : " Recuerda entregar 2 copias de cada documento con Josué.";
     if (esExterno) { $("#hecho h1").textContent = "Registro enviado"; $("#hecho p").textContent = faltan ? `Se guardó el registro. Faltan ${faltan} ${faltan === 1 ? "documento" : "documentos"}; puedes subirlos después con este mismo enlace. Cuando esté completo, te llega el aviso de que ya puede trabajar.` : "Registro completo. En unos momentos te llega el aviso de que ya puede trabajar dentro de El Castaño."; $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 }); return; }
