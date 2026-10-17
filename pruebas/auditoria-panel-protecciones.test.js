@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { leerHoja } from "../src/caja.js";
-import { comisionDe, COMISION_INICIAL, IVA } from "../src/cuentas.js";
+import { comisionDe, comisionMercadoPago, COMISION_INICIAL, IVA } from "../src/cuentas.js";
 
 async function lecturaSimulada(datos, status = 200) {
   const original = globalThis.fetch;
@@ -81,10 +81,11 @@ test("Panel administrativo: el JavaScript de las secciones editadas tiene sintax
 test("Dinero: Mercado Pago mantiene 3.50 % + IVA por cobro en meses históricos", () => {
   assert.equal(COMISION_INICIAL, 3.5);
   assert.equal(IVA, 0.16);
-  assert.equal(comisionDe(100, { tarjeta: 1, comision_pct: 3.5, comision_iva: 1 }), 4.06);
-  // Un valor de configuración incorrecto nunca reescribe una comisión histórica.
-  assert.equal(comisionDe(100, { tarjeta: 1, comision_pct: 9, comision_iva: 0 }), 4.06);
-  assert.equal(comisionDe(10, { tarjeta: 1, comision_pct: 0, comision_iva: 0 }), 0.41);
+  assert.equal(comisionMercadoPago(100, { tarjeta: 1, comision_pct: 3.5, comision_iva: 1 }), 4.06);
+  // La tasa operativa permanece fija aunque la configuración antigua sea distinta.
+  assert.equal(comisionMercadoPago(100, { tarjeta: 1, comision_pct: 9, comision_iva: 0 }), 4.06);
+  assert.equal(comisionMercadoPago(10, { tarjeta: 1, comision_pct: 0, comision_iva: 0 }), 0.41);
+  // Se conserva la función genérica para cálculos de otras tasas.
   assert.equal(comisionDe(100, { tarjeta: 0, comision_pct: 2, comision_iva: 0 }), 2);
 });
 
