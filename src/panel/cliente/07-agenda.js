@@ -708,9 +708,62 @@ window.interpretarAgenda = function (texto, hoy) {
   // hasta que la administración la archiva. Solo la administración edita o borra comentarios.
   const T_AV = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
   const encargados = () => (st.personas || []).filter(p => p.activo);
-  const nomDe = k => k === "admin" ? "Administración" : ((encargados().find(p => p.clave === k) || {}).nombre || k);
+  const perfilMencion = p => p.perfil || p.nombre || p.clave;
+  const nomDe = k => k === "admin" ? "Administración" : (perfilMencion((st.personas || []).find(p => p.clave === k) || {clave:k}));
+  const avatarMencion = p => p.avatar_url || "/panel/api/turno/avatar/c/" + encodeURIComponent(p.clave);
+  const tarjetaMencion = p => `<span class="casta-mention" title="@${esc(p.clave)}"><img src="${esc(avatarMencion(p))}" alt="" width="22" height="22" loading="lazy"><b>@${esc(perfilMencion(p))}</b></span>`;
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + T_AV[t]), ...(p.personas || [])].filter(Boolean);
-  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => encargados().some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m);
+  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m,k) => {
+    const p = (st.personas || []).find(x => x.clave === k.toUpperCase());
+    return p ? tarjetaMencion(p) : m;
+  });
+  // Autocompletado local: los identificadores en D1 permanecen @CLAVE.
+  const buscarMencion = (ta, personas) => {
+    const posicion = ta.selectionStart, antes = ta.value.slice(0, posicion);
+    const m = /@([A-Za-zÑñ0-9_]{0,20})$/.exec(antes);
+    if (!m || (m.index > 0 && !/[\s([{]/.test(antes[m.index - 1]))) return null;
+    const normal = v => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const busqueda = normal(m[1]);
+    return { inicio: m.index, fin: posicion, personas: personas.filter(p => normal(perfilMencion(p)).includes(busqueda) || normal(p.clave).includes(busqueda)).slice(0,12) };
+  };
+  function actualizarMenciones(form) {
+    const ta = form.querySelector('textarea[name="texto"]'), caja = form.querySelector("[data-mention-list]"), seleccion = form.querySelector("[data-mention-selected]");
+    if (!ta || !caja) return;
+    const actual = buscarMencion(ta, encargados());
+    caja.hidden = !actual || !actual.personas.length;
+    caja.innerHTML = actual ? actual.personas.map((p,i) => `<button type="button" role="option" aria-selected="${i === 0}" data-mention-pick="${esc(p.clave)}">${tarjetaMencion(p)}<small>${esc(p.clave)}</small></button>`).join("") : "";
+    if (seleccion) {
+      const claves = [...ta.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m => m[1].toUpperCase());
+      const elegidos = (st.personas || []).filter(p => claves.includes(p.clave));
+      seleccion.innerHTML = elegidos.map(tarjetaMencion).join("");
+      seleccion.hidden = !elegidos.length;
+    }
+  }
+  function elegirMencion(form, clave) {
+    const ta = form.querySelector('textarea[name="texto"]'), p = encargados().find(x => x.clave === clave);
+    if (!ta || !p) return;
+    const actual = buscarMencion(ta, encargados());
+    if (!actual) return;
+    ta.setRangeText("@" + p.clave + " ", actual.inicio, actual.fin, "end");
+    ta.dispatchEvent(new Event("input", { bubbles:true }));
+    ta.focus({ preventScroll:true });
+  }
+  function teclaMencion(e) {
+    const ta = e.target.closest("form.com-form textarea"), form = ta && ta.closest("form");
+    const caja = form && form.querySelector("[data-mention-list]");
+    if (!caja || caja.hidden) return;
+    const opciones = [...caja.querySelectorAll("[data-mention-pick]")];
+    if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      let i = opciones.findIndex(b => b.getAttribute("aria-selected") === "true");
+      i = (i + (e.key === "ArrowDown" ? 1 : -1) + opciones.length) % opciones.length;
+      opciones.forEach((b,j) => b.setAttribute("aria-selected", String(i === j)));
+    } else if (e.key === "Enter" && opciones.length) {
+      e.preventDefault();
+      elegirMencion(form, (opciones.find(b => b.getAttribute("aria-selected") === "true") || opciones[0]).dataset.mentionPick);
+    }
+  }
   const parrafos = t => conMenciones(t).replace(/\n/g, "<br>");
   st.hilos = st.hilos || {};
   st.abiertosAv = st.abiertosAv || new Set();
@@ -762,7 +815,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
         ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
-      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
 
@@ -774,11 +827,12 @@ window.interpretarAgenda = function (texto, hoy) {
     const sel = h.etq || [];
     return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}</div>
       <div class="casta-sheet-compose">${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
-        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a ${conMenciones("@" + h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
         <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
         <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+         <div class="casta-mention-list" role="listbox" aria-label="Elegir encargado para etiquetar" data-mention-list hidden></div><div class="casta-mention-selected" aria-label="Personas etiquetadas" data-mention-selected hidden></div>
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip casta-chip-perfil ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">${tarjetaMencion(x)}</button>`).join("")}</div>` : ""}
         ${!h.responderA && h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
         <div class="com-acc">${!h.responderA ? `<label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label>` : ""}<button class="btn btn-primary" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
         <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div></div>`;
@@ -899,11 +953,11 @@ window.interpretarAgenda = function (texto, hoy) {
     if (st.archivo) return vistaArchivo();
     const act = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a, b) => String((b.conv && b.conv.actividad) || b.creado).localeCompare(String((a.conv && a.conv.actividad) || a.creado)));
     const r = st.resp || {}; st.resp = null;
-    const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, p.clave])];
+    const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, perfilMencion(p)])];
     const marcado = () => false; // Cada nueva publicación requiere elección expresa.
     return `<div class="casta-identidad"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div>${castaActividadVistaAdmin()}<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Nueva publicación<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
       <label class="w4 extra">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
-      <div class="w4 para-op extra"><span>Elige destinatarios (obligatorio)</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
+      <div class="w4 para-op extra"><span>Elige destinatarios (obligatorio)</span>${opPara.map(([v, t]) => `<label class="pchip casta-para-perfil ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${v.startsWith("p:") ? tarjetaMencion(encargados().find(p => p.clave === v.slice(2))) : "@" + esc(t)}</label>`).join("")}</div>
       <label class="extra">Mostrar desde<input type="date" name="fecha"></label><label class="extra">Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
       <div class="w4 inc-fotos extra"><span class="lbl">Foto <span style="font-weight:400">(opcional · hasta 8)</span></span>
         <div class="inc-fbtns"><label class="btn btn-line"><input type="file" accept="image/*" capture="environment" class="inc-f" hidden>Tomar foto</label><label class="btn btn-line"><input type="file" accept="image/*" multiple class="inc-f" hidden>Subir fotos</label></div>
@@ -1023,6 +1077,7 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("click", async e => {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
       const d = t.dataset;
+      if (d.mentionPick) { elegirMencion(t.closest("form.com-form"), d.mentionPick); return; }
       if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
       if (d.castaEvento) {
         const it = st.items.find(x => x.id === d.castaEvento && x.tipo === "aviso" && abierto(x));
@@ -1092,7 +1147,10 @@ window.interpretarAgenda = function (texto, hoy) {
       if (h.responderA) { inp.value = ""; return; }
       try { h.foto = await comprimirFoto(inp.files[0]); h.borrador = f.texto.value; pintarAvisos(); } catch (er) { f.querySelector(".err").textContent = er.message; }
     });
-    el.addEventListener("input", e => { const f = e.target.closest("form.com-form"); if (f && st.hilos[f.dataset.av]) st.hilos[f.dataset.av].borrador = e.target.value; });
+    el.addEventListener("input", e => { const f = e.target.closest("form.com-form"); if (f && st.hilos[f.dataset.av] && e.target.name === "texto") { st.hilos[f.dataset.av].borrador = e.target.value; actualizarMenciones(f); } });
+    el.addEventListener("click", e => { const ta = e.target.closest("form.com-form textarea"); if (ta) actualizarMenciones(ta.closest("form")); });
+    el.addEventListener("keyup", e => { const ta = e.target.closest("form.com-form textarea"); if (ta && !["Enter","Escape","ArrowDown","ArrowUp"].includes(e.key)) actualizarMenciones(ta.closest("form")); });
+    el.addEventListener("keydown", teclaMencion);
     el.addEventListener("submit", async e => {
       const f = e.target;
       if (f.id === "arch-f") { e.preventDefault(); Object.assign(st.archivo, { q: f.q.value, persona: f.persona.value, desde: f.desde.value, hasta: f.hasta.value, pagina: 0 }); buscarArchivo(); return; }
