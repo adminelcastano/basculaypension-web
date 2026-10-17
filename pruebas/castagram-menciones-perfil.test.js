@@ -35,7 +35,7 @@ test("La tablet y administración sugieren nombres al escribir únicamente @", (
 test("Se puede filtrar por nombre con acentos o por clave, sin escribir carácter por carácter", () => {
   for (const src of [tablet,panel]) {
     const fn = obtenerBuscador(src);
-    assert.deepEqual(fn({ value: "Para @j", selectionStart: 7 }, personas).personas.map(p => p.clave), ["JESC","JURB"]);
+    assert.deepEqual(fn({ value: "Para @j", selectionStart: 7 }, personas).personas.map(p => p.clave), ["JDOM","JESC","JOESC","JURB"]);
     assert.deepEqual(fn({ value: "@JDO", selectionStart: 4 }, personas).personas.map(p => p.clave), ["JDOM"]);
     assert.deepEqual(fn({ value: "@Alex", selectionStart: 5 }, personas).personas.map(p => p.clave), ["JDOM"]);
     assert.equal(fn({ value: "correo@empresa.com", selectionStart: 6 }, personas), null);
