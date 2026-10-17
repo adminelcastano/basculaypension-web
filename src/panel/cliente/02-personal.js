@@ -485,7 +485,10 @@
   // ---------------- Campañas de documentos ----------------
   const DOC_NOMBRES = { acuse_v1: "Constancia de recepción del aviso de privacidad v1", datos: "Revisar y actualizar sus datos", ine: "INE", curp: "CURP", solicitud: "Solicitud de empleo", acta: "Acta de nacimiento", domicilio: "Comprobante de domicilio", estudios: "Comprobante de último grado de estudios" };
   const pillCamp = c => c.abierta ? `<span class="pill faltan">Activa</span>` : `<span class="pill inactivo">Cerrada</span>`;
-  const msgCampana = (cp, p) => `Hola ${(p.nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Abrimos «${cp.nombre}». Tienes hasta el ${fechaLarga(cp.limite)} para entregar: ${p.pendientes.map(x => x.toLowerCase()).join(", ")}.\n\nSúbelos en tu enlace personal (no lo compartas):\n${enlaceDe(p.token)}\n\nDespués de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué.`;
+  const msgCampana = (cp, p) => {
+    const soloAcuse = cp.docs.length === 1 && cp.docs[0] === "acuse_v1";
+    return `Hola ${(p.nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Abrimos «${cp.nombre}». Tienes hasta el ${fechaLarga(cp.limite)} para ${soloAcuse ? "confirmar" : "entregar"}: ${p.pendientes.map(x => x.toLowerCase()).join(", ")}.\n\n${soloAcuse ? "Lee el aviso de privacidad v1 y registra su recepción" : "Sube tus documentos y revisa tus datos"} en tu enlace personal (no lo compartas):\n${enlaceDe(p.token)}\n\nDespués de esa fecha el enlace se cierra. ${soloAcuse ? "Esta constancia no sustituye la firma de documentos impresos." : "Entrega también las copias físicas con Josué."}`;
+  };
   const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const masDias = (d, n) => new Date(new Date(d + "T12:00:00Z").getTime() + n * 864e5).toISOString().slice(0, 10);
 
