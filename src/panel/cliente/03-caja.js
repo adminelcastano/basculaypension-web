@@ -431,7 +431,7 @@
           <b>fecha · turno · sobre · taxi · sueldo · cambio · total contado (opcional) · nota (opcional)</b>.
           La vista previa no guarda nada. Los turnos ya archivados conservan historial cuando se corrigen.</p>
         <textarea id="ch-texto" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)"
-          placeholder="01-oct&#9;Tarde&#9;$3,500&#9;$200&#9;—&#9;$130&#9;—"></textarea>
+          placeholder="02-oct&#9;Tarde&#9;$185&#9;$15&#9;—&#9;$22&#9;—"></textarea>
         <div class="row" style="margin-top:8px"><button type="button" class="btn btn-primary" id="ch-revisar">Revisar sin guardar</button></div>
         <div id="ch-resultado"></div>
       </details>
