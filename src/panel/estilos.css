@@ -1233,11 +1233,13 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .casta-identidad img { display:block; width:min(210px,60vw); height:auto; background:transparent; }
 #n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
 /* Pulgar arriba = Confirmación Enterado, nunca Me gusta. */
-.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:44px; min-height:44px; color:#f5f5f7; font-size:var(--t-xs); font-variant-numeric:tabular-nums; }
-.casta-pulgar .casta-pulgar-ico { flex:none; width:24px; height:24px; stroke-width:2; color:inherit; }
-.post-st .casta-pulgar svg { width:24px; height:24px; color:inherit; vertical-align:middle; }
-.casta-pulgar.is-enterado, .post-ent .si { color:#30d158; }
-.casta-pulgar-boton { border:0; padding:8px; background:transparent; border-radius:12px; cursor:pointer; }
+.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:48px; min-height:48px; box-sizing:border-box; border:2px solid transparent; border-radius:14px; color:#f5f5f7; font-size:var(--t-xs); font-variant-numeric:tabular-nums; }
+.casta-pulgar .casta-pulgar-ico { display:block; flex:none; width:26px; height:26px; object-fit:contain; filter:brightness(0) invert(1); }
+.post-st .casta-pulgar img { width:26px; height:26px; object-fit:contain; vertical-align:middle; }
+.casta-pulgar.is-enterado { color:#30d158; border-color:#30d158; background:#112e1b; }
+.casta-pulgar.is-enterado .casta-pulgar-ico { filter:brightness(0) saturate(100%) invert(67%) sepia(48%) saturate(775%) hue-rotate(78deg) brightness(92%) contrast(91%); }
+.post-ent .si { color:#30d158; }
+.casta-pulgar-boton { border:2px solid transparent; padding:8px; background:transparent; border-radius:14px; cursor:pointer; }
 .casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:var(--fill); }
 .casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
 .casta-acciones { display:inline-flex; gap:4px; align-items:center; flex:none; }

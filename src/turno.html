@@ -420,12 +420,13 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 .casta-sheet .casta-sheet-compose { border-top:1px solid var(--line); flex:none; background:#1b1b1d; padding:10px 14px calc(12px + env(safe-area-inset-bottom)); max-height:43dvh; overflow-y:auto; }
 .casta-sheet .com-form textarea { min-height:44px; max-height:110px; }
 .casta-sheet .com-etq { max-height:90px; overflow-y:auto; }
-.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:6px; color:#f5f5f7; font-size:.85rem; min-width:44px; min-height:44px; }
-.casta-pulgar .casta-pulgar-ico { flex:none; width:24px; height:24px; color:inherit; stroke-width:2; }
-.post-st .casta-pulgar svg { width:24px; height:24px; color:inherit; vertical-align:middle; }
-.casta-pulgar.is-enterado { color:#30d158; }
+.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:6px; color:#f5f5f7; font-size:.85rem; min-width:48px; min-height:48px; box-sizing:border-box; border:2px solid transparent; border-radius:14px; }
+.casta-pulgar .casta-pulgar-ico { display:block; flex:none; width:26px; height:26px; object-fit:contain; filter:brightness(0) invert(1); }
+.post-st .casta-pulgar img { width:26px; height:26px; object-fit:contain; vertical-align:middle; }
+.casta-pulgar.is-enterado { color:#30d158; border-color:#30d158; background:#112e1b; }
+.casta-pulgar.is-enterado .casta-pulgar-ico { filter:brightness(0) saturate(100%) invert(67%) sepia(48%) saturate(775%) hue-rotate(78deg) brightness(92%) contrast(91%); }
 .casta-pulgar.is-pendiente { color:#fbd06b; }
-.casta-pulgar-boton { border:0; background:transparent; padding:8px; border-radius:12px; cursor:pointer; }
+.casta-pulgar-boton { border:2px solid transparent; background:transparent; padding:8px; border-radius:14px; cursor:pointer; }
 .casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:#303035; }
 .casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
 .casta-acciones { display:inline-flex; gap:4px; align-items:center; flex:none; }
@@ -1003,7 +1004,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   // Cada aviso es una publicación: los etiquetados y la administración comentan debajo hasta que la administración lo archiva.
   const hilos = {}, hilosAb = new Set();
   const castaComentar = "<svg class=\"casta-comentar-ico\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H9l-6.5 4V6A2.5 2.5 0 0 1 5 3.5Z\"/><path d=\"M7.5 9H17M7.5 13H15\"/></svg>";
-  const castaPulgar = "<svg class=\"casta-pulgar-ico\" viewBox=\"0 0 24 24\" width=\"23\" height=\"23\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\"/></svg>";
+  const castaPulgar = "<img class=\"casta-pulgar-ico\" src=\"/img/castagram-pulgar.png\" alt=\"\" aria-hidden=\"true\" width=\"26\" height=\"26\">";
   function cerrarSheetTurno() {
     const dlg = sec().querySelector("dialog.casta-sheet[open]");
     if (dlg) dlg.close();
@@ -1070,7 +1071,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}</div>
       <div class="casta-sheet-compose"><form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
         ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
-        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🙌" aria-label="Insertar emoji 🙌">🙌</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button><button type="button" data-com-emoji="👏" aria-label="Insertar emoji 👏">👏</button><button type="button" data-com-emoji="🥹" aria-label="Insertar emoji 🥹">🥹</button><button type="button" data-com-emoji="😍" aria-label="Insertar emoji 😍">😍</button><button type="button" data-com-emoji="😮" aria-label="Insertar emoji 😮">😮</button><button type="button" data-com-emoji="😂" aria-label="Insertar emoji 😂">😂</button></div>
+        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
         <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
         ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
