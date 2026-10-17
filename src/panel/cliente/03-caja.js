@@ -242,6 +242,10 @@
               <div class="row wide"><button class="btn btn-primary" type="submit">Registrar pago</button>
                 ${!p.abonado ? `<button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>` : ""}</div>
             </form>` : ""}
+            ${!p.origen_activo && (p.estado === "pendiente" || p.estado === "parcial") ? `<div class="row" style="grid-column:1/-1">
+              <button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="conciliado">Confirmar conciliado en hoja</button>
+              <button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>
+            </div>` : ""}
             ${p.estado === "cancelado" && p.origen_activo ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pendiente">Reabrir pendiente</button>` : ""}
           </div>`).join("") : '<p class="note">Este corte no tiene cobros pendientes o resueltos.</p>'}
         </section>
@@ -268,9 +272,11 @@
     }));
     d.querySelectorAll("[data-cobro-id]").forEach(b => b.addEventListener("click", async () => {
       const id = b.dataset.cobroId, estado = b.dataset.cobroEstado;
-      const mensaje = estado === "cancelado"
-        ? "¿Confirmas la cancelación? Quedará registrada en el historial."
-        : estado === "anular-abono"
+      const mensaje = estado === "conciliado"
+        ? "¿Confirmas que la hoja ya recoge el cobro? No se sumará otro ingreso administrativo."
+        : estado === "cancelado"
+          ? "¿Confirmas la cancelación? Quedará registrada en el historial."
+          : estado === "anular-abono"
           ? "¿Anular este abono? Se corregirán los totales de Dinero mientras el mes esté abierto."
           : "¿Reabrir este pendiente?";
       if (!window.confirm(mensaje)) return;
@@ -279,7 +285,8 @@
         await api("caja/pendiente/" + encodeURIComponent(id) + "/resolver", {
           method: "POST", body: JSON.stringify({ estado, pago_id: b.dataset.pagoId || "" })
         });
-        toast(estado === "cancelado" ? "Pendiente cancelado" :
+        toast(estado === "conciliado" ? "Conciliación registrada, sin duplicar ingreso" :
+          estado === "cancelado" ? "Pendiente cancelado" :
           estado === "anular-abono" ? "Abono anulado" : "Pendiente reabierto");
         await cargar(); await abrir(k);
       } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
