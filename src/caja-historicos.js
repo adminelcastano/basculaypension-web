@@ -69,11 +69,14 @@ export function leerTablaHistoricos(raw) {
   return { filas, errores };
 }
 
+let esquema = null;
 export async function asegurarHistoricos(env) {
-  await env.DB.batch([
+  // No ejecutar DDL cada vez que alguien abre Hoy o Caja.
+  if (!esquema) esquema = env.DB.batch([
     env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cortes_historicos (dia TEXT NOT NULL, turno TEXT NOT NULL, datos TEXT NOT NULL, actualizado TEXT NOT NULL, por TEXT, PRIMARY KEY(dia, turno))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cortes_historicos_hist (id INTEGER PRIMARY KEY AUTOINCREMENT, dia TEXT NOT NULL, turno TEXT NOT NULL, anterior TEXT, nuevo TEXT NOT NULL, cuando TEXT NOT NULL, por TEXT)")
-  ]);
+  ]).catch(e => { esquema = null; throw e; });
+  await esquema;
 }
 
 export async function listarHistoricos(env) {
