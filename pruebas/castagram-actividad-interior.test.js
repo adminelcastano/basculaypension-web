@@ -86,3 +86,20 @@ test("Actividad de tablet: Enterado confirmado desaparece al actualizar la lista
   assert.ok(bloque.indexOf('if (r.enCola)') < confirmado, "en cola no se presenta como confirmado");
   assert.match(bloque,/repintarPost\(en\.dataset\.enterado\)/);
 });
+
+test("Actividad en tablet distingue Enterado en cola de Enterado confirmado",()=>{
+  const fuente=turno.slice(turno.indexOf("function castaActividadTurno()"),turno.indexOf("function castaActividadVistaTurno()"));
+  assert.match(fuente,/pendiente \? "Enterado pendiente de conexión" : "Pendiente de Enterado"/);
+  const lista=[{id:"a",titulo:"Mensaje",creado:"2026-10-17T08:00:00Z",leido:false,propio:false,conv:{nuevos:0}}];
+  const estado={persona:"JESC",turno:"MAÑANA",dia:"2026-10-17",avisos:lista};
+  const f=new Function("E","cola","nombreDe",fuente+"\nreturn castaActividadTurno();");
+  assert.equal(f(estado,()=>[],x=>x)[0].mensaje,"Pendiente de Enterado");
+  const otraSesion=[{ruta:"avisos/a/enterado",persona:"OTRA",turno:"MAÑANA",dia:"2026-10-17"}];
+  assert.equal(f(estado,()=>otraSesion,x=>x)[0].mensaje,"Pendiente de Enterado");
+  const pendiente=[{ruta:"avisos/a/enterado",persona:"JESC",turno:"MAÑANA",dia:"2026-10-17"}];
+  assert.equal(f(estado,()=>pendiente,x=>x)[0].mensaje,"Enterado pendiente de conexión");
+  estado.avisos[0].leido=true;
+  assert.equal(f(estado,()=>pendiente,x=>x).length,0);
+  const bloque=turno.slice(turno.indexOf('} else if (en) {'),turno.indexOf('} else if (rp) {'));
+  assert.match(bloque,/if \(r\.enCola\)[^\n]+castaRefrescarActividadTurno\(\)/);
+});
