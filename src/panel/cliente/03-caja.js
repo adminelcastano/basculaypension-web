@@ -66,8 +66,10 @@
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
       for (const [f, id] of [[vistaCurso, "#c-curso"], [vistaMovs, "#c-movs"], [vistaEntregas, "#c-entregas"]]) try { f(j); } catch (er) { console.error(er); $(id).innerHTML = `<p class="note">No se pudo mostrar: ${esc(er.message)}</p>`; }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
+      const mapaHist = new Map((j.historicos || []).map(x => [x.dia + "|" + x.turno, x]));
       const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
+        const hist = mapaHist.get(c.dia + "|" + c.turno);
         return `<button class="item citem" data-k="${esc(clave(c))}" ${st.actual === clave(c) ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
           <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:var(--t-md)">${esc((TURNO_TXT[c.turno] || c.turno).slice(0, 1))}</span>
@@ -75,6 +77,7 @@
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
           ${c.conteo && c.conteo.admin ? `<span class="m"><span>Entrega de la administración</span><span>Sobre ${dinero(c.conteo.sobre || 0)}</span></span>` : c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
+          ${hist && !c.conteo ? `<span class="m"><span>Archivo histórico · ${esc({cuadra:"Cuadra",no_cuadra:"No cuadra",sin_datos:"Sin información",incompleto:"Incompleto",por_verificar:"Por verificar"}[hist.estado] || "Por verificar")}</span><span>No contable</span></span>` : ""}
           ${c.cambio_turno && Math.abs(c.cambio_turno.dif) >= 1 ? `<span class="m"><span>Cambio recibido</span>${difEtq(c.cambio_turno.dif)}</span>` : ""}
         </button>`;
       };
@@ -151,12 +154,28 @@
     // 5. Contado
     if (k && k.admin) pasos.push(paso("", "Entrega capturada por la administración", dinero(k.efectivo), "Turno sin corte en la tablet: el sobre, los retiros y el cambio los capturó la administración, sin conteo ciego."));
     else if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), Math.abs(k.dif_efectivo) < 1 ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
+    else if (j.historico) pasos.push(paso("", "Archivo de entrega histórica", "Documentado",
+      "Se conservó documentación anterior al uso de la tablet; no se modifica el corte contable."));
     else pasos.push(paso(enCurso ? "esp" : "mal", "Corte ciego", "—", enCurso ? "El turno sigue abierto: el encargado entrega el corte en la tablet al terminar." : "Nadie entregó el corte de este turno en la tablet."));
     // 6. Reparto
     if (k && k.sobre != null) {
       const rets = k.retiros || [], rep = (k.sobre || 0) + rets.reduce((a, r) => a + r.monto, 0) + (k.cambio_sig || 0), d = k.admin ? 0 : Math.round((k.efectivo - rep) * 100) / 100;
       pasos.push(paso(k.admin ? "" : Math.abs(d) < 0.01 ? "ok" : "mal", "Reparto", dinero(rep),
         `Sobre ${dinero(k.sobre || 0)}${rets.length ? " · retiros " + rets.map((r, i) => `${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") : ""} · cambio que dejó ${dinero(k.cambio_sig || 0)}${Math.abs(d) >= 0.01 ? ` · <b class="rojo">${d > 0 ? "faltan " + dinero(d) + " por repartir" : "sobran " + dinero(-d)}</b>` : ""}`));
+    }
+    // 7. Comparación documental histórica (sin asentarlo en Caja o Dinero).
+    if (j.historico) {
+      const h = j.historico;
+      const txt = {cuadra:"Cuadra",no_cuadra:"No cuadra",incompleto:"Datos incompletos",
+        sin_datos:"Sin información",por_verificar:"Por verificar"}[h.estado] || "Por verificar";
+      const val = v => v == null ? "—" : dinero(v);
+      const detalle = `Sobre ${val(h.sobre)} · taxi ${val(h.taxi)} · sueldo ${val(h.sueldo)} · cambio ${val(h.cambio)}`
+        + (h.contado == null ? " · Sin total contado independiente" : " · total contado " + dinero(h.contado))
+        + (h.dudoso ? " · Cifra con asterisco por verificar" : "")
+        + (h.diferencia == null ? "" : " · diferencia " + dinero(h.diferencia))
+        + ". No genera ingresos, egresos ni sobres.";
+      pasos.push(paso(h.estado === "cuadra" ? "ok" : h.estado === "no_cuadra" ? "mal" : "esp",
+        "Distribución histórica · " + txt, h.reparto == null ? "—" : dinero(h.reparto), detalle));
     }
     // 7. Cambio dejado al siguiente turno
     if (k && k.cambio_sig != null) pasos.push(paso(cs ? est(cs.dif) : k.admin ? "" : "esp", "Cambio para el siguiente turno", dinero(k.cambio_sig),
