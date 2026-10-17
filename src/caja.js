@@ -512,13 +512,18 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   const porRango = !!(desde || hasta);
   const args = [...(porRango ? [] : meses), ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
   const enMes = porRango ? "1 = 1" : `mes IN (${meses.map(() => "?").join(",")})`;
-  const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
-  const todos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  // Son lecturas independientes; no hay que esperar a que termine cada consulta
+  // para iniciar las demás. Conservamos exactamente las mismas filas y filtros.
+  const consultar = sql => env.DB.prepare(sql).bind(...args).all().then(r => r.results);
+  const [movs, todos, transf, conteos, extras, inicios] = await Promise.all([
+    consultar(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`),
+    consultar(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
+    consultar(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`),
+    consultar(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`),
+    consultar(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
+    consultar(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`)
+  ]);
   const gastos = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
-  const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
-  const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
-  const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
-  const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
   return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios };
 }
 
@@ -795,20 +800,40 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
-    const { movs, gastos, transf, conteos, extras, inicios } = await leerMes(env, meses, periodo);
+    // Hoy sólo necesita resumen, no folios/catálogos/tabla de movimientos.
+    const esResumenHoy = url.searchParams.get("resumen") === "1";
+    // Las fuentes son independientes: no encadenar lecturas de D1, KV y
+    // categorías cuando todas pueden comenzar juntas.
+    const [{ movs, gastos, transf, conteos, extras, inicios }, sync, pendientes, cobros, categorias] = await Promise.all([
+      leerMes(env, meses, periodo),
+      env.FILES.get("caja:sync", { type: "json" }),
+      env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
+        (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
+         WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
+        FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
+        ORDER BY fecha ASC LIMIT 100`).all().then(r => r.results),
+      leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" }),
+      esResumenHoy ? Promise.resolve(null) : listaCategorias(env)
+    ]);
     const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos), conteos, inicios);
     const tr = transferenciasMes(movs, transf);
-    const sync = await env.FILES.get("caja:sync", { type: "json" });
+    // El camino ligero evita numeraciones de folios, escrituras y catálogos.
+    // Conserva todas las fuentes en vivo que utiliza Hoy y sus alertas.
+    if (esResumenHoy) {
+      const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
+      const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({
+        dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto,
+        forma: g.forma, persona: g.persona || null, creado: g.creado
+      }));
+      return json({ ok: true, mes, sync, pendientes, cobros, cortes,
+        transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes,
+        conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN) });
+    }
     const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
-    const pendientes = (await env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
-      (SELECT COALESCE(SUM(a.monto), 0) FROM caja_cobros_admin a
-       WHERE a.pendiente_id = p.id AND a.anulado = 0) AS abonado
-      FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
-      ORDER BY fecha ASC LIMIT 100`).all()).results;
-    const cobros = await leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" });
+
     const totales = totalesMes(cortes, tr.contadas);
     for (const x of cobros) {
       totales.ingresos += x.monto;
@@ -817,34 +842,36 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       else totales.transferencias += x.monto;
       totales[x.servicio] += x.monto;
     }
-    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
     const dia = url.searchParams.get("dia") || "", turno = url.searchParams.get("turno") || "";
-    const movs = (await env.DB.prepare("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC").bind(dia, turno).all()).results;
-    const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`).bind(dia, turno).all()).results;
-    const pendientes = (await env.DB.prepare(`SELECT * FROM caja_pendientes WHERE dia = ? AND turno = ?
-      ORDER BY fecha ASC`).bind(dia, turno).all()).results;
-    for (const p of pendientes) {
-      p.abonos = (await env.DB.prepare(`SELECT id, monto, fecha_pago, forma, por, creado, anulado
-        FROM caja_cobros_admin WHERE pendiente_id = ? ORDER BY creado ASC`).bind(p.id).all()).results;
-      p.abonado = Math.round(p.abonos.filter(x => !x.anulado).reduce((a, x) => a + x.monto, 0) * 100) / 100;
-    }
-    const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
-    const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
-    const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
-    // Cambio entre turnos: lo que dejó el turno anterior y lo que recibió el siguiente
     const ant = turnoAnterior(dia, turno), sig = turnoSiguiente(dia, turno);
-    const conteoAnt = ant ? (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ant.dia, ant.turno).all()).results : [];
-    const inicioSig = sig ? (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(sig.dia, sig.turno).all()).results : [];
+    const get = (sql, ...params) => env.DB.prepare(sql).bind(...params).all().then(r => r.results);
+    const [movs, gastos, pendientes, conteos, extras, inicios, conteoAnt, inicioSig, historialFilas] = await Promise.all([
+      get("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC", dia, turno),
+      get(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`, dia, turno),
+      get("SELECT * FROM caja_pendientes WHERE dia = ? AND turno = ? ORDER BY fecha ASC", dia, turno),
+      get("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?", dia, turno),
+      get("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC", dia, turno),
+      get("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?", dia, turno),
+      ant ? get("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?", ant.dia, ant.turno) : Promise.resolve([]),
+      sig ? get("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?", sig.dia, sig.turno) : Promise.resolve([]),
+      get("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC", dia, turno)
+    ]);
+    // Las consultas de abonos también son independientes entre pendientes.
+    await Promise.all(pendientes.map(async p => {
+      p.abonos = await get(`SELECT id, monto, fecha_pago, forma, por, creado, anulado
+        FROM caja_cobros_admin WHERE pendiente_id = ? ORDER BY creado ASC`, p.id);
+      p.abonado = Math.round(p.abonos.filter(x => !x.anulado).reduce((a, x) => a + x.monto, 0) * 100) / 100;
+    }));
     const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
     if (corte) {
       corte.cambio_turno = cambiosEntreTurnos(conteoAnt, inicios).get(dia + "|" + turno) || null;
       corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
     }
-    const historial = (await env.DB.prepare("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results
-      .map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
+    const historial = historialFilas.map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
     // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
     const folios = Object.fromEntries((await conFolios(env, movimientosCaja({ movs: movs.map(m => ({ ...m, mes: m.mes || dia.slice(0, 7) })), gastos, extras, conteos }))).map(x => [x.ref, x.folio]));
     const vistos = new Map();
