@@ -38,3 +38,8 @@ test("repetición y tablet", () => {
 test("los números del título no se toman como hora", () => {
   assert.deepEqual([I("Comprar 3 cubetas").titulo, I("Comprar 3 cubetas").hora], ["Comprar 3 cubetas", null]);
 });
+
+test("«turno noche» solo, con hora de la mañana", () => {
+  const r = I("Revisar la pluma mañana a las 7 turno noche urgente");
+  assert.equal(r.titulo, "Revisar la pluma"); assert.equal(r.turno, "NOCHE"); assert.equal(r.para_turno, 1); assert.equal(r.fecha, "2026-10-17"); assert.equal(r.prioridad, "alta");
+});

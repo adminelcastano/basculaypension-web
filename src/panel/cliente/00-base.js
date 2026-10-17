@@ -36,7 +36,15 @@
   function toast(msg) { const t = $("#toast"); if (!t) return; t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200); }
   // Llamada a la API del panel: devuelve el JSON si ok; si no, lanza un error con su mensaje (y los errores por campo)
   async function api(ruta, op = {}) {
-    const r = await fetch("/panel/api/" + ruta, { ...op, headers: { "X-Panel": "1", ...(op.body ? { "Content-Type": "application/json" } : {}) } });
+    // Si la red falla (celular cambiando de red, despliegue en curso), se reintenta una vez antes de avisar
+    const pedir = () => fetch("/panel/api/" + ruta, { ...op, headers: { "X-Panel": "1", ...(op.body ? { "Content-Type": "application/json" } : {}) } });
+    let r;
+    try { r = await pedir(); }
+    catch (e) {
+      if (e && e.message === "sesion") throw e;
+      await new Promise(ok => setTimeout(ok, 900));
+      try { r = await pedir(); } catch (e2) { if (e2 && e2.message === "sesion") throw e2; throw new Error("No hay conexión con el servidor. Revisa el internet y toca «Reintentar»."); }
+    }
     if (r.status === 401 || r.status === 403) { toast("Tu sesión expiró. Recarga la página."); throw new Error("sesion"); }
     const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida del servidor." }));
     if (!j.ok) { const e = new Error(j.error || "Error"); e.errores = j.errores; e.datos = j; throw e; }

@@ -182,3 +182,10 @@ Dinero → Compras por hacer, al estilo de las apps de compras. Código: `src/co
 - **Calendario: Mes | Agenda**. En Mes, en pantallas anchas cada día muestra los títulos (hasta 3 y «+n más») con el color de su tipo. Agenda es una lista de lo atrasado y los próximos 45 días (eventos, tareas con fecha, pagos programados con botón «Pagar»). La vista elegida se recuerda.
 - **Por hacer agrupado**: Atrasadas, Hoy, Mañana, Próximos 7 días, Más adelante y Sin fecha. «Cambiar fecha» abre atajos (Hoy, Mañana, El lunes, En una semana, Sin fecha u otra fecha) con «Deshacer». Al palomear sale «Deshacer» (salvo las que se repiten, que ya programan la siguiente).
 - Tecla **N** (computadora): abre el cuadro para agregar de la sección visible.
+
+## Agenda de la tablet (desde el 16 oct 2026)
+- La tablet **solo ve las tareas para los encargados** (`para_turno = 1`): las que programa la administración para ellos y las que dejan los propios encargados. Nunca ve los eventos ni las tareas propias de la administración.
+- **Tareas**: barra «Dejar un pendiente…» con el mismo lenguaje natural del panel («Revisar la pluma mañana a las 7 turno noche urgente», «cada lunes»). Crea una tarea para los encargados (`POST /turno/api/tareas`, `reporto` = quien la dejó; a la administración le llega una notificación y la ve en Por hacer con «La dejó …»). Se puede quitar con «Deshacer» o «Quitar» durante la primera hora si nadie la ha informado (`POST /turno/api/tareas/<id>/quitar`). Lista agrupada: Atrasadas, Hoy, Cuando puedas y Próximos 7 días (solo de su turno o de cualquier turno).
+- **Calendario: Mes | Agenda**: en pantallas anchas cada día muestra los títulos; Agenda lista lo atrasado y los próximos días con botón para informar lo que ya toca.
+- El intérprete de fechas es el del panel: `turno.js` toma el bloque `// <interpretar>` de `src/panel/cliente/07-agenda.js` y lo inserta en la página (`/*__INTERPRETAR__*/`). «turno mañana/tarde/noche» también funciona sin decir «tablet».
+- El panel reintenta una vez si falla la red y, si no carga la agenda, muestra «Reintentar» sin borrar los bloques.

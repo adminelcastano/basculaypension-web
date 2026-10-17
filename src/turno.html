@@ -393,6 +393,65 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .com-acc { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .com-form .err { margin: 6px 0 0; }
 @media (max-width: 560px) { .post { padding: 14px 14px 4px; border-radius: 18px; } }
+/* ---- Agenda de la tablet: agregar rápido, Mes | Agenda, tareas agrupadas ---- */
+.ag-rapida { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.agr-prev { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
+.agr-ayuda { color: var(--muted); font-size: .85rem; }
+.agr-c { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 999px; background: #26262a; color: #d2d2d7; font-size: .85rem; font-weight: 600; }
+.agr-c svg { width: 15px; height: 15px; }
+.agr-c.t { background: transparent; color: var(--fg); padding-left: 2px; font-size: .95rem; }
+.agr-c.urg { background: var(--bad-soft); color: #ff8a80; }
+.seg.ag-vista { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 14px; border-radius: 12px; background: #26262a; }
+.seg.ag-vista button { min-height: 44px; padding: 0 22px; border: 0; border-radius: 9px; background: transparent; color: #d2d2d7; font-weight: 600; cursor: pointer; }
+.seg.ag-vista button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.tar { display: grid; gap: 18px; }
+.tar-g h3 { display: flex; gap: 8px; align-items: center; margin: 0 0 2px; font-size: 1.05rem; }
+.tar-g h3 span { background: #26262a; border-radius: 999px; padding: 0 9px; font-size: .8rem; color: #d2d2d7; }
+.tar-g.atr h3 { color: #ff8a80; }
+.tar-g.hoy h3 { color: var(--amber); }
+.tar-g.prox .tt { color: #d2d2d7; }
+.chk.off { border-color: transparent; color: var(--muted); cursor: default; }
+.chk.off svg { width: 18px; height: 18px; }
+.agl { display: grid; gap: 20px; }
+.agl-d h3 { display: flex; gap: 10px; align-items: baseline; margin: 0 0 6px; font-size: 1.15rem; }
+.agl-d h3 span { color: var(--muted); font-size: .85rem; font-weight: 500; }
+.agl-d.hoy h3 { color: var(--amber); }
+.agl-d.atr h3 { color: #ff8a80; }
+.agl-d.atr h3 span { background: var(--bad-soft); color: #ff8a80; border-radius: 999px; padding: 0 9px; font-weight: 700; }
+.agl-it { display: grid; grid-template-columns: 84px 4px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.agl-it > * { grid-row: 1; }
+.agl-it:last-child { border-bottom: 0; }
+.agl-h { color: #d2d2d7; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.agl-bar { align-self: stretch; border-radius: 4px; background: #64d2ff; min-height: 38px; }
+.agl-it.venc .agl-bar { background: var(--bad); }
+.agl-it.hecho .agl-bar { background: var(--ok); }
+.agl-it.otro .agl-bar { background: #48484a; }
+.agl-it.otro b { color: #d2d2d7; }
+.agl-t { display: grid; min-width: 0; }
+.agl-t b { overflow-wrap: anywhere; }
+.agl-t span { color: var(--muted); font-size: .85rem; }
+.agl-t .urg { color: #ff8a80; font-weight: 600; }
+.agl-it.hecho b { color: var(--muted); text-decoration: line-through; }
+.cd .cd-evs { display: none; }
+@media (min-width: 1150px) {
+  .cd.con { aspect-ratio: auto; min-height: 96px; justify-content: flex-start; align-items: stretch; padding: 6px; gap: 3px; }
+  .cd { aspect-ratio: auto; min-height: 96px; justify-content: flex-start; align-items: flex-start; padding: 6px 8px; }
+  .cd .pts { display: none; }
+  .cd .cd-evs { display: grid; gap: 2px; width: 100%; min-width: 0; }
+  .cd-ev { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .7rem; line-height: 1.35; padding: 1px 5px; border-radius: 5px; text-align: left; background: rgba(100, 210, 255, .15); color: #9fdcff; }
+  .cd-ev.venc { background: rgba(255, 105, 97, .18); color: #ffb3ad; }
+  .cd-ev.ok { background: rgba(48, 209, 88, .16); color: #8ee6a6; text-decoration: line-through; }
+  .cd-ev.otro { opacity: .55; }
+  .cd-mas { font-size: .7rem; color: var(--muted); padding: 0 5px; text-align: left; }
+  .cd.sel .cd-ev { background: rgba(0, 0, 0, .18); color: #111; }
+  .cd.sel .cd-mas { color: #111; }
+}
+#toast-acc { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 90; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; display: flex; gap: 14px; align-items: center; max-width: min(600px, calc(100vw - 32px)); padding: 10px 10px 10px 18px; border-radius: 16px; background: #f5f5f7; color: #111; font-weight: 600; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); transition: opacity .2s, transform .2s; }
+#toast-acc.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#toast-acc span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#toast-acc button { flex: none; min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: #111; color: var(--amber); font: inherit; font-weight: 700; cursor: pointer; }
+@media (max-width: 760px) { #toast-acc { bottom: calc(84px + env(safe-area-inset-bottom)); } .agl-it { grid-template-columns: 62px 4px minmax(0, 1fr) auto; gap: 10px; } .ag-rapida { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { #toast-acc { transition: none; } }
 </style>
 </head>
 <body>
@@ -497,6 +556,9 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 <div id="toast" role="status" hidden></div>
 
 <script>
+/*__INTERPRETAR__*/
+</script>
+<script>
 (() => {
   "use strict";
   const $ = s => document.querySelector(s);
@@ -510,7 +572,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
 
   // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
-  const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|compras|avisos|corte|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
+  const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|compras|avisos|corte|tareas|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
   const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
   const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
@@ -922,7 +984,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       <span class="tt">${esc(t.titulo)}</span>
       <span class="acc">${t.prioridad === "alta" ? `<span class="etq e-alta">Urgente</span>` : ""}</span>
       <span class="mm">${t.fecha ? `<span>${t.fecha < E.hoy ? "Venció " : "Para "}${esc(diaTxt(t.fecha))}${t.hora ? " · " + esc(t.hora) : ""}</span>` : ""}${t.turno ? `<span>Solo turno ${esc(TURNO_TXT[t.turno])}</span>` : ""}</span>
-      ${t.detalle ? `<div class="nota-admin"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : ""}
+      ${t.reporto ? `<span class="mm"><span>${avi(t.reporto, 1)}Lo dejó ${esc(t.reporto === E.persona ? "tú" : t.reporto)}</span>${t.reporto === E.persona && !ult && t.creado && Date.now() - Date.parse(t.creado) < 36e5 ? `<button class="lnk" type="button" data-quitar-tarea="${esc(t.id)}">Quitar</button>` : ""}</span>` : ""}
+      ${t.detalle ? `<div class="nota-admin"><b>${t.reporto ? "Nota" : "Nota de la administración"}</b>${esc(t.detalle)}</div>` : ""}
       ${ult ? `<span class="mm"><span class="etq ${RES[ult.resultado][1]}">${RES[ult.resultado][0]}</span><span>${esc(ult.persona)} · ${esc(fechaCorta(ult.creado))}${ult.nota ? " · " + esc(ult.nota) : ""}</span></span>` : ""}
     </div>`;
   }
@@ -932,16 +995,61 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
       <p class="note muro-nota">Los avisos se quedan aquí hasta que la administración los archive. Comenta en el mismo aviso para dar seguimiento.</p>`;
   }
+  // ---------- Tareas: agrupadas como en las apps de pendientes, y "Dejar un pendiente" en lenguaje natural ----------
+  const diaRel = f => { if (!f) return ""; const hoy = E.hoy || E.dia, dd = Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(hoy + "T12:00:00Z")) / 864e5); return dd === 0 ? "Hoy" : dd === 1 ? "Mañana" : dd === -1 ? "Ayer" : dd > 1 && dd < 7 ? diaTxt(f).split(" ")[0].replace(/^./, x => x.toUpperCase()).replace(",", "") : new Date(f + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }); };
+  const AYUDA_R = "Escribe como lo dirías: «mañana», «el viernes a las 5», «15 nov», «turno noche», «urgente», «cada lunes».";
+  function barraTurno() {
+    return `<form class="ag-rapida" id="t-rapida" autocomplete="off" novalidate><label class="sr" for="t-rq">Dejar un pendiente para un turno</label>
+      <input class="t" id="t-rq" name="q" maxlength="200" placeholder="Dejar un pendiente… ej. Revisar la pluma mañana turno noche" enterkeyhint="done"><button class="btn btn-primary" type="submit">Agregar</button>
+      <div class="agr-prev" aria-live="polite"><span class="agr-ayuda">${AYUDA_R}</span></div></form>`;
+  }
+  function previaTurno(f) {
+    const box = f.querySelector(".agr-prev"), q = f.q.value;
+    if (!q.trim()) { box.innerHTML = `<span class="agr-ayuda">${AYUDA_R}</span>`; return; }
+    const r = window.interpretarAgenda(q, E.hoy || E.dia);
+    box.innerHTML = [r.titulo ? `<span class="agr-c t">${esc(r.titulo)}</span>` : "", `<span class="agr-c">${svg("i-cal")}${r.fecha ? esc(diaRel(r.fecha)) : "Desde hoy"}</span>`, r.hora ? `<span class="agr-c">🕘 ${esc(r.hora)}</span>` : "",
+      `<span class="agr-c">${r.turno ? "Turno de la " + esc(TURNO_TXT[r.turno].toLowerCase()) : "Cualquier turno"}</span>`, r.prioridad === "alta" ? `<span class="agr-c urg">Urgente</span>` : "", r.repetir ? `<span class="agr-c">🔁 ${esc(REP_TXT[r.repetir] || "")}</span>` : ""].join("");
+  }
   function verTareas() {
-    sec().innerHTML = titulo("Tareas.", "Tareas de la administración para tu turno. Marca cada una y cuenta cómo quedó: cumplida, en parte o no se pudo.") + `
-      <section class="card"><h2>${ico("i-tarea", "c-tarea")}Tareas del turno</h2>
-        ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
+    const hoy = E.hoy || E.dia;
+    const atr = E.tareas.filter(t => t.fecha && t.fecha < hoy), deHoy = E.tareas.filter(t => t.fecha === hoy), sinF = E.tareas.filter(t => !t.fecha);
+    const lim = new Date(Date.parse(hoy + "T12:00:00Z") + 7 * 864e5).toISOString().slice(0, 10);
+    const prox = (E.calendario || []).filter(t => t.estado !== "hecho" && t.fecha > hoy && t.fecha <= lim && (!t.turno || t.turno === E.turno));
+    const grupo = (k, tit, l, html) => l.length ? `<div class="tar-g ${k}"><h3>${tit} <span>${l.length}</span></h3><div class="lista">${html || l.map(filaTarea).join("")}</div></div>` : "";
+    const filaProx = t => `<div class="fila-l prox"><span class="chk off">${svg("i-cal")}</span><span class="tt">${esc(t.titulo)}</span><span class="acc">${t.prioridad === "alta" ? `<span class="etq e-alta">Urgente</span>` : ""}</span>
+      <span class="mm"><span>${esc(diaRel(t.fecha))}${t.hora ? " · " + esc(t.hora) : ""}</span><span>${t.turno ? "Turno de la " + esc(TURNO_TXT[t.turno].toLowerCase()) : "Cualquier turno"}</span>${t.repetir ? `<span>🔁 ${esc(REP_TXT[t.repetir] || "")}</span>` : ""}${t.reporto ? `<span>${avi(t.reporto, 1)}Lo dejó ${esc(t.reporto === E.persona ? "tú" : t.reporto)}</span>` : ""}</span></div>`;
+    sec().innerHTML = titulo("Tareas.", "Lo que hay que hacer en tu turno. Tócala para contar cómo quedó: cumplida, en parte o no se pudo.") + `
+      <section class="card">${barraTurno()}</section>
+      <section class="card tar">${E.tareas.length || prox.length ? grupo("atr", "Atrasadas", atr) + grupo("hoy", "Hoy", deHoy) + grupo("sin", "Cuando puedas", sinF) + grupo("prox", "Próximos 7 días", prox, prox.map(filaProx).join("")) : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
         ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${t.hecho_por && !t.hecho_por.includes("@") ? avi(t.hecho_por, 1) : ""}${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
       </section>`;
   }
+  // Aviso con "Deshacer"
+  function toastAccion(msg, etq, fn) {
+    let t = $("#toast-acc");
+    if (!t) { t = document.createElement("div"); t.id = "toast-acc"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+    t.innerHTML = `<span>${esc(msg)}</span><button type="button">${esc(etq)}</button>`;
+    t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 7000);
+    t.querySelector("button").onclick = async () => { t.classList.remove("on"); try { await fn(); } catch (er) { toast(errores(er), true); } };
+  }
 
   // ---------- Calendario: tareas programadas para los encargados (todos los turnos) ----------
-  const cal = { mes: "", sel: "" };
+  const cal = { mes: "", sel: "", vista: (() => { try { return localStorage.getItem("turno:cal-vista") || "mes"; } catch { return "mes"; } })() };
+  // Vista Agenda: lo atrasado y los próximos días en una lista
+  function agendaTurno() {
+    const hoy = E.hoy || E.dia, l = E.calendario || [];
+    const mio = t => !t.turno || t.turno === E.turno;
+    const atr = l.filter(t => t.estado !== "hecho" && t.fecha < hoy && mio(t));
+    const prox = l.filter(t => t.fecha >= hoy);
+    const dias = [...new Set(prox.map(t => t.fecha))].sort();
+    const fila = t => { const accion = t.estado !== "hecho" && t.fecha <= hoy && mio(t);
+      return `<div class="agl-it ${t.estado === "hecho" ? "hecho" : t.fecha < hoy ? "venc" : ""}${mio(t) ? "" : " otro"}"><span class="agl-h">${t.hora ? esc(t.hora) : "Todo el día"}</span><span class="agl-bar"></span>
+        <span class="agl-t"><b>${esc(t.titulo)}</b><span>${t.turno ? "Turno de la " + esc(TURNO_TXT[t.turno].toLowerCase()) : "Cualquier turno"}${t.prioridad === "alta" && t.estado !== "hecho" ? ` · <span class="urg">urgente</span>` : ""}${t.repetir ? " · 🔁" : ""}${t.reporto ? " · lo dejó " + esc(t.reporto === E.persona ? "tú" : t.reporto) : ""}${t.fecha < hoy ? " · " + esc(diaRel(t.fecha)) : ""}${t.estado === "hecho" ? " · hecha" : ""}</span></span>
+        ${accion ? `<button class="chk" type="button" data-reportar="${esc(t.id)}" aria-label="Informar cómo quedó: ${esc(t.titulo)}">${svg("i-check")}</button>` : `<span class="chk ${t.estado === "hecho" ? "on" : "off"}">${svg(t.estado === "hecho" ? "i-check" : "i-cal")}</span>`}</div>`; };
+    const ord = x => x.sort((a, b) => (a.hora || "99").localeCompare(b.hora || "99"));
+    return `<section class="card agl">${atr.length ? `<div class="agl-d atr"><h3>Atrasado <span>${atr.length}</span></h3>${atr.map(fila).join("")}</div>` : ""}
+      ${dias.length ? dias.map(d => `<div class="agl-d ${d === hoy ? "hoy" : ""}"><h3>${esc(diaRel(d))}<span>${esc(diaTxt(d))}</span></h3>${ord(prox.filter(t => t.fecha === d)).map(fila).join("")}</div>`).join("") : `<p class="vacio">No hay tareas programadas en las próximas semanas.</p>`}</section>`;
+  }
   const REP_TXT = { diaria: "Se repite diario", semanal: "Se repite cada semana", mensual: "Se repite cada mes" };
   const sumarMes = (m, n) => { const d = new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
   function verCalendario() {
@@ -960,7 +1068,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       const f = `${cal.mes}-${String(d).padStart(2, "0")}`, ts = porDia[f] || [];
       const mio = ts.filter(t => !t.turno || t.turno === E.turno);
       celdas += `<button type="button" class="cd${f === hoy ? " hoy" : ""}${f === cal.sel ? " sel" : ""}${ts.length ? " con" : ""}" data-dia="${f}" aria-label="${esc(diaTxt(f))}: ${ts.length} ${ts.length === 1 ? "tarea" : "tareas"}">
-        <span class="n">${d}</span>${ts.length ? `<span class="pts">${ts.slice(0, 4).map(t => `<i class="${estado(t)}${mio.includes(t) ? "" : " otro"}"></i>`).join("")}${ts.length > 4 ? `<b>+${ts.length - 4}</b>` : ""}</span>` : ""}</button>`;
+        <span class="n">${d}</span>${ts.length ? `<span class="cd-evs">${ts.slice(0, 2).map(t => `<span class="cd-ev ${estado(t)}${mio.includes(t) ? "" : " otro"}">${t.hora ? `<b>${esc(t.hora)}</b> ` : ""}${esc(t.titulo)}</span>`).join("")}${ts.length > 2 ? `<span class="cd-mas">+${ts.length - 2} más</span>` : ""}</span>` : ""}${ts.length ? `<span class="pts">${ts.slice(0, 4).map(t => `<i class="${estado(t)}${mio.includes(t) ? "" : " otro"}"></i>`).join("")}${ts.length > 4 ? `<b>+${ts.length - 4}</b>` : ""}</span>` : ""}</button>`;
     }
     const delDia = porDia[cal.sel] || [];
     const ETQ = { ok: `<span class="etq e-ok">${svg("i-check")}Hecha</span>`, venc: `<span class="etq e-alta">Pendiente · atrasada</span>`, pend: `<span class="etq">Pendiente</span>` };
@@ -972,7 +1080,9 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
         ${t.detalle ? `<div class="nota-admin"><b>Nota de la administración</b>${esc(t.detalle)}</div>` : ""}
       </div>`).join("")}</div>` : `<p class="vacio">No hay tareas programadas para este día.</p>`;
     const minM = sumarMes(hoy.slice(0, 7), -1), maxM = sumarMes(hoy.slice(0, 7), 2);
-    sec().innerHTML = titulo("Calendario.", "Las tareas que programa la administración para los encargados. Toca un día para ver el detalle.") + `
+    const tog = `<div class="seg ag-vista" role="tablist" aria-label="Vista del calendario"><button type="button" role="tab" data-cvista="mes" aria-selected="${cal.vista !== "agenda"}">Mes</button><button type="button" role="tab" data-cvista="agenda" aria-selected="${cal.vista === "agenda"}">Agenda</button></div>`;
+    if (cal.vista === "agenda") { sec().innerHTML = titulo("Calendario.", "Las tareas de los encargados: lo atrasado y los próximos días.") + tog + agendaTurno(); return; }
+    sec().innerHTML = titulo("Calendario.", "Las tareas de los encargados: las que programa la administración y las que dejan ustedes. Toca un día para ver el detalle.") + tog + `
       <div class="cal-cols">
         <section class="card cal">
           <div class="cal-top"><button class="btn btn-line btn-sm" type="button" data-cmes="-1" ${cal.mes <= minM ? "disabled" : ""} aria-label="Mes anterior">‹</button>
@@ -1292,6 +1402,13 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ---------- Acciones (botones en cualquier sección) ----------
   sec().addEventListener("click", async e => {
     // Índice de Hoy y muro de avisos
+    const cv = e.target.closest("[data-cvista]"), qt = e.target.closest("[data-quitar-tarea]");
+    if (cv) { cal.vista = cv.dataset.cvista; try { localStorage.setItem("turno:cal-vista", cal.vista); } catch {} pintar(); return; }
+    if (qt) {
+      qt.disabled = true;
+      try { await api(`tareas/${qt.dataset.quitarTarea}/quitar`, {}, { cola: false }); toast("Tarea quitada."); await refrescar(); } catch (er) { toast(errores(er), true); qt.disabled = false; }
+      return;
+    }
     const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
     const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
     if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
@@ -1328,7 +1445,25 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     const f = inp.closest("form"), h = hilos[f.dataset.av];
     try { h.foto = await comprimir(inp.files[0]); h.borrador = f.texto.value; repintarPost(f.dataset.av); } catch { toast("No se pudo leer la foto. Intenta otra vez.", true); }
   });
+  sec().addEventListener("input", e => { const f = e.target.closest("#t-rapida"); if (f) previaTurno(f); });
   sec().addEventListener("submit", async e => {
+    const fr = e.target.closest("#t-rapida");
+    if (fr) {
+      e.preventDefault();
+      const r = window.interpretarAgenda(fr.q.value, E.hoy || E.dia), b = fr.querySelector("[type=submit]");
+      if (r.titulo.length < 2) { toast("Escribe qué hay que hacer.", true); fr.q.focus(); return; }
+      b.disabled = true;
+      try {
+        const j = await api("tareas", { titulo: r.titulo, fecha: r.fecha || "", hora: r.hora || "", prioridad: r.prioridad, turno: r.turno || "", repetir: r.repetir || "" });
+        sucio = false;
+        const cuando = `${r.fecha ? diaRel(r.fecha) : "desde hoy"}${r.turno ? " · turno de la " + TURNO_TXT[r.turno].toLowerCase() : ""}`;
+        if (j.enCola) toast("Sin internet: se guardó y se enviará después.");
+        else toastAccion(`Tarea agregada: ${r.titulo} · ${cuando}`, "Deshacer", async () => { await api(`tareas/${j.id}/quitar`, {}, { cola: false }); toast("Se quitó."); await refrescar(); });
+        await refrescar();
+        const n = $("#t-rq"); n && n.focus();
+      } catch (er) { toast(errores(er), true); b.disabled = false; }
+      return;
+    }
     const f = e.target.closest("form.com-form"); if (!f) return;
     e.preventDefault();
     const id = f.dataset.av, h = hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");

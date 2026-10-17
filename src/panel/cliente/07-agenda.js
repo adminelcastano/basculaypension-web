@@ -18,6 +18,8 @@ window.interpretarAgenda = function (texto, hoy) {
   };
   quitar(/\s(urgente|importante|!+)(?=\s)/, () => { r.prioridad = "alta"; r.piezas.push("Urgente"); });
   quitar(/\s(?:para (?:el |la )?)?(?:tablet|encargados?)(?:\s+(?:del\s+)?turno\s+(?:de\s+la\s+)?(manana|tarde|noche))?(?=\s)/, m => { r.para_turno = 1; if (m[1]) r.turno = { manana: "MAÑANA", tarde: "TARDE", noche: "NOCHE" }[m[1]]; r.piezas.push("Tablet" + (m[1] ? " · turno " + m[1].replace("manana", "mañana") : "")); });
+  // "turno noche" sin decir "tablet": también es para los encargados de ese turno
+  if (!r.turno) quitar(/\s(?:para\s+(?:el\s+)?|del?\s+)?turno\s+(?:de\s+la\s+)?(manana|tarde|noche)(?=\s)/, m => { r.para_turno = 1; r.turno = { manana: "MAÑANA", tarde: "TARDE", noche: "NOCHE" }[m[1]]; r.piezas.push("Tablet · turno " + m[1].replace("manana", "mañana")); });
   quitar(/\s(?:recuerdame|recordarme|avisame|con recordatorio)(?=\s)/, () => { r.aviso = 60; r.piezas.push("Recordatorio"); });
   // Repetición
   quitar(/\s(?:todos los dias|cada dia|diario|diariamente)(?=\s)/, () => { r.repetir = "diaria"; r.piezas.push("Diario"); });
@@ -140,7 +142,15 @@ window.interpretarAgenda = function (texto, hoy) {
       const a = j.abiertos;
       $("#a-subtitulo").textContent = `${a.tarea || 0} por hacer · ${a.incidencia || 0} incidencias abiertas`;
       pintar();
-    } catch (e) { if (e.message !== "sesion") $("#ag-cuerpo").innerHTML = `<p class="empty">No se pudo cargar la agenda: ${esc(e.message)}</p>`; }
+      const er = $("#ag-error"); if (er) er.remove();
+    } catch (e) {
+      if (e.message === "sesion") return;
+      // El aviso va encima de los bloques (sin borrarlos), para que «Reintentar» pueda volver a pintarlos
+      let er = $("#ag-error");
+      if (!er) { er = document.createElement("div"); er.id = "ag-error"; er.className = "card ag-error"; er.setAttribute("role", "alert"); $("#ag-cuerpo").before(er); }
+      er.innerHTML = `<p>No se pudo cargar la agenda: ${esc(e.message)}</p><button class="btn btn-primary" type="button">Reintentar</button>`;
+      const b = er.querySelector("button"); b.onclick = () => { b.disabled = true; b.textContent = "Cargando…"; cargar(); };
+    }
   }
 
   // La Agenda (calendario, por hacer, incidencias, avisos) y Pagos y compras comparten datos y formularios
@@ -237,6 +247,7 @@ window.interpretarAgenda = function (texto, hoy) {
       it.tipo === "compra" ? window.catChip(it.categoria) : "",
       it.tipo === "compra" && it.reporto ? `<span class="tag tablet" title="Pedida desde la tablet">${avP(it.reporto)}Pidió ${esc(it.reporto)}${it.turno ? " · " + esc((TURNO_TXT[it.turno] || it.turno).toLowerCase()) : ""} · ${esc(cuando(it.creado))}</span>` : "",
       it.tipo === "compra" && it.pospuesta && !hecho ? `<span class="tag otra">Para otra ocasión</span>` : "",
+      it.tipo === "tarea" && it.reporto ? `<span class="tag tablet" title="La dejó un encargado desde la tablet">${avP(it.reporto)}La dejó ${esc(it.reporto)}</span>` : "",
       it.tipo === "evento" ? `<span class="tag evento" style="color:#111">Evento</span>` : "",
       it.prioridad === "alta" && !hecho ? `<span class="tag alta">${it.tipo === "compra" ? "Urgente" : "Alta"}</span>` : "",
       vencida ? `<span class="tag vencida">Vencida</span>` : it.fecha === st.hoy && !hecho ? `<span class="tag hoy">Hoy</span>` : "",

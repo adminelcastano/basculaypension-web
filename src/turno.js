@@ -15,6 +15,9 @@ import AV5 from "./avatares/a5.webp";
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
 import { resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
+// El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
+import AGENDA_JS from "./panel/cliente/07-agenda.js";
+const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
@@ -225,7 +228,7 @@ async function estado(env, s) {
     .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id), conv: conv[a.id] }))
     .sort((x, y) => String(y.conv && y.conv.actividad || y.creado).localeCompare(String(x.conv && x.conv.actividad || x.creado)));
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
-  const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir FROM agenda_items
+  const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir, reporto, creado FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
     ORDER BY CASE prioridad WHEN 'alta' THEN 0 ELSE 1 END, COALESCE(fecha, '9999'), creado LIMIT 50`).bind(s.turno, hoy).all()).results;
   if (tareas.length) {
@@ -251,7 +254,7 @@ async function estado(env, s) {
   }
   // Calendario de la tablet: tareas programadas para los encargados (de todos los turnos) de 5 semanas atrás a 10 adelante
   const desde = new Date(Date.parse(hoy + "T12:00:00Z") - 35 * 864e5).toISOString().slice(0, 10), hasta = new Date(Date.parse(hoy + "T12:00:00Z") + 70 * 864e5).toISOString().slice(0, 10);
-  const calendario = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, estado, hecho_por, cerrado, repetir FROM agenda_items
+  const calendario = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, estado, hecho_por, cerrado, repetir, reporto FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND fecha BETWEEN ? AND ? AND estado != 'archivado' ORDER BY fecha, COALESCE(hora, '99'), creado LIMIT 300`).bind(desde, hasta).all()).results;
   // Compras que pidieron los encargados (NUNCA las que agrega la administración): las pendientes, para no pedir dos veces lo mismo, y las compradas en los últimos 3 días
   const compras = (await env.DB.prepare(`SELECT id, titulo, cantidad, detalle, prioridad, estado, reporto, turno, creado, cerrado FROM agenda_items WHERE tipo = 'compra' AND reporto IS NOT NULL
@@ -263,14 +266,16 @@ async function estado(env, s) {
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
-let versionHtml = null;
+let versionHtml = null, htmlArmado = null;
+const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR));
 function versionDe(html) {
   if (versionHtml) return versionHtml;
+  html = armar(html);
   let h = 2166136261;
   for (let i = 0; i < html.length; i++) { h ^= html.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (versionHtml = (h >>> 0).toString(36));
 }
-const htmlConVersion = html => html.replace("__TURNO_VER__", versionDe(html));
+const htmlConVersion = html => armar(html).replace("__TURNO_VER__", versionDe(html));
 
 // ---------------------------------------------------------------------------
 // Rutas de la tablet: /turno y /turno/api/...
@@ -448,6 +453,28 @@ export async function turnoRuta(request, env, url, h) {
   }
 
   // ---- Informe de una tarea: cumplida (se cierra), parcial o no se pudo (sigue abierta) ----
+  // ---- Pendiente que deja un encargado para un turno (con fecha, hora, urgencia y repetición en lenguaje natural) ----
+  if (partes[0] === "tareas" && partes.length === 1 && request.method === "POST") {
+    const turno = TURNOS.includes(c.turno) ? c.turno : "";
+    const { d, e } = validarItem("tarea", { titulo: c.titulo, detalle: c.detalle, fecha: c.fecha, hora: c.hora, prioridad: c.prioridad === "alta" ? "alta" : "normal", para_turno: 1, turno, repetir: c.repetir });
+    if (d.fecha && d.fecha < local().dia) e.fecha = "La fecha ya pasó.";
+    if (d.hora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.hora)) e.hora = "Hora inválida.";
+    if (Object.keys(e).length) return json({ ok: false, error: Object.values(e).join(" "), errores: e }, 422);
+    const id = crypto.randomUUID();
+    await insertarItem(env, id, "tarea", d, `tablet:${s.persona}`, ahora, { reporto: s.persona });
+    if (d.repetir) await env.DB.prepare("UPDATE agenda_items SET repetir = ? WHERE id = ?").bind(d.repetir, id).run();
+    await notificar(env, "admin", { titulo: `${s.nombre} dejó una tarea${d.turno ? " para el turno de la " + String(d.turno).toLowerCase() : ""}`, cuerpo: d.titulo + (d.fecha ? ` · ${d.fecha.slice(8, 10)}/${d.fecha.slice(5, 7)}` : "") + (d.hora ? " " + d.hora : ""), sec: "tarea", url: "/panel?abrir=tarea", etiqueta: "tarea-" + id });
+    return recordar(json({ ok: true, id }));
+  }
+  // Deshacer: quien la dejó la puede quitar mientras nadie la haya informado (hasta 1 hora después)
+  if (partes[0] === "tareas" && partes[2] === "quitar" && request.method === "POST") {
+    const t = await env.DB.prepare("SELECT id, reporto, creado, estado FROM agenda_items WHERE id = ? AND tipo = 'tarea'").bind(partes[1]).first();
+    if (!t || t.reporto !== s.persona) return json({ ok: false, error: "Solo puedes quitar las tareas que dejaste tú." }, 403);
+    const rep = await env.DB.prepare("SELECT 1 FROM agenda_reportes WHERE item_id = ? LIMIT 1").bind(t.id).first();
+    if (rep || t.estado !== "pendiente" || Date.now() - Date.parse(t.creado) > 36e5) return json({ ok: false, error: "Ya no se puede quitar; pídeselo a la administración." }, 409);
+    await env.DB.batch([env.DB.prepare("DELETE FROM agenda_lecturas WHERE item_id = ?").bind(t.id), env.DB.prepare("DELETE FROM agenda_items WHERE id = ?").bind(t.id)]);
+    return json({ ok: true });
+  }
   if (partes[0] === "tareas" && partes[2] === "reporte" && request.method === "POST") {
     const t = await env.DB.prepare(`SELECT id, titulo, turno FROM agenda_items WHERE id = ? AND tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO}`).bind(partes[1]).first();
     if (!t) return json({ ok: false, error: "Esa tarea ya no está pendiente." }, 404);
