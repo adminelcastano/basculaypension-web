@@ -15,7 +15,7 @@ test("Castagram: el JavaScript de la tablet y del panel compila", () => {
 
 test("Castagram: panel y tablet presentan comentarios en hoja inferior", () => {
   for (const fuente of [tablet, panel]) {
-    assert.match(fuente, /dialog\.className = "casta-sheet"/);
+    assert.match(fuente, /dlg\.className = "casta-sheet"/);
     assert.match(fuente, /\.showModal\(\)/);
     assert.match(fuente, /data-sheet-cerrar/);
     assert.match(fuente, /casta-sheet-list/);
