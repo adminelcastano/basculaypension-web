@@ -821,7 +821,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) break;
         l = cola(); l.shift(); if (!guardarCola(l)) break;
       }
-      if (n) { toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`); await refrescar().catch(() => {}); }
+      if (n && E && E.persona === persona && E.turno === turno && E.dia === dia) {
+        toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`);
+        await refrescar().catch(() => {});
+      }
     } finally { enviando = false; pintarRed(); }
   }
   function pintarRed() {
