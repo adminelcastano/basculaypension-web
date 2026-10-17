@@ -306,9 +306,13 @@
       const j = caja.value;
       const porDiaTurno = Object.fromEntries(j.cortes.map(c => [c.dia + "|" + c.turno, c]));
       const delDia = j.cortes.filter(c => c.dia === ta.dia);
-      const tpd = j.transf_por_dia || {}, trHoy = tpd[ta.dia] || 0;
-      const ef = delDia.reduce((a, c) => a + c.efectivo, 0), tj = delDia.reduce((a, c) => a + c.tarjeta, 0);
-      const bas = delDia.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0), pen = delDia.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0);
+      const cobrosHoy = (j.cobros || []).filter(x => x.dia === ta.dia);
+      const montoCobros = (l, pred) => l.filter(pred).reduce((a, x) => a + Number(x.monto || 0), 0);
+      const tpd = j.transf_por_dia || {}, trHoy = (tpd[ta.dia] || 0) + montoCobros(cobrosHoy, x => x.forma === "TRANSFERENCIA");
+      const ef = delDia.reduce((a, c) => a + c.efectivo, 0) + montoCobros(cobrosHoy, x => x.forma === "EFECTIVO"),
+        tj = delDia.reduce((a, c) => a + c.tarjeta, 0) + montoCobros(cobrosHoy, x => x.forma === "TARJETA");
+      const bas = delDia.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) + montoCobros(cobrosHoy, x => x.servicio === "bascula" && x.forma !== "TRANSFERENCIA"),
+        pen = delDia.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) + montoCobros(cobrosHoy, x => x.servicio === "pension" && x.forma !== "TRANSFERENCIA");
       const otrosHoy = delDia.reduce((a, c) => a + (c.extra ? c.extra.ingreso : 0), 0);
       contar($("#i-hoy"), ef + tj + trHoy + otrosHoy, v => dinero(v));
       $("#i-split").innerHTML = `<span><i class="sw efe"></i> Efectivo <b>${dinero(ef, 2)}</b></span><span><i class="sw tar"></i> Tarjeta <b>${dinero(tj, 2)}</b></span><span><i class="sw tra"></i> Transferencias <b>${dinero(trHoy, 2)}</b></span>${otrosHoy ? `<span>Otros (rentas) <b>${dinero(otrosHoy, 2)}</b></span>` : ""}`;
@@ -338,10 +342,11 @@
       const diasMes = []; for (let d = ta.dia.slice(0, 8) + "01"; d <= ta.dia; d = sumar(d, 1)) diasMes.push(d);
       const semana = diasMes.map((d, i) => {
         const cs = j.cortes.filter(c => c.dia === d);
+        const rec = (j.cobros || []).filter(x => x.dia === d);
         const partes = [
-          { c: COL.bas, nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) },
-          { c: COL.pen, nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) },
-          { c: COL.tra, nombre: "Transferencias", v: tpd[d] || 0 }
+          { c: COL.bas, nombre: "Báscula", v: cs.reduce((a, c) => a + c.bascula.EFECTIVO + c.bascula.TARJETA, 0) + montoCobros(rec, x => x.servicio === "bascula" && x.forma !== "TRANSFERENCIA") },
+          { c: COL.pen, nombre: "Pensión", v: cs.reduce((a, c) => a + c.pension.EFECTIVO + c.pension.TARJETA, 0) + montoCobros(rec, x => x.servicio === "pension" && x.forma !== "TRANSFERENCIA") },
+          { c: COL.tra, nombre: "Transferencias", v: (tpd[d] || 0) + montoCobros(rec, x => x.forma === "TRANSFERENCIA") }
         ];
         const ult = i === diasMes.length - 1, n = diasMes.length;
         return { etiqueta: ult ? "Hoy" : n <= 10 ? fDia.format(new Date(d + "T12:00:00Z")).replace(".", "") : (i % (n > 20 ? 3 : 2) === 0 ? String(Number(d.slice(8))) : ""), titulo: fLargo.format(new Date(d + "T12:00:00Z")), partes, total: partes.reduce((a, p) => a + p.v, 0), resaltar: ult };
@@ -356,7 +361,7 @@
         columnas($("#g-dias"), semana, { promedio });
         $("#prom-txt").textContent = cerrados.length ? `Promedio diario ${dinero(promedio)} (${cerrados.length} ${cerrados.length === 1 ? "día" : "días"} anteriores del mes)` : "Promedio diario";
       }
-      $("#i-pie").textContent = `Actualizado ${new Date(todo.generado).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" })} · las gráficas suman efectivo, tarjeta y transferencias (de la hoja y capturadas); el prepago no suma.`;
+      $("#i-pie").textContent = `Actualizado ${new Date(todo.generado).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" })} · las gráficas suman efectivo, tarjeta y transferencias (de la hoja y capturadas); el prepago no suma; los cobros recuperados se contabilizan por su fecha.`;
     } else {
       limpiarFuenteHoy("caja");
       $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
