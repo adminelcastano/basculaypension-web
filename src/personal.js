@@ -760,7 +760,7 @@ function correoCampana(fila, camp, pendientes, recordatorio) {
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
 <p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">${recordatorio ? `Te recordamos que tu enlace para <b style="color:#f5f5f7">${escH(camp.nombre)}</b> se cierra el <b style="color:#f5f5f7">${escH(lim)}</b>. Te falta:` : `Abrimos <b style="color:#f5f5f7">${escH(camp.nombre)}</b>. Tienes hasta el <b style="color:#f5f5f7">${escH(lim)}</b> para ${soloAcuse ? "confirmar" : "entregar"}:`}</p>
 <ul style="margin:0 0 22px;padding-left:20px;font-size:15px;line-height:1.6;color:#f5f5f7">${pendientes.map(x => `<li>${escH(x)}</li>`).join("")}</ul>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${soloAcuse ? "Leer y confirmar aviso v1" : "Subir mis documentos"}</a></p>
 <p style="margin:0 0 10px;font-size:13px;color:#86868b">Después de esa fecha el enlace se cierra. ${soloAcuse ? "La recepción digital no sustituye documentos firmados en papel." : "Entrega también las copias físicas con Josué."} No compartas este enlace.</p>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
 </div>
