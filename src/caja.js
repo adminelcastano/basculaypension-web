@@ -1002,6 +1002,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
     const x = await env.DB.prepare("SELECT * FROM caja_extra WHERE id = ?").bind(partes[2]).first();
     if (!x) return json({ ok: true, borrados: 0 });
+    if (x.id === idAumentoInicio(x.dia, x.turno))
+      return json({ ok: false, error: "Este aporte proviene de sobres. Corrígelo desde el inicio de turno, antes de entregar el corte." }, 409);
     if (!meses.includes(x.mes)) return json({ ok: false, error: "Ese ingreso es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const r = (await env.DB.batch([
       env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(x.id),
