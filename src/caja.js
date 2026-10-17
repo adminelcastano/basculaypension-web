@@ -432,6 +432,43 @@ export function leerRetiros(v) {
   let l = v; if (typeof l === "string") { try { l = JSON.parse(l); } catch { l = []; } }
   return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
 }
+
+// El gasto registrado durante el turno y el retiro de la misma erogación
+// al distribuir el corte son dos descripciones del MISMO dinero.
+// El retiro se cuenta una sola vez, al final del corte; la fila de gasto
+// original permanece intacta para auditoría y puede consultarse en su detalle.
+// El pareo es conservador: mismo turno, concepto, monto y previo al cierre.
+// Cada retiro empareja a lo sumo un gasto, incluso con importes repetidos.
+export function conciliarGastosConRetiros(gastos = [], conteos = []) {
+  const concepto = v => String(v || "").trim().toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+  const clave = (dia, turno, nombre, monto) =>
+    [dia, turno, concepto(nombre), Math.round(Number(monto) * 100)].join("|");
+  const disponibles = new Map();
+  for (const corte of conteos) {
+    for (const retiro of leerRetiros(corte.retiros)) {
+      const k = clave(corte.dia, corte.turno, retiro.concepto, retiro.monto);
+      const l = disponibles.get(k) || [];
+      l.push(corte.actualizado || corte.creado || "");
+      disponibles.set(k, l);
+    }
+  }
+  const duplicados = [], efectivos = [];
+  // El orden evita que dos gastos idénticos se vinculen a un solo retiro.
+  for (const g of gastos.slice().sort((a, b) => String(a.creado || "").localeCompare(String(b.creado || "")))) {
+    if (!esDeCaja(g) || g.forma !== "EFECTIVO" || !(Number(g.monto) > 0)) {
+      efectivos.push(g);
+      continue;
+    }
+    const k = clave(g.dia, g.turno, g.concepto, g.monto);
+    const disponiblesCorte = disponibles.get(k) || [];
+    const ix = disponiblesCorte.findIndex(cierre => !cierre || !g.creado || g.creado <= cierre);
+    if (ix < 0) { efectivos.push(g); continue; }
+    disponiblesCorte.splice(ix, 1);
+    duplicados.push(g);
+  }
+  return { gastos: efectivos, duplicados };
+}
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;
   // Capturada por la administración: no hubo conteo ciego, así que no hay diferencia que calcular
@@ -523,8 +560,9 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
     consultar(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
     consultar(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`)
   ]);
-  const gastos = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
-  return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios };
+  const gastosOriginales = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
+  const { gastos, duplicados: gastosDuplicados } = conciliarGastosConRetiros(gastosOriginales, conteos);
+  return { movs, gastos, gastosAdmin, gastosDuplicados, transf, conteos, extras, inicios };
 }
 
 // Cambio de mes: el mes anterior se deja en la base tal como quedó en la hoja y se crean sus reportes
@@ -866,7 +904,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         FROM caja_cobros_admin WHERE pendiente_id = ? ORDER BY creado ASC`, p.id);
       p.abonado = Math.round(p.abonos.filter(x => !x.anulado).reduce((a, x) => a + x.monto, 0) * 100) / 100;
     }));
-    const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
+    const conciliacion = conciliarGastosConRetiros(gastos, conteos);
+    const duplicados = new Set(conciliacion.duplicados.map(g => g.id));
+    for (const gasto of gastos) gasto.ya_incluido_en_retiro = duplicados.has(gasto.id);
+    const corte = unirConteos(calcularCortes(movs, conciliacion.gastos, extras, inicios), conteos)[0] || null;
     if (corte) {
       corte.cambio_turno = cambiosEntreTurnos(conteoAnt, inicios).get(dia + "|" + turno) || null;
       corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
