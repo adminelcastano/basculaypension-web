@@ -380,7 +380,7 @@ async function enviarCorreoA(env, datos) {
 // ---------------------------------------------------------------------------
 // Filas de solicitudes de factura para los reportes y respaldos en Google Sheets
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Motivo rechazo", "Versión aviso de privacidad"];
+const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Fecha entrega manual", "Motivo rechazo", "Versión aviso de privacidad"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
   const est = { pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" };
@@ -389,7 +389,7 @@ function filasExcel(results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
       r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
       r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), r.motivo || "", r.aviso_version || ""]);
+      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), local(r.enviada_en), r.motivo || "", r.aviso_version || ""]);
   }
   return filas;
 }
@@ -497,10 +497,15 @@ async function rutasPanel(request, env, url, usuario) {
     sql += (estado === "pendiente" ? " ORDER BY creado ASC" : " ORDER BY resuelta_en DESC") + ` LIMIT ${limite + 1}`;
     const { results: todos } = await env.DB.prepare(sql).bind(...args).all();
     const hayMas = todos.length > limite, results = todos.slice(0, limite);
-    const conteos = await env.DB.prepare(
+    // Las pantallas de Facturación cargan cinco grupos a la vez. Sólo la primera
+    // necesita los conteos; otros clientes mantienen la respuesta completa por defecto.
+    const soloLista = url.searchParams.get("solo_lista") === "1";
+    const conteos = soloLista ? null : await env.DB.prepare(
       "SELECT CASE WHEN estado IN ('facturada','enviada','rechazada') AND resuelta_en < ? THEN 'historico' WHEN estado = 'en_revision' THEN 'pendiente' ELSE estado END AS grupo, COUNT(*) AS n FROM solicitudes GROUP BY grupo"
     ).bind(lim).all();
-    return json({ ok: true, solicitudes: results, hay_mas: hayMas, limite, conteos: Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])), dias_retencion: DIAS_RETENCION });
+    return json({ ok: true, solicitudes: results, hay_mas: hayMas, limite,
+      conteos: conteos ? Object.fromEntries(conteos.results.map(r => [r.grupo, r.n])) : {},
+      dias_retencion: DIAS_RETENCION });
   }
 
   const id = partes[1];
