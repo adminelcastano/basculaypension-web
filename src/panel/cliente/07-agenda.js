@@ -966,7 +966,16 @@ window.interpretarAgenda = function (texto, hoy) {
       const j = await api(`agenda/${id}/conversacion`);
       st.hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const it = st.items.find(x => x.id === id);
-      if (it && it.conv) { if (it.conv.nuevos || it.conv.nuevosEnterado) st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1); it.conv.nuevos = 0; it.conv.nuevosEnterado = 0; }
+      if (it) {
+        const nuevaPublicacion = it.autor !== "admin" && !!(it.para && it.para.admin) &&
+          !(it.lecturas || []).some(x => x.persona === "ADMIN");
+        const habiaNovedad = !!(it.conv && (it.conv.nuevos || it.conv.nuevosEnterado));
+        // La conversación ya fue marcada vista por el servidor: reflejarlo de inmediato.
+        if (nuevaPublicacion) it.lecturas = [...(it.lecturas || []), { persona: "ADMIN", at: new Date().toISOString() }];
+        if (it.conv) { it.conv.nuevos = 0; it.conv.nuevosEnterado = 0; }
+        if (nuevaPublicacion || habiaNovedad)
+          st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1);
+      }
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
     if (st.abiertosAv.has(id)) pintarAvisos();
   }
