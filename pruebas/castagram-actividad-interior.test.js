@@ -67,3 +67,11 @@ test("Contador de actividad en formulario nativo y sin nuevos recursos productiv
   assert.match(css,/\.casta-actividad-list/);
   assert.match(turno,/\.casta-actividad-list/);
 });
+test("Tablet: el contador se actualiza al leer conversación, sin cambiar Enterado",()=>{
+  const start=turno.indexOf("async function abrirHilo(id)"),end=turno.indexOf("function repintarPost(",start);
+  const section=turno.slice(start,end);
+  assert.match(section,/repintarPost\(id\);\s*castaRefrescarActividadTurno\(\)/);
+  assert.match(turno,/const abierto = anterior\.open/);
+  assert.match(turno,/nuevo\.open = abierto/);
+  assert.doesNotMatch(section,/\.leido\s*=\s*true/);
+});

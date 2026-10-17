@@ -1184,6 +1184,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       pintarCabecera();
     } catch (er) { hilos[id] = { ...prev, error: er.message, comentarios: [] }; }
     repintarPost(id);
+    castaRefrescarActividadTurno();
   }
   // Vuelve a pintar solo una publicación (para no perder lo que se está escribiendo en otras)
   function repintarPost(id) {
@@ -1228,6 +1229,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <strong>${esc(x.mensaje)}</strong><small>${esc(x.titulo)}</small></button>`).join("") : `<p>Sin novedades pendientes.</p>`}</div></details>`;
   }
 
+  function castaRefrescarActividadTurno() {
+    const anterior = sec().querySelector("details.casta-actividad");
+    if (!anterior) return;
+    const abierto = anterior.open;
+    anterior.outerHTML = castaActividadVistaTurno();
+    const nuevo = sec().querySelector("details.casta-actividad");
+    if (nuevo) nuevo.open = abierto;
+  }
   function verAvisos() {
     sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>${castaActividadVistaTurno()}` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
