@@ -269,7 +269,7 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 .retiros-box p { margin: 4px 0 10px; color: #f5e3b8; font-size: .92rem; }
 .retiros-box .btn { border-color: var(--warn); color: #ffd97a; }
 .retiro { display: grid; grid-template-columns: minmax(0, 1fr) 140px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
-@media (max-width: 420px) { .retiro { grid-template-columns: minmax(0, 1fr) minmax(0, 115px) 40px; gap: 5px; } .retiro .t { min-width: 0; padding: 10px 7px; font-size: .94rem; } }
+@media (max-width: 460px) { .retiro { grid-template-columns: minmax(0, 1fr) 44px; gap: 6px; } .retiro [data-r="concepto"] { grid-column: 1 / -1; } .retiro [data-r="monto"] { grid-column: 1; } .retiro .x { grid-column: 2; grid-row: 2; width: 44px; height: 44px; } .retiro .t { min-width: 0; } }
 .confirmacion-corte { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 16px 40px; padding: 12px 14px; border-radius: 14px; background: #232326; color: var(--fg); line-height: 1.45; cursor: pointer; }
 .confirmacion-corte input { width: 24px; height: 24px; flex: none; accent-color: var(--ok); margin: 0; }
 .aviso-duplicado { margin: 8px 0 16px 40px; padding: 12px; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 14px; color: #f5e3b8; }
@@ -1471,7 +1471,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       const importesRet = lista.map(x => importe(x.monto));
       const completo = efectivo !== null && sobre !== null && cambio !== null;
       const validos = completo && [efectivo, sobre, cambio, ...importesRet].every(x =>
-        Number.isFinite(x) && x >= 0 && x <= 1000000 && Math.round(x * 100) === x * 100);
+        Number.isFinite(x) && x >= 0 && x <= 1000000);
       const retiroValido = lista.every((x, i) => x.concepto.length >= 2 && importesRet[i] > 0);
       const iguales = coincidencias();
       const alerta = $("#aviso-duplicado"), confirmado = !!$("#dup-confirmo")?.checked;
@@ -1518,13 +1518,36 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     f.addEventListener("submit", async e => {
       e.preventDefault();
       const b = f.querySelector("[type=submit]");
-      const ef = num(f.efectivo.value);
-      if (f.efectivo.value.trim() === "") { $("#err-corte").textContent = "Escribe el efectivo físico que contaste."; return; }
+      const ef = importe(f.efectivo.value);
+      if (!Number.isFinite(ef) || ef < 0 || ef > 1000000) {
+        $("#err-corte").textContent = "Escribe el efectivo físico contado. Si no hay dinero, escribe 0.";
+        f.efectivo.focus(); return;
+      }
+      const sob = importe(f.sobre.value), sig = importe(f.cambio_sig.value);
+      if (![sob, sig].every(x => Number.isFinite(x) && x >= 0 && x <= 1000000)) {
+        $("#err-corte").textContent = "Indica cuánto entregas en sobre y cuánto dejas de cambio. Escribe 0 si no hay.";
+        (sob === null || !Number.isFinite(sob) ? f.sobre : f.cambio_sig).focus(); return;
+      }
       const rts = retiros();
-      if (rts.some(r => r.concepto.length < 2 || !(num(r.monto) > 0))) { $("#err-corte").textContent = "Cada retiro necesita para qué fue y el monto."; return; }
+      if (rts.some(r => r.concepto.length < 2 || !(importe(r.monto) > 0) || importe(r.monto) > 1000000)) {
+        $("#err-corte").textContent = "Cada retiro final debe tener concepto e importe positivo válido.";
+        $("#retiros").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
       const dif = reparto();
-      // Todo lo contado tiene que quedar repartido (sobre + retiros + cambio = efectivo contado)
-      if (Math.abs(dif) >= 0.01) { $("#err-corte").textContent = dif > 0 ? `Faltan ${dinero(dif)} por repartir: ponlos en el sobre, en un retiro o en el cambio para el siguiente turno.` : `Repartiste ${dinero(-dif)} de más: revisa el sobre, los retiros y el cambio.`; $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      if (!Number.isFinite(dif)) {
+        $("#err-corte").textContent = "Completa los importes y aclara cualquier gasto que coincida con un retiro.";
+        $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
+      if (Math.abs(dif) >= 0.01) {
+        $("#err-corte").textContent = dif > 0
+          ? `Faltan ${dinero(dif)} por distribuir entre sobre, retiros finales o cambio.`
+          : `Distribuiste ${dinero(-dif)} de más. Revisa las cantidades.`;
+        $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
+      if (!$("#revisado-corte").checked) {
+        $("#err-corte").textContent = "Antes de entregar, confirma que revisaste los gastos, los retiros y lo que va al sobre.";
+        $("#revisado-corte").focus(); return;
+      }
       const aviso = "";
       if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
