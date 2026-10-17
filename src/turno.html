@@ -246,11 +246,17 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 
 /* Cambio inicial (pantalla de entrada al turno) */
 #app.sin-inicio .modulos { visibility: hidden; }
-.ci { max-width: 560px; margin: 4vh auto 0; }
+.ci { max-width: 620px; margin: 4vh auto 0; }
 .ci .card { padding: 26px; }
-.ci .t.monto { font-size: 2rem; font-weight: 700; text-align: center; padding: 16px; }
+.ci .ci-montos { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.ci .ci-montos .campo { min-width: 0; margin: 0; }
+.ci .t.monto { font-size: 1.45rem; font-weight: 700; text-align: left; padding: 14px; }
 .ci .ref { background: #1f1f22; border-radius: 14px; padding: 12px 14px; color: #d2d2d7; margin: 0 0 14px; font-size: .95rem; }
 .ci .ref b { color: var(--fg); }
+.ci .ci-total { margin: 16px 0 12px; padding: 14px 16px; border: 1px solid var(--amber); border-radius: 14px; background: #302919; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ci .ci-total b { color: var(--amber); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.ci .ci-ayuda { margin: 0 0 14px; }
+@media (max-width: 560px) { .ci .card { padding: 18px; } .ci .ci-montos { grid-template-columns: minmax(0,1fr); } .ci .ci-total b { font-size: 1.4rem; } }
 /* Corte guiado por pasos */
 .paso-c { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 18px; }
 .paso-c:first-of-type { border-top: 0; padding-top: 0; margin-top: 10px; }
@@ -953,28 +959,45 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const ant = E.cambio_anterior, ya = !corrigiendo && E.inicio;
     sec().innerHTML = `<div class="ci"><form class="card" id="f-inicio" novalidate>
       <h2 style="margin:0 0 6px">${corrigiendo ? "Corregir cambio inicial" : "Antes de empezar tu turno"}</h2>
-      <p class="muted" style="margin:0 0 16px">Cuenta el dinero que hay en la caja al recibir el turno: es tu <b>cambio inicial</b>. Al final del turno se suma a lo que cobres para cuadrar el corte. Si no hay nada, escribe 0.</p>
-      ${ya ? `<p class="ref">En este turno ya se capturó <b>${dinero(E.inicio.cambio)}</b>${E.inicio.persona ? ` (${avi(E.inicio.persona, 1)}${esc(E.inicio.persona)})` : ""}. Confírmalo o escribe lo que cuentas tú.</p>` : ""}
-      ${!ya && ant ? `<p class="ref">El turno anterior (${avi(ant.persona, 1)}${esc(ant.persona)}) dejó <b>${dinero(ant.cambio_sig)}</b> de cambio. Si cuentas otra cantidad, escribe lo que cuentas tú.</p>` : ""}
-      <label class="campo"><span>¿Con cuánto cambio empiezas?</span><input class="t monto" name="cambio" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.cambio) : ""}"></label>
+      <p class="muted" style="margin:0 0 16px">Separa el dinero <b>recibido del turno anterior</b> del dinero que <b>agregaste tú</b> al comenzar. Así no aparecerá como sobrante. Cuenta ambos; si no agregaste nada, escribe 0.</p>
+      ${ya ? `<p class="ref">En este turno ya se capturó: <b>${dinero(E.inicio.cambio)} recibidos</b> y <b>${dinero(E.inicio.aumento || 0)} agregados</b>. Confirma o corrige las cantidades.</p>` : ""}
+      ${ant ? `<p class="ref">El turno anterior (${avi(ant.persona, 1)}${esc(ant.persona)}) dejó <b>${dinero(ant.cambio_sig)}</b>. Anota lo que efectivamente recibiste y, aparte, cualquier dinero que tú hayas agregado.</p>` : ""}
+      <div class="ci-montos">
+        <label class="campo"><span>Cambio recibido del turno anterior</span><input class="t monto" name="cambio" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.cambio) : ""}"></label>
+        <label class="campo"><span>Dinero que agregaste al iniciar</span><input class="t monto" name="aumento" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.aumento || 0) : "0"}"></label>
+       </div>
+       <div class="ci-total" role="status" aria-live="polite"><span>Total de cambio en caja</span><b id="ci-total">—</b></div>
+       <p class="muted ci-ayuda">El aporte se registra automáticamente como <b>Aumento de cambio</b> (no es una venta). Si ya registraste ese mismo dinero en «Ingreso extra», deja este aporte en 0 para evitar duplicarlo.</p>
       <p class="err" id="err-inicio" role="alert"></p>
       <button class="btn btn-primary" type="submit" style="width:100%">${corrigiendo ? "Guardar" : ya ? "Confirmar y empezar" : "Empezar turno"}</button>
       ${corrigiendo ? `<button class="btn btn-line" type="button" id="ci-cancelar" style="width:100%;margin-top:8px">Cancelar</button>` : ""}
     </form></div>`;
     const f = $("#f-inicio");
+    const limpio = v => String(v || "").replace(/[$,\\s]/g, "");
+    const monto = v => /^\\d{1,9}(\\.\\d{1,2})?$/.test(limpio(v)) ? Number(limpio(v)) : null;
+    const actualizarTotal = () => {
+      const recibido = monto(f.cambio.value), agregado = monto(f.aumento.value.trim() || "0");
+      $("#ci-total").textContent = recibido === null || agregado === null || recibido + agregado > 1000000
+        ? "—" : dinero(Math.round((recibido + agregado) * 100) / 100);
+    };
+    f.cambio.addEventListener("input", actualizarTotal);
+    f.aumento.addEventListener("input", actualizarTotal);
+    actualizarTotal();
     setTimeout(() => f.cambio.focus(), 50);
     if (corrigiendo) $("#ci-cancelar").addEventListener("click", () => ir("corte"));
     f.addEventListener("submit", async e => {
       e.preventDefault();
-      const v = f.cambio.value.trim();
-      if (v === "" || !/^\$?\s*\d{1,9}(,\d{3})*(\.\d{1,2})?$/.test(v.replace(/\s/g, ""))) { $("#err-inicio").textContent = "Escribe con cuánto cambio empiezas (solo números; si no hay, 0)."; return; }
+      const v = f.cambio.value.trim(), extra = f.aumento.value.trim() || "0";
+      const recibido = monto(v), agregado = monto(extra);
+      if (recibido === null || agregado === null || recibido + agregado > 1000000) {
+        $("#err-inicio").textContent = "Revisa ambos importes (solo números, hasta dos decimales; usa 0 si no agregaste dinero)."; return;
+      }
       const b = f.querySelector("[type=submit]"); b.disabled = true; $("#err-inicio").textContent = "";
       try {
-        const r = await api("inicio", { cambio: v });
-        const monto = Number(v.replace(/[$,\s]/g, ""));
-        E.inicio = r.inicio || { cambio: monto, persona: E.persona };
+        const r = await api("inicio", { cambio: v, aumento: extra });
+        E.inicio = r.inicio || { cambio: recibido, aumento: agregado, total: recibido + agregado, persona: E.persona, pendiente: true };
         pedirInicio = false;
-        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : `Cambio inicial: ${dinero(E.inicio.cambio)}`);
+        toast(r.enCola ? "Inicio pendiente de conexión: se enviará después." : `Cambio total al iniciar: ${dinero(E.inicio.total)}`);
         ir(corrigiendo ? "corte" : "inicio");
       } catch (er) { $("#err-inicio").textContent = errores(er); b.disabled = false; }
     });
@@ -1013,7 +1036,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
           <span class="note">${c ? `${esc(hora12(c.actualizado))} · ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar, cuenta el efectivo y entrégalo."}</span>
-          <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
+          <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.total ?? E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
         <section class="ini-card cat-c s4" data-bloque="avisos">
           <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Novedades de Castagram</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Ver Castagram (${E.avisos.length})</button></div>
@@ -1069,7 +1092,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     return `<div class="ini-top"><span class="ibadge" style="--c:${tipo === "gastos" ? "#ff7a70" : "#30d158"}"><svg><use href="#${tipo === "gastos" ? "i-gasto" : "i-mas"}"/></svg></span><span class="ini-k">${t}</span>
         ${conBoton ? `<button class="btn btn-line btn-sm" type="button" data-accion="${tipo === "gastos" ? "gasto" : "extra"}" style="margin-left:auto">+ Agregar</button>` : ""}</div>
       ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? ` · ${avi(x.persona, 1)}${esc(x.persona)}` : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
-          <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar ${esc(x.concepto)} de ${dinero(x.monto)}"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
+          <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona && !(tipo === "extras" && x.id === "inicio-aumento:" + E.dia + ":" + E.turno) ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar ${esc(x.concepto)} de ${dinero(x.monto)}"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
         <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
   }
 
@@ -1480,7 +1503,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 
   // ---------- Corte ----------
   function verCorte() {
-    const c = E.corte, ci = E.inicio ? Number(E.inicio.cambio) || 0 : null;
+    const c = E.corte, ci = E.inicio ? Number(E.inicio.total ?? E.inicio.cambio) || 0 : null;
     sec().innerHTML = titulo("Corte de turno.", "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
       ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
@@ -1488,7 +1511,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <form class="card" id="f-corte" novalidate>
           <section class="paso-c" id="pc1"><h2><span class="num">1</span>Cuenta el efectivo</h2>
             <p class="guia">Cuenta <b>los billetes y monedas que tienes físicamente ahora</b>, incluido el cambio inicial. Hazlo <b>después de los gastos que ya pagaste durante el turno</b> y <b>antes de separar los retiros del cierre, el sobre y el cambio siguiente</b>. No incluyas vouchers ni pagos con tarjeta.</p>
-            <div class="cuenta"><div><span>Cambio inicial</span><b>${ci == null ? "—" : dinero(ci)}</b></div>${c ? "" : `<div><span></span><button class="lnk" type="button" id="ci-corregir" style="min-height:28px">Corregir cambio inicial</button></div>`}</div>
+            <div class="cuenta"><div><span>Cambio inicial total</span><b>${ci == null ? "—" : dinero(ci)}</b>${E.inicio && E.inicio.aumento ? `<small>Recibido ${dinero(E.inicio.cambio)} + aporte ${dinero(E.inicio.aumento)}</small>` : ""}</div>${c ? "" : `<div><span></span><button class="lnk" type="button" id="ci-corregir" style="min-height:28px">Corregir cambio inicial</button></div>`}</div>
             <label class="campo"><span>Efectivo físico que contaste (con el cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
           </section>
           <section class="paso-c" id="pc2"><h2><span class="num">2</span>Distribuye lo que contaste</h2>
