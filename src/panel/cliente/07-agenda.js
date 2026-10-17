@@ -1240,7 +1240,7 @@ window.interpretarAgenda = function (texto, hoy) {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-leer]").forEach(b => b.addEventListener("click", async () => {
-      try { await post(`agenda/${b.dataset.leer}/enterado`); toast("Marcado como leído"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      try { await post(`agenda/${b.dataset.leer}/enterado`); toast("Enterado confirmado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-responder]").forEach(b => b.addEventListener("click", () => {
       const it = st.items.find(x => x.id === b.dataset.responder); if (!it) return;

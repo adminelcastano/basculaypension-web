@@ -990,15 +990,17 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   }
   function postHtml(a) {
     const cv = a.conv || { n: 0, nuevos: 0 }, ab = hilosAb.has(a.id), nuevo = !a.leido || cv.nuevos;
+    // Sin red, una confirmación en cola NO equivale a Enterado confirmado en el servidor.
+    const pendiente = !a.leido && cola().some(x => x.ruta === `avisos/${a.id}/enterado` && x.persona === E.persona && x.turno === E.turno && x.dia === E.dia);
     const f = a.fotos || [];
     return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st"><span>${a.leido && !a.propio ? `${svg("i-check")} Enterado` : ""}</span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      <div class="post-st"><span>${a.leido && !a.propio ? `${svg("i-check")} Enterado` : pendiente ? `<span class="etq e-parcial" role="status">Enterado por enviar</span>` : ""}</span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
-      <div class="post-acc">${!a.leido ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
+      <div class="post-acc">${!a.leido && !pendiente ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
       ${ab ? hiloHtml(a) : ""}</article>`;
   }
   async function abrirHilo(id) {
@@ -1468,7 +1470,13 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
     } else if (en) {
       en.disabled = true;
-      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); const a = E.avisos.find(x => x.id === en.dataset.enterado); if (a) a.leido = true; pintarCabecera(); repintarPost(en.dataset.enterado); } catch (er) { toast(er.message, true); en.disabled = false; }
+      try {
+        const r = await api(`avisos/${en.dataset.enterado}/enterado`, {});
+        if (r.enCola) { toast("Enterado pendiente: se confirmará cuando vuelva internet."); repintarPost(en.dataset.enterado); return; }
+        const a = E.avisos.find(x => x.id === en.dataset.enterado);
+        if (a) a.leido = true;
+        pintarCabecera(); repintarPost(en.dataset.enterado);
+      } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
       const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
     } else if (bo) {
