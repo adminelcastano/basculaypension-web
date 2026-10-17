@@ -967,7 +967,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <label class="campo"><span>Dinero que agregaste al iniciar</span><input class="t monto" name="aumento" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.aumento || 0) : "0"}"></label>
        </div>
        <div class="ci-total" role="status" aria-live="polite"><span>Total de cambio en caja</span><b id="ci-total">—</b></div>
-       <p class="muted ci-ayuda">El aporte se registra automáticamente como <b>Aumento de cambio</b> (no es una venta). Si ya registraste ese mismo dinero en «Ingreso extra», deja este aporte en 0 para evitar duplicarlo.</p>
+       <p class="muted ci-ayuda">El aporte se transfiere automáticamente <b>de sobres a caja</b>; no es una venta. Si ya lo registraste en «Ingreso extra», deja este aporte en 0 para evitar duplicarlo. Los aumentos posteriores se registran desde «Agregar ingreso extra → Aumento de cambio».</p>
       <p class="err" id="err-inicio" role="alert"></p>
       <button class="btn btn-primary" type="submit" style="width:100%">${corrigiendo ? "Guardar" : ya ? "Confirmar y empezar" : "Empezar turno"}</button>
       ${corrigiendo ? `<button class="btn btn-line" type="button" id="ci-cancelar" style="width:100%;margin-top:8px">Cancelar</button>` : ""}
@@ -1804,7 +1804,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <label class="campo"><span>¿De quién o de qué? <span class="muted" style="font-weight:400">(ej. señor de la ropa, restaurante)</span></span><input class="t" name="detalle" maxlength="120" autocomplete="off"></label>
       <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("x-foto", "Tomar foto")}</div>
-      <p class="note" style="margin:0">"Aumento de cambio" suma al efectivo de la caja pero no cuenta como ingreso del negocio.</p>`,
+      <p class="note" style="margin:0">Todo «Aumento de cambio» proviene de <b>efectivo de sobres</b>: suma a la caja, se descuenta automáticamente de sobres y no cuenta como ingreso del negocio. Registra solo aportes nuevos, no los ya capturados al iniciar.</p>`,
       async f => { const r = await api("extras", { concepto: marcados("x-conc")[0], detalle: f.detalle.value, monto: f.monto.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Ingreso registrado."); await refrescar(); });
     activarFoto("x-foto", x => { foto = x; });
     elegirChip("#x-conc", () => {});
