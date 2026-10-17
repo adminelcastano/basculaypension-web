@@ -22,7 +22,10 @@ test("Acuses inmutables por persona y versión en la D1, nunca en la caché de l
   assert.match(worker, /INSERT OR IGNORE INTO turno_acuses/g);
   assert.match(worker, /AVISO_DIGITAL_V1 = "turno-aviso-v1-2026-10-17"/);
   assert.doesNotMatch(tablet, /guardarLS\(["'](?:turno:)?acuse/i);
-  assert.doesNotMatch(worker, /turno_acuses \([\s\S]*?pin_hash/i);
+  const inicio = worker.indexOf("CREATE TABLE IF NOT EXISTS turno_acuses");
+  const fin = worker.indexOf("`).run();", inicio);
+  assert.ok(inicio > 0 && fin > inicio);
+  assert.doesNotMatch(worker.slice(inicio, fin), /pin_hash|pin_sal|ip_/i);
 });
 
 test("Se verifica el PIN antes de exigir y guardar la constancia por primera vez", () => {
