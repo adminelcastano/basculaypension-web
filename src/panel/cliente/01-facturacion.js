@@ -209,7 +209,7 @@
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">3</span>Factura en Facturador</h3><p class="note fguia">Abre Facturador en otra pestaña, emite la factura con los datos de los pasos 1 y 2 y regresa aquí.</p>
-            ${duplicada ? `<p class="warn"><b>No emitir otro CFDI:</b> este ticket ya figura como facturado. Revisa los datos y usa Rechazar con el motivo correspondiente.</p>` : `<div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>`}
+            ${duplicada ? `<p class="warn"><b>No emitir otro CFDI:</b> este ticket ya figura como facturado. Revisa los datos y usa Rechazar con el motivo correspondiente.</p>` : `<div class="row"><a class="btn btn-primary" id="abrir-facturador" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>`}
           </section>
           <section class="card">
             ${["pendiente", "en_revision"].includes(s.estado) ? `
@@ -268,6 +268,25 @@
     d.scrollTop = 0;
     d.classList.remove("entra"); void d.offsetWidth; d.classList.add("entra");
     $("#volver")?.addEventListener("click", () => $("#work").classList.remove("ver-detalle"));
+    // El CFDI se emite en Facturador, fuera de esta web. Si el administrador
+    // cambió el folio sin guardarlo, las advertencias del panel estarían obsoletas.
+    // Exigir guardar y volver a consultar los posibles duplicados antes de salir.
+    $("#abrir-facturador")?.addEventListener("click", e => {
+      if (bloqueado) return; // factura ya registrada: acceso sólo de consulta
+      const folioEnPantalla = $("#t-ticket")?.value.trim() || "";
+      const importeEnPantalla = $("#t-importe")?.value.trim() || "";
+      const importeGuardado = s.importe ? Number(s.importe).toFixed(2) : "";
+      if (!folioEnPantalla || !s.folio_ticket || folioEnPantalla !== s.folio_ticket ||
+          !importeEnPantalla || !importeGuardado || Number(importeEnPantalla) !== Number(importeGuardado)) {
+        e.preventDefault();
+        toast("Primero guarda el folio completo y el importe del ticket. Así podremos revisar si ya se facturó.");
+        return;
+      }
+      if (faltan) {
+        e.preventDefault();
+        toast("Revisa y guarda los datos fiscales completos antes de abrir Facturador.");
+      }
+    });
     $("#iniciar-revision")?.addEventListener("click", e => accion(e.target, "en-revision", {}, "En revisión"));
     $("#marcar-enviada")?.addEventListener("click", async e => {
       if (!confirmarEnPagina(e.target, "¿Ya entregaste el CFDI al cliente?")) return;
