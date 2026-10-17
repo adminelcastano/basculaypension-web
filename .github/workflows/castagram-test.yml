@@ -1,0 +1,20 @@
+name: Pruebas de Castagram
+on:
+  push:
+    branches:
+      - castagram/cierre-seguridad-20261017
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Pruebas del proyecto (sin datos productivos)
+        run: node --test pruebas/*.test.js
