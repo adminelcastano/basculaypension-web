@@ -88,6 +88,10 @@ const r2 = v => Math.round(v * 100) / 100;
 
 // Comisión de un cobro con tarjeta (redondeada por cobro, como la cobra la terminal)
 export const comisionDe = (importe, cuenta) => !cuenta || !(cuenta.comision_pct > 0) ? 0 : r2(importe * cuenta.comision_pct / 100 * (cuenta.comision_iva ? 1 + IVA : 1));
+// La terminal operativa es Mercado Pago: su 3.50 % + IVA nunca ha cambiado.
+// Usar esta función para cobros reales, independientemente de ajustes de cuenta.
+export const comisionMercadoPago = (importe, cuenta) =>
+  !cuenta ? 0 : r2(importe * COMISION_INICIAL / 100 * (1 + IVA));
 
 // Flujos de un mes por cuenta y en el efectivo de la administración (sobres). Función pura: recibe los registros
 // del mes (ver leerFlujos en finanzas.js) y devuelve entradas y salidas, con el detalle de cada una.
@@ -102,7 +106,7 @@ export function flujosMes(d, cuentas) {
   const tj = cuentas.find(c => c.tarjeta);
   const sinCuenta = { transferencias: 0, pagos: 0 };
   let tarjeta = 0, comision = 0;
-  for (const t of d.tarjeta || []) { tarjeta += t.importe; comision += comisionDe(t.importe, tj); }
+  for (const t of d.tarjeta || []) { tarjeta += t.importe; comision += comisionMercadoPago(t.importe, tj); }
   if (tj) { est[tj.id].entradas += tarjeta - comision; est[tj.id].detalle.tarjeta = r2(tarjeta); est[tj.id].detalle.comision = r2(comision); }
   for (const x of d.transf || []) {
     if (x.cuenta && est[x.cuenta]) { est[x.cuenta].entradas += x.importe; est[x.cuenta].detalle.transferencias += x.importe; } else sinCuenta.transferencias += x.importe;
@@ -174,6 +178,8 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      if (f.tarjeta && ("comision_pct" in c || "comision_iva" in c))
+        return json({ ok: false, error: "La comisión histórica de Mercado Pago es fija: 3.50 % + IVA." }, 409);
       let pct = f.comision_pct, iva = f.comision_iva;
       if ("comision_pct" in c) {
         const t = String(c.comision_pct ?? "").replace(/[%\s]/g, "");

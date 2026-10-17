@@ -67,13 +67,16 @@
   const ESTADOS = ["pendiente", "facturada", "rechazada", "historico"];
   const NOM_EST = { pendiente: "Pendientes", facturada: "Facturadas", rechazada: "Rechazadas", historico: "Histórico" };
   const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", rechazada: "i-x", historico: "i-arch" };
+  let secuenciaLista = 0;
   async function cargarLista() {
+    const solicitud = ++secuenciaLista;
     const lista = $("#lista");
     estadoState.lim = estadoState.lim || {};
     const clavePag = estadoState.q || "";
     if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.lim = {}; }
     try {
       const rs = await Promise.all(ESTADOS.map(e => { const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 }); if (estadoState.q) p.set("q", estadoState.q); return api("solicitudes?" + p); }));
+      if (solicitud !== secuenciaLista) return;
       const conteos = rs[0].conteos || {}, dias = rs[0].dias_retencion || 90;
       for (const e of ESTADOS) EC.bloqueN("facturacion", e, conteos[e] || 0, e === "pendiente" && (conteos[e] || 0) > 0);
       // Línea de estado de cada tarjeta del índice (celular y tablet)
@@ -103,7 +106,7 @@
           + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "") + `</div>`;
       }).join("");
       lista.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => { estadoState.lim[b.dataset.mas] = (estadoState.lim[b.dataset.mas] || 200) + 200; b.disabled = true; cargarLista(); }));
-    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
+    } catch (e) { if (solicitud === secuenciaLista && e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }
   }
 
   function campo(etiqueta, valor, copiable = true) {

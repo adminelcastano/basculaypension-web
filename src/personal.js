@@ -1022,7 +1022,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const estatus = cuerpo.estatus === "inactivo" ? "inactivo" : "activo";
     let fechaBaja = null, motivo = null;
     if (estatus === "inactivo") {
-      fechaBaja = /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha_baja || "") ? cuerpo.fecha_baja : ahora.slice(0, 10);
+      fechaBaja = /^\d{4}-\d{2}-\d{2}$/.test(cuerpo.fecha_baja || "") ? cuerpo.fecha_baja : hoyLocal();
       motivo = limpiar(cuerpo.motivo_baja, 300) || null;
     }
     await env.DB.prepare("UPDATE colaboradores SET estatus = ?, fecha_baja = ?, motivo_baja = ?, actualizado = ? WHERE id = ?").bind(estatus, fechaBaja, motivo, ahora, id).run();
@@ -1076,10 +1076,8 @@ export async function personalPanel(request, env, url, partes, enviar) {
   }
 
   if (partes[2] === "eliminar") {
-    for (const a of Object.keys(DOC_DE_ARCHIVO)) await borrarArchivo(env, `x:${id}:${a}`);
-    for (const d of JSON.parse(fila.admin_docs || "[]")) await borrarArchivo(env, `xa:${id}:${d.id}`);
-    await env.DB.prepare("DELETE FROM colaboradores WHERE id = ?").bind(id).run();
-    return json({ ok: true });
+    // Las fichas y sus documentos son históricos: la baja siempre es lógica.
+    return json({ ok: false, error: "No se eliminan fichas históricas. Usa «Marcar como inactivo»." }, 409);
   }
 
   return json({ ok: false, error: "Ruta no encontrada." }, 404);

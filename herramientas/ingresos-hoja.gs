@@ -55,7 +55,13 @@ function leer(hoja, cols, mes) {
   for (let i = 1; i < datos.length; i++) {
     const f = datos[i];
     const marca = f[idx.fecha];
-    if (!(marca instanceof Date)) continue;
+    if (!(marca instanceof Date) || isNaN(marca.getTime())) {
+      // Una fila con importe/folio y sin fecha legible no es un ticket borrado:
+      // detener la lectura antes de que el panel reconcilie y elimine movimientos.
+      const movimiento = ["folio", "importe"].some(k => f[idx[k]] !== "" && f[idx[k]] != null);
+      if (movimiento) return { error: "Fecha inválida en " + hoja.getName() + " (fila " + (i + 1) + "); no se sincronizó." };
+      continue;
+    }
     const fecha = Utilities.formatDate(marca, ZONA, "yyyy-MM-dd'T'HH:mm:ss");
     if (fecha.slice(0, 7) !== mes) continue;
     salidaFilas.push({
@@ -63,7 +69,7 @@ function leer(hoja, cols, mes) {
       folio: String(f[idx.folio]),
       matricula: String(f[idx.matricula]),
       cliente: String(f[idx.cliente]),
-      importe: f[idx.importe] === "" ? 0 : Number(f[idx.importe]) || 0,
+      importe: f[idx.importe] === "" ? 0 : f[idx.importe], // Conservar cifras y texto (MENOS, $, comas) para el parser de Caja
       forma: String(f[idx.forma]),
       turno: String(f[idx.turno])
     });

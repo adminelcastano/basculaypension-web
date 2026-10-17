@@ -17,13 +17,54 @@
     if (h < 6) return { dia: sumar(hoy, -1), turno: "NOCHE", h, hoy };
     return { dia: hoy, turno: h < 14 ? "MAÑANA" : h < 22 ? "TARDE" : "NOCHE", h, hoy };
   }
-  const previos = new Map();
+  const previos = new Map(), generaciones = new WeakMap();
   function contar(el, valor, formato) {
+    if (!el) return;
+    const gen = (generaciones.get(el) || 0) + 1; generaciones.set(el, gen);
     const desde = previos.get(el) ?? 0; previos.set(el, valor);
     if (reducido || desde === valor) { el.textContent = formato(valor); return; }
     const t0 = performance.now(), dur = 900;
-    const paso = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = formato(desde + (valor - desde) * e); if (k < 1) requestAnimationFrame(paso); };
+    const paso = t => {
+      if (generaciones.get(el) !== gen) return;
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = formato(desde + (valor - desde) * e);
+      if (k < 1) requestAnimationFrame(paso);
+    };
     requestAnimationFrame(paso);
+  }
+  // Cuando una fuente no respondió, no conservar importes/gráficas anteriores como actuales.
+  function ocultarNumero(id) {
+    const el = $("#" + id); if (!el) return;
+    generaciones.set(el, (generaciones.get(el) || 0) + 1);
+    previos.delete(el); el.textContent = "—";
+  }
+  function limpiarFuenteHoy(tipo) {
+    const conjuntos = {
+      facturas: { numeros: ["i-pend"], textos: ["i-pend-l", "d-fact"], notas: ["i-pend-nota"] },
+      personal: { numeros: ["i-exp"], notas: ["i-exp-nota"] },
+      caja: { numeros: ["i-hoy", "i-caja", "i-gastos"],
+        textos: ["i-split", "i-turnos", "d-formas", "d-serv", "cmp", "g-dias", "ini-gastos-l"],
+        notas: ["i-caja-nota", "i-gastos-nota", "i-turno", "prom-txt"] },
+      agenda: { numeros: ["n-incid", "n-tareas", "n-avisos", "n-compras"],
+        textos: ["m-incid", "m-tareas", "m-avisos", "m-incav", "m-eventos", "m-compras"] },
+      pagos: { numeros: ["i-pp", "i-pg", "n-pagos", "n-noprog"],
+        textos: ["m-pagos", "m-noprog", "g-pagos", "d-pagos"],
+        notas: ["i-pp-nota", "i-pg-nota"] },
+      finanzas: { numeros: ["i-f-ing", "i-f-egr", "i-f-res", "i-f-sob"],
+        notas: ["i-f-ing-nota", "i-f-egr-nota", "i-f-res-nota", "i-f-sob-nota"] },
+      calendario: { textos: ["i-calendario"] }
+    };
+    const grupo = conjuntos[tipo];
+    if (!grupo) return;
+    (grupo.numeros || []).forEach(ocultarNumero);
+    (grupo.textos || []).forEach(id => { const el = $("#" + id); if (el) el.replaceChildren(); });
+    (grupo.notas || []).forEach(id => { const el = $("#" + id); if (el) el.textContent = "No disponible"; });
+    if (tipo === "caja") {
+      const activo = $("#ini-activo"), gastos = $("#ini-gastos-l");
+      if (activo) activo.hidden = true;
+      if (gastos) gastos.hidden = true;
+      firmaGraf = null;
+    }
   }
   const tip = $("#gtip");
   function tooltip(ev, titulo, filas, total) {
@@ -229,15 +270,20 @@
     $("#i-fecha").textContent = fechaTxt.charAt(0).toUpperCase() + fechaTxt.slice(1) + ` · turno de la ${TURNO_TXT[ta.turno].toLowerCase()} en curso`;
     let todo;
     try { todo = await api("hoy"); }
-    catch (e) { $("#i-pie").textContent = e.message === "sesion" ? "Tu sesión expiró. Recarga la página." : "No se pudo cargar: " + e.message; return; }
+    catch (e) {
+      for (const fuente of ["facturas", "personal", "caja", "agenda", "pagos", "finanzas", "calendario"]) limpiarFuenteHoy(fuente);
+      pintarAtencion([]);
+      $("#i-pie").textContent = e.message === "sesion" ? "Tu sesión expiró. Recarga la página." : "No se pudo cargar: " + e.message;
+      return;
+    }
     const F = todo.fuentes || {};
     const ok = v => v ? { status: "fulfilled", value: v } : { status: "rejected", reason: new Error("no se pudo leer") };
     const fac = ok(F.facturas), caja = ok(F.caja), per = ok(F.personal), ag = ok(F.agenda);
     pintarAtencion(todo.atencion || []);
     pintarConsumo(F.consumo);
-    if (F.pagos) pintarPagos(F.pagos);
-    if (F.finanzas) pintarFinanzas(F.finanzas);
-    if (F.calendario) pintarCalendario(F.calendario);
+    if (F.pagos) pintarPagos(F.pagos); else limpiarFuenteHoy("pagos");
+    if (F.finanzas) pintarFinanzas(F.finanzas); else limpiarFuenteHoy("finanzas");
+    if (F.calendario) pintarCalendario(F.calendario); else limpiarFuenteHoy("calendario");
     const turnoMal = todo.turno && todo.turno.cambio_turno && Math.abs(todo.turno.cambio_turno.dif) >= 1 ? todo.turno.cambio_turno : null;
 
     if (fac.status === "fulfilled") {
@@ -249,12 +295,12 @@
       const imp = x => Number(String(x.importe ?? x.tarifa ?? "").replace(/[$,\s]/g, ""));
       $("#i-pend-l").innerHTML = pend.length ? `<div class="mini-q">${pend.slice(0, 5).map(x => `<div><span class="mini-r"><span class="t">${esc(x.nombre || x.cliente || x.rfc || "Sin nombre")}</span><b>${imp(x) > 0 ? esc(dinero(imp(x), 2)) : "—"}</b></span><span class="q">Folio ${esc(x.folio)} · llegó ${esc(fCorto.format(new Date(Date.parse(x.creado) - 216e5)))}</span></div>`).join("")}</div>${pend.length > 5 ? `<p class="note" style="margin:6px 0 0">y ${pend.length - 5} más</p>` : ""}` : "";
       dona($("#d-fact"), ["pendiente", "facturada", "rechazada"].map(k => ({ nombre: ESTADO[k][2], v: c[k] || 0, c: ESTADO[k][0], ico: ESTADO[k][1] })), { etiqueta: "solicitudes", formato: v => String(Math.round(v)), iconos: true });
-    }
+    } else limpiarFuenteHoy("facturas");
     if (per.status === "fulfilled") {
       const c = per.value.conteos;
       contar($("#i-exp"), c.incompletos || 0, v => String(Math.round(v)));
       $("#i-exp-nota").textContent = `(de ${c.todos || 0} activos)`;
-    }
+    } else limpiarFuenteHoy("personal");
     if (caja.status === "fulfilled") {
       const j = caja.value;
       const porDiaTurno = Object.fromEntries(j.cortes.map(c => [c.dia + "|" + c.turno, c]));
@@ -310,7 +356,10 @@
         $("#prom-txt").textContent = cerrados.length ? `Promedio diario ${dinero(promedio)} (${cerrados.length} ${cerrados.length === 1 ? "día" : "días"} anteriores del mes)` : "Promedio diario";
       }
       $("#i-pie").textContent = `Actualizado ${new Date(todo.generado).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" })} · las gráficas suman efectivo, tarjeta y transferencias (de la hoja y capturadas); el prepago no suma.`;
-    } else $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
+    } else {
+      limpiarFuenteHoy("caja");
+      $("#i-pie").textContent = "No se pudieron cargar los ingresos: " + caja.reason.message;
+    }
 
     if (ag.status === "fulfilled") {
       const a = ag.value, d = x => fCorto.format(new Date(x + "T12:00:00Z"));
@@ -333,7 +382,7 @@
       $("#m-eventos").innerHTML = lista(a.proximos, x => `<div><span>${esc(x.titulo)}</span><span class="m">${x.fecha === a.hoy ? "Hoy" : esc(d(x.fecha))}${x.hora ? " · " + esc(x.hora) : ""}</span></div>`, "Sin eventos próximos");
       contar($("#n-compras"), a.abiertos.compra || 0, v => String(Math.round(v)));
       $("#m-compras").innerHTML = lista(a.compras, x => `<div><span>${x.prioridad === "alta" ? "❗ " : ""}${esc(x.titulo)}</span><span class="m">${esc(x.cantidad || "")}</span></div>`, "Sin compras pendientes");
-    }
+    } else limpiarFuenteHoy("agenda");
   }
 
   // ---- Finanzas del mes ----

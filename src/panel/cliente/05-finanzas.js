@@ -18,10 +18,13 @@
   const cuando = iso => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" });
   const st = { mes: "", datos: null, cargarRep: null };
 
+  let secuenciaDinero = 0;
   async function cargar() {
+    const solicitud = ++secuenciaDinero;
     const c = $("#fb-resumen");
     try {
       const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
+      if (solicitud !== secuenciaDinero) return;
       st.datos = j; st.mes = j.mes;
       try { pintarConfigCuentas(); } catch (er) { console.error(er); }
       if (j.cuentas_activas) window.CUENTAS = j.cuentas_activas;
@@ -30,7 +33,7 @@
       sel.value = j.mes;
       pintar();
       if (st.foco === "transf") { st.foco = null; const el = $("#f-ftransf"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.cliente.focus(); } }
-    } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+    } catch (e) { if (solicitud === secuenciaDinero && e.message !== "sesion") c.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
   function graf(porDia) {
@@ -65,7 +68,7 @@
           })()}
           <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem cfila" style="opacity:${c.activa ? 1 : .55}"><form class="cnom" data-cnom="${esc(c.id)}"><input name="nombre" value="${esc(c.nombre)}" maxlength="40" aria-label="Nombre de la cuenta" autocomplete="off"><button class="btn btn-line" type="submit">Guardar</button></form><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select><button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span>
             <span class="mm">${[c.def_pago ? "Pagos y compras" : "", c.def_transf ? "Transferencias de clientes" : "", c.tarjeta ? "Cobros con tarjeta" : ""].filter(Boolean).map(t => `<span class="cat-chip">${t}</span>`).join("")}</span>
-            ${c.tarjeta ? `<form class="fcom" data-ccom="${esc(c.id)}" novalidate style="flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><label class="note">Comisión por cobro con tarjeta <input class="fsaldo-c" name="pct" inputmode="decimal" value="${c.comision_pct != null ? esc(c.comision_pct) : ""}" placeholder="3.50" style="width:80px"> %</label><label class="note"><input type="checkbox" name="iva" ${c.comision_iva ? "checked" : ""}> + IVA (16 %)</label><button class="btn btn-line" type="submit" style="min-height:34px;padding:0 10px">Guardar comisión</button></form>` : ""}</div>`).join("")}</div>
+            ${c.tarjeta ? `<span class="note" style="flex-basis:100%;margin-top:6px">Comisión Mercado Pago: 3.50 % + IVA (tasa histórica fija por cobro).</span>` : ""}</div>`).join("")}</div>
           <form class="aform" id="f-cnueva" style="margin-top:10px"><label class="w2">Nueva cuenta<input name="nombre" maxlength="40" placeholder="Ej. SANTANDER" autocomplete="off"></label><label>Tipo<select name="tipo"><option value="debito">Débito</option><option value="credito">Crédito</option></select></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
           <form id="f-cuentas" novalidate style="margin-top:12px"><label class="fcuentas">Notas de las cuentas <span class="ayuda">(terminaciones, CLABE, para qué se usa…)</span><textarea name="texto" rows="3" maxlength="4000">${esc(b.cuentas)}</textarea></label>
             <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><button class="btn btn-line" type="submit">Guardar notas</button><span class="err"></span></div></form>

@@ -188,8 +188,18 @@ export async function leerHoja(env, mes) {
     if (/accounts\.google|ServiceLogin|signin/i.test(t + r.url)) throw new Error("Google pidió iniciar sesión: publica la aplicación web con acceso para «Cualquier persona», desde la cuenta dueña de la hoja.");
     throw new Error(`La hoja no respondió bien (HTTP ${r.status}).`);
   }
-  if (!d.ok) throw new Error("La hoja rechazó la consulta: " + texto(d.error, 120));
-  const limpiar = (lista, servicio) => (Array.isArray(lista) ? lista : []).map(x => {
+  if (!r.ok || !d || d.ok !== true)
+    throw new Error("La hoja rechazó la consulta: " + texto(d && d.error, 120));
+  // Ambas listas deben estar presentes. Un JSON parcial no equivale a borrar tickets.
+  if (!Array.isArray(d.bascula) || !Array.isArray(d.pension))
+    throw new Error("La hoja devolvió datos incompletos; se conservan los registros anteriores.");
+  if (d.mes !== mes)
+    throw new Error("La hoja devolvió un mes diferente; se conservan los registros anteriores.");
+  if ([...d.bascula, ...d.pension].some(x => !x || typeof x !== "object" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(x.fecha || "")) ||
+      x.fecha.slice(0, 7) !== mes))
+    throw new Error("La hoja devolvió movimientos inválidos; se conservan los registros anteriores.");
+  const limpiar = (lista, servicio) => lista.map(x => {
     const turno = normTurno(x.turno);
     const fecha = texto(x.fecha, 19);
     const folio = texto(x.folio, 60);
