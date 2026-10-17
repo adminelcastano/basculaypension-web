@@ -6,6 +6,9 @@
 import { asegurarEsquemaAgenda, normalizarPara, avisoParaEncargado } from "./agenda.js";
 
 export const MAX_COMENTARIO = 1000;
+// Las fotografías de Castagram heredan el acceso y el estado de su publicación.
+export const fotoAvisoPermitida = (item, persona, turno, comentarioBorrado = false) =>
+  !!item && item.estado === "activo" && !comentarioBorrado && avisoParaEncargado(item, persona, turno);
 // Texto de varias líneas: se conservan los saltos (máximo una línea en blanco seguida)
 export const textoLargo = (v, n) => String(v ?? "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, n);
 // Clave con la que se guarda la autoría: "admin" para la administración, la clave del encargado si no
@@ -69,6 +72,11 @@ const enLotes = async (env, sql, ids, extra = []) => {
   return out;
 };
 
+// Las confirmaciones tienen fecha propia y solo son nuevas tras la última vista.
+export function resumenEnterados(recibos, vistoAt) {
+  const ultimo = recibos.reduce((at, r) => r.at > at ? r.at : at, "");
+  return { nuevosEnterado: recibos.filter(r => !vistoAt || r.at > vistoAt).length, ultimoEnterado: ultimo };
+}
 // Resumen de la conversación de varios avisos para una persona ("ADMIN" o clave del encargado):
 // { [id]: { n, nuevos, ultimo: { autor, texto, creado }, actividad } }
 export async function resumenConversaciones(env, avisos, persona) {
@@ -77,10 +85,20 @@ export async function resumenConversaciones(env, avisos, persona) {
   if (!ids.length) return out;
   const coms = await enLotes(env, "SELECT item_id, autor, texto, creado, borrado FROM aviso_comentarios WHERE item_id IN (?) ORDER BY creado", ids);
   const vistos = new Map((await enLotes(env, "SELECT item_id, at FROM aviso_vistos WHERE persona = ? AND item_id IN (?)", ids, [persona])).map(v => [v.item_id, v.at]));
+  const confirmaciones = persona === "ADMIN"
+    ? await enLotes(env, "SELECT item_id, persona, at FROM agenda_lecturas WHERE persona != 'ADMIN' AND item_id IN (?)", ids)
+    : [];
   const autor = autorDe(persona);
   for (const a of avisos) {
     const l = coms.filter(c => c.item_id === a.id), vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
-    out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)), ultimo: u ? { autor: u.autor, texto: u.texto.slice(0, 140), creado: u.creado } : null, actividad: u && u.creado > a.creado ? u.creado : a.creado };
+    const recibos = persona === "ADMIN" && (a.autor || "admin") === "admin"
+      ? confirmaciones.filter(c => c.item_id === a.id) : [];
+    const conf = resumenEnterados(recibos, vistos.get(a.id));
+    const ultimoComentario = u && u.creado > a.creado ? u.creado : a.creado;
+    out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)),
+      nuevosEnterado: conf.nuevosEnterado,
+      ultimo: u ? { autor: u.autor, texto: u.texto.slice(0, 140), creado: u.creado } : null,
+      actividad: conf.ultimoEnterado > ultimoComentario ? conf.ultimoEnterado : ultimoComentario };
   }
   return out;
 }
@@ -175,15 +193,15 @@ export async function archivoAvisos(env, { q = "", persona = "", desde = "", has
   let sql = "SELECT i.* FROM agenda_items i WHERE i.tipo = 'aviso' AND i.estado = 'archivado'", args = [];
   const t = String(q || "").trim().slice(0, 60);
   if (t) {
-    const like = "%" + t.replace(/[%_]/g, "") + "%";
-    sql += " AND (i.titulo LIKE ? OR COALESCE(i.detalle, '') LIKE ? OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.texto LIKE ?))"; args.push(like, like, like);
+    const like = "%" + t.replace(/[!%_]/g, x => "!" + x) + "%";
+    sql += " AND (i.titulo LIKE ? ESCAPE '!' OR COALESCE(i.detalle, '') LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.texto LIKE ? ESCAPE '!'))"; args.push(like, like, like);
   }
   const per = String(persona || "").toUpperCase().slice(0, 12);
   if (per) { sql += " AND (COALESCE(i.autor, 'admin') = ? OR i.para LIKE ? OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.autor = ?))"; args.push(per === "ADMIN" ? "admin" : per, `%"${per}"%`, per === "ADMIN" ? "admin" : per); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) { sql += " AND substr(COALESCE(i.cerrado, i.actualizado), 1, 10) >= ?"; args.push(desde); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(hasta)) { sql += " AND substr(COALESCE(i.cerrado, i.actualizado), 1, 10) <= ?"; args.push(hasta); }
   const pg = Math.max(0, Math.min(200, Number(pagina) || 0));
-  sql += " ORDER BY COALESCE(i.cerrado, i.actualizado) DESC LIMIT 31 OFFSET ?"; args.push(pg * 30);
+  sql += " ORDER BY COALESCE(i.cerrado, i.actualizado) DESC, i.id DESC LIMIT 31 OFFSET ?"; args.push(pg * 30);
   const filas = (await env.DB.prepare(sql).bind(...args).all()).results;
   const items = filas.slice(0, 30).map(a => ({ ...a, para: normalizarPara(a.para), autor: a.autor || "admin" }));
   const res = await resumenConversaciones(env, items, "ADMIN");

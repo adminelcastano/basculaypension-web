@@ -14,7 +14,7 @@ import AV5 from "./avatares/a5.webp";
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
-import { resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
+import { asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
 // El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
@@ -219,9 +219,19 @@ async function estado(env, s) {
   const hoy = local().dia;
   const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p) }));
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
-  const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
+  // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
+  // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
+  const visibles = [];
+  const loteAvisos = 150;
+  for (let offset = 0; visibles.length < 50; offset += loteAvisos) {
+    const filas = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC, id DESC LIMIT ? OFFSET ?").bind(hoy, loteAvisos, offset).all()).results;
+    for (const a of filas) {
+      if (avisoParaEncargado(a, s.persona, s.turno)) visibles.push(a);
+      if (visibles.length === 50) break;
+    }
+    if (filas.length < loteAvisos) break;
+  }
   const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  const visibles = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50);
   // Conversación de cada aviso: comentarios, nuevos para esta persona y último comentario; el muro va por actividad
   const conv = await resumenConversaciones(env, visibles, s.persona);
   const avisos = visibles
@@ -371,7 +381,37 @@ export async function turnoRuta(request, env, url, h) {
 
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
 
-  if (partes[0] === "foto" && request.method === "GET") return servirFoto(env, partes[1]);
+  if (partes[0] === "foto" && request.method === "GET") {
+    let esFotoCastagram = false;
+    let llave = "";
+    try { llave = decodeURIComponent(partes[1] || ""); } catch {}
+    // Las fotos de publicaciones y comentarios de Castagram deben respetar destinatarios.
+    // tf:inc también se usa en incidencias del panel; se comprueba su pertenencia antes de servir.
+    if (/^tf:(aviso|inc):[0-9a-f-]{36}$/.test(llave)) {
+      await asegurarEsquemaAvisos(env);
+      const a = await env.DB.prepare(`SELECT i.id, i.autor, i.para, i.estado FROM agenda_items i
+        WHERE i.tipo = 'aviso' AND (i.foto = ? OR i.fotos LIKE ? OR EXISTS
+        (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.foto = ?)) LIMIT 1`)
+        .bind(llave, '%"' + llave + '"%', llave).first();
+      if (a) {
+        esFotoCastagram = true;
+        const com = await env.DB.prepare("SELECT borrado FROM aviso_comentarios WHERE item_id = ? AND foto = ? LIMIT 1")
+          .bind(a.id, llave).first();
+        if (!fotoAvisoPermitida(a, s.persona, s.turno, !!(com && com.borrado)))
+          return new Response("No encontrado", { status: 404 });
+      } else if (llave.startsWith("tf:aviso:")) {
+        return new Response("No encontrado", { status: 404 });
+      } else {
+        const inc = await env.DB.prepare(`SELECT 1 FROM agenda_items
+          WHERE tipo = 'incidencia' AND (foto = ? OR fotos LIKE ?) LIMIT 1`)
+          .bind(llave, '%"' + llave + '"%').first();
+        if (!inc) return new Response("No encontrado", { status: 404 });
+      }
+    }
+    const respuesta = await servirFoto(env, llave);
+    if (esFotoCastagram) respuesta.headers.set("Cache-Control", "private, no-store");
+    return respuesta;
+  }
 
   let c = {};
   if (request.method === "POST") { try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); } }
@@ -423,7 +463,7 @@ export async function turnoRuta(request, env, url, h) {
     try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona, ...(foto ? { foto } : {}) });
-    await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Aviso urgente" : "Aviso"} de ${s.nombre}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : ""), sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
+    await notificar(env, "admin", { titulo: d.prioridad === "alta" ? "Publicación importante en Castagram" : "Nueva publicación en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }
   // Conversación de un aviso: solo la ven la administración, quien lo publicó y los etiquetados
@@ -445,8 +485,7 @@ export async function turnoRuta(request, env, url, h) {
       const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
       let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
       catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
-      const cuerpo = a.titulo + "\n" + (r.comentario.texto || "Mandó una foto");
-      if (r.notificar.admin) await notificar(env, "admin", { titulo: `${s.nombre} comentó un aviso`, cuerpo, sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
+      if (r.notificar.admin) await notificar(env, "admin", { titulo: "Nuevo comentario en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
       // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
       return recordar(json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas }));
     }

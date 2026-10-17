@@ -196,7 +196,7 @@
   // ---- Menos texto fijo en celular y tablet (secciones data-uno) ----
   // Notas largas: una línea con «ⓘ»; al tocarla se despliega. Formularios para agregar (celular): botón
   // «+ Nueva …» que los abre en una hoja desde abajo.
-  const ETQ_FORM = { compra: "Nueva compra", tarea: "Nueva tarea", incidencia: "Reportar incidencia", aviso: "Nuevo aviso" };
+  const ETQ_FORM = { compra: "Nueva compra", tarea: "Nueva tarea", incidencia: "Reportar incidencia", aviso: "Nueva publicación" };
   function ajustar(m) {
     m.querySelectorAll(".bq-c p.note:not([data-nl])").forEach(p => {
       p.dataset.nl = "1";

@@ -341,6 +341,27 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .ti.urg .ti-s { color: #ff8a80; font-weight: 600; }
 .t-volver { grid-column: 1 / -1; justify-self: start; align-items: center; gap: 2px; min-height: 44px; padding: 0 18px 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; }
 .t-volver svg { width: 18px; height: 18px; transform: rotate(180deg); }
+/* Identidad Castagram: solo afecta a la cabecera del feed. */
+.casta-identidad { display:flex; justify-content:center; max-width:760px; margin:0 0 8px; }
+.casta-identidad img { display:block; width:min(210px,60vw); height:auto; background:transparent; }
+.casta-subtitulo { color:var(--muted); font-size:.9rem; text-align:center; max-width:760px; margin:0 0 14px; }
+.accion[data-accion="aviso"] { position:relative; }
+.casta-alertas { position:absolute; top:8px; right:8px; display:inline-grid; place-items:center; min-width:21px; height:21px; padding:0 6px; border-radius:999px; background:#d70015; color:#fff; font-size:12px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* Actividad de Castagram, privada según la sesión actual. */
+.casta-actividad { max-width:760px; min-width:0; margin:2px 0 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+.casta-actividad summary { display:flex; gap:10px; align-items:center; min-height:48px; padding:9px 14px; list-style:none; cursor:pointer; color:var(--fg); font-weight:600; }
+.casta-actividad summary::-webkit-details-marker { display:none; }
+.casta-actividad summary svg { flex:none; width:21px; height:21px; }
+.casta-actividad summary span { flex:1; }
+.casta-actividad summary b { background:#d70015; color:#fff; font-size:12px; min-width:23px; height:23px; border-radius:100px; padding:0 6px; display:grid; place-items:center; font-variant-numeric:tabular-nums; }
+.casta-actividad-list { border-top:1px solid var(--line); max-height:300px; overflow-y:auto; overscroll-behavior:contain; display:grid; }
+.casta-actividad-list button { display:grid; text-align:left; min-width:0; width:100%; gap:2px; padding:12px 14px; border:0; border-bottom:1px solid var(--line); color:var(--fg); background:transparent; font:inherit; cursor:pointer; }
+.casta-actividad-list button:last-of-type { border-bottom:0; }
+.casta-actividad-list button:hover, .casta-actividad-list button:focus-visible { background:var(--fill, #303034); }
+.casta-actividad-list strong { overflow-wrap:anywhere; font-size:.9rem; }
+.casta-actividad-list small { color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
+.casta-actividad-list p { margin:0; padding:12px 14px; color:var(--muted); font-size:.85rem; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; max-width: 760px; }
 .muro-in { margin-top: 12px; max-width: none; }
@@ -393,6 +414,60 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .com-acc { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .com-form .err { margin: 6px 0 0; }
 @media (max-width: 560px) { .post { padding: 14px 14px 4px; border-radius: 18px; } }
+
+
+/* Emojis en comentarios y respuestas. Solo los comentarios admiten fotografía. */
+.casta-emoji-bar { display:flex; align-items:center; gap:4px; padding:2px 0 6px; overflow-x:auto; white-space:nowrap; }
+.casta-emoji-bar button { flex:none; min-width:40px; min-height:40px; padding:3px; border:0; border-radius:10px; background:transparent; color:var(--fg); font-size:22px; cursor:pointer; }
+.casta-emoji-bar button:hover, .casta-emoji-bar button:focus-visible { background:#333338; }
+.casta-reply { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding:6px 10px; border-radius:10px; background:#303034; font-size:.85rem; color:var(--fg); }
+.casta-reply button { min-width:32px; min-height:32px; background:transparent; color:var(--fg); border:0; cursor:pointer; font-size:22px; }
+/* Castagram: hoja inferior de comentarios; texto siempre disponible al pie. */
+dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; width:min(100%,680px); max-width:100%; height:min(82dvh,800px); max-height:calc(100dvh - 12px); padding:0; overflow:hidden; display:none; flex-direction:column; border:1px solid #38383b; border-radius:24px 24px 0 0; background:#1b1b1d; color:var(--fg); box-shadow:0 -15px 64px #0009; }
+dialog.casta-sheet[open] { display:flex; animation:casta-subir .22s ease-out both; }
+dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
+.casta-sheet-head { flex:none; min-height:64px; position:relative; display:flex; justify-content:center; align-items:center; border-bottom:1px solid var(--line); padding:18px 48px 10px; }
+.casta-sheet-head h3 { font-size:1rem; font-weight:600; margin:0; }
+.casta-sheet-grip { position:absolute; top:9px; width:42px; height:4px; border-radius:6px; background:#86868f; }
+.casta-sheet-x { position:absolute; right:12px; top:16px; width:34px; height:34px; border:0; border-radius:50%; background:#333338; color:#fff; font-size:24px; cursor:pointer; }
+.casta-sheet .hilo { display:flex; flex-direction:column; flex:1; min-height:0; padding:0; gap:0; border:0; }
+.casta-sheet .casta-sheet-list { overflow-y:auto; overscroll-behavior:contain; flex:1; min-height:0; display:grid; align-content:start; gap:14px; padding:16px 14px 22px; }
+.casta-sheet .casta-sheet-compose { border-top:1px solid var(--line); flex:none; background:#1b1b1d; padding:10px 14px calc(12px + env(safe-area-inset-bottom)); max-height:43dvh; overflow-y:auto; }
+.casta-sheet .com-form textarea { min-height:44px; max-height:110px; }
+.casta-sheet .com-etq { max-height:90px; overflow-y:auto; }
+.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:6px; color:#f5f5f7; font-size:.85rem; min-width:48px; min-height:48px; box-sizing:border-box; border:2px solid transparent; border-radius:14px; }
+.casta-pulgar .casta-pulgar-ico { display:block; flex:none; width:26px; height:26px; object-fit:contain; filter:brightness(0) invert(1); }
+.post-st .casta-pulgar img { width:26px; height:26px; object-fit:contain; vertical-align:middle; }
+.casta-pulgar.is-enterado { color:#30d158; border-color:#30d158; background:#112e1b; }
+.casta-pulgar.is-enterado .casta-pulgar-ico { filter:brightness(0) saturate(100%) invert(67%) sepia(48%) saturate(775%) hue-rotate(78deg) brightness(92%) contrast(91%); }
+.casta-pulgar.is-pendiente { color:#fbd06b; }
+.casta-pulgar-boton { border:2px solid transparent; background:transparent; padding:8px; border-radius:14px; cursor:pointer; }
+.casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:#303035; }
+.casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
+.casta-acciones { display:inline-flex; gap:4px; align-items:center; flex:none; }
+.casta-comentar { display:inline-grid; place-items:center; min-width:44px; min-height:44px; padding:8px; border:0; border-radius:12px; color:#f5f5f7; background:transparent; cursor:pointer; }
+.casta-comentar svg { width:24px; height:24px; color:inherit; stroke-width:2; }
+.casta-comentar:hover, .casta-comentar:focus-visible { background:#303035; }
+@keyframes casta-subir { from { transform:translateY(24px); opacity:.5; } to { transform:translateY(0); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
+@media(max-width:900px) { dialog.casta-sheet { width:100%; max-width:100%; margin:0; } }
+
+/* Carrusel de fotografías en Castagram (no afecta galerías de incidencias). */
+.casta-carrusel{position:relative;min-width:0;width:100%;margin-top:12px;border-radius:14px;overflow:hidden;background:#121214}
+.casta-carrusel-pista{display:flex;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.casta-carrusel-pista::-webkit-scrollbar{display:none}
+.casta-carrusel-slide{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
+.casta-carrusel-slide a{display:block;width:100%;background:#121214}
+.casta-carrusel-slide img{display:block;width:100%;height:auto;aspect-ratio:4/3;max-height:360px;object-fit:contain;background:#121214}
+.casta-carrusel-num{position:absolute;top:10px;right:10px;padding:4px 9px;background:#000b;color:#fff;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.casta-carrusel-arrow{position:absolute;z-index:1;top:calc(50% - 17px);transform:translateY(-50%);width:38px;height:42px;border:0;border-radius:12px;background:#000a;color:#fff;font-size:29px;line-height:1;display:grid;place-items:center;cursor:pointer}
+.casta-carrusel-arrow.anterior{left:7px}.casta-carrusel-arrow.siguiente{right:7px}
+.casta-carrusel-arrow:disabled{opacity:.22;cursor:default}
+.casta-carrusel-puntos{min-height:34px;display:flex;gap:6px;justify-content:center;align-items:center;padding:7px;background:#171719}
+.casta-carrusel-puntos button{border:0;width:9px;height:9px;min-width:9px;padding:0;border-radius:50%;background:#74747b;cursor:pointer}
+.casta-carrusel-puntos button[aria-current="true"]{background:#ffcc00;width:11px;height:11px;min-width:11px}
+.casta-carrusel button:focus-visible{outline:3px solid #ffcc00;outline-offset:1px}
+@media(max-width:420px){.casta-carrusel-arrow{width:36px;height:40px}.casta-carrusel-slide img{max-height:300px}}
 /* ---- Agenda de la tablet: agregar rápido, Mes | Agenda, tareas agrupadas ---- */
 .ag-rapida { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .agr-prev { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
@@ -540,7 +615,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     <img src="/img/logo.png" alt="" width="167" height="229">
     <nav class="modulos" aria-label="Secciones">
       <button type="button" data-sec="inicio"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Hoy</span></button>
-      <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos</span><span class="n" data-n="avisos" hidden></span></button>
+      <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Castagram</span><span class="n" data-n="avisos" hidden></span></button>
       <button type="button" data-sec="tareas"><svg class="mi" aria-hidden="true"><use href="#i-tarea"/></svg><span>Tareas</span><span class="n" data-n="tareas" hidden></span></button>
       <button type="button" data-sec="incidencias"><svg class="mi" aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><span class="n" data-n="incidencias" hidden></span></button>
       <button type="button" data-sec="calendario"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Calendario</span></button>
@@ -578,16 +653,31 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
   const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
-  const cola = () => leerLS("turno:cola", []);
+  // Identidad + turno + día: evita reenviar operaciones de otra sesión en tablets compartidas.
+  const colaClave = () => E && E.persona && E.turno && E.dia
+    ? "turno:cola:" + E.persona + ":" + E.turno + ":" + E.dia : null;
+  const cola = () => { const k = colaClave(), v = k ? leerLS(k, []) : []; return Array.isArray(v) ? v : []; };
+  const guardarCola = v => { const k = colaClave(); return !!k && guardarLS(k, v); };
+  // No se destruyen envíos antiguos sin turno/día: quedan aislados para revisión.
+  const colaAnterior = () => { const v = leerLS("turno:cola", []); return Array.isArray(v) ? v.length : 0; };
   async function api(ruta, datos, opciones = {}) {
     if (datos !== undefined && !datos.uid && ruta !== "entrar" && ruta !== "salir") datos = { ...datos, uid: nuevoUid() };
     const op = datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Turno": "1" }, body: JSON.stringify(datos) };
+    const actor = E ? { persona: E.persona, turno: E.turno, dia: E.dia } : null;
     let r, j;
     try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); }
     catch {
-      if (datos !== undefined && opciones.cola !== false && E && COLA_RUTAS.test(ruta)) {
-        const l = cola(); l.push({ ruta, datos, persona: E.persona, at: new Date().toISOString() });
-        if (!guardarLS("turno:cola", l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
+      if (datos !== undefined && opciones.cola !== false && actor && E &&
+          actor.persona === E.persona && actor.turno === E.turno && actor.dia === E.dia && COLA_RUTAS.test(ruta)) {
+        const l = cola();
+        // Una confirmación de Enterado en cola no debe duplicarse con nuevos toques.
+        if (/^avisos\/[^/]+\/enterado$/.test(ruta) && l.some(x =>
+          x.ruta === ruta && x.persona === actor.persona && x.turno === actor.turno && x.dia === actor.dia)) {
+          pintarRed();
+          return { ok: true, enCola: true };
+        }
+        l.push({ ruta, datos, ...actor, at: new Date().toISOString() });
+        if (!guardarCola(l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
         pintarRed();
         return { ok: true, enCola: true };
       }
@@ -607,6 +697,12 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ======================= Entrada =======================
   let elegido = null, turnoElegido = null, pin = "";
   async function mostrarEntrada() {
+    guardarLS("turno:estado", null); // borra estado legado con datos privados
+    E = null;
+    Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
+    const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
+    const form = $("#dlg-form"); if (form) { form.onsubmit = null; form.replaceChildren(); }
+    const vista = $("#sec"); if (vista) vista.replaceChildren();
     $("#app").hidden = true; $("#entrada").hidden = false;
     aplicarPrefs(null);
     elegido = null; pin = ""; pintarPin();
@@ -674,7 +770,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   }
 
   let E = null, seccion = "inicio";
-  // El último estado se guarda en la tablet para poder trabajar sin internet
+  // El estado privado permanece solo en memoria de la sesión PIN actual.
+  // Los envíos offline se conservan por encargado, turno y día.
   let sinRed = false;
   // Versión de esta página (la pone el servidor); si en el servidor hay una nueva, se recarga sola
   const VER = "__TURNO_VER__";
@@ -686,11 +783,19 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     location.reload();
   }
   async function cargar() {
-    try { E = await api("estado"); sinRed = false; guardarLS("turno:estado", { at: new Date().toISOString(), E }); setTimeout(revisarVersion, 0); }
-    catch (e) {
-      const g = leerLS("turno:estado", null);
-      if (!e.red || !g || (E && g.E.persona !== E.persona)) throw e;
-      E = g.E; sinRed = g.at;
+    try {
+      const nuevo = await api("estado");
+      if (E && (E.persona !== nuevo.persona || E.turno !== nuevo.turno || E.dia !== nuevo.dia)) {
+        Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
+      }
+      E = nuevo;
+      sinRed = false;
+      guardarLS("turno:estado", null);
+      setTimeout(revisarVersion, 0);
+    } catch (e) {
+      // Sin conexión se conserva solo el estado ya autenticado en esta sesión.
+      if (!e.red || !E) throw e;
+      sinRed = new Date().toISOString();
     }
     pintarCabecera(); return E;
   }
@@ -701,24 +806,41 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     enviando = true;
     try {
       let l = cola(), n = 0;
-      while (l.length) {
+      const persona = E.persona, turno = E.turno, dia = E.dia;
+      while (l.length && E && E.persona === persona && E.turno === turno && E.dia === dia) {
         const it = l[0];
+        if (it.persona !== persona || it.turno !== turno || it.dia !== dia) {
+          toast("Hay un envío de otra sesión. No se enviará automáticamente.", true); break;
+        }
         try { await api(it.ruta, it.datos, { cola: false }); n++; }
         catch (e) {
-          if (e.red) break;
-          if (e.datos && e.datos.sesion === false) break;
-          toast(`No se pudo enviar un registro guardado sin internet: ${e.message}`, true);
+          if (e.red || !E || (e.datos && e.datos.sesion === false)) break;
+          toast(`No se pudo enviar un registro guardado: ${e.message}. Se conservó pendiente.`, true);
+          break; // no descartar mensajes, fotos ni registros rechazados
         }
-        l = cola(); l.shift(); guardarLS("turno:cola", l);
+        if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) break;
+        l = cola(); l.shift(); if (!guardarCola(l)) break;
       }
-      if (n) { toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`); await refrescar().catch(() => {}); }
+      if (n && E && E.persona === persona && E.turno === turno && E.dia === dia) {
+        toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`);
+        // Una sincronización offline no debe cerrar los comentarios que se estén leyendo.
+        if (seccion === "avisos" && sec().querySelector("dialog.casta-sheet[open]")) {
+          await cargar().then(() => {
+            if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) return;
+            for (const a of E.avisos || []) repintarPost(a.id);
+            castaRefrescarActividadTurno();
+          }).catch(() => {});
+        } else await refrescar().catch(() => {});
+      }
     } finally { enviando = false; pintarRed(); }
   }
   function pintarRed() {
     const el = $("#red"); if (!el) return;
-    const n = cola().length;
-    el.hidden = !n && !sinRed;
-    el.textContent = sinRed ? `Sin internet${n ? ` · ${n} por enviar` : ""}` : `${n} por enviar`;
+    const n = cola().length, antiguos = colaAnterior();
+    el.hidden = !n && !sinRed && !antiguos;
+    el.textContent = (sinRed ? "Sin internet" : "") +
+      (n ? ` · ${n} por enviar` : "") +
+      (antiguos ? ` · ${antiguos} envío(s) anterior(es) por revisar` : "");
   }
   addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
@@ -852,7 +974,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
             <button type="button" class="accion" data-accion="gasto"><span class="ibadge" style="--c:#ff7a70"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
             <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
             <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
-            <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Dejar aviso</button>
+            <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Publicar en Castagram${nuevos.length ? `<span class="casta-alertas" aria-label="${nuevos.length} novedades pendientes">${nuevos.length > 99 ? "99+" : nuevos.length}</span>` : ""}</button>
             <button type="button" class="accion" data-accion="compra"><span class="ibadge" style="--c:#bf5af2"><svg><use href="#i-carrito"/></svg></span>Compras</button>
             <button type="button" class="accion" data-accion="corte"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span>${c ? "Corregir corte" : "Hacer corte"}</button>
           </div>
@@ -870,7 +992,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
           <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
         <section class="ini-card cat-c s4" data-bloque="avisos">
-          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos con novedades</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Todos los avisos (${E.avisos.length})</button></div>
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Novedades de Castagram</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Ver Castagram (${E.avisos.length})</button></div>
           ${nuevos.length ? `<div class="muro muro-in">${nuevos.map(postHtml).join("")}</div>` : `<p class="vacio" style="padding:4px 0 0">Estás al día con los avisos.</p>`}
         </section>
         <section class="ini-card cat-d s4" data-bloque="incidencias">
@@ -891,7 +1013,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     const nuevos = E.avisos.filter(a => !a.leido || (a.conv && a.conv.nuevos)), imp = nuevos.some(a => a.prioridad === "alta" && !a.leido);
     const c = E.corte;
     const T = [
-      ["avisos", "i-aviso", "#ffcc00", "Avisos con novedades", nuevos.length, nuevos.length ? (imp ? "Hay un aviso importante sin leer" : "Toca para leerlos") : "Estás al día", imp],
+      ["avisos", "i-aviso", "#ffcc00", "Novedades de Castagram", nuevos.length, nuevos.length ? (imp ? "Hay una publicación importante sin leer" : "Toca para leerlos") : "Estás al día", imp],
       ["tareas", "i-tarea", "#64d2ff", "Tareas pendientes", E.tareas.length, urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Cuéntale a la administración cómo quedaron" : "Nada pendiente", urg > 0],
       ["corte", "i-billete", "#2dd4bf", "Corte del turno", null, c ? (c.cambios_despues ? "Hay movimientos después: vuelve a entregarlo" : `Entregado a las ${hora12(c.actualizado)}`) : "Pendiente: al terminar, cuenta el efectivo", !!(c && c.cambios_despues)],
       ["incidencias", "i-alerta", "#ff6961", "Incidencias abiertas", E.incidencias.length, graves ? `${graves} ${graves === 1 ? "grave" : "graves"}` : E.incidencias.length ? "De todos los turnos" : "Ninguna abierta", graves > 0],
@@ -930,12 +1052,64 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ---------- Avisos: muro de publicaciones con conversación ----------
   // Cada aviso es una publicación: los etiquetados y la administración comentan debajo hasta que la administración lo archiva.
   const hilos = {}, hilosAb = new Set();
+  const castaComentar = "<svg class=\"casta-comentar-ico\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H9l-6.5 4V6A2.5 2.5 0 0 1 5 3.5Z\"/><path d=\"M7.5 9H17M7.5 13H15\"/></svg>";
+  const castaPulgar = "<img class=\"casta-pulgar-ico\" src=\"/img/castagram-pulgar.png\" alt=\"\" aria-hidden=\"true\" width=\"26\" height=\"26\">";
+  function cerrarSheetTurno() {
+    const dlg = sec().querySelector("dialog.casta-sheet[open]");
+    if (dlg) dlg.close();
+  }
+  function mostrarSheetTurno(id, escribir = false) {
+    if (!E || !E.avisos.some(a => a.id === id)) return;
+    cerrarSheetTurno();
+    const a = E.avisos.find(x => x.id === id);
+    hilosAb.clear(); hilosAb.add(id);
+    const dlg = document.createElement("dialog");
+    dlg.className = "casta-sheet";
+    dlg.dataset.av = id;
+    dlg.setAttribute("aria-label", "Comentarios de " + a.titulo);
+    dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" data-sheet-cerrar aria-label="Cerrar comentarios" class="casta-sheet-x">×</button></div>${hiloHtml(a)}`;
+    dlg.addEventListener("close", () => { hilosAb.delete(id); dlg.remove(); repintarPost(id); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    sec().append(dlg);
+    dlg.showModal();
+    repintarPost(id);
+    if (escribir) { const ta = dlg.querySelector(".com-form textarea"); if (ta) ta.focus({ preventScroll:true }); }
+  }
+  function repintarSheetTurno(id) {
+    const dlg = sec().querySelector("dialog.casta-sheet[open]");
+    if (!dlg || dlg.dataset.av !== id) return;
+    const a = E && E.avisos.find(x => x.id === id);
+    if (!a) { dlg.close(); return; }
+    const form = dlg.querySelector("form.com-form");
+    if (form && hilos[id]) hilos[id].borrador = form.texto.value;
+    const hilo = dlg.querySelector(".hilo");
+    if (hilo) hilo.outerHTML = hiloHtml(a);
+  }
+  function comenzarReplyTurno(h, persona) {
+    if (!h.responderA) h.antesReply = { texto: h.borrador || "", foto: h.foto || null, etq: h.etq || [] };
+    h.responderA = persona;
+    h.borrador = "@" + persona + " ";
+    h.foto = null; h.etq = [];
+  }
+  function terminarReplyTurno(h) {
+    if (!h.responderA) return;
+    const a = h.antesReply || {};
+    h.borrador = a.texto || ""; h.foto = a.foto || null; h.etq = a.etq || [];
+    h.responderA = null; delete h.antesReply;
+  }
+  function insertarEmojiTurno(form, emoji) {
+    const ta = form && form.querySelector('textarea[name="texto"]');
+    if (!ta || !emoji) return;
+    ta.setRangeText(emoji, ta.selectionStart, ta.selectionEnd, "end");
+    ta.dispatchEvent(new Event("input", { bubbles:true }));
+    ta.focus({ preventScroll:true });
+  }
   const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => E.personas.some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m).replace(/\n/g, "<br>");
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
   function comHtml(c) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avi(c.autor, 1)}<div class="com-b"><div class="com-burb"><b>${esc(c.autor === E.persona ? "Tú" : nombreDe(c.autor))}</b>
-      ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
-      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
+      ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
+      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${!c.borrado && c.autor !== E.persona ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
   }
   function hiloHtml(a) {
     const h = hilos[a.id];
@@ -943,42 +1117,103 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-re="${esc(a.id)}">Reintentar</button></p></div>`;
     const p = a.para || {}, fuera = p.todos ? [] : E.personas.filter(x => x.clave !== E.persona && x.clave !== a.autor && !(p.personas || []).includes(x.clave));
     const sel = h.etq || [];
-    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}
-      <form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
+    return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}</div>
+      <div class="casta-sheet-compose"><form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
         <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
-        ${h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
-        <div class="com-acc"><label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label><button class="btn btn-primary btn-sm" type="submit">Comentar</button></div>
-        <p class="err" role="alert"></p></div></form></div>`;
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${!h.responderA && h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc">${!h.responderA ? `<label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label>` : ""}<button class="btn btn-primary btn-sm" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
+        <p class="err" role="alert"></p></div></form></div></div>`;
   }
+
+  // Carrusel para publicaciones de Castagram. No cambia las fotos de incidencias.
+  const castaFotoActual = new Map();
+  function castaFotos(fotos, id) {
+    if (!Array.isArray(fotos) || !fotos.length) return "";
+    const foto = (k,i) => {
+      const url="/turno/api/foto/"+encodeURIComponent(k)+"?castagram=2";
+      return `<a href="${url}" target="_blank" rel="noopener" aria-label="Abrir foto ${i+1} de ${fotos.length}"><img src="${url}" alt="Foto ${i+1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    };
+    if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
+    const actual = Math.max(0, Math.min(fotos.length-1,castaFotoActual.get(id)||0));
+    return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
+      <div class="casta-carrusel-pista" aria-roledescription="carrusel" tabindex="0">${fotos.map((k,i)=>`<div class="casta-carrusel-slide">${foto(k,i)}</div>`).join("")}</div>
+      <span class="casta-carrusel-num" aria-live="polite">${actual+1} / ${fotos.length}</span>
+      <button type="button" class="casta-carrusel-arrow anterior" data-casta-paso="-1" aria-label="Foto anterior" ${actual===0?"disabled":""}>‹</button>
+      <button type="button" class="casta-carrusel-arrow siguiente" data-casta-paso="1" aria-label="Foto siguiente" ${actual===fotos.length-1?"disabled":""}>›</button>
+      <div class="casta-carrusel-puntos" aria-label="Posición de fotografía">${fotos.map((_,i)=>`<button type="button" data-casta-ir="${i}" aria-label="Ver foto ${i+1} de ${fotos.length}" ${i===actual?'aria-current="true"':""}></button>`).join("")}</div>
+    </div>`;
+  }
+  function castaSincronizar(caja) {
+    if(!caja || !caja.isConnected)return;
+    const pista=caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const n=pista.children.length,i=Math.max(0,Math.min(n-1,Math.round(pista.scrollLeft/pista.clientWidth)));
+    castaFotoActual.set(caja.dataset.castaCarrusel,i);
+    const counter=caja.querySelector(".casta-carrusel-num");
+    if(counter)counter.textContent=`${i+1} / ${n}`;
+    for(const [paso,fin] of [[-1,0],[1,n-1]]){const b=caja.querySelector('[data-casta-paso="'+paso+'"]');if(b)b.disabled=i===fin;}
+    caja.querySelectorAll("[data-casta-ir]").forEach(b=>{if(+b.dataset.castaIr===i)b.setAttribute("aria-current","true");else b.removeAttribute("aria-current");});
+  }
+  function castaMover(boton) {
+    const caja=boton.closest("[data-casta-carrusel]"),pista=caja&&caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const current=Math.round(pista.scrollLeft/pista.clientWidth);
+    const target=boton.dataset.castaIr!==undefined?+boton.dataset.castaIr:current+Number(boton.dataset.castaPaso);
+    if(target<0 || target>=pista.children.length)return;
+    castaFotoActual.set(caja.dataset.castaCarrusel,target);
+    pista.scrollTo({left:target*pista.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+  }
+  function castaRestaurar(root) {
+    if(!root)return;
+    requestAnimationFrame(()=>root.querySelectorAll("[data-casta-carrusel]").forEach(caja=>{
+      if(!caja.isConnected)return;
+      const pista=caja.querySelector(".casta-carrusel-pista"),indice=castaFotoActual.get(caja.dataset.castaCarrusel)||0;
+      if(pista&&pista.clientWidth)pista.scrollLeft=indice*pista.clientWidth;
+      castaSincronizar(caja);
+    }));
+  }
+
   function postHtml(a) {
     const cv = a.conv || { n: 0, nuevos: 0 }, ab = hilosAb.has(a.id), nuevo = !a.leido || cv.nuevos;
+    // Sin red, una confirmación en cola NO equivale a Enterado confirmado en el servidor.
+    const pendiente = !a.leido && cola().some(x => x.ruta === `avisos/${a.id}/enterado` && x.persona === E.persona && x.turno === E.turno && x.dia === E.dia);
     const f = a.fotos || [];
+    const confirmado = !!a.leido && !a.propio;
     return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
-      ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st"><span>${a.leido && !a.propio ? `${svg("i-check")} Enterado` : ""}</span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      ${castaFotos(f,a.id)}
+      <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${castaComentar}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
-      <div class="post-acc">${!a.leido ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
-      ${ab ? hiloHtml(a) : ""}</article>`;
+      </article>`;
   }
   async function abrirHilo(id) {
-    const prev = hilos[id] || {};
+    const sesion = E, prev = hilos[id] || {};
+    if (!sesion || !sesion.avisos.some(a => a.id === id)) return;
     try {
       const j = await api(`avisos/${id}/conversacion`);
+      // Una respuesta tardía no debe restaurar información de otra sesión PIN.
+      if (E !== sesion) return;
       hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const a = E.avisos.find(x => x.id === id); if (a && a.conv) a.conv.nuevos = 0;
       pintarCabecera();
-    } catch (er) { hilos[id] = { ...prev, error: er.message, comentarios: [] }; }
+    } catch (er) {
+      if (E !== sesion) return;
+      hilos[id] = { ...prev, error: er.message, comentarios: [] };
+    }
     repintarPost(id);
+    castaRefrescarActividadTurno();
   }
   // Vuelve a pintar solo una publicación (para no perder lo que se está escribiendo en otras)
   function repintarPost(id) {
-    const a = E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
-    if (a && el) el.outerHTML = postHtml(a);
+    const a = E && E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
+    if (a && el) { el.outerHTML = postHtml(a); castaRestaurar(sec()); }
+    repintarSheetTurno(id);
   }
   function filaTarea(t) {
     const ult = t.reportes && t.reportes[0];
@@ -991,11 +1226,49 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       ${ult ? `<span class="mm"><span class="etq ${RES[ult.resultado][1]}">${RES[ult.resultado][0]}</span><span>${esc(ult.persona)} · ${esc(fechaCorta(ult.creado))}${ult.nota ? " · " + esc(ult.nota) : ""}</span></span>` : ""}
     </div>`;
   }
+
+  // La lista solo utiliza publicaciones previamente filtradas para este encargado.
+  // Abrir una conversación NO confirma Enterado.
+  function castaActividadTurno() {
+    if (!E) return [];
+    const eventos = [];
+    for (const a of E.avisos || []) {
+      const cv = a.conv || {};
+      if (!a.leido && !a.propio) {
+        const pendiente = cola().some(x => x.ruta === `avisos/${a.id}/enterado` && x.persona === E.persona && x.turno === E.turno && x.dia === E.dia);
+        eventos.push({ id:a.id, at:a.creado,
+          mensaje:pendiente ? "Enterado pendiente de conexión" : "Pendiente de Enterado", titulo:a.titulo });
+      }
+      if (cv.nuevos > 0) {
+        const otro = cv.ultimo && cv.ultimo.autor !== E.persona ? nombreDe(cv.ultimo.autor) : "";
+        eventos.push({ id:a.id, at:cv.ultimo && cv.ultimo.creado || cv.actividad || a.creado,
+          mensaje:cv.nuevos === 1 ? (otro ? otro + " comentó" : "Comentario nuevo") : cv.nuevos + " comentarios nuevos",
+          titulo:a.titulo });
+      }
+    }
+    return eventos.sort((a,b)=>String(b.at||"").localeCompare(String(a.at||""))).slice(0,20);
+  }
+  function castaActividadVistaTurno() {
+    const eventos=castaActividadTurno();
+    return `<details class="casta-actividad"><summary>${svg("i-aviso")}<span>Actividad</span>${eventos.length ? `<b aria-label="${eventos.length} novedades">${eventos.length > 99 ? "99+" : eventos.length}</b>` : ""}</summary>
+      <div class="casta-actividad-list">${eventos.length ? eventos.map(x=>`<button type="button" data-casta-evento="${esc(x.id)}" aria-label="${esc(x.mensaje)}. Abrir conversación">
+      <strong>${esc(x.mensaje)}</strong><small>${esc(x.titulo)}</small></button>`).join("") : `<p>Sin novedades pendientes.</p>`}</div></details>`;
+  }
+
+  function castaRefrescarActividadTurno() {
+    const anterior = sec().querySelector("details.casta-actividad");
+    if (!anterior) return;
+    const abierto = anterior.open;
+    anterior.outerHTML = castaActividadVistaTurno();
+    const nuevo = sec().querySelector("details.casta-actividad");
+    if (nuevo) nuevo.open = abierto;
+  }
   function verAvisos() {
-    sec().innerHTML = titulo("Avisos.", "Lo que publican la administración y los encargados. Solo ves los avisos donde te etiquetaron o que publicaste tú.") + `
+    sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>${castaActividadVistaTurno()}` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
-      <p class="note muro-nota">Los avisos se quedan aquí hasta que la administración los archive. Comenta en el mismo aviso para dar seguimiento.</p>`;
+      <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
+    castaRestaurar(sec());
   }
   // ---------- Tareas: agrupadas como en las apps de pendientes, y "Dejar un pendiente" en lenguaje natural ----------
   const diaRel = f => { if (!f) return ""; const hoy = E.hoy || E.dia, dd = Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(hoy + "T12:00:00Z")) / 864e5); return dd === 0 ? "Hoy" : dd === 1 ? "Mañana" : dd === -1 ? "Ayer" : dd > 1 && dd < 7 ? diaTxt(f).split(" ")[0].replace(/^./, x => x.toUpperCase()).replace(",", "") : new Date(f + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }); };
@@ -1340,9 +1613,9 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   function hojaAviso(base = {}) {
     let fotoAviso = null;
     const ops = [["admin", "@Administración"], ["todos", "@Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "@Turno " + TURNO_TXT[t].toLowerCase()]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, "@" + esc(p.clave)])];
-    const sel = base.para || ["admin"];
-    hoja(`<h2>Publicar un aviso</h2><p class="muted" style="margin:0 0 14px">Etiqueta a quién va dirigido. Solo lo ven ellos y la administración, y todos pueden comentar en la misma publicación.</p>
-      <div class="campo"><span class="lb">Etiquetar a</span>${chips("a-para", ops, sel, true)}</div>
+    const sel = []; // No seleccionar destinatarios automáticamente al publicar.
+    hoja(`<h2>Publicar en Castagram</h2><p class="muted" style="margin:0 0 14px">Etiqueta a quién va dirigido. Solo lo ven ellos y la administración, y todos pueden comentar en la misma publicación.</p>
+      <div class="campo"><span class="lb">Elige destinatarios (obligatorio)</span>${chips("a-para", ops, sel, true)}</div>
       <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
       <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("a-foto", "Tomar foto")}</div>
@@ -1352,7 +1625,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
         if (!v.length) throw new Error("Elige para quién es el aviso.");
         const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
         const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para, foto: fotoAviso });
-        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Aviso publicado."); await cargar(); ir("avisos");
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Publicado en Castagram."); await cargar(); ir("avisos");
       });
     // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
     $("#a-para").addEventListener("click", e => {
@@ -1411,20 +1684,62 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       try { await api(`tareas/${qt.dataset.quitarTarea}/quitar`, {}, { cola: false }); toast("Tarea quitada."); await refrescar(); } catch (er) { toast(errores(er), true); qt.disabled = false; }
       return;
     }
+    const controlFoto = e.target.closest("[data-casta-paso], [data-casta-ir]");
+    if (controlFoto) { castaMover(controlFoto); return; }
+    const actividad = e.target.closest("[data-casta-evento]");
+    if (actividad) {
+      const id = actividad.dataset.castaEvento;
+      if (!E || !E.avisos.some(a => a.id === id)) return;
+      mostrarSheetTurno(id);
+      await abrirHilo(id);
+      return;
+    }
     const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
     const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
     if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
     if (hv) { if (history.state && history.state.hoy) history.back(); else { vistaHoy = null; aplicarIndice(); } return; }
     if (hl) {
       const id = hl.dataset.hilo, escribir = !!hl.dataset.escribir;
-      if (hilosAb.has(id) && !escribir) hilosAb.delete(id); else hilosAb.add(id);
-      repintarPost(id);
-      if (hilosAb.has(id)) { if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } await abrirHilo(id); if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } }
+      mostrarSheetTurno(id, false);
+      await abrirHilo(id);
+      if (escribir) {
+        const t = sec().querySelector("dialog.casta-sheet[open] .com-form textarea");
+        if (t) t.focus({ preventScroll:true });
+      }
       return;
     }
+    const cerrarComentarios = e.target.closest("[data-sheet-cerrar]");
+    if (cerrarComentarios) { cerrarSheetTurno(); return; }
+    const responder = e.target.closest("[data-responder]");
+    if (responder) {
+      const dlg = responder.closest("dialog.casta-sheet"), id = dlg && dlg.dataset.av;
+      const ta = dlg && dlg.querySelector(".com-form textarea");
+      if (id && ta && hilos[id]) {
+        hilos[id].borrador = ta.value;
+        comenzarReplyTurno(hilos[id], responder.dataset.responder);
+        const form = dlg.querySelector("form.com-form");
+        if (form) form.remove(); // No sobrescribir el borrador nuevo con el textarea anterior
+        repintarSheetTurno(id);
+        const nuevo = dlg.querySelector(".com-form textarea");
+        if (nuevo) { nuevo.focus({ preventScroll:true }); nuevo.setSelectionRange(nuevo.value.length,nuevo.value.length); }
+      }
+      return;
+    }
+    const cancelarReply = e.target.closest("[data-reply-cancel]");
+    if (cancelarReply) {
+      const dlg = cancelarReply.closest("dialog.casta-sheet"), id = dlg && dlg.dataset.av;
+      if (id && hilos[id]) {
+        terminarReplyTurno(hilos[id]);
+        const form = dlg.querySelector("form.com-form"); if (form) form.remove();
+        repintarSheetTurno(id);
+      }
+      return;
+    }
+    const pulsacionEmoji = e.target.closest("[data-com-emoji]");
+    if (pulsacionEmoji) { insertarEmojiTurno(pulsacionEmoji.closest("form.com-form"), pulsacionEmoji.dataset.comEmoji); return; }
     if (hr) { abrirHilo(hr.dataset.hiloRe); return; }
     if (et) { const f = et.closest("form"), h = hilos[f.dataset.av]; h.etq = h.etq || []; const k = et.dataset.etq; h.etq = h.etq.includes(k) ? h.etq.filter(x => x !== k) : [...h.etq, k]; et.setAttribute("aria-pressed", h.etq.includes(k)); return; }
-    if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
+    if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; if (h.responderA) return; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
     const ac = e.target.closest("[data-accion]"), irA = e.target.closest("[data-ir]");
     const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), bo = e.target.closest("[data-borrar]");
     if (ac) {
@@ -1432,7 +1747,16 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
     } else if (en) {
       en.disabled = true;
-      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); const a = E.avisos.find(x => x.id === en.dataset.enterado); if (a) a.leido = true; pintarCabecera(); repintarPost(en.dataset.enterado); } catch (er) { toast(er.message, true); en.disabled = false; }
+      try {
+        const r = await api(`avisos/${en.dataset.enterado}/enterado`, {});
+        if (r.enCola) { toast("Enterado pendiente: se confirmará cuando vuelva internet."); repintarPost(en.dataset.enterado); castaRefrescarActividadTurno(); return; }
+        const a = E.avisos.find(x => x.id === en.dataset.enterado);
+        if (a) a.leido = true;
+        pintarCabecera(); repintarPost(en.dataset.enterado);
+        // Enterado ya quedó confirmado por el servidor: quitar la novedad sin
+        // cerrar la conversación ni marcar otras publicaciones como vistas.
+        castaRefrescarActividadTurno();
+      } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
       const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
     } else if (bo) {
@@ -1441,11 +1765,20 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
       try { await api(`${tipo}/${id}/eliminar`, {}); toast("Borrado."); await refrescar(); } catch (er) { toast(er.message, true); }
     } else if (irA) ir(irA.dataset.ir);
   });
+  sec().addEventListener("scroll", e => { if (e.target.matches(".casta-carrusel-pista")) castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
   sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av]) hilos[f.dataset.av].borrador = e.target.value; });
   sec().addEventListener("change", async e => {
     const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
-    const f = inp.closest("form"), h = hilos[f.dataset.av];
-    try { h.foto = await comprimir(inp.files[0]); h.borrador = f.texto.value; repintarPost(f.dataset.av); } catch { toast("No se pudo leer la foto. Intenta otra vez.", true); }
+    const f = inp.closest("form"), id = f && f.dataset.av, h = id && hilos[id], sesion = E;
+    if (!h || !sesion) return;
+    if (h.responderA) { inp.value = ""; return; }
+    try {
+      const foto = await comprimir(inp.files[0]);
+      if (E !== sesion || hilos[id] !== h || !f.isConnected) return;
+      h.foto = foto; h.borrador = f.texto.value; repintarPost(id);
+    } catch {
+      if (E === sesion) toast("No se pudo leer la foto. Intenta otra vez.", true);
+    }
   });
   sec().addEventListener("input", e => { const f = e.target.closest("#t-rapida"); if (f) previaTurno(f); });
   sec().addEventListener("submit", async e => {
@@ -1472,14 +1805,22 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     if (!f.texto.value.trim() && !h.foto) { err.textContent = "Escribe tu comentario."; f.texto.focus(); return; }
     err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
     try {
-      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] }, { cola: false });
+      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] }, { cola: false });
       const a = E.avisos.find(x => x.id === id);
-      if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0 }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
-      hilos[id] = { comentarios: [...h.comentarios, r.comentario] };
-      sucio = false; repintarPost(id);
+      if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
+      const eraRespuesta = !!h.responderA;
+      if (eraRespuesta) terminarReplyTurno(h);
+      else { h.borrador = ""; h.foto = null; h.etq = []; }
+      h.comentarios = [...h.comentarios, r.comentario];
+      sucio = false;
+      const formPrevio = sec().querySelector("dialog.casta-sheet[open] form.com-form");
+      if (formPrevio) formPrevio.remove();
+      repintarPost(id);
+      // El contador de Actividad debe reflejar también el comentario enviado.
+      castaRefrescarActividadTurno();
       const t = document.getElementById("tc-" + id); t && t.focus();
       toast("Comentario publicado.");
-    } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = "Comentar"; }
+    } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
   });
   sec().addEventListener("keydown", e => { const c = e.target.closest(".ini-card[data-ir]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ir(c.dataset.ir); } });
   const hora12 = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
@@ -1531,7 +1872,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ---------- Salida ----------
   async function salir() {
     try { await api("salir", {}); } catch {}
-    E = null; sec().innerHTML = ""; mostrarEntrada();
+    sec().innerHTML = ""; mostrarEntrada();
   }
   $("#terminar").addEventListener("click", async () => {
     const pend = E && !E.corte;
@@ -1547,7 +1888,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     // La sesión dura todo el turno (8 horas): solo se cierra sola tras 8 horas sin tocar la tablet
     if (Date.now() - ultimo > 8 * 3600e3) { salir(); toast("Sesión cerrada por inactividad."); return; }
     // Cada minuto se actualizan avisos, tareas e incidencias si no hay un formulario a medio llenar
-    const ocupado = $("#dlg").open || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+    const ocupado = $("#dlg").open || !!sec().querySelector("dialog.casta-sheet[open]") || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (!ocupado && Date.now() - ultRef > 60e3) {
       ultRef = Date.now();
       enviarCola();

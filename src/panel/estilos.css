@@ -1228,6 +1228,24 @@ dialog.sesion-vencida p { margin: 0 0 18px; color: var(--muted); }
 dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--amber); color: #111; border-color: transparent; font-weight: 700; }
 .sec-t { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
 
+/* Identidad Castagram: solo afecta a la cabecera del feed. */
+.casta-identidad { display:flex; justify-content:center; max-width:720px; margin:0 0 8px; }
+.casta-identidad img { display:block; width:min(210px,60vw); height:auto; background:transparent; }
+#n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
+/* Pulgar arriba = Confirmación Enterado, nunca Me gusta. */
+.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:48px; min-height:48px; box-sizing:border-box; border:2px solid transparent; border-radius:14px; color:#f5f5f7; font-size:var(--t-xs); font-variant-numeric:tabular-nums; }
+.casta-pulgar .casta-pulgar-ico { display:block; flex:none; width:26px; height:26px; object-fit:contain; filter:brightness(0) invert(1); }
+.post-st .casta-pulgar img { width:26px; height:26px; object-fit:contain; vertical-align:middle; }
+.casta-pulgar.is-enterado { color:#30d158; border-color:#30d158; background:#112e1b; }
+.casta-pulgar.is-enterado .casta-pulgar-ico { filter:brightness(0) saturate(100%) invert(67%) sepia(48%) saturate(775%) hue-rotate(78deg) brightness(92%) contrast(91%); }
+.post-ent .si { color:#30d158; }
+.casta-pulgar-boton { border:2px solid transparent; padding:8px; background:transparent; border-radius:14px; cursor:pointer; }
+.casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:var(--fill); }
+.casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
+.casta-acciones { display:inline-flex; gap:4px; align-items:center; flex:none; }
+.casta-comentar { display:inline-grid; place-items:center; min-width:44px; min-height:44px; padding:8px; border:0; border-radius:12px; background:transparent; color:#f5f5f7; cursor:pointer; }
+.casta-comentar svg { width:24px; height:24px; color:inherit; stroke-width:2; }
+.casta-comentar:hover, .casta-comentar:focus-visible { background:var(--fill); }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; margin-top: 14px; max-width: 720px; }
 .muro-nuevo { max-width: 720px; }
@@ -1484,3 +1502,61 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .post-ent .si { color: #30d158; font-weight: 600; }
 .post-ent .si small { color: var(--muted); font-weight: 400; }
 .post-ent .no { color: var(--muted); }
+
+
+/* Los comentarios tienen foto y emojis. Las respuestas solo texto y emojis. */
+.casta-emoji-bar { display:flex; align-items:center; gap:4px; overflow-x:auto; white-space:nowrap; scrollbar-width:thin; padding:2px 0 6px; }
+.casta-emoji-bar button { flex:none; border:0; background:transparent; color:var(--fg); font-size:21px; min-width:40px; min-height:40px; border-radius:10px; cursor:pointer; }
+.casta-emoji-bar button:hover, .casta-emoji-bar button:focus-visible { background:var(--fill); }
+.casta-reply { display:flex; align-items:center; gap:8px; justify-content:space-between; padding:6px 10px; margin-bottom:8px; border-radius:10px; background:var(--fill); font-size:var(--t-sm); color:var(--fg-2); }
+.casta-reply button { border:0; color:var(--fg); background:transparent; font:inherit; font-size:22px; cursor:pointer; min-width:32px; min-height:32px; }
+/* Castagram: comentarios en hoja modal inferior, sin modificar las tarjetas. */
+dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; padding:0; border:1px solid var(--line-2); border-radius:26px 26px 0 0; width:min(100%,640px); max-width:100%; height:min(82dvh,760px); max-height:calc(100dvh - 12px); background:#1b1b1d; color:var(--fg); overflow:hidden; box-shadow:0 -18px 75px #0009; }
+dialog.casta-sheet[open] { display:flex; flex-direction:column; animation:casta-subir .22s cubic-bezier(.2,.8,.2,1) both; }
+dialog.casta-sheet::backdrop { background:rgba(0,0,0,.68); }
+.casta-sheet-head { position:relative; flex:none; display:flex; align-items:center; justify-content:center; min-height:65px; padding:18px 48px 10px; border-bottom:1px solid var(--line); }
+.casta-sheet-head h3 { margin:0; font-size:var(--t-md); font-weight:600; }
+.casta-sheet-grip { position:absolute; top:9px; width:42px; height:4px; background:#86868f; border-radius:8px; }
+.casta-sheet-x { position:absolute; right:12px; top:15px; width:34px; height:34px; background:var(--fill); color:var(--fg); border:0; border-radius:50%; font:inherit; font-size:24px; cursor:pointer; }
+dialog.casta-sheet .hilo { display:flex; flex-direction:column; flex:1; min-height:0; padding:0; border:0; gap:0; }
+dialog.casta-sheet .casta-sheet-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:16px 16px 28px; display:grid; align-content:start; gap:14px; }
+dialog.casta-sheet .casta-sheet-compose { flex:none; background:#1b1b1d; border-top:1px solid var(--line); padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px)); max-height:44dvh; overflow-y:auto; }
+dialog.casta-sheet .com-form textarea { min-height:44px; max-height:100px; }
+dialog.casta-sheet .com-form .com-etq { max-height:85px; overflow-y:auto; }
+@keyframes casta-subir { from { transform:translateY(24px); opacity:.6; } to { transform:translateY(0); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
+@media(min-width:900px) { dialog.casta-sheet { height:min(76dvh,700px); } }
+
+
+/* Carrusel privado de fotos de Castagram. Las galerías de incidencias no cambian. */
+.casta-carrusel{position:relative;min-width:0;width:100%;margin-top:12px;border-radius:14px;overflow:hidden;background:#121214}
+.casta-carrusel-pista{display:flex;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.casta-carrusel-pista::-webkit-scrollbar{display:none}
+.casta-carrusel-slide{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
+.casta-carrusel-slide a{display:block;width:100%;background:#121214}
+.casta-carrusel-slide img{display:block;width:100%;height:auto;aspect-ratio:4/3;max-height:360px;object-fit:contain;background:#121214}
+.casta-carrusel-num{position:absolute;top:10px;right:10px;padding:4px 9px;background:#000b;color:#fff;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.casta-carrusel-arrow{position:absolute;z-index:1;top:calc(50% - 17px);transform:translateY(-50%);width:38px;height:42px;border:0;border-radius:12px;background:#000a;color:#fff;font-size:29px;line-height:1;display:grid;place-items:center;cursor:pointer}
+.casta-carrusel-arrow.anterior{left:7px}.casta-carrusel-arrow.siguiente{right:7px}
+.casta-carrusel-arrow:disabled{opacity:.22;cursor:default}
+.casta-carrusel-puntos{min-height:34px;display:flex;gap:6px;justify-content:center;align-items:center;padding:7px;background:#171719}
+.casta-carrusel-puntos button{border:0;width:9px;height:9px;min-width:9px;padding:0;border-radius:50%;background:#74747b;cursor:pointer}
+.casta-carrusel-puntos button[aria-current="true"]{background:#ffcc00;width:11px;height:11px;min-width:11px}
+.casta-carrusel button:focus-visible{outline:3px solid #ffcc00;outline-offset:1px}
+@media(max-width:420px){.casta-carrusel-arrow{width:36px;height:40px}.casta-carrusel-slide img{max-height:300px}}
+
+
+/* Actividad de Castagram, privada según la sesión actual. */
+.casta-actividad { max-width:760px; min-width:0; margin:2px 0 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+.casta-actividad summary { display:flex; gap:10px; align-items:center; min-height:48px; padding:9px 14px; list-style:none; cursor:pointer; color:var(--fg); font-weight:600; }
+.casta-actividad summary::-webkit-details-marker { display:none; }
+.casta-actividad summary svg { flex:none; width:21px; height:21px; }
+.casta-actividad summary span { flex:1; }
+.casta-actividad summary b { background:#d70015; color:#fff; font-size:12px; min-width:23px; height:23px; border-radius:100px; padding:0 6px; display:grid; place-items:center; font-variant-numeric:tabular-nums; }
+.casta-actividad-list { border-top:1px solid var(--line); max-height:300px; overflow-y:auto; overscroll-behavior:contain; display:grid; }
+.casta-actividad-list button { display:grid; text-align:left; min-width:0; width:100%; gap:2px; padding:12px 14px; border:0; border-bottom:1px solid var(--line); color:var(--fg); background:transparent; font:inherit; cursor:pointer; }
+.casta-actividad-list button:last-of-type { border-bottom:0; }
+.casta-actividad-list button:hover, .casta-actividad-list button:focus-visible { background:var(--fill, #303034); }
+.casta-actividad-list strong { overflow-wrap:anywhere; font-size:.9rem; }
+.casta-actividad-list small { color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
+.casta-actividad-list p { margin:0; padding:12px 14px; color:var(--muted); font-size:.85rem; }

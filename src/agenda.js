@@ -114,6 +114,17 @@ function validar(tipo, c, previo = {}) {
     repetir: tipo === "tarea" && REPETIR[v("repetir")] ? v("repetir") : null
   };
   const e = {};
+  // En publicaciones nuevas, nunca interpretar destinatarios omitidos como "Todos".
+  // Se conserva normalizarPara para los avisos históricos y otras lecturas existentes.
+  if (tipo === "aviso") {
+    let elegidos = v("para");
+    if (typeof elegidos === "string") { try { elegidos = JSON.parse(elegidos); } catch { elegidos = null; } }
+    const valido = elegidos && typeof elegidos === "object" &&
+      (elegidos.todos === true || elegidos.admin === true ||
+       (Array.isArray(elegidos.turnos) && elegidos.turnos.some(t => TURNOS.includes(String(t).toUpperCase()))) ||
+       (Array.isArray(elegidos.personas) && elegidos.personas.some(p => !!texto(p,12))));
+    if (!valido) e.para = "Elige al menos un destinatario.";
+  }
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
   if (d.fecha && !RE_DIA.test(d.fecha)) e.fecha = "Fecha inválida.";
   if (tipo === "evento" && !d.fecha) e.fecha = "Elige la fecha del evento.";
@@ -205,7 +216,7 @@ export function pushTablet(tipo, d, id) {
     const p = normalizarPara(d.para);
     if (!p.todos && !p.turnos.length && !p.personas.length) return null; // solo para la administración
     const para = p.todos ? "" : "\nPara: " + [...p.turnos.map(t => "turno de " + (TURNO_TXT[t] || t.toLowerCase())), ...p.personas].join(", ");
-    return { titulo: urgente ? "Aviso urgente de la administración" : "Aviso de la administración", cuerpo: d.titulo + det + para, sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
+    return { titulo: urgente ? "Novedad importante en Castagram" : "Novedad en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + id, grave: urgente };
   }
   if (tipo === "tarea" && d.para_turno) {
     const futura = d.fecha && d.fecha > hoyMx();
@@ -284,6 +295,20 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   return viejos.length;
 }
 
+// Varias confirmaciones de Enterado en la misma publicación cuentan como una novedad.
+export function incorporarEnteradosPendientes(novedades, enterados) {
+  const out = [...novedades], ids = new Set(out.map(x => x.id));
+  for (const e of enterados) {
+    if (ids.has(e.id)) continue;
+    const personas = String(e.personas || "").split(",").filter(Boolean);
+    const quien = personas.length === 1 ? personas[0] + " dio Enterado" :
+      (personas[0] || "Un encargado") + " y " + (personas.length - 1) + " más dieron Enterado";
+    ids.add(e.id);
+    out.push({ id: e.id, titulo: quien + ": " + e.titulo,
+      autor: personas[0] || "", creado: e.actividad, prioridad: e.prioridad });
+  }
+  return out;
+}
 // Resumen para el Inicio
 // Avisos de los encargados para la administración que todavía no se leen en el panel (para Hoy)
 export async function avisosSinLeer(env) {
@@ -298,7 +323,17 @@ export async function avisosSinLeer(env) {
     WHERE i.tipo = 'aviso' AND i.estado = 'activo' AND c.autor != 'admin' AND c.borrado IS NULL AND (v.at IS NULL OR c.creado > v.at)
     GROUP BY i.id ORDER BY MAX(c.creado) DESC LIMIT 50`).all()).results;
   for (const c of conCom) if (!nuevos.some(n => n.id === c.id)) nuevos.push({ id: c.id, titulo: c.titulo + (c.n === 1 ? " (1 comentario nuevo)" : ` (${c.n} comentarios nuevos)`), autor: c.autor, creado: c.creado, prioridad: c.prioridad });
-  return nuevos;
+  // Enterado es distinto de la mera lectura: se informa solo cuando ocurre después
+  // de la última apertura de la conversación por administración.
+  const enterados = (await env.DB.prepare(`SELECT i.id, i.titulo, i.prioridad,
+      GROUP_CONCAT(DISTINCT l.persona) AS personas, MAX(l.at) AS actividad
+      FROM agenda_lecturas l JOIN agenda_items i ON i.id = l.item_id
+      LEFT JOIN aviso_vistos v ON v.item_id = i.id AND v.persona = 'ADMIN'
+      WHERE i.tipo = 'aviso' AND i.estado = 'activo'
+        AND COALESCE(i.autor, 'admin') = 'admin'
+        AND l.persona != 'ADMIN' AND l.at > COALESCE(v.at, i.creado)
+      GROUP BY i.id ORDER BY MAX(l.at) DESC LIMIT 50`).all()).results;
+  return incorporarEnteradosPendientes(nuevos, enterados);
 }
 
 export async function resumenAgenda(env) {
@@ -316,7 +351,9 @@ export async function resumenAgenda(env) {
   const eventosHoy = (await env.DB.prepare(`SELECT COUNT(*) n FROM agenda_items WHERE tipo = 'evento' AND fecha = ?`).bind(hoy).first()).n;
   const pagos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'pago' AND ${ABIERTO} ORDER BY fecha LIMIT 4`).all()).results;
   const avisos = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'aviso' AND ${ABIERTO} ORDER BY creado DESC LIMIT 4`).all()).results.map(a => ({ ...a, autor: a.autor || "admin" }));
-  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, compras_tablet: comprasTablet, incidencias, pagos, avisos };
+  // El contador del Inicio debe medir novedades, no publicaciones activas.
+  const avisos_sin_leer = (await avisosSinLeer(env)).length;
+  return { hoy, abiertos: c, vencidas, eventos_hoy: eventosHoy, proximos, tareas, compras, compras_tablet: comprasTablet, incidencias, pagos, avisos, avisos_sin_leer };
 }
 
 // ---- Pagos hechos (de un pago programado o sueltos) ----
@@ -467,7 +504,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6).map(x => ({ id: x.id, fecha: x.fecha, importe: x.importe, forma: x.forma, comprobante: x.comprobante ? 1 : 0 }));
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
-    const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && ((it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")) || (it.conv && it.conv.nuevos))).length;
+    const sinLeer = (await avisosSinLeer(env)).length;
     const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, p.cuenta, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
     // Forma de pago de las compras ya compradas (está en su egreso)
@@ -659,7 +696,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all().catch(() => ({ results: [] }))).results.map(r => r.clave);
     let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
     catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
-    if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "La administración comentó un aviso", cuerpo: fila.titulo + "\n" + (r.comentario.texto || "Mandó una foto"), sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
+    if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "Nueva actividad en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
     return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas });
   }
   if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && ["editar", "borrar"].includes(partes[4]) && request.method === "POST") {

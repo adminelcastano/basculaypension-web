@@ -103,7 +103,7 @@ window.interpretarAgenda = function (texto, hoy) {
     for (const q of [0.82, 0.7, 0.55]) { const u = cv.toDataURL("image/jpeg", q); if (u.length * 0.75 < 1_400_000) return u; }
     throw new Error(`La foto ${file.name} es demasiado grande.`);
   }
-  const fotosDe = it => { let l = []; try { l = JSON.parse(it.fotos || "[]"); } catch {} if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
+  const fotosDe = it => { let l = Array.isArray(it.fotos) ? [...it.fotos] : []; if (!Array.isArray(it.fotos)) { try { l = JSON.parse(it.fotos || "[]"); } catch {} } if (!Array.isArray(l)) l = []; if (it.foto && !l.includes(it.foto)) l.unshift(it.foto); return l; };
   const urlFoto = k => "/panel/api/turno/foto/" + encodeURIComponent(k);
   // Campo de fotos del formulario de incidencia: junta las elegidas (cámara o galería) con vista previa
   function conectarFotos(f) {
@@ -679,7 +679,7 @@ window.interpretarAgenda = function (texto, hoy) {
     const tareas = N("tarea"), inc = N("incidencia"), pagos = N("pago"), compras = N("compra").filter(x => !x.pospuesta);
     EC.bloqueN("agenda", "tarea", tareas.length, tareas.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("agenda", "incidencia", inc.length, inc.some(x => x.gravedad === "grave"));
-    EC.bloqueN("agenda", "aviso", st.avisosSinLeer || N("aviso").length, !!st.avisosSinLeer);
+    EC.bloqueN("agenda", "aviso", Number.isFinite(st.avisosSinLeer) ? st.avisosSinLeer : N("aviso").length, !!st.avisosSinLeer);
     EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("finanzas", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
     const mes = (st.hoy || "").slice(0, 7);
@@ -694,7 +694,7 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueInfo("agenda", "calendario", { valor: evHoy, texto: evHoy ? pl(evHoy, "evento hoy", "eventos hoy") : "Nada programado hoy" });
     EC.bloqueInfo("agenda", "tarea", { texto: !tareas.length ? "Nada pendiente" : venc ? pl(venc, "vencida", "vencidas") : "Al día" });
     EC.bloqueInfo("agenda", "incidencia", { texto: !inc.length ? "Ninguna abierta" : graves ? pl(graves, "grave", "graves") : "Ninguna grave" });
-    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin avisos activos" });
+    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin publicaciones activas" });
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
     EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
@@ -714,7 +714,47 @@ window.interpretarAgenda = function (texto, hoy) {
   const parrafos = t => conMenciones(t).replace(/\n/g, "<br>");
   st.hilos = st.hilos || {};
   st.abiertosAv = st.abiertosAv || new Set();
-  function pintarAvisos() { const el = $("#ab-aviso"); if (el) { el.innerHTML = vistaAvisos(); conectar(el); } contadores(); }
+  function pintarAvisos() {
+    const el = $("#ab-aviso");
+    if (el) {
+      const actividadAbierta = !!el.querySelector("details.casta-actividad[open]");
+      const dlg = el.querySelector("dialog.casta-sheet[open]");
+      const html = vistaAvisos();
+      if (dlg) {
+        // Conservar el modal abierto en el DOM: quitarlo cerraría la hoja en pleno envío.
+        while (el.firstChild && el.firstChild !== dlg) el.firstChild.remove();
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        while (tmp.firstChild) el.insertBefore(tmp.firstChild, dlg);
+        const it = st.items.find(x => x.id === dlg.dataset.av);
+        if (it) { const hilo = dlg.querySelector(".hilo"); if (hilo) hilo.outerHTML = hiloHtml(it); }
+      } else {
+        el.innerHTML = html;
+        mostrarSheetAdmin();
+      }
+      const actividad = el.querySelector("details.casta-actividad");
+      if (actividad) actividad.open = actividadAbierta;
+      conectar(el);
+      castaRestaurar(el);
+    }
+    contadores();
+  }
+  // Una conversación visible a la vez, en una hoja modal. La lista de publicaciones no cambia.
+  function mostrarSheetAdmin() {
+    const el = $("#ab-aviso"), id = st.abiertosAv.values().next().value;
+    if (!el || !id || st.archivo) return;
+    const it = st.items.find(x => x.id === id);
+    if (!it) { st.abiertosAv.clear(); return; }
+    const dlg = document.createElement("dialog");
+    dlg.className = "casta-sheet";
+    dlg.dataset.av = id;
+    dlg.setAttribute("aria-label", "Comentarios de " + it.titulo);
+    dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" class="casta-sheet-x" data-sheet-cerrar aria-label="Cerrar comentarios">×</button></div>${hiloHtml(it)}`;
+    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    el.append(dlg);
+    dlg.showModal();
+  }
 
   function comentarioHtml(it, c, admin = true, editable = true) {
     if (st.editCom === c.id) return `<form class="com-edit" data-av="${esc(it.id)}" data-cid="${esc(c.id)}"><label class="sr">Editar comentario<textarea name="texto" rows="2" maxlength="1000">${esc(c.texto)}</textarea></label>
@@ -722,7 +762,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
         ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
-      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
 
@@ -732,41 +772,127 @@ window.interpretarAgenda = function (texto, hoy) {
     if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-reintentar="${esc(it.id)}">Reintentar</button></p></div>`;
     const p = it.para || {}, fuera = encargados().filter(x => !p.todos && !(p.personas || []).includes(x.clave) && x.clave !== it.autor);
     const sel = h.etq || [];
-    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}
-      ${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
+    return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}</div>
+      <div class="casta-sheet-compose">${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
         <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
-        ${h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
-        <div class="com-acc"><label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label><button class="btn btn-primary" type="submit">Comentar</button></div>
-        <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div>`;
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${!h.responderA && h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc">${!h.responderA ? `<label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label>` : ""}<button class="btn btn-primary" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
+        <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div></div>`;
+  }
+
+
+  // Carrusel de fotografías solo en Castagram; las claves y rutas de fotos siguen intactas.
+  const castaFotoActual = new Map();
+  function castaFotos(fotos, id) {
+    if (!Array.isArray(fotos) || !fotos.length) return "";
+    const foto = (k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
+    const actual = Math.max(0, Math.min(fotos.length-1, castaFotoActual.get(id) || 0));
+    return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
+      <div class="casta-carrusel-pista" aria-roledescription="carrusel" tabindex="0">${fotos.map((k,i)=>`<div class="casta-carrusel-slide">${foto(k,i)}</div>`).join("")}</div>
+      <span class="casta-carrusel-num" aria-live="polite">${actual+1} / ${fotos.length}</span>
+      <button type="button" class="casta-carrusel-arrow anterior" data-casta-paso="-1" aria-label="Foto anterior" ${actual===0?"disabled":""}>‹</button>
+      <button type="button" class="casta-carrusel-arrow siguiente" data-casta-paso="1" aria-label="Foto siguiente" ${actual===fotos.length-1?"disabled":""}>›</button>
+      <div class="casta-carrusel-puntos" aria-label="Posición de fotografía">${fotos.map((_,i)=>`<button type="button" data-casta-ir="${i}" aria-label="Ver foto ${i+1} de ${fotos.length}" ${actual===i?'aria-current="true"':""}></button>`).join("")}</div>
+    </div>`;
+  }
+  function castaSincronizar(caja) {
+    if (!caja || !caja.isConnected) return;
+    const pista = caja.querySelector(".casta-carrusel-pista");
+    if (!pista || !pista.clientWidth) return;
+    const total = pista.children.length, indice = Math.max(0, Math.min(total-1, Math.round(pista.scrollLeft / pista.clientWidth)));
+    castaFotoActual.set(caja.dataset.castaCarrusel,indice);
+    const num = caja.querySelector(".casta-carrusel-num");
+    if (num) num.textContent = `${indice+1} / ${total}`;
+    for (const [paso,borde] of [[-1,0],[1,total-1]]) { const b = caja.querySelector('[data-casta-paso="'+paso+'"]'); if (b) b.disabled = indice === borde; }
+    caja.querySelectorAll("[data-casta-ir]").forEach(b=>{ if(+b.dataset.castaIr===indice)b.setAttribute("aria-current","true");else b.removeAttribute("aria-current"); });
+  }
+  function castaMover(boton) {
+    const caja = boton.closest("[data-casta-carrusel]"), pista = caja && caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const actual=Math.round(pista.scrollLeft/pista.clientWidth);
+    const destino=boton.dataset.castaIr!==undefined?+boton.dataset.castaIr:actual+Number(boton.dataset.castaPaso);
+    if(destino<0 || destino>=pista.children.length)return;
+    castaFotoActual.set(caja.dataset.castaCarrusel,destino);
+    pista.scrollTo({left:destino*pista.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+  }
+  function castaRestaurar(root) {
+    if(!root)return;
+    requestAnimationFrame(()=>root.querySelectorAll("[data-casta-carrusel]").forEach(caja=>{
+      if(!caja.isConnected)return;
+      const pista=caja.querySelector(".casta-carrusel-pista"), indice=castaFotoActual.get(caja.dataset.castaCarrusel)||0;
+      if(pista&&pista.clientWidth)pista.scrollLeft=indice*pista.clientWidth;
+      castaSincronizar(caja);
+    }));
   }
 
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
-    const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0 };
+    const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0, nuevosEnterado: 0 };
     const leidoAdmin = (it.lecturas || []).some(l => l.persona === "ADMIN");
     const nuevo = deEnc && p.admin && abierto(it) && !leidoAdmin;
     const dest = p.todos || (p.turnos || []).length ? encargados() : encargados().filter(x => (p.personas || []).includes(x.clave));
     const lec = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
     const vistos = dest.filter(x => x.clave !== it.autor && lec.has(x.clave)), faltan = dest.filter(x => x.clave !== it.autor && !lec.has(x.clave));
     const abiertoHilo = st.abiertosAv.has(it.id);
-    return `<article class="post ${nuevo || cv.nuevos ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
+    const comentarIcono = "<svg class=\"casta-comentar-ico\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H9l-6.5 4V6A2.5 2.5 0 0 1 5 3.5Z\"/><path d=\"M7.5 9H17M7.5 13H15\"/></svg>";
+    const pulgar = `<img class="casta-pulgar-ico" src="/img/castagram-pulgar.png" alt="" aria-hidden="true" width="26" height="26">`;
+    const cantidadEnterados = vistos.length + (deEnc && p.admin && leidoAdmin ? 1 : 0);
+    return `<article class="post ${nuevo || cv.nuevos || cv.nuevosEnterado ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
       <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
-      ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st">${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
-        <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      ${castaFotos(fotosDe(it),it.id)}
+      <div class="post-st"><div class="casta-acciones">${nuevo ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-leer="${esc(it.id)}" aria-label="Confirmar mi Enterado. ${cantidadEnterados} confirmaciones registradas" title="Confirmar mi Enterado">${pulgar}<small>${cantidadEnterados}</small></button>` : `<span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" role="img" aria-label="${cantidadEnterados} confirmaciones de Enterado" title="${cantidadEnterados} confirmaciones de Enterado">${pulgar}<small>${cantidadEnterados}</small></span>`}<button type="button" class="casta-comentar" data-hilo="${esc(it.id)}" aria-label="Abrir comentarios" title="Comentar">${comentarIcono}</button></div>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
+        <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "0 comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "comentario nuevo" : "comentarios nuevos"}</span>` : ""}${cv.nuevosEnterado ? ` <span class="nuevo-n">${cv.nuevosEnterado} ${cv.nuevosEnterado === 1 ? "Enterado nuevo" : "Enterados nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
       <div class="post-acc">
-        <button type="button" class="pa" data-hilo="${esc(it.id)}">${ico("i-chat")}Comentar</button>
-        ${nuevo ? `<button type="button" class="pa" data-leer="${esc(it.id)}">${ico("i-check")}Enterado</button>` : ""}
         ${abierto(it) ? `<button type="button" class="pa" data-archivar="${esc(it.id)}">${ico("i-archivo")}Archivar</button>` : `<button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button>`}
         ${it.autor === "admin" && abierto(it) ? `<button type="button" class="pa" data-editar="${esc(it.id)}">Editar</button>` : ""}
       </div>
-      ${abiertoHilo ? hiloHtml(it) : ""}</article>`;
+      </article>`;
+  }
+
+
+  // Actividad dentro de Castagram. Se deriva solo de los avisos ya autorizados
+  // y distingue el visto de una confirmación explícita de Enterado.
+  function castaActividadAdmin() {
+    const eventos = [];
+    for (const it of st.items || []) {
+      if (it.tipo !== "aviso" || !abierto(it)) continue;
+      const cv = it.conv || {}, para = it.para || {}, autor = it.autor || "admin";
+      const vistoAdmin = (it.lecturas || []).some(x => x.persona === "ADMIN");
+      if (autor !== "admin" && para.admin && !vistoAdmin)
+        eventos.push({ id: it.id, tipo: "publicacion", at: it.creado,
+          mensaje: nomDe(autor) + " publicó una novedad", titulo: it.titulo });
+      if (cv.nuevos > 0) {
+        const quien = cv.ultimo && cv.ultimo.autor !== "admin" ? nomDe(cv.ultimo.autor) : "";
+        eventos.push({ id: it.id, tipo: "comentario", at: cv.ultimo && cv.ultimo.creado || cv.actividad || it.creado,
+          mensaje: cv.nuevos === 1 ? (quien ? quien + " comentó" : "Comentario nuevo") : cv.nuevos + " comentarios nuevos",
+          titulo: it.titulo });
+      }
+      if (cv.nuevosEnterado > 0) {
+        const ultimos = (it.lecturas || []).filter(x => x.persona !== "ADMIN")
+          .sort((a,b) => String(b.at || "").localeCompare(String(a.at || "")))
+          .slice(0,cv.nuevosEnterado);
+        const quien = cv.nuevosEnterado === 1 && ultimos.length ? nomDe(ultimos[0].persona) + " confirmó Enterado" :
+          cv.nuevosEnterado + " confirmaciones de Enterado";
+        eventos.push({ id: it.id, tipo: "enterado", at: ultimos[0] && ultimos[0].at || cv.actividad || it.creado,
+          mensaje: quien, titulo: it.titulo });
+      }
+    }
+    return eventos.sort((a,b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0,20);
+  }
+  function castaActividadVistaAdmin() {
+    const eventos = castaActividadAdmin();
+    return `<details class="casta-actividad"><summary>${ico("i-aviso")}<span>Actividad</span>${eventos.length ? `<b aria-label="${eventos.length} novedades">${eventos.length > 99 ? "99+" : eventos.length}</b>` : ""}</summary>
+      <div class="casta-actividad-list">${eventos.length ? eventos.map(e => `<button type="button" data-casta-evento="${esc(e.id)}" aria-label="${esc(e.mensaje)}. Abrir conversación">
+      <strong>${esc(e.mensaje)}</strong><small>${esc(e.titulo)}</small></button>`).join("") : `<p>Sin novedades pendientes.</p>`}</div></details>`;
   }
 
   function vistaAvisos() {
@@ -774,18 +900,18 @@ window.interpretarAgenda = function (texto, hoy) {
     const act = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a, b) => String((b.conv && b.conv.actividad) || b.creado).localeCompare(String((a.conv && a.conv.actividad) || a.creado)));
     const r = st.resp || {}; st.resp = null;
     const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, p.clave])];
-    const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
-    return `<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Publicar un aviso<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
+    const marcado = () => false; // Cada nueva publicación requiere elección expresa.
+    return `<div class="casta-identidad"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div>${castaActividadVistaAdmin()}<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Nueva publicación<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
       <label class="w4 extra">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
-      <div class="w4 para-op extra"><span>Etiquetar a</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
+      <div class="w4 para-op extra"><span>Elige destinatarios (obligatorio)</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
       <label class="extra">Mostrar desde<input type="date" name="fecha"></label><label class="extra">Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
       <div class="w4 inc-fotos extra"><span class="lbl">Foto <span style="font-weight:400">(opcional · hasta 8)</span></span>
         <div class="inc-fbtns"><label class="btn btn-line"><input type="file" accept="image/*" capture="environment" class="inc-f" hidden>Tomar foto</label><label class="btn btn-line"><input type="file" accept="image/*" multiple class="inc-f" hidden>Subir fotos</label></div>
         <div class="inc-prev"></div></div>
       <button class="btn btn-primary extra" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note extra-n" style="margin:10px 0 0">Solo lo ven las personas etiquetadas y quien lo publica. Todos comentan en la misma publicación hasta que la archives; lo archivado se guarda con su conversación en el archivo.</p></section>
-      <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay avisos activos. Publica uno arriba.</p>`}</div>
-      <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de avisos</button>`;
+      <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay publicaciones activas. Publica una arriba.</p>`}</div>
+      <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de Castagram</button>`;
   }
 
   // ---- Archivo de avisos: todo lo archivado, con búsqueda, conversación e historial ----
@@ -813,25 +939,35 @@ window.interpretarAgenda = function (texto, hoy) {
       const d = a.det;
       if (!d) return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo</button><p class="note">Cargando…</p>`;
       const it = { ...d.aviso, conv: null };
-      return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de avisos</button>
+      return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de Castagram</button>
         <article class="post hecho"><header class="post-h">${avP(it.autor === "admin" ? "admin" : it.autor, 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))} · archivado ${esc(cuando(it.cerrado))}</span></div></header>
           <p class="post-para">Para ${etqPara(it.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
           <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
-          ${(it.fotos || []).length ? `<div class="post-fotos n${Math.min(it.fotos.length, 3)}">${it.fotos.map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+          ${castaFotos(fotosDe(it),it.id)}
           <div class="post-acc"><button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button></div>
           <div class="hilo">${d.comentarios.length ? d.comentarios.map(c => comentarioHtml(it, c, true, false)).join("") : `<p class="note">Sin comentarios.</p>`}</div></article>
         <section class="card"><h4 class="hist-t">Historial</h4>${historialHtml(d.historial || [])}</section>`;
     }
-    return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Avisos activos</button>
-      <section class="card"><h4 class="hist-t">Archivo de avisos</h4><p class="note" style="margin:0 0 10px">Todo lo archivado se conserva con su conversación y su historial.</p>${filtros}</section>
+    return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Castagram</button>
+      <section class="card"><h4 class="hist-t">Archivo de Castagram</h4><p class="note" style="margin:0 0 10px">Todo lo archivado se conserva con su conversación y su historial.</p>${filtros}</section>
       ${a.cargando ? `<p class="note">Buscando…</p>` : a.error ? `<p class="empty">${esc(a.error)}</p>` : `<div class="arch-l">${(a.items || []).length ? a.items.map(it => `<button type="button" class="arch-i" data-archivo-ver="${esc(it.id)}">${avP(it.autor === "admin" ? "admin" : it.autor)}<span class="arch-t"><b>${esc(it.titulo)}</b><span>${esc(nomDe(it.autor))} · archivado ${esc(cuando(it.cerrado || it.actualizado))}${it.conv && it.conv.n ? ` · ${it.conv.n} ${it.conv.n === 1 ? "comentario" : "comentarios"}` : ""}</span></span></button>`).join("") : `<p class="empty">No hay avisos archivados con esos filtros.</p>`}</div>
       ${a.pagina > 0 || a.mas ? `<div class="arch-pag">${a.pagina > 0 ? `<button class="btn btn-line" type="button" data-archivo-pag="-1">Anteriores</button>` : ""}${a.mas ? `<button class="btn btn-line" type="button" data-archivo-pag="1">Más</button>` : ""}</div>` : ""}`}`;
   }
   async function buscarArchivo() {
-    const a = st.archivo; a.cargando = true; a.error = ""; pintarAvisos();
+    const a = st.archivo;
+    if (!a) return;
+    const solicitud = (a.solicitud || 0) + 1;
+    a.solicitud = solicitud; a.cargando = true; a.error = ""; pintarAvisos();
     const q = new URLSearchParams({ q: a.q || "", persona: a.persona || "", desde: a.desde || "", hasta: a.hasta || "", pagina: a.pagina || 0 });
-    try { const j = await api("agenda/avisos-archivo?" + q); a.items = j.items; a.mas = j.mas; } catch (e) { if (e.message !== "sesion") a.error = "No se pudo cargar el archivo: " + e.message; }
-    a.cargando = false; if (st.archivo === a) pintarAvisos();
+    try {
+      const j = await api("agenda/avisos-archivo?" + q);
+      if (st.archivo !== a || a.solicitud !== solicitud) return;
+      a.items = j.items; a.mas = j.mas;
+    } catch (e) {
+      if (st.archivo !== a || a.solicitud !== solicitud) return;
+      if (e.message !== "sesion") a.error = "No se pudo cargar el archivo: " + e.message;
+    }
+    if (st.archivo === a && a.solicitud === solicitud) { a.cargando = false; pintarAvisos(); }
   }
   async function abrirHilo(id, forzar) {
     if (!forzar && st.hilos[id] && !st.hilos[id].error) return;
@@ -840,10 +976,45 @@ window.interpretarAgenda = function (texto, hoy) {
       const j = await api(`agenda/${id}/conversacion`);
       st.hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const it = st.items.find(x => x.id === id);
-      if (it && it.conv) { if (it.conv.nuevos) st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1); it.conv.nuevos = 0; }
+      if (it) {
+        const nuevaPublicacion = it.autor !== "admin" && !!(it.para && it.para.admin) &&
+          !(it.lecturas || []).some(x => x.persona === "ADMIN");
+        const habiaNovedad = !!(it.conv && (it.conv.nuevos || it.conv.nuevosEnterado));
+        // La conversación ya fue marcada vista por el servidor: reflejarlo de inmediato.
+        if (nuevaPublicacion) it.lecturas = [...(it.lecturas || []), { persona: "ADMIN", at: new Date().toISOString() }];
+        if (it.conv) { it.conv.nuevos = 0; it.conv.nuevosEnterado = 0; }
+        if (nuevaPublicacion || habiaNovedad)
+          st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1);
+      }
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
     if (st.abiertosAv.has(id)) pintarAvisos();
   }
+
+  function comenzarReplyAdmin(h, nombre) {
+    if (!h.responderA) h.antesReply = { texto: h.borrador || "", foto: h.foto || null, etq: h.etq || [] };
+    h.responderA = nombre;
+    h.borrador = "@" + nombre + " ";
+    h.foto = null;
+    h.etq = [];
+  }
+  function terminarReplyAdmin(h) {
+    if (!h.responderA) return;
+    const ant = h.antesReply || {};
+    h.borrador = ant.texto || "";
+    h.foto = ant.foto || null;
+    h.etq = ant.etq || [];
+    h.responderA = null;
+    delete h.antesReply;
+  }
+  function insertarEmojiCastagram(form, emoji) {
+    const ta = form && form.querySelector('textarea[name="texto"]');
+    if (!ta) return;
+    const i = ta.selectionStart, j = ta.selectionEnd;
+    ta.setRangeText(emoji, i, j, "end");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    ta.focus({ preventScroll: true });
+  }
+
   // Eventos del muro (se conectan una vez sobre el bloque; el contenido se vuelve a pintar)
   function conectarMuro() {
     const el = $("#ab-aviso"); if (!el || el._muro) return; el._muro = true;
@@ -852,12 +1023,38 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("click", async e => {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
       const d = t.dataset;
+      if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
+      if (d.castaEvento) {
+        const it = st.items.find(x => x.id === d.castaEvento && x.tipo === "aviso" && abierto(x));
+        if (!it) return;
+        st.abiertosAv.clear(); st.abiertosAv.add(it.id);
+        pintarAvisos();
+        await abrirHilo(it.id, true);
+        return;
+      }
       if (d.reactivar && st.archivo) { st.archivo = null; return; }
       if (d.hilo) {
         const id = d.hilo;
-        if (st.abiertosAv.has(id) && t.classList.contains("lnk")) st.abiertosAv.delete(id); else st.abiertosAv.add(id);
+        st.abiertosAv.clear(); st.abiertosAv.add(id);
         pintarAvisos();
-        if (st.abiertosAv.has(id)) { abrirHilo(id, true); const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta && t.classList.contains("pa")) ta.focus(); }
+        await abrirHilo(id, true);
+        if (t.classList.contains("pa")) { const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta) ta.focus({ preventScroll: true }); }
+      } else if ("sheetCerrar" in d) { const sheet = t.closest("dialog.casta-sheet"); if (sheet) sheet.close(); }
+      else if (d.responder) {
+        const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av;
+        if (id && st.hilos[id]) {
+          const form = sheet.querySelector(".com-form");
+          if (form) st.hilos[id].borrador = form.texto.value;
+          comenzarReplyAdmin(st.hilos[id], d.responder);
+          pintarAvisos();
+          const ta = el.querySelector("dialog.casta-sheet .com-form textarea");
+          if (ta) { ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }
+        }
+      } else if ("replyCancel" in d) {
+        const sheet = t.closest("dialog.casta-sheet");
+        if (sheet && st.hilos[sheet.dataset.av]) { terminarReplyAdmin(st.hilos[sheet.dataset.av]); pintarAvisos(); }
+      } else if (d.comEmoji) {
+        insertarEmojiCastagram(t.closest("form.com-form"), d.comEmoji);
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];
@@ -873,14 +1070,26 @@ window.interpretarAgenda = function (texto, hoy) {
       else if ("archivoVolver" in d) { if (st.archivo && st.archivo.sel) { st.archivo.sel = null; st.archivo.det = null; } else st.archivo = null; pintarAvisos(); }
       else if (d.archivoPag) { st.archivo.pagina = Math.max(0, (st.archivo.pagina || 0) + Number(d.archivoPag)); buscarArchivo(); }
       else if (d.archivoVer) {
-        const a = st.archivo; a.sel = d.archivoVer; a.det = null; pintarAvisos();
-        try { a.det = await api(`agenda/${d.archivoVer}/conversacion?historial=1`); } catch (er) { if (er.message !== "sesion") { toast(er.message); a.sel = null; } }
-        if (st.archivo === a) pintarAvisos();
+        const a = st.archivo;
+        if (!a) return;
+        const id = d.archivoVer;
+        a.sel = id; a.det = null; pintarAvisos();
+        try {
+          const detalle = await api(`agenda/${id}/conversacion?historial=1`);
+          if (st.archivo !== a || a.sel !== id) return;
+          a.det = detalle;
+        } catch (er) {
+          if (st.archivo !== a || a.sel !== id) return;
+          if (er.message !== "sesion") { toast(er.message); a.sel = null; }
+        }
+        if (st.archivo === a && a.sel === id) pintarAvisos();
       }
     });
+    el.addEventListener("scroll", e => { if(e.target.matches(".casta-carrusel-pista"))castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
     el.addEventListener("change", async e => {
       const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
       const f = inp.closest("form"), h = st.hilos[f.dataset.av];
+      if (h.responderA) { inp.value = ""; return; }
       try { h.foto = await comprimirFoto(inp.files[0]); h.borrador = f.texto.value; pintarAvisos(); } catch (er) { f.querySelector(".err").textContent = er.message; }
     });
     el.addEventListener("input", e => { const f = e.target.closest("form.com-form"); if (f && st.hilos[f.dataset.av]) st.hilos[f.dataset.av].borrador = e.target.value; });
@@ -892,13 +1101,15 @@ window.interpretarAgenda = function (texto, hoy) {
         const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
         err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
         try {
-          await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] });
-          h.borrador = ""; h.foto = null; const etq = h.etq || []; h.etq = [];
+          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
+          const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
+          if (eraRespuesta) terminarReplyAdmin(h);
+          else { h.borrador = ""; h.foto = null; h.etq = []; }
           if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
-          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: new Date().toISOString() };
+          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
           await abrirHilo(id, true);
           const ta = $(`#com-${CSS.escape(id)}`); ta && ta.focus();
-        } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = "Comentar"; }
+        } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
         return;
       }
       if (f.classList.contains("com-edit")) {
@@ -1240,7 +1451,7 @@ window.interpretarAgenda = function (texto, hoy) {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-leer]").forEach(b => b.addEventListener("click", async () => {
-      try { await post(`agenda/${b.dataset.leer}/enterado`); toast("Marcado como leído"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      try { await post(`agenda/${b.dataset.leer}/enterado`); toast("Enterado confirmado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
     }));
     c.querySelectorAll("[data-responder]").forEach(b => b.addEventListener("click", () => {
       const it = st.items.find(x => x.id === b.dataset.responder); if (!it) return;
