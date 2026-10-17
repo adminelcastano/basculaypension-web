@@ -781,7 +781,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const fotoLink = k => k ? `<a class="lnk" href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver foto</a>` : "";
   // Imagen de perfil de un encargado ("admin" = logo de la pensión). chico: para ir dentro de un texto
   const avi = (clave, chico) => `<img class="avi${chico ? " ch" : ""}" src="/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${chico ? 22 : 40}" height="${chico ? 22 : 40}" loading="lazy">`;
-  const nombreDe = clave => clave === "admin" ? "Administración" : ((E.personas.find(p => p.clave === clave) || {}).nombre || clave);
+  const nombreDe = clave => clave === "admin" ? "Administración" : ((E.personas.find(p => p.clave === clave) || {}).perfil || (E.personas.find(p => p.clave === clave) || {}).nombre || clave);
   const errores = er => er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message;
   const sumar = l => l.reduce((s, x) => s + Number(x.monto || 0), 0);
   function paraTxt(p) {
@@ -1184,6 +1184,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     }
   }
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
+  const etqParaHtml = p => etqPara(p).map(t => {
+    const persona = E.personas.find(x => x.clave === t);
+    return `<span class="etq-p">${persona ? tarjetaMencion(persona) : "@" + esc(t)}</span>`;
+  }).join("");
   function comHtml(c) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avi(c.autor, 1)}<div class="com-b"><div class="com-burb"><b>${esc(c.autor === E.persona ? "Tú" : nombreDe(c.autor))}</b>
       ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
@@ -1264,7 +1268,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const confirmado = !!a.leido && !a.propio;
     return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
-      <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+      <p class="post-para">Para ${etqParaHtml(a.para || {})}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${castaFotos(f,a.id)}
       <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${castaComentar}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
