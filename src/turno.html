@@ -591,11 +591,13 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   async function api(ruta, datos, opciones = {}) {
     if (datos !== undefined && !datos.uid && ruta !== "entrar" && ruta !== "salir") datos = { ...datos, uid: nuevoUid() };
     const op = datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Turno": "1" }, body: JSON.stringify(datos) };
+    const actor = E ? { persona: E.persona, turno: E.turno, dia: E.dia } : null;
     let r, j;
     try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); }
     catch {
-      if (datos !== undefined && opciones.cola !== false && E && COLA_RUTAS.test(ruta)) {
-        const l = cola(); l.push({ ruta, datos, persona: E.persona, turno: E.turno, dia: E.dia, at: new Date().toISOString() });
+      if (datos !== undefined && opciones.cola !== false && actor && E &&
+          actor.persona === E.persona && actor.turno === E.turno && actor.dia === E.dia && COLA_RUTAS.test(ruta)) {
+        const l = cola(); l.push({ ruta, datos, ...actor, at: new Date().toISOString() });
         if (!guardarCola(l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
         pintarRed();
         return { ok: true, enCola: true };
@@ -619,6 +621,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     guardarLS("turno:estado", null); // borra estado legado con datos privados
     E = null;
     Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
+    const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
     const vista = $("#contenido"); if (vista) vista.replaceChildren();
     $("#app").hidden = true; $("#entrada").hidden = false;
     aplicarPrefs(null);
