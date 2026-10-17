@@ -6,6 +6,9 @@
 import { asegurarEsquemaAgenda, normalizarPara, avisoParaEncargado } from "./agenda.js";
 
 export const MAX_COMENTARIO = 1000;
+// Las fotografías de Castagram heredan el acceso y el estado de su publicación.
+export const fotoAvisoPermitida = (item, persona, turno, comentarioBorrado = false) =>
+  !!item && item.estado === "activo" && !comentarioBorrado && avisoParaEncargado(item, persona, turno);
 // Texto de varias líneas: se conservan los saltos (máximo una línea en blanco seguida)
 export const textoLargo = (v, n) => String(v ?? "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, n);
 // Clave con la que se guarda la autoría: "admin" para la administración, la clave del encargado si no

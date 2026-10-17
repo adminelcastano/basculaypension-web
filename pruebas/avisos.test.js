@@ -33,3 +33,13 @@ test("texto de comentario: conserva saltos de línea y recorta", () => {
   assert.equal(autorDe("ADMIN"), "admin");
   assert.equal(autorDe("ana"), "ANA");
 });
+
+test("fotografías de Castagram: solo destinatarios y publicaciones activas", async () => {
+  const { fotoAvisoPermitida } = await import("../src/avisos.js");
+  const privado = { autor: "admin", para: { todos: false, admin: false, turnos: [], personas: ["ANA"] }, estado: "activo" };
+  assert.equal(fotoAvisoPermitida(privado, "ANA", "MAÑANA"), true);
+  assert.equal(fotoAvisoPermitida(privado, "LUIS", "MAÑANA"), false);
+  assert.equal(fotoAvisoPermitida(privado, "ANA", "MAÑANA", true), false);
+  assert.equal(fotoAvisoPermitida({ ...privado, estado: "archivado" }, "ANA", "MAÑANA"), false);
+  assert.equal(fotoAvisoPermitida(null, "ANA", "MAÑANA"), false);
+});
