@@ -75,7 +75,12 @@
     const clavePag = estadoState.q || "";
     if (estadoState.clavePag !== clavePag) { estadoState.clavePag = clavePag; estadoState.lim = {}; }
     try {
-      const rs = await Promise.all(ESTADOS.map(e => { const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 }); if (estadoState.q) p.set("q", estadoState.q); return api("solicitudes?" + p); }));
+      const rs = await Promise.all(ESTADOS.map((e, i) => {
+        const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 });
+        if (i > 0) p.set("solo_lista", "1");
+        if (estadoState.q) p.set("q", estadoState.q);
+        return api("solicitudes?" + p);
+      }));
       if (solicitud !== secuenciaLista) return;
       const conteos = rs[0].conteos || {}, dias = rs[0].dias_retencion || 90;
       for (const e of ESTADOS) EC.bloqueN("facturacion", e, conteos[e] || 0, e === "pendiente" && (conteos[e] || 0) > 0);
