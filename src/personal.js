@@ -379,8 +379,9 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     if (c.version !== VERSION_AVISO_PERSONAL_V1 || c.confirmo !== true)
       return json({ ok: false, error: "Revisa la versión actual y marca la casilla." }, 422);
     const ahora = new Date().toISOString();
+    const campanaId = await campanaDeConstanciaV1(env, fila, acceso);
     await env.DB.prepare("INSERT OR IGNORE INTO personal_constancias (colaborador_id, documento, version, aceptado_en, medio, campana_id) VALUES (?, ?, ?, ?, 'expediente-web', ?)")
-      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, acceso.campana?.id || null).run();
+      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, campanaId).run();
     const constancia = await constanciaPersonalV1(env, fila.id);
     return json({ ok: true, constancia });
   }
@@ -413,6 +414,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
   const ahora = new Date().toISOString();
+  const campanaId = await campanaDeConstanciaV1(env, fila, acceso);
   const previos = parse(fila.datos);
   const primeraVez = !fila.llenado_en;
   const cambios = CAMPOS_COLABORADOR.map(([k]) => [k, previos[k] || "", datos[k] || ""]).filter(([, a, b]) => a !== b);
@@ -420,7 +422,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
       .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id),
     env.DB.prepare("INSERT OR IGNORE INTO personal_constancias (colaborador_id, documento, version, aceptado_en, medio, campana_id) VALUES (?, ?, ?, ?, 'expediente-web', ?)")
-      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, acceso.campana?.id || null)
+      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, campanaId)
   ]);
   await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
   await renombrarSiCambio(env, fila, fila.id, ctx);
@@ -694,6 +696,17 @@ async function accesoDe(env, fila) {
   if (c) return { abierto: true, motivo: "campana", hasta: c.limite > altaHasta || altaHasta < hoy ? c.limite : altaHasta, campana: leerCampana(c) };
   if (altaHasta >= hoy) return { abierto: true, motivo: "alta", hasta: altaHasta };
   return { abierto: false };
+}
+
+// Sólo atribuir la constancia a una campaña que realmente solicite esta versión.
+// Otra campaña de documentos puede estar activa simultáneamente.
+async function campanaDeConstanciaV1(env, fila, acceso) {
+  if (acceso.campana?.docs?.includes("acuse_v1")) return acceso.campana.id;
+  const { results } = await env.DB.prepare(`SELECT c.id, c.docs FROM campanas c
+    JOIN campana_personas p ON p.campana_id = c.id
+    WHERE p.colaborador_id = ? AND c.estado = 'activa' AND c.limite >= ?
+    ORDER BY c.creado DESC LIMIT 30`).bind(fila.id, hoyLocal()).all();
+  return results.find(c => leerCampana(c).docs.includes("acuse_v1"))?.id || null;
 }
 
 // La recepción es una evidencia independiente; un formulario antiguo no equivale a v1.
