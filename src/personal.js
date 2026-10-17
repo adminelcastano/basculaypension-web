@@ -455,7 +455,7 @@ function correoEnlace(nombre, token, admin, tipoPersona) {
 <p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${ext ? "Registro de externos" : "Expediente laboral"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
 <p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para ${ext ? "completar" : "actualizar"} ${que}, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.${ext ? "" : ` El enlace estará abierto ${DIAS_ALTA} días.`}</p>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${soloAcuse ? "Leer y confirmar aviso v1" : "Subir mis documentos"}</a></p>
 <p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>${ext ? "Documentos que necesitamos:" : "Entrega 2 copias de cada documento con Josué:"}</b></p>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
@@ -749,18 +749,19 @@ function correoCampana(fila, camp, pendientes, recordatorio) {
   const enlace = `${SITIO}/expediente/${fila.token}`;
   const primer = String(fila.nombre || "").split(" ")[0];
   const lim = fechaLarga(camp.limite);
+  const soloAcuse = camp.docs.length === 1 && camp.docs[0] === "acuse_v1";
   const asunto = recordatorio ? `Recordatorio: ${camp.nombre} · antes del ${lim}` : `${camp.nombre} · Báscula y Pensión El Castaño`;
-  const intro = recordatorio ? `Te recordamos que tu enlace para «${camp.nombre}» se cierra el ${lim}. Te falta:` : `Abrimos «${camp.nombre}». Tienes hasta el ${lim} para entregar:`;
-  const texto = `Hola ${primer}:\n\n${intro}\n${pendientes.map(x => "- " + x).join("\n")}\n\nSube tus documentos y revisa tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nDespués de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué.\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const intro = recordatorio ? `Te recordamos que tu enlace para «${camp.nombre}» se cierra el ${lim}. Te falta:` : `Abrimos «${camp.nombre}». Tienes hasta el ${lim} para ${soloAcuse ? "confirmar" : "entregar"}:`;
+  const texto = `Hola ${primer}:\n\n${intro}\n${pendientes.map(x => "- " + x).join("\n")}\n\n${soloAcuse ? "Lee el aviso y confirma su recepción desde tu enlace personal" : "Sube tus documentos y revisa tus datos en tu enlace personal"} (no lo compartas):\n${enlace}\n\nDespués de esa fecha el enlace se cierra.${soloAcuse ? " La confirmación digital no reemplaza la firma de documentos impresos." : " Entrega también las copias físicas con Josué."}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
   const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
 <div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
 <img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
-<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${recordatorio ? "Recordatorio" : "Solicitud de documentos"}</p>
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${recordatorio ? "Recordatorio" : soloAcuse ? "Aviso de privacidad" : "Solicitud de documentos"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
-<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">${recordatorio ? `Te recordamos que tu enlace para <b style="color:#f5f5f7">${escH(camp.nombre)}</b> se cierra el <b style="color:#f5f5f7">${escH(lim)}</b>. Te falta:` : `Abrimos <b style="color:#f5f5f7">${escH(camp.nombre)}</b>. Tienes hasta el <b style="color:#f5f5f7">${escH(lim)}</b> para entregar:`}</p>
+<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">${recordatorio ? `Te recordamos que tu enlace para <b style="color:#f5f5f7">${escH(camp.nombre)}</b> se cierra el <b style="color:#f5f5f7">${escH(lim)}</b>. Te falta:` : `Abrimos <b style="color:#f5f5f7">${escH(camp.nombre)}</b>. Tienes hasta el <b style="color:#f5f5f7">${escH(lim)}</b> para ${soloAcuse ? "confirmar" : "entregar"}:`}</p>
 <ul style="margin:0 0 22px;padding-left:20px;font-size:15px;line-height:1.6;color:#f5f5f7">${pendientes.map(x => `<li>${escH(x)}</li>`).join("")}</ul>
 <p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
-<p style="margin:0 0 10px;font-size:13px;color:#86868b">Después de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué. No compartas este enlace.</p>
+<p style="margin:0 0 10px;font-size:13px;color:#86868b">Después de esa fecha el enlace se cierra. ${soloAcuse ? "La recepción digital no sustituye documentos firmados en papel." : "Entrega también las copias físicas con Josué."} No compartas este enlace.</p>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
