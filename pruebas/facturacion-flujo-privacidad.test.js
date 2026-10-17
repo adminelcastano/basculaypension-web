@@ -14,6 +14,15 @@ test("Folio normalizado identifica una operación por servicio sin confundir bá
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "17 097" }, { servicio: "bascula", folio_ticket: "17097" }), true);
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "17097" }, { servicio: "pension", folio_ticket: "17097" }), false);
   assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "" }, { servicio: "bascula", folio_ticket: "" }), false);
+  // Los folios numéricos actuales siguen funcionando sin exigir prefijo.
+  assert.equal(normalizarFolioTicket("0017097"), "0017097");
+  // Los futuros reinicios se distinguen por su serie alfabética, de A a ZZ.
+  assert.equal(normalizarFolioTicket(" a - 17097 "), "A17097");
+  assert.equal(normalizarFolioTicket("zz 0017097"), "ZZ0017097");
+  assert.equal(claveTicket("pension", "a-17097"), "pension:A17097");
+  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "A17097" }, { servicio: "bascula", folio_ticket: "17097" }), false);
+  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "A17097" }, { servicio: "bascula", folio_ticket: "B17097" }), false);
+  assert.equal(mismaOperacion({ servicio: "bascula", folio_ticket: "ZZ17097" }, { servicio: "bascula", folio_ticket: "zz-17097" }), true);
 });
 
 test("Exige datos completos antes de registrar factura emitida", () => {
