@@ -64,9 +64,9 @@
   const api = EC.api;
 
   // Todas las solicitudes a la vista, agrupadas por estado (el submenú baja a cada grupo)
-  const ESTADOS = ["pendiente", "facturada", "rechazada", "historico"];
-  const NOM_EST = { pendiente: "Pendientes", facturada: "Facturadas", rechazada: "Rechazadas", historico: "Histórico" };
-  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", rechazada: "i-x", historico: "i-arch" };
+  const ESTADOS = ["pendiente", "facturada", "enviada", "rechazada", "historico"];
+  const NOM_EST = { pendiente: "Recibidas y en revisión", facturada: "Facturadas", enviada: "Enviadas al cliente", rechazada: "Rechazadas", historico: "Histórico" };
+  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", enviada: "i-ok", rechazada: "i-x", historico: "i-arch" };
   let secuenciaLista = 0;
   async function cargarLista() {
     const solicitud = ++secuenciaLista;
@@ -84,12 +84,13 @@
       const horas = masVieja ? Math.floor((Date.now() - Date.parse(masVieja)) / 36e5) : 0;
       EC.bloqueInfo("facturacion", "pendiente", { texto: !(conteos.pendiente) ? "Nada por facturar" : horas >= 48 ? `La más antigua espera ${Math.floor(horas / 24)} días` : horas >= 1 ? `La más antigua espera ${horas} h` : "Recién llegadas" });
       EC.bloqueInfo("facturacion", "facturada", { texto: "Últimos 7 días" });
+      EC.bloqueInfo("facturacion", "enviada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "rechazada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "historico", { texto: `Se borran a los ${dias} días` });
       $("#titulo").textContent = "Facturas.";
-      $("#subtitulo").textContent = `${conteos.pendiente || 0} pendientes · ${conteos.facturada || 0} facturadas y ${conteos.rechazada || 0} rechazadas en los últimos 7 días · ${conteos.historico || 0} en el histórico`;
+      $("#subtitulo").textContent = `${conteos.pendiente || 0} recibidas/en revisión · ${conteos.facturada || 0} facturadas · ${conteos.enviada || 0} enviadas · ${conteos.rechazada || 0} rechazadas · ${conteos.historico || 0} en histórico`;
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
-      const VACIO = { pendiente: "No hay solicitudes pendientes. Las nuevas aparecen aquí.", facturada: "Sin facturas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
+      const VACIO = { pendiente: "No hay solicitudes recibidas o en revisión.", facturada: "Sin facturas por enviar en los últimos 7 días.", enviada: "Sin facturas entregadas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
       const AYUDA = { rechazada: "Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Drive.` };
       lista.innerHTML = ESTADOS.map((e, i) => {
         const j = rs[i], n = conteos[e] || 0, l = j.solicitudes.filter(s => !borrandoIds.has(s.id));
@@ -101,7 +102,7 @@
           ${iconoServicio(s.servicio)}
           <span class="t">${esc(s.nombre || (s.modo === "csf" ? "Constancia por revisar" : "Sin nombre"))}</span>
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
-          <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
+          <span class="m"><span>${fecha(["pendiente", "en_revision"].includes(s.estado) ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${s.estado === "en_revision" ? `<span>En revisión</span>` : ""}${s.estado === "enviada" ? `<span>Entregada</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
         </button>${e === "rechazada" ? "</div>" : ""}`).join("") : `<p class="note lgrp-n">${estadoState.q ? "Sin resultados." : VACIO[e]}</p>`)
           + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "") + `</div>`;
       }).join("");
@@ -134,6 +135,7 @@
       return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
     };
     const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
+    const bloqueado = s.estado === "facturada" || s.estado === "enviada";
     const esBascula = s.servicio === "bascula";
     const capturado = !!(s.folio_ticket || s.importe);
 
@@ -142,7 +144,7 @@
       <div class="detail-head">
         <h2>${esc(s.nombre || "Solicitud " + s.folio)}</h2>
         <span class="svc-tag">${iconoServicio(s.servicio)}${esc(j.servicios[s.servicio] || s.servicio || "")}</span>
-        <span class="pill ${s.estado}">${{ pendiente: "Pendiente", facturada: "Facturada", rechazada: "Rechazada" }[s.estado]}</span>
+        <span class="pill ${s.estado}">${{ pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" }[s.estado]}</span>
         <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
       </div>
       <div class="fflujo">
@@ -167,7 +169,7 @@
               <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
               <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
             </div>
-            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button">Guardar datos</button><span class="note" id="csf-estado"></span></div>
+            <div class="row"><button class="btn btn-line" id="guardar-datos" type="button" ${bloqueado ? "disabled" : ""}>Guardar datos</button><span class="note" id="csf-estado"></span></div>
           </details>
           </section>
           <section class="card">
@@ -199,7 +201,7 @@
               <label class="wide${s.anotacion ? " marcado" : ""}">Anotación a mano en el ticket<input id="t-anot" value="${esc(s.anotacion)}" placeholder="Si alguien escribió otra cantidad, aparece aquí" autocomplete="off"></label>
               <label class="wide">WhatsApp del cliente<input id="t-tel" value="${esc(s.telefono)}" placeholder="10 dígitos" inputmode="tel" maxlength="14"></label>
             </div>
-            <div class="row"><button class="btn btn-primary" id="guardar-ticket" type="button">Guardar</button>${capturado ? `<button class="btn btn-line" id="cancelar-ticket" type="button">Cancelar</button>` : ""}<span class="note" id="ticket-estado"></span></div>
+            <div class="row"><button class="btn btn-primary" id="guardar-ticket" type="button" ${bloqueado ? "disabled" : ""}>Guardar</button>${capturado ? `<button class="btn btn-line" id="cancelar-ticket" type="button">Cancelar</button>` : ""}<span class="note" id="ticket-estado"></span></div>
             </div>
           </section>
           <section class="card">
@@ -207,7 +209,7 @@
             <div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>
           </section>
           <section class="card">
-            ${s.estado === "pendiente" ? `
+            ${["pendiente", "en_revision"].includes(s.estado) ? `
               <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Si la emitiste, escribe el folio de Facturador y marca facturada. La fecha se registra sola. Si no se puede facturar, recházala con el motivo.</p>
               <div class="row">
                 <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
@@ -220,7 +222,7 @@
                   <button class="btn btn-bad" id="rechazar" type="button">Rechazar</button>
                 </div>
               </div>` : `
-              <h3 class="fpaso"><span class="num">4</span>${s.estado === "facturada" ? "Facturada" : "Rechazada"}</h3>
+              <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
               <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
               ${s.estado === "rechazada" ? `
                 <h3 style="margin-top:6px">Cambiar estatus</h3>
@@ -285,8 +287,8 @@
         await cargarLista();
       } catch (err) { if (err.message !== "sesion") toast(err.message); b.disabled = false; }
     });
-    $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
-    $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
+    if (!bloqueado) $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
+    if (!bloqueado) $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
     $("#editar-ticket")?.addEventListener("click", () => { $("#ticket-vista").hidden = true; $("#ticket-edicion").hidden = false; $("#t-ticket").focus(); });
     $("#cancelar-ticket")?.addEventListener("click", () => { $("#ticket-edicion").hidden = true; $("#ticket-vista").hidden = false; });
     const waLink = () => {
@@ -306,7 +308,7 @@
     $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes, false));
     d.querySelectorAll(".pdfview").forEach(c => mostrarPdf(c, archivo(c.dataset.pdf), s.id));
     // Lectura automática: si llegó constancia en PDF y aún no hay datos tomados de ella
-    if (s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
+    if (!bloqueado && s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
       leerCsf($("#leer-csf"), s, j.regimenes, true);
     }
   }
