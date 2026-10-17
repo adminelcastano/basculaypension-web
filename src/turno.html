@@ -578,7 +578,13 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
   const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
-  const cola = () => leerLS("turno:cola", []);
+  // Identidad + turno + día: evita reenviar operaciones de otra sesión en tablets compartidas.
+  const colaClave = () => E && E.persona && E.turno && E.dia
+    ? "turno:cola:" + E.persona + ":" + E.turno + ":" + E.dia : null;
+  const cola = () => { const k = colaClave(), v = k ? leerLS(k, []) : []; return Array.isArray(v) ? v : []; };
+  const guardarCola = v => { const k = colaClave(); return !!k && guardarLS(k, v); };
+  // No se destruyen envíos antiguos sin turno/día: quedan aislados para revisión.
+  const colaAnterior = () => { const v = leerLS("turno:cola", []); return Array.isArray(v) ? v.length : 0; };
   async function api(ruta, datos, opciones = {}) {
     if (datos !== undefined && !datos.uid && ruta !== "entrar" && ruta !== "salir") datos = { ...datos, uid: nuevoUid() };
     const op = datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Turno": "1" }, body: JSON.stringify(datos) };
@@ -586,8 +592,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     try { r = await fetch("/turno/api/" + ruta, { credentials: "same-origin", ...op }); }
     catch {
       if (datos !== undefined && opciones.cola !== false && E && COLA_RUTAS.test(ruta)) {
-        const l = cola(); l.push({ ruta, datos, persona: E.persona, at: new Date().toISOString() });
-        if (!guardarLS("turno:cola", l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
+        const l = cola(); l.push({ ruta, datos, persona: E.persona, turno: E.turno, dia: E.dia, at: new Date().toISOString() });
+        if (!guardarCola(l)) throw Object.assign(new Error("Sin internet y sin espacio para guardarlo en la tablet. Intenta sin foto o espera a tener conexión."), { red: true });
         pintarRed();
         return { ok: true, enCola: true };
       }
@@ -607,6 +613,10 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ======================= Entrada =======================
   let elegido = null, turnoElegido = null, pin = "";
   async function mostrarEntrada() {
+    guardarLS("turno:estado", null); // borra estado legado con datos privados
+    E = null;
+    Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
+    const vista = $("#contenido"); if (vista) vista.replaceChildren();
     $("#app").hidden = true; $("#entrada").hidden = false;
     aplicarPrefs(null);
     elegido = null; pin = ""; pintarPin();
@@ -674,7 +684,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   }
 
   let E = null, seccion = "inicio";
-  // El último estado se guarda en la tablet para poder trabajar sin internet
+  // El estado privado permanece solo en memoria de la sesión PIN actual.
+  // Los envíos offline se conservan por encargado, turno y día.
   let sinRed = false;
   // Versión de esta página (la pone el servidor); si en el servidor hay una nueva, se recarga sola
   const VER = "__TURNO_VER__";
@@ -686,11 +697,19 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     location.reload();
   }
   async function cargar() {
-    try { E = await api("estado"); sinRed = false; guardarLS("turno:estado", { at: new Date().toISOString(), E }); setTimeout(revisarVersion, 0); }
-    catch (e) {
-      const g = leerLS("turno:estado", null);
-      if (!e.red || !g || (E && g.E.persona !== E.persona)) throw e;
-      E = g.E; sinRed = g.at;
+    try {
+      const nuevo = await api("estado");
+      if (E && E.persona !== nuevo.persona) {
+        Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
+      }
+      E = nuevo;
+      sinRed = false;
+      guardarLS("turno:estado", null);
+      setTimeout(revisarVersion, 0);
+    } catch (e) {
+      // Sin conexión se conserva solo el estado ya autenticado en esta sesión.
+      if (!e.red || !E) throw e;
+      sinRed = new Date().toISOString();
     }
     pintarCabecera(); return E;
   }
@@ -701,24 +720,31 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     enviando = true;
     try {
       let l = cola(), n = 0;
-      while (l.length) {
+      const persona = E.persona, turno = E.turno, dia = E.dia;
+      while (l.length && E && E.persona === persona && E.turno === turno && E.dia === dia) {
         const it = l[0];
+        if (it.persona !== persona || it.turno !== turno || it.dia !== dia) {
+          toast("Hay un envío de otra sesión. No se enviará automáticamente.", true); break;
+        }
         try { await api(it.ruta, it.datos, { cola: false }); n++; }
         catch (e) {
-          if (e.red) break;
-          if (e.datos && e.datos.sesion === false) break;
-          toast(`No se pudo enviar un registro guardado sin internet: ${e.message}`, true);
+          if (e.red || !E || (e.datos && e.datos.sesion === false)) break;
+          toast(`No se pudo enviar un registro guardado: ${e.message}. Se conservó pendiente.`, true);
+          break; // no descartar mensajes, fotos ni registros rechazados
         }
-        l = cola(); l.shift(); guardarLS("turno:cola", l);
+        if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) break;
+        l = cola(); l.shift(); if (!guardarCola(l)) break;
       }
       if (n) { toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`); await refrescar().catch(() => {}); }
     } finally { enviando = false; pintarRed(); }
   }
   function pintarRed() {
     const el = $("#red"); if (!el) return;
-    const n = cola().length;
-    el.hidden = !n && !sinRed;
-    el.textContent = sinRed ? `Sin internet${n ? ` · ${n} por enviar` : ""}` : `${n} por enviar`;
+    const n = cola().length, antiguos = colaAnterior();
+    el.hidden = !n && !sinRed && !antiguos;
+    el.textContent = (sinRed ? "Sin internet" : "") +
+      (n ? ` · ${n} por enviar` : "") +
+      (antiguos ? ` · ${antiguos} envío(s) anterior(es) por revisar` : "");
   }
   addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
@@ -1531,7 +1557,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   // ---------- Salida ----------
   async function salir() {
     try { await api("salir", {}); } catch {}
-    E = null; sec().innerHTML = ""; mostrarEntrada();
+    sec().innerHTML = ""; mostrarEntrada();
   }
   $("#terminar").addEventListener("click", async () => {
     const pend = E && !E.corte;
