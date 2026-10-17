@@ -258,7 +258,7 @@ export async function sincronizarCaja(env) {
     const stmts = [];
     const pendientes = new Map();
     for (const f of filas.filter(x => x.pendiente)) {
-      const id = [f.servicio, f.fecha, f.folio, f.matricula].join("|");
+      const id = [f.servicio, f.fecha, f.folio].join("|");
       if (pendientes.has(id)) throw new Error("Dos cobros pendientes tienen la misma identificación en la hoja.");
       if (!Number.isFinite(f.monto_pendiente) || f.monto_pendiente < 0 || f.monto_pendiente > 100000000)
         throw new Error("La hoja devolvió un importe pendiente inválido.");
