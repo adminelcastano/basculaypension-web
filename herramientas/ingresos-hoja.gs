@@ -63,7 +63,7 @@ function leer(hoja, cols, mes) {
       folio: String(f[idx.folio]),
       matricula: String(f[idx.matricula]),
       cliente: String(f[idx.cliente]),
-      importe: f[idx.importe] === "" ? 0 : Number(f[idx.importe]) || 0,
+      importe: f[idx.importe] === "" ? 0 : f[idx.importe], // Conservar cifras y texto (MENOS, $, comas) para el parser de Caja
       forma: String(f[idx.forma]),
       turno: String(f[idx.turno])
     });
