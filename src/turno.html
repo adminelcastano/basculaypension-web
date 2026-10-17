@@ -387,6 +387,19 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .post-t { margin: 12px 0 0; font-size: 1.15rem; line-height: 1.3; overflow-wrap: anywhere; }
 .post-d { margin: 6px 0 0; color: #d6d6da; overflow-wrap: anywhere; }
 .men { color: var(--amber); font-weight: 600; }
+/* CASTAGRAM: etiquetas de perfil y selector accesible para @ en móvil y escritorio. */
+.casta-mention { display:inline-flex; align-items:center; gap:5px; vertical-align:middle; white-space:nowrap; padding:2px 7px 2px 3px; border-radius:999px; background:rgba(255,204,0,.12); color:var(--amber); font-size:.93em; font-weight:600; max-width:100%; }
+.casta-mention img { display:block; flex:none; width:22px; height:22px; border-radius:50%; object-fit:cover; background:#353538; }
+.casta-mention b { overflow:hidden; text-overflow:ellipsis; }
+.casta-mention-list { display:grid; gap:2px; max-height:198px; overflow-y:auto; overscroll-behavior:contain; border:1px solid #58504a; border-radius:12px; background:#242428; padding:4px; margin-top:5px; }
+.casta-mention-list[hidden], .casta-mention-selected[hidden] { display:none !important; }
+.casta-mention-list button { display:flex; gap:10px; align-items:center; justify-content:space-between; width:100%; min-height:46px; padding:6px 10px; border:0; border-radius:9px; background:transparent; color:var(--fg); text-align:left; cursor:pointer; font:inherit; }
+.casta-mention-list button[aria-selected="true"], .casta-mention-list button:hover, .casta-mention-list button:focus-visible { background:#3b362c; outline-offset:-2px; }
+.casta-mention-list button small { font-size:.72rem; color:var(--muted); }
+.casta-mention-selected { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.casta-chip-perfil .casta-mention, .casta-para-perfil .casta-mention { background:transparent; padding:0; color:inherit; }
+@media(max-width:560px) { .casta-mention-list { max-height:150px; } }
+
 .post-fotos { display: grid; gap: 4px; margin-top: 12px; border-radius: 14px; overflow: hidden; }
 .post-fotos.n2, .post-fotos.n3 { grid-template-columns: 1fr 1fr; }
 .post-fotos.n3 a:first-child { grid-row: span 2; }
@@ -768,7 +781,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const fotoLink = k => k ? `<a class="lnk" href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver foto</a>` : "";
   // Imagen de perfil de un encargado ("admin" = logo de la pensión). chico: para ir dentro de un texto
   const avi = (clave, chico) => `<img class="avi${chico ? " ch" : ""}" src="/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${chico ? 22 : 40}" height="${chico ? 22 : 40}" loading="lazy">`;
-  const nombreDe = clave => clave === "admin" ? "Administración" : ((E.personas.find(p => p.clave === clave) || {}).nombre || clave);
+  const nombreDe = clave => clave === "admin" ? (E?.admin_perfil?.nombre || "Administración") : ((E.personas.find(p => p.clave === clave) || {}).perfil || (E.personas.find(p => p.clave === clave) || {}).nombre || clave);
   const errores = er => er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message;
   const sumar = l => l.reduce((s, x) => s + Number(x.monto || 0), 0);
   function paraTxt(p) {
@@ -1115,12 +1128,71 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     ta.dispatchEvent(new Event("input", { bubbles:true }));
     ta.focus({ preventScroll:true });
   }
-  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => E.personas.some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m).replace(/\n/g, "<br>");
-  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
+  // En el texto se conserva @CLAVE para que destinatarios e historial sean estables;
+  // la interfaz utiliza el apodo elegido en el perfil y su avatar.
+  const perfilMencion = p => p.perfil || p.nombre || p.clave;
+  const avatarMencion = p => p.avatar_url || "/turno/avatar/c/" + encodeURIComponent(p.clave);
+  const tarjetaMencion = p => `<span class="casta-mention" title="@${esc(p.clave)}"><img src="${esc(avatarMencion(p))}" alt="" width="22" height="22" loading="lazy"><b>@${esc(perfilMencion(p))}</b></span>`;
+  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m,k) => {
+    const p = E.personas.find(x => x.clave === k.toUpperCase());
+    return p ? tarjetaMencion(p) : m;
+  }).replace(/\n/g, "<br>");
+  const buscarMencion = (ta, personas) => {
+    const posicion = ta.selectionStart, antes = ta.value.slice(0, posicion);
+    const m = /@([A-Za-zÑñÁÉÍÓÚÜáéíóúü0-9_]{0,24})$/.exec(antes);
+    if (!m || (m.index > 0 && !/[\s([{]/.test(antes[m.index - 1]))) return null;
+    const normal = v => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const busqueda = normal(m[1]);
+    return { inicio: m.index, fin: posicion, personas: personas.filter(p => normal(perfilMencion(p)).includes(busqueda) || normal(p.clave).includes(busqueda)).slice(0,12) };
+  };
+  function actualizarMenciones(form) {
+    const ta = form.querySelector('textarea[name="texto"]'), caja = form.querySelector("[data-mention-list]"), seleccion = form.querySelector("[data-mention-selected]");
+    if (!ta || !caja || !E) return;
+    const actual = buscarMencion(ta, E.personas.filter(p => p.clave !== E.persona));
+    caja.hidden = !actual || !actual.personas.length;
+    ta.setAttribute("aria-expanded", String(!caja.hidden));
+    caja.innerHTML = actual ? actual.personas.map((p,i) => `<button type="button" role="option" aria-selected="${i === 0}" data-mention-pick="${esc(p.clave)}">${tarjetaMencion(p)}<small>${esc(p.clave)}</small></button>`).join("") : "";
+    if (seleccion) {
+      const claves = [...ta.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m => m[1].toUpperCase());
+      const elegidos = E.personas.filter(p => claves.includes(p.clave));
+      seleccion.innerHTML = elegidos.map(tarjetaMencion).join("");
+      seleccion.hidden = !elegidos.length;
+    }
+  }
+  function elegirMencion(form, clave) {
+    const ta = form.querySelector('textarea[name="texto"]'), p = E && E.personas.find(x => x.clave === clave);
+    if (!ta || !p) return;
+    const actual = buscarMencion(ta, E.personas);
+    if (!actual) return;
+    ta.setRangeText("@" + p.clave + " ", actual.inicio, actual.fin, "end");
+    ta.dispatchEvent(new Event("input", { bubbles:true }));
+    ta.focus({ preventScroll:true });
+  }
+  function teclaMencion(e) {
+    const ta = e.target.closest("form.com-form textarea"), form = ta && ta.closest("form");
+    const caja = form && form.querySelector("[data-mention-list]");
+    if (!caja || caja.hidden) return;
+    const opciones = [...caja.querySelectorAll("[data-mention-pick]")];
+    if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; ta.setAttribute("aria-expanded", "false"); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      let i = opciones.findIndex(b => b.getAttribute("aria-selected") === "true");
+      i = (i + (e.key === "ArrowDown" ? 1 : -1) + opciones.length) % opciones.length;
+      opciones.forEach((b,j) => b.setAttribute("aria-selected", String(i === j)));
+    } else if (e.key === "Enter" && opciones.length) {
+      e.preventDefault();
+      elegirMencion(form, (opciones.find(b => b.getAttribute("aria-selected") === "true") || opciones[0]).dataset.mentionPick);
+    }
+  }
+  const etqPara = p => [p.admin ? (E?.admin_perfil?.nombre || "Administración") : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || [])].filter(Boolean);
+  const etqParaHtml = p => etqPara(p).map(t => {
+    const persona = E.personas.find(x => x.clave === t);
+    return `<span class="etq-p">${persona ? tarjetaMencion(persona) : "@" + esc(t)}</span>`;
+  }).join("");
   function comHtml(c) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avi(c.autor, 1)}<div class="com-b"><div class="com-burb"><b>${esc(c.autor === E.persona ? "Tú" : nombreDe(c.autor))}</b>
       ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}?castagram=2" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
-      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${!c.borrado && c.autor !== E.persona ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
+      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${!c.borrado && c.autor !== E.persona ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}</div></div></div>`;
   }
   function hiloHtml(a) {
     const h = hilos[a.id];
@@ -1130,11 +1202,12 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const sel = h.etq || [];
     return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}</div>
       <div class="casta-sheet-compose"><form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
-        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a ${conMenciones("@" + h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
         <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
-        <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" aria-autocomplete="list" aria-controls="casta-men-${esc(a.id)}" aria-expanded="false" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
+        <div class="casta-mention-list" id="casta-men-${esc(a.id)}" role="listbox" aria-label="Elegir encargado para etiquetar" data-mention-list hidden></div><div class="casta-mention-selected" aria-label="Personas etiquetadas" data-mention-selected hidden></div>
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm casta-chip-perfil" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">${tarjetaMencion(x)}</button>`).join("")}</div>` : ""}
         ${!h.responderA && h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
         <div class="com-acc">${!h.responderA ? `<label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label>` : ""}<button class="btn btn-primary btn-sm" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
         <p class="err" role="alert"></p></div></form></div></div>`;
@@ -1196,11 +1269,11 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const confirmado = !!a.leido && !a.propio;
     return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
-      <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+      <p class="post-para">Para ${etqParaHtml(a.para || {})}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${castaFotos(f,a.id)}
       <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${castaComentar}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
-      ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
+      ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${cv.ultimo.texto ? conMenciones(cv.ultimo.texto) : "Mandó una foto"}</span></button>` : ""}
       </article>`;
   }
   async function abrirHilo(id) {
@@ -1816,6 +1889,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     }
     const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
     const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
+    const opcionMencion = e.target.closest("[data-mention-pick]");
+    if (opcionMencion) { elegirMencion(opcionMencion.closest("form.com-form"), opcionMencion.dataset.mentionPick); return; }
     if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
     if (hv) { if (history.state && history.state.hoy) history.back(); else { vistaHoy = null; aplicarIndice(); } return; }
     if (hl) {
@@ -1886,7 +1961,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     } else if (irA) ir(irA.dataset.ir);
   });
   sec().addEventListener("scroll", e => { if (e.target.matches(".casta-carrusel-pista")) castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
-  sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av]) hilos[f.dataset.av].borrador = e.target.value; });
+  sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av] && e.target.name === "texto") { hilos[f.dataset.av].borrador = e.target.value; actualizarMenciones(f); } });
+  sec().addEventListener("click", e => { const ta = e.target.closest("form.com-form textarea"); if (ta) actualizarMenciones(ta.closest("form")); });
+  sec().addEventListener("keyup", e => { const ta = e.target.closest("form.com-form textarea"); if (ta && !["Enter","Escape","ArrowDown","ArrowUp"].includes(e.key)) actualizarMenciones(ta.closest("form")); });
+  sec().addEventListener("keydown", teclaMencion);
   sec().addEventListener("change", async e => {
     const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
     const f = inp.closest("form"), id = f && f.dataset.av, h = id && hilos[id], sesion = E;
