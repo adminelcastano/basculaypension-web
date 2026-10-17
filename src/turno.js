@@ -1,4 +1,5 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
 import AV2 from "./avatares/a2.webp";
 import AV3 from "./avatares/a3.webp";
@@ -38,6 +39,12 @@ function leerPrefs(v) {
   let p = {}; try { p = JSON.parse(v || "{}") || {}; } catch {}
   return { acento: Object.hasOwn(ACENTOS, p.acento) ? p.acento : "amarillo", letra: LETRAS.includes(p.letra) ? p.letra : "normal", apodo: texto(p.apodo, 20) };
 }
+// Nombre visible de perfil para CASTAGRAM; conserva el alias elegido y normaliza
+// la inicial sin alterar la clave, el PIN ni los datos guardados en D1.
+function nombrePerfil(p) {
+  const nombre = leerPrefs(p.prefs).apodo || p.nombre || p.clave;
+  return nombre.charAt(0).toLocaleUpperCase("es-MX") + nombre.slice(1);
+}
 // Dirección de la imagen de perfil (galería o foto propia); base distinta para la tablet y el panel
 function urlAvatar(p, panel) {
   const a = avatarValido(p.avatar);
@@ -49,7 +56,7 @@ function urlAvatar(p, panel) {
 // sin imagen asignada se dibuja un círculo con las iniciales.
 async function servirAvatarDe(env, clave, urlBase) {
   clave = String(clave || "").toUpperCase();
-  if (clave === "ADMIN") return Response.redirect(new URL("/img/logo.png", urlBase).toString(), 302);
+  if (clave === "ADMIN") return servirFotoAdmin(env);
   if (!/^[A-ZÑ0-9]{1,12}$/.test(clave)) return new Response("No encontrado", { status: 404 });
   const p = await env.DB.prepare("SELECT clave, avatar, foto_ver FROM turno_personas WHERE clave = ?").bind(clave).first();
   const a = p && avatarValido(p.avatar);
@@ -217,7 +224,7 @@ export async function servirFoto(env, llave) {
 // ---------------------------------------------------------------------------
 async function estado(env, s) {
   const hoy = local().dia;
-  const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p) }));
+  const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, prefs FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: nombrePerfil(p), avatar_url: urlAvatar(p) }));
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
   // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
   // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
@@ -272,7 +279,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -751,8 +758,8 @@ export async function turnoAdmin(request, env, url, partes) {
 
   if (partes.length === 1 && request.method === "GET") {
     const ahora = new Date().toISOString();
-    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
-      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
+    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, prefs, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
+      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: nombrePerfil(p), activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
     // Últimos cortes entregados con su comparación
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE COALESCE(admin, 0) = 0 ORDER BY dia DESC, actualizado DESC LIMIT 12").all()).results;
     let cortes = [];

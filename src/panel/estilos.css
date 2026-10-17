@@ -1266,6 +1266,19 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .post-t { margin: 12px 0 0; font-size: var(--t-lg); line-height: 1.3; text-wrap: pretty; overflow-wrap: anywhere; }
 .post-d { margin: 6px 0 0; color: var(--fg-2); line-height: 1.5; overflow-wrap: anywhere; }
 .men { color: var(--amber); font-weight: 600; }
+/* CASTAGRAM: etiquetas de perfil y selector accesible para @ en móvil y escritorio. */
+.casta-mention { display:inline-flex; align-items:center; gap:5px; vertical-align:middle; white-space:nowrap; padding:2px 7px 2px 3px; border-radius:999px; background:rgba(255,204,0,.12); color:var(--amber); font-size:.93em; font-weight:600; max-width:100%; }
+.casta-mention img { display:block; flex:none; width:22px; height:22px; border-radius:50%; object-fit:cover; background:#353538; }
+.casta-mention b { overflow:hidden; text-overflow:ellipsis; }
+.casta-mention-list { display:grid; gap:2px; max-height:198px; overflow-y:auto; overscroll-behavior:contain; border:1px solid #58504a; border-radius:12px; background:#242428; padding:4px; margin-top:5px; }
+.casta-mention-list[hidden], .casta-mention-selected[hidden] { display:none !important; }
+.casta-mention-list button { display:flex; gap:10px; align-items:center; justify-content:space-between; width:100%; min-height:46px; padding:6px 10px; border:0; border-radius:9px; background:transparent; color:var(--fg); text-align:left; cursor:pointer; font:inherit; }
+.casta-mention-list button[aria-selected="true"], .casta-mention-list button:hover, .casta-mention-list button:focus-visible { background:#3b362c; outline-offset:-2px; }
+.casta-mention-list button small { font-size:.72rem; color:var(--muted); }
+.casta-mention-selected { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.casta-chip-perfil .casta-mention, .casta-para-perfil .casta-mention { background:transparent; padding:0; color:inherit; }
+@media(max-width:560px) { .casta-mention-list { max-height:150px; } }
+
 .post-fotos { display: grid; gap: 4px; margin-top: 12px; border-radius: var(--r-md); overflow: hidden; }
 .post-fotos.n2 { grid-template-columns: 1fr 1fr; }
 .post-fotos.n3 { grid-template-columns: 1fr 1fr; }
@@ -1563,3 +1576,31 @@ dialog.casta-sheet .com-form .com-etq { max-height:85px; overflow-y:auto; }
 .casta-actividad-list strong { overflow-wrap:anywhere; font-size:.9rem; }
 .casta-actividad-list small { color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
 .casta-actividad-list p { margin:0; padding:12px 14px; color:var(--muted); font-size:.85rem; }
+
+
+/* Perfil propio de Administración: color y tamaño sin cambiar otras cuentas. */
+:root[data-admin-acento="naranja"] { --amber:#ff9f0a; --warn-soft:#39230d; }
+:root[data-admin-acento="rosa"] { --amber:#ff8fc7; --warn-soft:#351c2c; }
+:root[data-admin-acento="morado"] { --amber:#b69cff; --warn-soft:#2d2444; }
+:root[data-admin-acento="azul"] { --amber:#64d2ff; --warn-soft:#123142; }
+:root[data-admin-acento="turquesa"] { --amber:#2dd4bf; --warn-soft:#12352f; }
+:root[data-admin-letra="grande"] { --t-md:17px; --t-base:18px; --t-lg:21px; --t-xl:25px; --t-2xl:34px; }
+:root[data-admin-letra="muy-grande"] { --t-md:19px; --t-base:20px; --t-lg:24px; --t-xl:28px; --t-2xl:38px; }
+.perfil-admin-abrir { display:inline-flex; align-items:center; gap:8px; max-width:160px; min-width:38px; border:0; padding:3px 6px; border-radius:999px; color:var(--fg); background:transparent; cursor:pointer; font:inherit; }
+.perfil-admin-abrir:hover { background:var(--surface-2); }
+.perfil-admin-abrir img { width:36px; height:36px; border-radius:50%; object-fit:cover; background:var(--surface-2); border:1px solid var(--line-2); }
+.perfil-admin-abrir span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:var(--t-sm); font-weight:600; }
+.perfil-admin-dialog { border:1px solid var(--line-2); border-radius:22px; padding:0; background:var(--surface); color:var(--fg); width:min(460px,calc(100vw - 20px)); max-height:90dvh; overflow-y:auto; }
+.perfil-admin-dialog::backdrop { background:rgba(0,0,0,.78); }
+.perfil-admin-dialog form { display:grid; gap:16px; padding:20px; }
+.perfil-admin-encabezado { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.perfil-admin-encabezado h2 { font-size:var(--t-xl); }
+.perfil-admin-encabezado button { width:40px; height:40px; border:0; border-radius:50%; background:var(--fill); color:var(--fg); font-size:24px; cursor:pointer; }
+.perfil-admin-foto { display:flex; align-items:center; gap:16px; }
+.perfil-admin-foto img { width:92px; height:92px; object-fit:cover; border-radius:50%; background:var(--fill); }
+.perfil-admin-foto > div { display:flex; flex-wrap:wrap; gap:8px; }
+.perfil-admin-campo { display:grid; gap:6px; color:var(--fg-2); font-size:var(--t-sm); font-weight:600; }
+.perfil-admin-campo input, .perfil-admin-campo select { border:1px solid var(--line-2); background:var(--bg-2); color:var(--fg); min-height:46px; padding:10px 12px; border-radius:12px; width:100%; }
+.perfil-admin-error { color:var(--bad); min-height:1.3em; margin:0; font-size:var(--t-sm); }
+.perfil-admin-acciones { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+@media(max-width:680px) { .perfil-admin-abrir { padding:2px; } .perfil-admin-abrir span, header.bar #yo { display:none; } .perfil-admin-dialog form { padding:16px; } }
