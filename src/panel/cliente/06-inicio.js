@@ -4,7 +4,7 @@
   const esc = EC.esc;
   // Colores validados (daltonismo y contraste sobre fondo oscuro). Cada entidad conserva su color en todas las gráficas.
   const COL = { bas: "#c08a00", pen: "#3d8fd6", tra: "#d0559a", efe: "#1aa3a3", tar: "#6c74e8" };
-  const ESTADO = { pendiente: ["#fab219", "i-reloj", "Pendientes"], facturada: ["#0ca30c", "i-check", "Facturadas"], rechazada: ["#d03b3b", "i-x", "Rechazadas"] };
+  const ESTADO = { pendiente: ["#fab219", "i-reloj", "Pendientes"], facturada: ["#0ca30c", "i-check", "Facturadas"], enviada: ["#64d2ff", "i-check", "Enviadas"], rechazada: ["#d03b3b", "i-x", "Rechazadas"] };
   const dinero = (v, dec = 0) => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const compacto = v => v >= 1000 ? "$" + (v / 1000).toLocaleString("es-MX", { maximumFractionDigits: 1 }) + "k" : "$" + Math.round(v);
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
@@ -295,7 +295,7 @@
       const pend = fac.value.solicitudes || [];
       const imp = x => Number(String(x.importe ?? x.tarifa ?? "").replace(/[$,\s]/g, ""));
       $("#i-pend-l").innerHTML = pend.length ? `<div class="mini-q">${pend.slice(0, 5).map(x => `<div><span class="mini-r"><span class="t">${esc(x.nombre || x.cliente || x.rfc || "Sin nombre")}</span><b>${imp(x) > 0 ? esc(dinero(imp(x), 2)) : "—"}</b></span><span class="q">Folio ${esc(x.folio)} · llegó ${esc(fCorto.format(new Date(Date.parse(x.creado) - 216e5)))}</span></div>`).join("")}</div>${pend.length > 5 ? `<p class="note" style="margin:6px 0 0">y ${pend.length - 5} más</p>` : ""}` : "";
-      dona($("#d-fact"), ["pendiente", "facturada", "rechazada"].map(k => ({ nombre: ESTADO[k][2], v: c[k] || 0, c: ESTADO[k][0], ico: ESTADO[k][1] })), { etiqueta: "solicitudes", formato: v => String(Math.round(v)), iconos: true });
+      dona($("#d-fact"), ["pendiente", "facturada", "enviada", "rechazada"].map(k => ({ nombre: ESTADO[k][2], v: c[k] || 0, c: ESTADO[k][0], ico: ESTADO[k][1] })), { etiqueta: "solicitudes", formato: v => String(Math.round(v)), iconos: true });
     } else limpiarFuenteHoy("facturas");
     if (per.status === "fulfilled") {
       const c = per.value.conteos;
