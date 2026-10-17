@@ -221,12 +221,77 @@
               </form></div></details>
           </section>
       </div>
+        <section class="card" style="min-width:0">
+          <h3>Pendientes de cobro</h3>
+          <p class="note">Registra cuánto recibiste, la fecha y la forma. El abono se refleja en Dinero en su fecha, no altera el corte original y deja de sumarse si la hoja ya refleja ese cobro.</p>
+          ${(j.pendientes || []).length ? j.pendientes.map(p => `<div class="cgasto" data-pendiente-id="${esc(p.id)}">
+            <span><b>${esc(p.servicio === "bascula" ? "Báscula" : "Pensión")} · folio ${esc(p.folio)}</b>
+              <span class="note" style="display:block">${esc(p.cliente || "")} · ${esc(hora(p.fecha))} · ${esc(p.forma || "")}</span>
+              <span class="note" style="display:block">${esc(p.estado === "parcial" ? "Abonado parcialmente" : p.estado === "pagado" ? "Liquidado" : p.estado === "cancelado" ? "Cancelado" : "Pendiente")}${p.origen_activo ? "" : " · la hoja ya no lo considera pendiente"}</span>
+              ${p.resuelto ? `<span class="note" style="display:block">Resuelto: ${esc(p.resuelto)} · ${esc(p.por || "Administración")}</span>` : ""}
+            </span>
+            <b>${dinero(Math.max(0, p.monto - (p.abonado || 0)))} restante</b>
+            ${p.abonado ? `<span class="note" style="grid-column:1/-1">Abonado: ${dinero(p.abonado)} de ${dinero(p.monto)}</span>` : ""}
+            ${(p.abonos || []).length ? `<div style="grid-column:1/-1">${p.abonos.map(a => `<p class="note" style="margin:3px 0">${esc(a.fecha_pago)} · ${esc(a.forma)} · ${dinero(a.monto)} · ${esc(a.por || "Administración")}${a.anulado ? " · ANULADO" : ""}
+              ${!a.anulado ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="anular-abono" data-pago-id="${esc(a.id)}">Anular abono</button>` : ""}</p>`).join("")}</div>` : ""}
+            ${p.origen_activo && (p.estado === "pendiente" || p.estado === "parcial") && Math.max(0, p.monto - (p.abonado || 0)) > 0 ? `<form data-abonar="${esc(p.id)}" class="cform" style="grid-column:1/-1" novalidate>
+              <label>Importe cobrado<input name="monto" inputmode="decimal" value="${(Math.max(0, p.monto - (p.abonado || 0))).toFixed(2)}" required></label>
+              <label>Fecha de pago<input name="fecha" type="date" value="${hoyMx()}" required></label>
+              <label>Forma<select name="forma" required><option value="EFECTIVO">Efectivo (sobres)</option><option value="TARJETA">Tarjeta (Mercado Pago)</option><option value="TRANSFERENCIA">Transferencia (cuenta predeterminada)</option></select></label>
+              <label>Nota opcional<input name="notas" maxlength="240" placeholder="Referencia del pago"></label>
+              <div class="row wide"><button class="btn btn-primary" type="submit">Registrar pago</button>
+                ${!p.abonado ? `<button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>` : ""}</div>
+            </form>` : ""}
+            ${!p.origen_activo && (p.estado === "pendiente" || p.estado === "parcial") ? `<div class="row" style="grid-column:1/-1">
+              <button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="conciliado">Confirmar conciliado en hoja</button>
+              <button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>
+            </div>` : ""}
+            ${p.estado === "cancelado" && p.origen_activo ? `<button class="btn btn-line" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="pendiente">Reabrir pendiente</button>` : ""}
+          </div>`).join("") : '<p class="note">Este corte no tiene cobros pendientes o resueltos.</p>'}
+        </section>
         <section class="card" style="min-width:0"><h3>Registros de la hoja</h3>
           ${j.movs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Registros de la hoja"><table class="cmovs"><thead><tr><th><span class="sr">Servicio</span></th><th>Hora</th><th>Folio</th><th>Matrícula</th><th>Cliente</th><th>Forma</th><th class="n">Importe</th></tr></thead><tbody>
             ${j.movs.map(m => `<tr class="${m.tipo === "caja" ? "mov" : j.formas_contadas.includes(m.forma) ? "" : "no"}"><td>${icono(m.servicio)}</td><td>${esc(hora(m.fecha))}</td><td>${m.folio_mc ? `<span class="folio-mc">${esc(m.folio_mc)}</span> ` : ""}${esc(m.folio)}</td><td>${esc(m.matricula)}</td><td>${esc(m.cliente)}</td><td>${esc(m.tipo === "caja" ? "caja" : m.forma.toLowerCase())}</td><td class="n">${dinero(m.importe)}</td></tr>`).join("")}
           </tbody></table></div><p class="note">En gris: no suman al corte (prepago, transferencia u otros). En cursiva: renglones de caja (con su folio de movimiento MC).</p>` : `<p class="note">No hay registros de la hoja en este turno.</p>`}
         </section>
       </div>`;
+    d.querySelectorAll("form[data-abonar]").forEach(f => f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const b = f.querySelector('button[type="submit"]');
+      b.disabled = true;
+      try {
+        await api("caja/pendiente/" + encodeURIComponent(f.dataset.abonar) + "/resolver", {
+          method: "POST", body: JSON.stringify({
+            estado: "pagado", fecha: f.elements.fecha.value, forma: f.elements.forma.value,
+            monto: f.elements.monto.value, notas: f.elements.notas.value,
+            pago_id: (f.dataset.idempotente ||= crypto.randomUUID())
+          })
+        });
+        toast("Cobro registrado en Dinero por su fecha y forma de pago");
+        await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
+    d.querySelectorAll("[data-cobro-id]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.dataset.cobroId, estado = b.dataset.cobroEstado;
+      const mensaje = estado === "conciliado"
+        ? "¿Confirmas que la hoja ya recoge el cobro? No se sumará otro ingreso administrativo."
+        : estado === "cancelado"
+          ? "¿Confirmas la cancelación? Quedará registrada en el historial."
+          : estado === "anular-abono"
+          ? "¿Anular este abono? Se corregirán los totales de Dinero mientras el mes esté abierto."
+          : "¿Reabrir este pendiente?";
+      if (!window.confirm(mensaje)) return;
+      b.disabled = true;
+      try {
+        await api("caja/pendiente/" + encodeURIComponent(id) + "/resolver", {
+          method: "POST", body: JSON.stringify({ estado, pago_id: b.dataset.pagoId || "" })
+        });
+        toast(estado === "conciliado" ? "Conciliación registrada, sin duplicar ingreso" :
+          estado === "cancelado" ? "Pendiente cancelado" :
+          estado === "anular-abono" ? "Abono anulado" : "Pendiente reabierto");
+        await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
     $("#c-volver").addEventListener("click", () => { $("#c-work").classList.remove("ver-detalle"); st.actual = null; });
     const be = $("#c-del-entrega");
     if (be) be.addEventListener("click", async () => {
@@ -278,6 +343,17 @@
       ${lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos de caja"><table class="cmovs tmovs"><thead><tr><th>Folio</th><th>Día y turno</th><th>Hora</th><th>Tipo</th><th>Concepto</th><th>Quién</th><th class="n">Monto</th></tr></thead><tbody>
         ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    const cobros = j.cobros || [];
+    c.innerHTML += `<section class="card">
+      <h3>Cobros recuperados de tickets pendientes</h3>
+      <p class="note">Pagos recibidos por administración en la fecha indicada, sin alterar el corte original. Sólo se contabilizan mientras la hoja siga mostrando el ticket como pendiente.</p>
+      ${cobros.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Cobros recuperados"><table class="cmovs">
+        <thead><tr><th>Fecha del cobro</th><th>Folio</th><th>Servicio</th><th>Forma</th><th>Registró</th><th class="n">Importe</th></tr></thead>
+        <tbody>${cobros.map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(x.folio)}</td>
+          <td>${esc(x.servicio === "bascula" ? "Báscula" : "Pensión")}</td><td>${esc(x.forma)}</td>
+          <td>${esc(x.por || "Administración")}</td><td class="n">${dinero(x.monto)}</td></tr>`).join("")}</tbody>
+      </table></div>` : '<p class="note">Sin cobros recuperados en este período.</p>'}
+    </section>`;
     c.querySelectorAll(".mfil .ptab").forEach(b => b.addEventListener("click", () => { st.filtroMov = b.dataset.f; vistaMovs(j); }));
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
   }
@@ -344,7 +420,12 @@
     if (window.irA) window.irA("caja", { historia: "push", vista: "cortes" });
     const fuera = st.desde || st.hasta ? (st.desde && dia < st.desde) || (st.hasta && dia > st.hasta) : dia.slice(0, 7) !== hoy.slice(0, 7);
     if (fuera) { st.desde = dia.slice(0, 7) === hoy.slice(0, 7) ? "" : dia; st.hasta = st.desde ? dia : ""; st.rapido = st.desde ? "" : "mes"; $("#c-desde").value = st.desde; $("#c-hasta").value = st.hasta; document.querySelectorAll("#c-rapidos .ptab").forEach(b => b.setAttribute("aria-selected", b.dataset.r === st.rapido ? "true" : "false")); }
-    await cargar(); abrir(k);
+    await cargar(); await abrir(k);
+  };
+  window.cajaAbrirPendiente = async (k, id) => {
+    await window.cajaAbrirCorte(k);
+    const el = [...document.querySelectorAll("#c-detalle [data-pendiente-id]")].find(x => x.dataset.pendienteId === id);
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.style.outline = "2px solid var(--accent, #ffcc00)"; }
   };
   function periodo(desde, hasta, rapido) {
     st.desde = desde; st.hasta = hasta; st.rapido = rapido;

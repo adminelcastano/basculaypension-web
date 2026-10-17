@@ -121,6 +121,19 @@ export function armarHoy(d, ahora = new Date()) {
   const per = d.personal && d.personal.conteos;
   if (per && per.incompletos) add("info", "expedientes", `${per.incompletos} ${per.incompletos === 1 ? "expediente incompleto" : "expedientes incompletos"}`, "De colaboradores activos.", { mod: "personal" }, per.incompletos);
 
+  // Pendientes procedentes de la hoja: el administrador los resuelve en el corte.
+  // No alteran ingresos ni saldos mientras el cobro no se registre en origen.
+  const pendientes = (d.caja && d.caja.pendientes) || [];
+  for (const p of pendientes.slice(0, 30)) {
+    const titulo = `Cobro por resolver · ${p.servicio === "bascula" ? "Báscula" : "Pensión"} · folio ${p.folio}`;
+    const detalle = `${dinero(Math.max(0, p.monto - (p.abonado || 0)))} restante · ${p.dia} · ${p.turno}. ${p.origen_activo ? "Registra abono o cancelación en Caja." : "La hoja ya no lo marca pendiente: revisa y concilia el movimiento."}`;
+    add("media", "cobro-" + p.id, titulo, detalle,
+      { mod: "caja", corte: p.dia + "|" + p.turno, pendiente: p.id });
+  }
+  if (pendientes.length > 30) add("media", "cobros-restantes",
+    `${pendientes.length - 30} cobros adicionales por revisar`,
+    "Abre Caja para consultar los pendientes restantes.", { mod: "caja" });
+
   const peso = { alta: 0, media: 1, info: 2 };
   atencion.sort((a, b) => peso[a.nivel] - peso[b.nivel]);
 
@@ -191,7 +204,7 @@ export function recortar({ facturas, caja, turno, agenda, pagos, finanzas, perso
   }
   return {
     facturas: facturas && { conteos: facturas.conteos || {}, solicitudes: (facturas.solicitudes || []).slice(0, 6) },
-    caja: caja && { cortes: caja.cortes, gastos_recientes: caja.gastos_recientes || [], sync: caja.sync || null, conectado: caja.conectado, transf_por_dia: transfPorDia },
+    caja: caja && { cortes: caja.cortes, cobros: caja.cobros || [], gastos_recientes: caja.gastos_recientes || [], sync: caja.sync || null, conectado: caja.conectado, transf_por_dia: transfPorDia },
     turno: turno && turno.activo || null,
     agenda, pagos,
     finanzas: finanzas && { mes: finanzas.mes, ingresos: finanzas.ingresos, egresos: finanzas.egresos, resultado: finanzas.resultado, diferencias: finanzas.diferencias && { faltantes: finanzas.diferencias.faltantes, sobrantes: finanzas.diferencias.sobrantes },
