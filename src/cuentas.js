@@ -124,6 +124,12 @@ export function flujosMes(d, cuentas) {
   const ef = [];
   for (const c of d.sobres || []) if (c.sobre > 0) ef.push({ dia: c.dia, orden: c.dia + ({ "MAÑANA": "1", TARDE: "2", NOCHE: "3" }[c.turno] || "4"), tipo: "sobre", concepto: `Sobre del turno de la ${({ "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" })[c.turno] || c.turno}`, persona: c.persona, entrada: r2(c.sobre), salida: 0 });
   for (const x of d.admin || []) if (x.forma === "EFECTIVO") ef.push({ dia: x.dia, orden: x.dia + "5" + (x.creado || ""), tipo: x.cat || "otro", concepto: x.concepto, persona: null, entrada: 0, salida: r2(x.monto) });
+  // Cobros posteriores de tickets pendientes: efectivo recibido directamente por administración.
+  for (const x of d.cobrosAdmin || []) ef.push({
+    dia: x.dia, orden: x.dia + "5" + (x.creado || ""), tipo: "cobro-pendiente",
+    concepto: "Cobro recuperado · " + (x.servicio === "bascula" ? "Báscula" : "Pensión") + " · folio " + x.folio,
+    persona: x.por || null, entrada: r2(x.monto), salida: 0
+  });
   // Renglones de la hoja: efectivo que la administración tomó de la caja antes del corte (entra) o puso en ella (sale)
   for (const x of d.hojaAdmin || []) ef.push({ dia: x.dia, orden: x.dia + ({ "MAÑANA": "1", TARDE: "2", NOCHE: "3" }[x.turno] || "4") + "0", tipo: x.clase === "a_admin" ? "llevo" : "cambio", concepto: `${x.concepto} (turno de la ${({ "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" })[x.turno] || x.turno}, hoja)`, persona: null, entrada: x.clase === "a_admin" ? r2(x.monto) : 0, salida: x.clase === "de_admin" ? r2(x.monto) : 0 });
   for (const x of d.cambio || []) ef.push({ dia: x.dia, orden: x.dia + "0" + (x.creado || ""), tipo: "cambio", concepto: `Aumento de cambio a la caja (turno de la ${({ "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" })[x.turno] || x.turno})`, persona: x.persona || null, entrada: 0, salida: r2(x.monto) });
