@@ -75,6 +75,8 @@
     const m = $("#mod-config"), c = $("#cfg-cuentas-c");
     if (!m || m.hidden || !c || !st.datos) return;
     c.innerHTML = adminCuentas(st.datos.banco);
+    const act = (st.datos.banco.lista || []).filter(x => x.activa).length;
+    EC.bloqueInfo("config", "cuentas", { valor: act, texto: act === 1 ? "cuenta activa" : "cuentas activas" });
     conectarCuentas(c);
   }
   document.addEventListener("modulo", e => { if (e.detail !== "config") return; if (st.datos) pintarConfigCuentas(); else cargar(); });

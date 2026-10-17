@@ -154,6 +154,7 @@
       if (a.error) lineas.push(`Archivos: ${esc(a.error)}`);
       else lineas.push(`Archivos en Google Drive: <b>${(a.en_drive || 0).toLocaleString("es-MX")}</b>${a.en_kv ? ` · <b>${a.en_kv}</b> esperando para subir${a.script ? "" : " (falta el script de Google)"}` : " · todo subido"}.`);
       el.innerHTML = lineas.map(x => `<p style="margin:0 0 6px">${x}</p>`).join("");
+      if (EC.bloqueInfo) EC.bloqueInfo("config", "sistema", { valor: top ? (Math.round(top.fraccion * 100)) + " %" : null, texto: c.ahorro ? "Modo ahorro activo" : top ? "del plan incluido" : "Consumo y archivos" });
     } catch (e) { if (e.message !== "sesion") el.textContent = "No se pudo leer el consumo: " + e.message; }
   }
 

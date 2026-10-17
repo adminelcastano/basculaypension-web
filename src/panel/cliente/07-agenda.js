@@ -57,6 +57,8 @@
       if (!st.sel) st.sel = j.hoy;
       st.frecuencias = j.frecuencias || {};
       st.lugares = j.lugares || [];
+      EC.bloqueInfo("config", "lugares", { valor: st.lugares.length, texto: st.lugares.length === 1 ? "lugar de compra" : "lugares de compra" });
+      EC.bloqueInfo("config", "categorias", { valor: (window.CATS || []).length, texto: "categorías de gastos" });
       // Avisos de los encargados sin leer: el contador se pone en rojo con cuántos son
       st.avisosSinLeer = j.avisos_sin_leer || 0;
       if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
@@ -530,6 +532,7 @@
       </section>`;
     const secComo = `<section class="card"><h3>Cómo se abre</h3><p class="note" style="margin:6px 0 0">En la tablet: <b>basculaypension.com/turno</b>, con la cuenta de entrada. Desde el navegador se puede "Agregar a la pantalla de inicio" para usarla como app.</p></section>`;
     c.innerHTML = modo === "curso" ? secActivo : secEnc + secComo;
+    if (modo !== "curso") { const act = j.personas.filter(p => p.activo).length, sinPin = j.personas.filter(p => p.activo && !p.tiene_pin).length; EC.bloqueInfo("config", "tablet", { valor: act, texto: sinPin ? `${sinPin} sin PIN` : act === 1 ? "encargado activo" : "encargados activos" }); }
     const errDe = clave => c.querySelector(`[data-err="${CSS.escape(clave)}"]`);
     const guardar = async (clave, datos, msg = "Guardado") => {
       const e = clave && errDe(clave); if (e) e.textContent = "";

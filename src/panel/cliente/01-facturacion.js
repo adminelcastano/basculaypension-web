@@ -76,6 +76,13 @@
       const rs = await Promise.all(ESTADOS.map(e => { const p = new URLSearchParams({ estado: e, limite: estadoState.lim[e] || 200 }); if (estadoState.q) p.set("q", estadoState.q); return api("solicitudes?" + p); }));
       const conteos = rs[0].conteos || {}, dias = rs[0].dias_retencion || 90;
       for (const e of ESTADOS) EC.bloqueN("facturacion", e, conteos[e] || 0, e === "pendiente" && (conteos[e] || 0) > 0);
+      // Línea de estado de cada tarjeta del índice (celular y tablet)
+      const masVieja = (rs[0].solicitudes || []).reduce((a, s) => !a || s.creado < a ? s.creado : a, null);
+      const horas = masVieja ? Math.floor((Date.now() - Date.parse(masVieja)) / 36e5) : 0;
+      EC.bloqueInfo("facturacion", "pendiente", { texto: !(conteos.pendiente) ? "Nada por facturar" : horas >= 48 ? `La más antigua espera ${Math.floor(horas / 24)} días` : horas >= 1 ? `La más antigua espera ${horas} h` : "Recién llegadas" });
+      EC.bloqueInfo("facturacion", "facturada", { texto: "Últimos 7 días" });
+      EC.bloqueInfo("facturacion", "rechazada", { texto: "Últimos 7 días" });
+      EC.bloqueInfo("facturacion", "historico", { texto: `Se borran a los ${dias} días` });
       $("#titulo").textContent = "Facturas.";
       $("#subtitulo").textContent = `${conteos.pendiente || 0} pendientes · ${conteos.facturada || 0} facturadas y ${conteos.rechazada || 0} rechazadas en los últimos 7 días · ${conteos.historico || 0} en el histórico`;
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
@@ -83,7 +90,7 @@
       const AYUDA = { rechazada: "Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Drive.` };
       lista.innerHTML = ESTADOS.map((e, i) => {
         const j = rs[i], n = conteos[e] || 0, l = j.solicitudes.filter(s => !borrandoIds.has(s.id));
-        return `<h4 class="lgrp" data-bloque="${e}"><svg aria-hidden="true"><use href="#${ICO_EST[e]}"/></svg><span>${NOM_EST[e]}</span><b class="bq-n ${e === "pendiente" && n ? "rojo" : ""}" ${n ? "" : "hidden"}>${n}</b></h4>`
+        return `<div class="lgrp-g" data-grupo="${e}"><h4 class="lgrp" data-bloque="${e}"><svg aria-hidden="true"><use href="#${ICO_EST[e]}"/></svg><span>${NOM_EST[e]}</span><b class="bq-n ${e === "pendiente" && n ? "rojo" : ""}" ${n ? "" : "hidden"}>${n}</b></h4>`
           + (AYUDA[e] && l.length ? `<p class="note lgrp-n">${AYUDA[e]}</p>` : "")
           + (l.length ? l.map(s => `${e === "rechazada" ? `<div class="swipe" data-id="${s.id}"><div class="swipe-bg" aria-hidden="true"><svg class="ti"><use href="#i-trash"/></svg><span>Eliminar</span></div><button class="swipe-del" type="button" tabindex="-1" data-del="${s.id}">Eliminar</button>` : ""}
         <button class="item" data-id="${s.id}" ${estadoState.actual === s.id ? 'aria-current="true"' : ""}>
@@ -93,7 +100,7 @@
           <span class="m"><span>${esc(s.rfc || "RFC por revisar")}</span><span>${esc(s.folio)}</span></span>
           <span class="m"><span>${fecha(s.estado === "pendiente" ? s.creado : s.resuelta_en)}</span>${s.folio_factura ? `<span>Factura ${esc(s.folio_factura)}</span>` : ""}${e === "historico" ? `<span>${s.estado === "rechazada" ? "Rechazada · " : ""}se borra en ${restan(s.resuelta_en)} días</span>` : ""}</span>
         </button>${e === "rechazada" ? "</div>" : ""}`).join("") : `<p class="note lgrp-n">${estadoState.q ? "Sin resultados." : VACIO[e]}</p>`)
-          + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "");
+          + (j.hay_mas ? `<button class="btn btn-line" type="button" data-mas="${e}" style="width:calc(100% - 24px);margin:8px 12px 12px">Ver más ${NOM_EST[e].toLowerCase()}</button>` : "") + `</div>`;
       }).join("");
       lista.querySelectorAll("[data-mas]").forEach(b => b.addEventListener("click", () => { estadoState.lim[b.dataset.mas] = (estadoState.lim[b.dataset.mas] || 200) + 200; b.disabled = true; cargarLista(); }));
     } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar la lista: ${esc(e.message)}</p>`; }

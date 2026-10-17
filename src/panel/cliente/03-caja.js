@@ -48,6 +48,18 @@
       $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tarjeta (va a Mercado Pago)", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Sobres entregados", sobres, "dest"]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
+      // Línea de estado de cada tarjeta del índice (celular y tablet) y botón de filtros plegados
+      {
+        const D0 = v => dinero(v, 0);
+        const cur = j.cortes.find(x => x.dia === ahora.dia && x.turno === ahora.turno);
+        const sinCorte = j.cortes.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
+        EC.bloqueInfo("caja", "curso", { valor: cur ? D0((cur.efectivo || 0) + (cur.tarjeta || 0)) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
+        EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
+        EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
+        EC.bloqueInfo("caja", "movs", { texto: "gastos " + D0(t.gastos || 0) + (t.extras ? " · extras " + D0(t.extras) : "") });
+        EC.bloqueInfo("caja", "entregas", { texto: "sobres " + D0(sobres) });
+        const fb = $("#c-fil-btn"); if (fb) fb.textContent = "Periodo: " + per.replace(/^(\S)/, c => c.toUpperCase()) + " ▾";
+      }
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
       for (const [f, id] of [[vistaCurso, "#c-curso"], [vistaMovs, "#c-movs"], [vistaEntregas, "#c-entregas"]]) try { f(j); } catch (er) { console.error(er); $(id).innerHTML = `<p class="note">No se pudo mostrar: ${esc(er.message)}</p>`; }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
@@ -349,6 +361,8 @@
   });
   for (const id of ["#c-desde", "#c-hasta"]) $(id).addEventListener("change", () => periodo($("#c-desde").value, $("#c-hasta").value, ""));
   $("#c-gasto").addEventListener("click", nuevoGasto);
+  // Celular: el periodo se pliega en un botón
+  $("#c-fil-btn").addEventListener("click", e => { const on = !$("#mod-caja").classList.contains("filtros-on"); $("#mod-caja").classList.toggle("filtros-on", on); e.currentTarget.setAttribute("aria-expanded", String(on)); });
   document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
   document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { await cargar(); if (st.actual) abrir(st.actual); } });
   if (EC.ruta().mod === "caja") cargar();

@@ -6,7 +6,7 @@
   const llave = el => el && (el.dataset.id || el.dataset.k || el.dataset.t || "");
   const zonas = [...document.querySelectorAll("div.work")].map(w => ({ w, mod: w.closest(".mod"), lista: w.querySelector(".list"), det: w.querySelector(".detail"), ultima: "" }));
   const zonaVisible = () => zonas.find(z => !z.mod.hidden);
-  const items = z => [...z.lista.querySelectorAll(".item, .pitem")].filter(llave);
+  const items = z => { const g = z.mod.classList.contains("uno") && z.mod.dataset.activo; return [...z.lista.querySelectorAll(g && z.lista.querySelector(`[data-grupo="${CSS.escape(g)}"]`) ? `[data-grupo="${CSS.escape(g)}"] .item, [data-grupo="${CSS.escape(g)}"] .pitem` : ".item, .pitem")].filter(llave); };
 
   // Registro que se está viendo: el último tocado en la lista (o el marcado como actual)
   zonas.forEach(z => z.lista.addEventListener("click", e => { const it = e.target.closest(".item, .pitem"); if (it && llave(it)) z.ultima = llave(it); }, true));

@@ -104,6 +104,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .hecho p { color: var(--muted); margin: 0; }
 .cargando { color: var(--muted); padding: 40px 0; }
 footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>

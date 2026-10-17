@@ -13,6 +13,7 @@
 <script defer src="{{JS}}"></script>
 </head>
 <body>
+<a class="saltar" href="#" id="saltar">Saltar al contenido</a>
 
 <header class="bar">
   <img src="/img/logo.png" alt="" width="167" height="229" style="height:32px;width:auto;display:block">
@@ -77,7 +78,7 @@
   <symbol id="i-todo" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></g></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6l6 6-6 6"/></symbol>
 </svg>
-<main class="mod" id="mod-inicio">
+<main class="mod" id="mod-inicio" data-uno>
   <div class="ini">
     <div class="ini-head">
       <h2 id="i-saludo">Hola.</h2>
@@ -88,7 +89,7 @@
         <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Pide atención</span><b class="ia-n" id="i-aten-n"></b></div>
         <div class="ia-chips" id="i-aten-l"></div>
       </section>
-      <h3 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Acciones rápidas</span><span class="ln" aria-hidden="true"></span></h3>
+      <div class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Acciones rápidas</h3><span class="ln" aria-hidden="true"></span></div>
       <section class="ini-card cat-a full s2 acciones">
         <span class="ini-k">Acciones rápidas</span>
         <div class="acc-grid">
@@ -103,7 +104,7 @@
         </div>
       </section>
 
-      <h3 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Caja · turno de hoy</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Caja ›</button></h3>
+      <div class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Caja · turno de hoy</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="caja">Ir a Caja ›</button></div>
       <div class="ini-card cat-b ini-hero s2" data-ir="caja" tabindex="0" role="link">
         <div class="ini-dos">
           <div class="ini-dato sob">
@@ -136,7 +137,7 @@
         <div class="ini-card cat-b tri" data-agenda="aviso" tabindex="0" role="link" style="--c:#ffcc00"><div class="ini-top"><span class="ibadge"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos activos</span></div><b class="ini-num" id="n-avisos">0</b><div id="m-avisos"></div></div>
       </div>
 
-      <h3 class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><span>Pagos y compras</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos ›</button></h3>
+      <div class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Pagos y compras</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos ›</button></div>
       <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
         <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
@@ -151,7 +152,7 @@
       <section class="ini-card cat-f"><h3>Este mes por categoría</h3><p class="note">Pagos y compras de la administración.</p><div class="dona" id="d-pagos"></div></section>
       </div>
 
-      <h3 class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><span>Dinero · este mes</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Dinero ›</button></h3>
+      <div class="sec-h cat-g"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Dinero · este mes</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="finanzas">Ir a Dinero ›</button></div>
       <div class="ini-card cat-g kpi" data-ir="finanzas" tabindex="0" role="link" style="--c:#7ee2a0">
         <div class="ini-top"><span class="ibadge"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Entró este mes</span></div>
         <b class="ini-num" id="i-f-ing">$0</b><span class="note" id="i-f-ing-nota"></span>
@@ -170,7 +171,7 @@
       </div>
       <section class="ini-card cat-g full s3"><h3>Ingresos del mes</h3><div class="leyenda" aria-hidden="true"><span><i class="sw bas"></i>Báscula</span><span><i class="sw pen"></i>Pensión</span><span><i class="sw tra"></i>Transferencias</span><span><i class="sw prom"></i><span id="prom-txt">Promedio</span></span></div><div class="graf" id="g-dias"></div></section>
 
-      <h3 class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><span>Facturas y personal</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturas ›</button></h3>
+      <div class="sec-h cat-c"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Facturas y personal</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="facturacion">Ir a Facturas ›</button></div>
       <div class="ini-par">
         <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link" style="--c:#ff9f0a">
           <div class="ini-top"><span class="ibadge"><svg><use href="#i-doc"/></svg></span><span class="ini-k">Facturas pendientes</span></div>
@@ -181,7 +182,7 @@
         <div class="ini-card cat-c" data-ir="facturacion" tabindex="0" role="link"><h3>Solicitudes de factura</h3><p class="note">Últimos 7 días</p><div class="dona" id="d-fact"></div></div>
       </div>
 
-      <h3 class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><span>Agenda</span><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></h3>
+      <div class="sec-h cat-d"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Agenda</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="agenda">Ir a Agenda ›</button></div>
       <div class="ini-par">
         <section class="ini-card cat-d ini-cal" aria-label="Calendario"><div id="i-calendario"></div></section>
         <div class="ini-agcol">
@@ -198,7 +199,7 @@
   <div class="gtip" id="gtip" role="status" hidden></div>
 <p class="cfg-ir"><a href="#config/notificaciones" data-cfg="notificaciones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Notificaciones y sistema</a></p>
 </main>
-<main class="mod" id="mod-facturacion" data-sub data-sub-items="pendiente|Pendientes|i-inbox;facturada|Facturadas|i-ok;rechazada|Rechazadas|i-x;historico|Histórico|i-arch" hidden>
+<main class="mod" id="mod-facturacion" data-sub data-uno data-sub-items="pendiente|Pendientes|i-inbox;facturada|Facturadas|i-ok;rechazada|Rechazadas|i-x;historico|Histórico|i-arch" hidden>
 <div class="titlebar">
   <h2 id="titulo">Facturas.</h2>
   <p id="subtitulo" class="note"></p>
@@ -221,7 +222,7 @@
   <div class="detail" id="detalle"><p class="empty">Elige una solicitud de la lista.</p></div>
 </div>
 </main>
-<main class="mod" id="mod-personal" data-sub data-sub-items="colaborador|Colaboradores|i-persona;externo|Externos|i-activo;campanas|Campañas|i-doc" hidden>
+<main class="mod" id="mod-personal" data-sub data-uno data-sub-items="colaborador|Colaboradores|i-persona;externo|Externos|i-activo;campanas|Campañas|i-doc" hidden>
 <div class="titlebar">
   <h2 id="p-titulo">Personal.</h2>
   <p id="p-subtitulo" class="note"></p>
@@ -245,7 +246,7 @@
 </div>
 <p class="cfg-ir"><a href="#config/conexiones" data-cfg="conexiones"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Conexión con Drive</a></p>
 </main>
-<main class="mod" id="mod-caja" data-sub hidden>
+<main class="mod" id="mod-caja" data-sub data-uno hidden>
 <div class="titlebar">
   <h2 id="c-titulo">Caja.</h2>
   <p id="c-subtitulo" class="note"></p>
@@ -262,6 +263,7 @@
     <label>Hasta<input type="date" id="c-hasta"></label>
   </div>
   <div class="ctot" id="c-totales" aria-live="polite"></div>
+  <button class="btn btn-line c-fil-btn" id="c-fil-btn" type="button" aria-expanded="false" aria-controls="c-per">Periodo: este mes</button>
   <button class="btn btn-primary" id="c-gasto" type="button">+ Gasto de caja</button>
 </div>
 <div class="ag bloques" id="c-bloques">
@@ -310,25 +312,22 @@
 <datalist id="dl-cats"></datalist>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="undo" id="undo" role="status" aria-live="polite" hidden><span id="undo-txt">Solicitud eliminada</span><button type="button" id="undo-btn">Deshacer</button></div>
-<main class="mod" id="mod-config" hidden>
+<main class="mod" id="mod-config" data-sub data-uno hidden>
 <div class="titlebar">
   <h2>Configuración.</h2>
   <p class="note">Lo que se configura una vez: encargados, cuentas, categorías, lugares, notificaciones y conexiones. Lo del día a día sigue en su sección.</p>
 </div>
-<nav class="cfg-indice" aria-label="Apartados de configuración">
-  <a href="#config/tablet" data-cfg="tablet">Tablet y encargados</a><a href="#config/cuentas" data-cfg="cuentas">Cuentas</a><a href="#config/categorias" data-cfg="categorias">Categorías</a><a href="#config/lugares" data-cfg="lugares">Lugares de compra</a><a href="#config/notificaciones" data-cfg="notificaciones">Notificaciones</a><a href="#config/conexiones" data-cfg="conexiones">Conexiones</a><a href="#config/sistema" data-cfg="sistema">Sistema</a>
-</nav>
-<div class="cfg">
-  <div class="cfg-ap" id="cfg-tablet"><h3 class="cfg-h">Tablet y encargados <small>antes en Caja</small></h3><div id="cfg-tablet-c"><p class="note">Cargando…</p></div></div>
-  <div class="cfg-ap" id="cfg-cuentas"><h3 class="cfg-h">Cuentas <small>antes en Dinero → Cuentas y sobres</small></h3><section class="card" id="cfg-cuentas-c"><p class="note">Cargando…</p></section></div>
-  <div class="cfg-ap" id="cfg-categorias"><h3 class="cfg-h">Categorías <small>antes en Dinero → Pagos y compras</small></h3><div id="cfg-categorias-c"><p class="note">Cargando…</p></div></div>
-  <div class="cfg-ap" id="cfg-lugares"><h3 class="cfg-h">Lugares de compra <small>antes en Dinero → Compras</small></h3><section class="card" id="cfg-lugares-c"><p class="note">Cargando…</p></section></div>
-  <div class="cfg-ap" id="cfg-notificaciones"><h3 class="cfg-h">Notificaciones <small>antes en Hoy</small></h3><section class="ini-card push-card" id="i-push" aria-label="Notificaciones"></section></div>
-  <div class="cfg-ap" id="cfg-conexiones"><h3 class="cfg-h">Conexiones <small>antes en Personal → Ajustes</small></h3><section class="card"><p class="note" style="margin:0 0 10px">Google Drive guarda los documentos de los expedientes y los comprobantes de pago.</p><div class="plim">
+<div class="ag bloques">
+  <section class="bloque cfg-ap" data-bloque="tablet" id="cfg-tablet"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tablet"/></svg><span>Tablet y encargados</span><b class="bq-n" hidden></b></h3><div id="cfg-tablet-c"><p class="note">Cargando…</p></div></section>
+  <section class="bloque cfg-ap" data-bloque="cuentas" id="cfg-cuentas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Cuentas</span><b class="bq-n" hidden></b></h3><section class="card" id="cfg-cuentas-c"><p class="note">Cargando…</p></section></section>
+  <section class="bloque cfg-ap" data-bloque="categorias" id="cfg-categorias"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-otros"/></svg><span>Categorías</span><b class="bq-n" hidden></b></h3><div id="cfg-categorias-c"><p class="note">Cargando…</p></div></section>
+  <section class="bloque cfg-ap" data-bloque="lugares" id="cfg-lugares"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-carrito"/></svg><span>Lugares de compra</span><b class="bq-n" hidden></b></h3><section class="card" id="cfg-lugares-c"><p class="note">Cargando…</p></section></section>
+  <section class="bloque cfg-ap" data-bloque="notificaciones" id="cfg-notificaciones"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-alerta"/></svg><span>Notificaciones</span><b class="bq-n" hidden></b></h3><section class="ini-card push-card" id="i-push" aria-label="Notificaciones"></section></section>
+  <section class="bloque cfg-ap" data-bloque="conexiones" id="cfg-conexiones"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Conexiones</span><b class="bq-n" hidden></b></h3><section class="card"><p class="note" style="margin:0 0 10px">Google Drive guarda los documentos de los expedientes y los comprobantes de pago.</p><div class="plim">
     <button class="btn btn-line" id="p-drive" type="button">Probar conexión con Drive</button>
     <span class="note" id="p-drive-nota"></span>
-  </div></section></div>
-  <div class="cfg-ap" id="cfg-sistema"><h3 class="cfg-h">Sistema <small>antes en Hoy</small></h3><section class="ini-card" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section></div>
+  </div></section></section>
+  <section class="bloque cfg-ap" data-bloque="sistema" id="cfg-sistema"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Sistema</span><b class="bq-n" hidden></b></h3><section class="ini-card" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section></section>
 </div>
 </main>
 <button class="arriba" id="arriba" type="button" aria-label="Volver arriba" title="Volver arriba"><svg aria-hidden="true"><use href="#i-arriba"/></svg></button>

@@ -481,7 +481,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (Object.keys(errores).length) {
       for (const [k, v] of Object.entries(errores)) error(k, v);
       const primero = document.getElementById("g-" + Object.keys(errores)[0]);
-      primero && primero.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (primero) {
+        const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        primero.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "center" });
+        const campo = primero.querySelector("input:not([type=hidden]), select, textarea");
+        campo && campo.focus({ preventScroll: true });
+      }
       return;
     }
     const datos = new FormData();

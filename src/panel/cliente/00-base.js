@@ -3,13 +3,23 @@
 (() => {
   const f = window.fetch.bind(window);
   let avisado = false;
+
+  function sesionVencida() {
+    const d = document.createElement("dialog");
+    d.className = "sesion-vencida";
+    d.setAttribute("aria-labelledby", "sv-t");
+    d.innerHTML = '<h2 id="sv-t">Tu sesión venció</h2><p>Vuelve a entrar para seguir trabajando. Lo que no guardaste se pierde al recargar.</p><button type="button" class="btn">Volver a entrar</button>';
+    d.querySelector("button").addEventListener("click", () => location.reload());
+    d.addEventListener("cancel", e => e.preventDefault());
+    document.body.appendChild(d);
+    try { d.showModal(); } catch { location.reload(); }
+  }
   window.fetch = async (u, o = {}) => {
     const interna = typeof u === "string" && u.startsWith("/");
     const r = await f(u, interna ? { redirect: "manual", ...o } : o);
     if (interna && (r.type === "opaqueredirect" || r.status === 0) && !avisado) {
       avisado = true;
-      alert("Tu sesión venció. La página se va a recargar para que vuelvas a entrar.");
-      location.reload();
+      sesionVencida();
       throw new Error("sesion");
     }
     return r;
@@ -69,7 +79,7 @@
       el.hidden = n == null || n === "" || n === 0; el.textContent = n == null ? "" : n; el.classList.toggle("rojo", !!urgente);
     }
   }
-  const hashDe = (mod, vista) => mod === "inicio" ? "" : mod === "config" ? "#config" + (vista ? "/" + vista : "") : mod === "finanzas" ? "#dinero" + (vista ? "/" + vista : "") : "#" + mod + (vista ? "/" + vista : "");
+  const hashDe = (mod, vista) => mod === "inicio" ? (vista ? "#inicio/" + vista : "") : mod === "config" ? "#config" + (vista ? "/" + vista : "") : mod === "finanzas" ? "#dinero" + (vista ? "/" + vista : "") : "#" + mod + (vista ? "/" + vista : "");
   window.EC = { $, $$, esc, toast, api, post, TZ, hoyMx, dinero, ruta, seccionDe, hashDe, bloqueN, VISTAS_DINERO };
 })();
 

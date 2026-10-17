@@ -31,8 +31,8 @@
     else history.replaceState(estado, "", url);
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     if (mod === "config") EC.cfgVista = vista;
-    if (vista && mod !== "config" && EC.irBloque) EC.irBloque(mod, vista);
-    else if (mod !== "config" && EC.esUno && EC.esUno(mod) && EC.irBloque) EC.irBloque(mod, null);
+    if (vista && EC.irBloque) EC.irBloque(mod, vista);
+    else if (EC.esUno && EC.esUno(mod) && EC.irBloque) EC.irBloque(mod, null);
     else if (!yaVisible) scrollTo({ top: 0 });
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }
@@ -100,8 +100,13 @@
       EC.bloqueN("personal", "colaborador", jc.colaboradores.length);
       EC.bloqueN("personal", "externo", je.colaboradores.length);
       EC.bloqueN("personal", "campanas", activas);
-      const grupo = (tipo, txt, ico, items, vacio) => `<h4 class="lgrp" data-bloque="${tipo}"><svg aria-hidden="true"><use href="#${ico}"/></svg><span>${txt}</span><b class="bq-n" ${items.length ? "" : "hidden"}>${items.length}</b></h4>`
-        + (items.length ? items.join("") : `<p class="note lgrp-n">${st.q ? "Sin resultados." : vacio}</p>`);
+      // Línea de estado de cada tarjeta del índice (celular y tablet)
+      const inc = j => j.conteos.incompletos || 0;
+      EC.bloqueInfo("personal", "colaborador", { texto: inac ? "dados de baja" : inc(jc) ? `${inc(jc)} con expediente incompleto` : "Expedientes completos" });
+      EC.bloqueInfo("personal", "externo", { texto: inac ? "dados de baja" : inc(je) ? `${inc(je)} con registro incompleto` : "Registros completos" });
+      EC.bloqueInfo("personal", "campanas", { texto: activas ? (activas === 1 ? "campaña activa" : "campañas activas") : st.camps.length ? "Ninguna activa" : "Sin campañas" });
+      const grupo = (tipo, txt, ico, items, vacio) => `<div class="lgrp-g" data-grupo="${tipo}"><h4 class="lgrp" data-bloque="${tipo}"><svg aria-hidden="true"><use href="#${ico}"/></svg><span>${txt}</span><b class="bq-n" ${items.length ? "" : "hidden"}>${items.length}</b></h4>`
+        + (items.length ? items.join("") : `<p class="note lgrp-n">${st.q ? "Sin resultados." : vacio}</p>`) + `</div>`;
       const filas = (j, tipo) => j.colaboradores.map(c => `<button data-tipo="${tipo}" class="pitem ${c.estatus === "inactivo" ? "baja" : ""}" type="button" data-id="${c.id}" ${st.actual === c.id ? 'aria-current="true"' : ""}>
         <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
         ${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}
