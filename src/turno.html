@@ -269,6 +269,13 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 .retiros-box p { margin: 4px 0 10px; color: #f5e3b8; font-size: .92rem; }
 .retiros-box .btn { border-color: var(--warn); color: #ffd97a; }
 .retiro { display: grid; grid-template-columns: minmax(0, 1fr) 140px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+@media (max-width: 460px) { .retiro { grid-template-columns: minmax(0, 1fr) 44px; gap: 6px; } .retiro [data-r="concepto"] { grid-column: 1 / -1; } .retiro [data-r="monto"] { grid-column: 1; } .retiro .x { grid-column: 2; grid-row: 2; width: 44px; height: 44px; } .retiro .t { min-width: 0; } }
+.confirmacion-corte { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 16px 40px; padding: 12px 14px; border-radius: 14px; background: #232326; color: var(--fg); line-height: 1.45; cursor: pointer; }
+.confirmacion-corte input { width: 24px; height: 24px; flex: none; accent-color: var(--ok); margin: 0; }
+.aviso-duplicado { margin: 8px 0 16px 40px; padding: 12px; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 14px; color: #f5e3b8; }
+.aviso-duplicado label { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; }
+.aviso-duplicado input { width: 23px; height: 23px; accent-color: var(--warn); flex: none; }
+@media (max-width: 560px) { .confirmacion-corte, .aviso-duplicado { margin-left: 0; } }
 .retiro .x { border: 0; background: transparent; color: var(--muted); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
 .retiro .x:hover { color: var(--bad); background: var(--bad-soft); }
 .retiro .x svg { width: 19px; height: 19px; }
@@ -1397,28 +1404,30 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   // ---------- Corte ----------
   function verCorte() {
     const c = E.corte, ci = E.inicio ? Number(E.inicio.cambio) || 0 : null;
-    sec().innerHTML = titulo("Corte de turno.", "Sigue los 3 pasos. La administración compara tu conteo con el sistema.") + `
+    sec().innerHTML = titulo("Corte de turno.", "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
       ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
         <form class="card" id="f-corte" novalidate>
           <section class="paso-c" id="pc1"><h2><span class="num">1</span>Cuenta el efectivo</h2>
-            <p class="guia">Cuenta <b>todo</b> el dinero de la caja: billetes y monedas, <b>incluido el cambio con el que empezaste</b>. No cuentes los vouchers de tarjeta.</p>
+            <p class="guia">Cuenta <b>los billetes y monedas que tienes físicamente ahora</b>, incluido el cambio inicial. Hazlo <b>después de los gastos que ya pagaste durante el turno</b> y <b>antes de separar los retiros del cierre, el sobre y el cambio siguiente</b>. No incluyas vouchers ni pagos con tarjeta.</p>
             <div class="cuenta"><div><span>Cambio inicial</span><b>${ci == null ? "—" : dinero(ci)}</b></div>${c ? "" : `<div><span></span><button class="lnk" type="button" id="ci-corregir" style="min-height:28px">Corregir cambio inicial</button></div>`}</div>
             <label class="campo"><span>Efectivo físico que contaste (con el cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
           </section>
-          <section class="paso-c" id="pc2"><h2><span class="num">2</span>Reparte el efectivo</h2>
-            <p class="guia">Separa el dinero que contaste en estas partes. Al final todo debe sumar lo que contaste.</p>
-            <label class="campo"><span>a) Efectivo en sobre para la administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre ? esc(c.sobre) : ""}"></label>
-            <div class="retiros-box"><div class="rt-h">${svg("i-alerta")}b) Retiros extra</div>
-              <p>¿Sacaste dinero de la caja para algo? Por ejemplo taxi o una compra. Anota <b>cada retiro</b>: para qué fue y cuánto. Si no hubo, déjalo vacío.</p>
+          <section class="paso-c" id="pc2"><h2><span class="num">2</span>Distribuye lo que contaste</h2>
+            <p class="guia">Ahora decide qué parte del efectivo contado <b>va a administración (sobre)</b>, qué parte <b>retiras al terminar</b> y qué parte queda <b>para el siguiente turno</b>. Las tres deben sumar exactamente el conteo del paso 1.</p>
+            <label class="campo"><span>a) Sobre: dinero que recibirá la administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre != null ? esc(c.sobre) : ""}"></label>
+            <div class="retiros-box"><div class="rt-h">${svg("i-alerta")}b) Retiros hechos al repartir el corte</div>
+              <p>Ejemplo: sueldo o taxi que se aparta <b>ahora, del dinero que acabas de contar</b>. <b>No vuelvas a incluir gastos que ya pagaste y registraste durante el turno.</b> Si no retiras nada, deja esta lista vacía.</p>
               <div id="retiros"></div>
               <button class="btn btn-line btn-sm" type="button" id="mas-retiro">+ Agregar retiro</button></div>
-            <label class="campo"><span>c) Cambio que dejas para el siguiente turno</span><input class="t monto" name="cambio_sig" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.cambio_sig ? esc(c.cambio_sig) : ""}"></label>
-            <div class="reparto" id="reparto" aria-live="polite"></div>
+            <label class="campo"><span>c) Cambio que quedará físicamente en caja para el siguiente turno</span><input class="t monto" name="cambio_sig" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.cambio_sig != null ? esc(c.cambio_sig) : ""}"></label>
+            <div class="reparto" id="reparto" role="status" aria-live="polite"></div>
+            <div id="aviso-duplicado" role="alert"></div>
           </section>
           <section class="paso-c" id="pc3"><h2><span class="num">3</span>Revisa y entrega</h2>
-            <p class="guia">Revisa que estén todos los gastos (${E.gastos.length}) e ingresos extra (${E.extras.length}) de tu turno; están aquí al lado. Luego entrega el corte.</p>
+            <p class="guia">Revisa los <b>${E.gastos.length} gastos del turno</b> y <b>${E.extras.length} ingresos extra</b> que aparecen debajo o junto al formulario. Esos movimientos ocurrieron <b>antes del conteo</b>. Verifica que no repitas el mismo pago entre gastos y retiros del paso 2.</p>
+            <label class="confirmacion-corte"><input type="checkbox" id="revisado-corte"><span>Revisé los movimientos anteriores al conteo. El sobre es exactamente lo que entregaré a administración y los retiros son del dinero ya contado.</span></label>
             <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Algo que la administración deba saber">${c ? esc(c.notas || "") : ""}</textarea></label>
             <p class="err" id="err-corte" role="alert"></p>
             <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
@@ -1430,40 +1439,143 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         </div>
       </div>`;
     const f = $("#f-corte");
-    const num = v => { const n = Number(String(v || "").replace(/[$,\s]/g, "")); return isFinite(n) ? n : 0; };
-    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="¿Para qué?" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" value="${r.monto ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
-    // Borrador: lo escrito se guarda en la tablet y se recupera si la pantalla se redibuja o se cierra la app
+    // Un campo vacío no es $0: el usuario debe escribir el cero expresamente.
+    // No mostrar "Cuadra" si hay importes incompletos o no válidos.
+    const importe = v => {
+      const original = String(v ?? "").trim();
+      if (!original) return null;
+      const limpio = original.replace(/[$,\s]/g, "");
+      return /^\d{1,9}(\.\d{1,2})?$/.test(limpio) ? Number(limpio) : NaN;
+    };
+    const num = v => importe(v) ?? 0;
+    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="Sueldo, taxi…" aria-label="Motivo del retiro al finalizar el turno" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" aria-label="Importe del retiro al finalizar el turno" value="${r.monto != null ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
+    // El borrador ya se aísla por persona, día y turno en esta tablet compartida.
     const llaveB = `turno:borrador:${E.persona}:${E.dia}:${E.turno}`;
     const b = leerLS(llaveB, null);
     if (b) for (const k of ["efectivo", "notas", "sobre", "cambio_sig"]) if (b[k] != null) f[k].value = b[k];
     $("#retiros").innerHTML = ((b && b.retiros) || (c && c.retiros) || []).map(filaRetiro).join("");
-    const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({ concepto: x.querySelector('[data-r="concepto"]').value.trim(), monto: x.querySelector('[data-r="monto"]').value.trim() })).filter(r => r.concepto || r.monto);
+    const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({
+      concepto: x.querySelector('[data-r="concepto"]').value.trim(),
+      monto: x.querySelector('[data-r="monto"]').value.trim()
+    })).filter(r => r.concepto || r.monto);
+    const concepto = v => String(v || "").trim().toUpperCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const coincidencias = () => retiros().filter(r => {
+      const m = importe(r.monto);
+      return Number.isFinite(m) && m > 0 && E.gastos.some(g =>
+        concepto(g.concepto) === concepto(r.concepto) && Math.round(Number(g.monto) * 100) === Math.round(m * 100));
+    });
     function reparto() {
-      const ef = num(f.efectivo.value), rt = retiros().reduce((a, r) => a + num(r.monto), 0);
-      const rep = num(f.sobre.value) + rt + num(f.cambio_sig.value), dif = Math.round((ef - rep) * 100) / 100;
+      const efectivo = importe(f.efectivo.value), sobre = importe(f.sobre.value);
+      const cambio = importe(f.cambio_sig.value), lista = retiros();
+      const importesRet = lista.map(x => importe(x.monto));
+      const completo = efectivo !== null && sobre !== null && cambio !== null;
+      const validos = completo && [efectivo, sobre, cambio, ...importesRet].every(x =>
+        Number.isFinite(x) && x >= 0 && x <= 1000000);
+      const retiroValido = lista.every((x, i) => x.concepto.length >= 2 && importesRet[i] > 0);
+      const iguales = coincidencias();
+      const alerta = $("#aviso-duplicado"), confirmado = !!$("#dup-confirmo")?.checked;
+      alerta.className = iguales.length ? "aviso-duplicado" : "";
+      alerta.innerHTML = iguales.length
+        ? `<b>Posible pago repetido:</b> ${iguales.map(x => esc(x.concepto) + " " + dinero(importe(x.monto))).join(" · ")} ya aparece en los gastos del turno.
+          <p>Si es el mismo pago, <b>no debe estar en ambos lugares</b>: corrige el gasto o el retiro antes de entregar.
+          Si son pagos realmente diferentes, confírmalo expresamente.</p>
+          <label><input type="checkbox" id="dup-confirmo" ${confirmado ? "checked" : ""}><span>Confirmo que son pagos distintos y ambos salieron realmente de la caja.</span></label>`
+        : "";
       const el = $("#reparto");
-      $("#pc1").classList.toggle("listo", !!f.efectivo.value.trim());
-      $("#pc2").classList.toggle("listo", !!f.efectivo.value.trim() && Math.abs(dif) < 0.01);
-      if (!f.efectivo.value.trim()) { el.className = "reparto"; el.innerHTML = "Primero escribe el efectivo que contaste (paso 1)."; return dif; }
+      $("#pc1").classList.toggle("listo", efectivo !== null && Number.isFinite(efectivo) && efectivo >= 0);
+      $("#pc3").classList.toggle("listo", $("#revisado-corte").checked);
+      const listo = validos && retiroValido && (!iguales.length || confirmado);
+      const rep = listo ? sobre + cambio + importesRet.reduce((a, v) => a + v, 0) : NaN;
+      const dif = listo ? Math.round((efectivo - rep) * 100) / 100 : NaN;
+      $("#pc2").classList.toggle("listo", listo && Math.abs(dif) < 0.01);
+      el.className = "reparto";
+      if (efectivo === null) { el.textContent = "Primero escribe cuánto efectivo físico contaste (paso 1)."; return dif; }
+      if (!Number.isFinite(efectivo) || efectivo < 0) { el.textContent = "El efectivo contado no es un importe válido."; return dif; }
+      if (sobre === null || cambio === null) {
+        el.textContent = "Completa sobre y cambio para el siguiente turno. Escribe 0 cuando no corresponda.";
+        return dif;
+      }
+      if (!validos || !retiroValido) {
+        el.textContent = "Revisa los importes: números positivos o cero, máximo dos decimales. Cada retiro requiere motivo y monto.";
+        return dif;
+      }
+      if (iguales.length && !confirmado) {
+        el.textContent = "Antes de cuadrar, aclara el pago que coincide con un gasto del turno.";
+        return dif;
+      }
       el.className = "reparto " + (Math.abs(dif) < 0.01 ? "ok" : "mal");
-      el.innerHTML = `<span>Contaste <b>${dinero(ef)}</b> · repartiste: sobre <b>${dinero(num(f.sobre.value))}</b> + retiros <b>${dinero(rt)}</b> + cambio <b>${dinero(num(f.cambio_sig.value))}</b> = <b>${dinero(rep)}</b></span><span>${Math.abs(dif) < 0.01 ? "✓ Cuadra con lo contado" : dif > 0 ? `Faltan ${dinero(dif)} por repartir` : `Repartiste ${dinero(-dif)} de más`}</span>`;
+      el.innerHTML = `<span><b>Contaste ${dinero(efectivo)}</b> y distribuiste: <b>sobre para administración ${dinero(sobre)}</b> + retiros finales <b>${dinero(importesRet.reduce((a, v) => a + v, 0))}</b> + cambio siguiente <b>${dinero(cambio)}</b> = <b>${dinero(rep)}</b>.</span>
+        <span>${Math.abs(dif) < 0.01 ? "✓ Distribución completa: no falta ni sobra dinero" :
+          dif > 0 ? `Faltan ${dinero(dif)} por distribuir` : `Distribuiste ${dinero(-dif)} de más`}</span>`;
       return dif;
     }
     const cc = $("#ci-corregir"); if (cc) cc.addEventListener("click", () => verCambioInicial(true));
-    $("#mas-retiro").addEventListener("click", () => { $("#retiros").insertAdjacentHTML("beforeend", filaRetiro()); $("#retiros .retiro:last-child input").focus(); });
-    f.addEventListener("click", e => { const q = e.target.closest("[data-quitar-retiro]"); if (q) { q.closest(".retiro").remove(); reparto(); } });
-    f.addEventListener("input", () => { reparto(); guardarLS(llaveB, { efectivo: f.efectivo.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: retiros() }); });
+    $("#mas-retiro").addEventListener("click", () => {
+      if ($("#retiros").querySelectorAll(".retiro").length >= 20) {
+        $("#err-corte").textContent = "El máximo es 20 retiros; revisa los ya registrados.";
+        return;
+      }
+      $("#retiros").insertAdjacentHTML("beforeend", filaRetiro());
+      $("#retiros .retiro:last-child input").focus();
+    });
+    f.addEventListener("click", e => {
+      const q = e.target.closest("[data-quitar-retiro]");
+      if (!q) return;
+      q.closest(".retiro").remove();
+      $("#revisado-corte").checked = false;
+      $("#err-corte").textContent = "";
+      reparto();
+      guardarLS(llaveB, { efectivo: f.efectivo.value, notas: f.notas.value,
+        sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: retiros() });
+    });
+    f.addEventListener("input", e => {
+      // Si se edita un retiro, una confirmación previa de "dos pagos distintos" deja de valer.
+      if (e.target.closest(".retiro")) {
+        const c = $("#dup-confirmo"); if (c) c.checked = false;
+      }
+      // Un cambio en la distribución requiere una revisión nueva del paso 3.
+      if (e.target.id !== "revisado-corte" && e.target.id !== "dup-confirmo" &&
+          e.target.name !== "notas") $("#revisado-corte").checked = false;
+      $("#err-corte").textContent = "";
+      reparto();
+      guardarLS(llaveB, { efectivo: f.efectivo.value, notas: f.notas.value,
+        sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: retiros() });
+    });
     reparto();
     f.addEventListener("submit", async e => {
       e.preventDefault();
       const b = f.querySelector("[type=submit]");
-      const ef = num(f.efectivo.value);
-      if (f.efectivo.value.trim() === "") { $("#err-corte").textContent = "Escribe el efectivo físico que contaste."; return; }
+      const ef = importe(f.efectivo.value);
+      if (!Number.isFinite(ef) || ef < 0 || ef > 1000000) {
+        $("#err-corte").textContent = "Escribe el efectivo físico contado. Si no hay dinero, escribe 0.";
+        f.efectivo.focus(); return;
+      }
+      const sob = importe(f.sobre.value), sig = importe(f.cambio_sig.value);
+      if (![sob, sig].every(x => Number.isFinite(x) && x >= 0 && x <= 1000000)) {
+        $("#err-corte").textContent = "Indica cuánto entregas en sobre y cuánto dejas de cambio. Escribe 0 si no hay.";
+        (sob === null || !Number.isFinite(sob) ? f.sobre : f.cambio_sig).focus(); return;
+      }
       const rts = retiros();
-      if (rts.some(r => r.concepto.length < 2 || !(num(r.monto) > 0))) { $("#err-corte").textContent = "Cada retiro necesita para qué fue y el monto."; return; }
+      if (rts.some(r => r.concepto.length < 2 || !(importe(r.monto) > 0) || importe(r.monto) > 1000000)) {
+        $("#err-corte").textContent = "Cada retiro final debe tener concepto e importe positivo válido.";
+        $("#retiros").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
       const dif = reparto();
-      // Todo lo contado tiene que quedar repartido (sobre + retiros + cambio = efectivo contado)
-      if (Math.abs(dif) >= 0.01) { $("#err-corte").textContent = dif > 0 ? `Faltan ${dinero(dif)} por repartir: ponlos en el sobre, en un retiro o en el cambio para el siguiente turno.` : `Repartiste ${dinero(-dif)} de más: revisa el sobre, los retiros y el cambio.`; $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      if (!Number.isFinite(dif)) {
+        $("#err-corte").textContent = "Completa los importes y aclara cualquier gasto que coincida con un retiro.";
+        $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
+      if (Math.abs(dif) >= 0.01) {
+        $("#err-corte").textContent = dif > 0
+          ? `Faltan ${dinero(dif)} por distribuir entre sobre, retiros finales o cambio.`
+          : `Distribuiste ${dinero(-dif)} de más. Revisa las cantidades.`;
+        $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return;
+      }
+      if (!$("#revisado-corte").checked) {
+        $("#err-corte").textContent = "Antes de entregar, confirma que revisaste los gastos, los retiros y lo que va al sobre.";
+        $("#revisado-corte").focus(); return;
+      }
       const aviso = "";
       if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";

@@ -634,13 +634,16 @@ export async function turnoRuta(request, env, url, h) {
     const efectivo = numero(c.efectivo), tarjeta = c.tarjeta === "" || c.tarjeta == null ? null : numero(c.tarjeta);
     const opcional = v => v === "" || v == null ? 0 : numero(v);
     const sobre = opcional(c.sobre), cambioSig = opcional(c.cambio_sig);
-    const retiros = (Array.isArray(c.retiros) ? c.retiros : []).slice(0, 20).map(r => ({ concepto: texto(r && r.concepto, 80), monto: numero(r && r.monto) }));
+    const sinRecortar = Array.isArray(c.retiros) ? c.retiros : [];
+    const retiros = sinRecortar.slice(0, 20).map(r => ({ concepto: texto(r && r.concepto, 80), monto: numero(r && r.monto) }));
     const errores = {};
     if (!(efectivo >= 0) || efectivo > 1000000) errores.efectivo = "Escribe el efectivo que contaste.";
     if (tarjeta !== null && (!(tarjeta >= 0) || tarjeta > 1000000)) errores.tarjeta = "Monto inválido.";
     if (!(sobre >= 0) || sobre > 1000000) errores.sobre = "Monto del sobre inválido.";
     if (!(cambioSig >= 0) || cambioSig > 1000000) errores.cambio_sig = "Monto del cambio inválido.";
-    if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000)) errores.retiros = "Cada retiro necesita concepto y monto.";
+    if (sinRecortar.length > 20) errores.retiros = "Máximo 20 retiros en un corte; no se omitirá ninguno silenciosamente.";
+    else if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000))
+      errores.retiros = "Cada retiro necesita concepto y monto válido.";
     const repartido = sobre + cambioSig + retiros.reduce((a, r) => a + (r.monto || 0), 0);
     // Todo el efectivo contado tiene que quedar repartido: en el sobre, en retiros o como cambio para el siguiente turno
     const difRep = Math.round((efectivo - repartido) * 100) / 100;
