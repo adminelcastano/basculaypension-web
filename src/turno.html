@@ -436,6 +436,23 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 @keyframes casta-subir { from { transform:translateY(24px); opacity:.5; } to { transform:translateY(0); opacity:1; } }
 @media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
 @media(max-width:900px) { dialog.casta-sheet { width:100%; max-width:100%; margin:0; } }
+
+/* Carrusel de fotografías en Castagram (no afecta galerías de incidencias). */
+.casta-carrusel{position:relative;min-width:0;width:100%;margin-top:12px;border-radius:14px;overflow:hidden;background:#121214}
+.casta-carrusel-pista{display:flex;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.casta-carrusel-pista::-webkit-scrollbar{display:none}
+.casta-carrusel-slide{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
+.casta-carrusel-slide a{display:block;width:100%;background:#121214}
+.casta-carrusel-slide img{display:block;width:100%;height:auto;aspect-ratio:4/3;max-height:360px;object-fit:contain;background:#121214}
+.casta-carrusel-num{position:absolute;top:10px;right:10px;padding:4px 9px;background:#000b;color:#fff;border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.casta-carrusel-arrow{position:absolute;z-index:1;top:calc(50% - 17px);transform:translateY(-50%);width:38px;height:42px;border:0;border-radius:12px;background:#000a;color:#fff;font-size:29px;line-height:1;display:grid;place-items:center;cursor:pointer}
+.casta-carrusel-arrow.anterior{left:7px}.casta-carrusel-arrow.siguiente{right:7px}
+.casta-carrusel-arrow:disabled{opacity:.22;cursor:default}
+.casta-carrusel-puntos{min-height:34px;display:flex;gap:6px;justify-content:center;align-items:center;padding:7px;background:#171719}
+.casta-carrusel-puntos button{border:0;width:9px;height:9px;min-width:9px;padding:0;border-radius:50%;background:#74747b;cursor:pointer}
+.casta-carrusel-puntos button[aria-current="true"]{background:#ffcc00;width:11px;height:11px;min-width:11px}
+.casta-carrusel button:focus-visible{outline:3px solid #ffcc00;outline-offset:1px}
+@media(max-width:420px){.casta-carrusel-arrow{width:36px;height:40px}.casta-carrusel-slide img{max-height:300px}}
 /* ---- Agenda de la tablet: agregar rápido, Mes | Agenda, tareas agrupadas ---- */
 .ag-rapida { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .agr-prev { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
@@ -1079,6 +1096,55 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <div class="com-acc">${!h.responderA ? `<label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label>` : ""}<button class="btn btn-primary btn-sm" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
         <p class="err" role="alert"></p></div></form></div></div>`;
   }
+
+  // Carrusel para publicaciones de Castagram. No cambia las fotos de incidencias.
+  const castaFotoActual = new Map();
+  function castaFotos(fotos, id) {
+    if (!Array.isArray(fotos) || !fotos.length) return "";
+    const foto = (k,i) => {
+      const url="/turno/api/foto/"+encodeURIComponent(k)+"?castagram=2";
+      return `<a href="${url}" target="_blank" rel="noopener" aria-label="Abrir foto ${i+1} de ${fotos.length}"><img src="${url}" alt="Foto ${i+1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    };
+    if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
+    const actual = Math.max(0, Math.min(fotos.length-1,castaFotoActual.get(id)||0));
+    return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
+      <div class="casta-carrusel-pista" aria-roledescription="carrusel" tabindex="0">${fotos.map((k,i)=>`<div class="casta-carrusel-slide">${foto(k,i)}</div>`).join("")}</div>
+      <span class="casta-carrusel-num" aria-live="polite">${actual+1} / ${fotos.length}</span>
+      <button type="button" class="casta-carrusel-arrow anterior" data-casta-paso="-1" aria-label="Foto anterior" ${actual===0?"disabled":""}>‹</button>
+      <button type="button" class="casta-carrusel-arrow siguiente" data-casta-paso="1" aria-label="Foto siguiente" ${actual===fotos.length-1?"disabled":""}>›</button>
+      <div class="casta-carrusel-puntos" aria-label="Posición de fotografía">${fotos.map((_,i)=>`<button type="button" data-casta-ir="${i}" aria-label="Ver foto ${i+1} de ${fotos.length}" ${i===actual?'aria-current="true"':""}></button>`).join("")}</div>
+    </div>`;
+  }
+  function castaSincronizar(caja) {
+    if(!caja || !caja.isConnected)return;
+    const pista=caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const n=pista.children.length,i=Math.max(0,Math.min(n-1,Math.round(pista.scrollLeft/pista.clientWidth)));
+    castaFotoActual.set(caja.dataset.castaCarrusel,i);
+    const counter=caja.querySelector(".casta-carrusel-num");
+    if(counter)counter.textContent=`${i+1} / ${n}`;
+    for(const [paso,fin] of [[-1,0],[1,n-1]]){const b=caja.querySelector('[data-casta-paso="'+paso+'"]');if(b)b.disabled=i===fin;}
+    caja.querySelectorAll("[data-casta-ir]").forEach(b=>{if(+b.dataset.castaIr===i)b.setAttribute("aria-current","true");else b.removeAttribute("aria-current");});
+  }
+  function castaMover(boton) {
+    const caja=boton.closest("[data-casta-carrusel]"),pista=caja&&caja.querySelector(".casta-carrusel-pista");
+    if(!pista || !pista.clientWidth)return;
+    const current=Math.round(pista.scrollLeft/pista.clientWidth);
+    const target=boton.dataset.castaIr!==undefined?+boton.dataset.castaIr:current+Number(boton.dataset.castaPaso);
+    if(target<0 || target>=pista.children.length)return;
+    castaFotoActual.set(caja.dataset.castaCarrusel,target);
+    pista.scrollTo({left:target*pista.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"instant":"smooth"});
+  }
+  function castaRestaurar(root) {
+    if(!root)return;
+    requestAnimationFrame(()=>root.querySelectorAll("[data-casta-carrusel]").forEach(caja=>{
+      if(!caja.isConnected)return;
+      const pista=caja.querySelector(".casta-carrusel-pista"),indice=castaFotoActual.get(caja.dataset.castaCarrusel)||0;
+      if(pista&&pista.clientWidth)pista.scrollLeft=indice*pista.clientWidth;
+      castaSincronizar(caja);
+    }));
+  }
+
   function postHtml(a) {
     const cv = a.conv || { n: 0, nuevos: 0 }, ab = hilosAb.has(a.id), nuevo = !a.leido || cv.nuevos;
     // Sin red, una confirmación en cola NO equivale a Enterado confirmado en el servidor.
@@ -1089,7 +1155,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
-      ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+      ${castaFotos(f,a.id)}
       <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${castaComentar}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
       </article>`;
@@ -1107,7 +1173,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   // Vuelve a pintar solo una publicación (para no perder lo que se está escribiendo en otras)
   function repintarPost(id) {
     const a = E && E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
-    if (a && el) el.outerHTML = postHtml(a);
+    if (a && el) { el.outerHTML = postHtml(a); castaRestaurar(sec()); }
     repintarSheetTurno(id);
   }
   function filaTarea(t) {
@@ -1126,6 +1192,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
       <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
+    castaRestaurar(sec());
   }
   // ---------- Tareas: agrupadas como en las apps de pendientes, y "Dejar un pendiente" en lenguaje natural ----------
   const diaRel = f => { if (!f) return ""; const hoy = E.hoy || E.dia, dd = Math.round((Date.parse(f + "T12:00:00Z") - Date.parse(hoy + "T12:00:00Z")) / 864e5); return dd === 0 ? "Hoy" : dd === 1 ? "Mañana" : dd === -1 ? "Ayer" : dd > 1 && dd < 7 ? diaTxt(f).split(" ")[0].replace(/^./, x => x.toUpperCase()).replace(",", "") : new Date(f + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }); };
@@ -1541,6 +1608,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       try { await api(`tareas/${qt.dataset.quitarTarea}/quitar`, {}, { cola: false }); toast("Tarea quitada."); await refrescar(); } catch (er) { toast(errores(er), true); qt.disabled = false; }
       return;
     }
+    const controlFoto = e.target.closest("[data-casta-paso], [data-casta-ir]");
+    if (controlFoto) { castaMover(controlFoto); return; }
     const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
     const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
     if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
@@ -1609,6 +1678,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       try { await api(`${tipo}/${id}/eliminar`, {}); toast("Borrado."); await refrescar(); } catch (er) { toast(er.message, true); }
     } else if (irA) ir(irA.dataset.ir);
   });
+  sec().addEventListener("scroll", e => { if (e.target.matches(".casta-carrusel-pista")) castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
   sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av]) hilos[f.dataset.av].borrador = e.target.value; });
   sec().addEventListener("change", async e => {
     const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
