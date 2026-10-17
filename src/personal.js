@@ -388,9 +388,10 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     const datos = parse(fila.datos);
     if (!datos.nombre) datos.nombre = fila.nombre;
     if (!datos.telefono && fila.telefono) datos.telefono = fila.telefono;
-    const solicitud = acceso.campana ? { nombre: acceso.campana.nombre, hasta: acceso.hasta, pide: estadoEnCampana(fila, acceso.campana).pendientes } : acceso.motivo === "alta" ? { nombre: "", hasta: acceso.hasta, pide: [] } : null;
+    const constancia = await constanciaPersonalV1(env, fila.id);
+    const solicitud = acceso.campana ? { nombre: acceso.campana.nombre, hasta: acceso.hasta, pide: estadoEnCampana({ ...fila, acuse_v1_en: constancia?.aceptado_en }, acceso.campana).pendientes } : acceso.motivo === "alta" ? { nombre: "", hasta: acceso.hasta, pide: [] } : null;
     return json({ ok: true, tipo: fila.tipo || "colaborador", datos, llenado_en: fila.llenado_en, solicitud,
-      constancia_v1: await constanciaPersonalV1(env, fila.id), aviso_version: VERSION_AVISO_PERSONAL_V1,
+      constancia_v1: constancia, aviso_version: VERSION_AVISO_PERSONAL_V1,
       docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
   }
 
@@ -757,8 +758,10 @@ function correoCampana(fila, camp, pendientes, recordatorio) {
 // Manda el correo de la campaña a quien tenga correo y aún tenga pendientes
 async function enviarCampana(env, camp, filas, enviar, recordatorio) {
   const res = { enviados: 0, sin_correo: [], completos: 0, errores: 0, error: "" };
+  // Consulta una sola vez la evidencia v1, también para recordatorios de campaña.
+  const acuses = camp.docs.includes("acuse_v1") ? new Set((await env.DB.prepare("SELECT colaborador_id FROM personal_constancias WHERE documento = ? AND version = ?").bind(DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1).all()).results.map(x => x.colaborador_id)) : new Set();
   for (const f of filas) {
-    const { completo, pendientes } = estadoEnCampana(f, camp);
+    const { completo, pendientes } = estadoEnCampana({ ...f, acuse_v1_en: f.acuse_v1_en || (acuses.has(f.id) ? "registrado" : null) }, camp);
     if (completo) { res.completos++; continue; }
     const para = parse(f.datos).correo;
     if (!para) { res.sin_correo.push(f.nombre); continue; }
