@@ -78,3 +78,12 @@ test("Servidor: no trunca retiros ni confunde reparto con pago del turno", () =>
   assert.match(server, /difRep/);
   assert.match(server, /INSERT INTO turno_cortes_hist/);
 });
+
+test("Corte tablet: modificar o quitar un retiro exige revisión nueva y actualiza borrador", () => {
+  assert.match(ui, /if \(e\.target\.closest\("\.retiro"\)\)/);
+  assert.match(ui, /e\.target\.id !== "revisado-corte"/);
+  assert.match(ui, /q\.closest\("\.retiro"\)\.remove\(\)/);
+  assert.match(ui, /\$\("#revisado-corte"\)\.checked = false/);
+  assert.match(ui, /const llaveB = `turno:borrador/);
+  assert.match(ui, /Máximo 20 retiros/);
+});
