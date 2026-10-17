@@ -269,6 +269,13 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 .retiros-box p { margin: 4px 0 10px; color: #f5e3b8; font-size: .92rem; }
 .retiros-box .btn { border-color: var(--warn); color: #ffd97a; }
 .retiro { display: grid; grid-template-columns: minmax(0, 1fr) 140px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+@media (max-width: 420px) { .retiro { grid-template-columns: minmax(0, 1fr) minmax(0, 115px) 40px; gap: 5px; } .retiro .t { min-width: 0; padding: 10px 7px; font-size: .94rem; } }
+.confirmacion-corte { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 16px 40px; padding: 12px 14px; border-radius: 14px; background: #232326; color: var(--fg); line-height: 1.45; cursor: pointer; }
+.confirmacion-corte input { width: 24px; height: 24px; flex: none; accent-color: var(--ok); margin: 0; }
+.aviso-duplicado { margin: 8px 0 16px 40px; padding: 12px; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 14px; color: #f5e3b8; }
+.aviso-duplicado label { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; }
+.aviso-duplicado input { width: 23px; height: 23px; accent-color: var(--warn); flex: none; }
+@media (max-width: 560px) { .confirmacion-corte, .aviso-duplicado { margin-left: 0; } }
 .retiro .x { border: 0; background: transparent; color: var(--muted); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
 .retiro .x:hover { color: var(--bad); background: var(--bad-soft); }
 .retiro .x svg { width: 19px; height: 19px; }
@@ -1397,28 +1404,30 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   // ---------- Corte ----------
   function verCorte() {
     const c = E.corte, ci = E.inicio ? Number(E.inicio.cambio) || 0 : null;
-    sec().innerHTML = titulo("Corte de turno.", "Sigue los 3 pasos. La administración compara tu conteo con el sistema.") + `
+    sec().innerHTML = titulo("Corte de turno.", "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
       ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
         <form class="card" id="f-corte" novalidate>
           <section class="paso-c" id="pc1"><h2><span class="num">1</span>Cuenta el efectivo</h2>
-            <p class="guia">Cuenta <b>todo</b> el dinero de la caja: billetes y monedas, <b>incluido el cambio con el que empezaste</b>. No cuentes los vouchers de tarjeta.</p>
+            <p class="guia">Cuenta <b>los billetes y monedas que tienes físicamente ahora</b>, incluido el cambio inicial. Hazlo <b>después de los gastos que ya pagaste durante el turno</b> y <b>antes de separar los retiros del cierre, el sobre y el cambio siguiente</b>. No incluyas vouchers ni pagos con tarjeta.</p>
             <div class="cuenta"><div><span>Cambio inicial</span><b>${ci == null ? "—" : dinero(ci)}</b></div>${c ? "" : `<div><span></span><button class="lnk" type="button" id="ci-corregir" style="min-height:28px">Corregir cambio inicial</button></div>`}</div>
             <label class="campo"><span>Efectivo físico que contaste (con el cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
           </section>
-          <section class="paso-c" id="pc2"><h2><span class="num">2</span>Reparte el efectivo</h2>
-            <p class="guia">Separa el dinero que contaste en estas partes. Al final todo debe sumar lo que contaste.</p>
-            <label class="campo"><span>a) Efectivo en sobre para la administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre ? esc(c.sobre) : ""}"></label>
-            <div class="retiros-box"><div class="rt-h">${svg("i-alerta")}b) Retiros extra</div>
-              <p>¿Sacaste dinero de la caja para algo? Por ejemplo taxi o una compra. Anota <b>cada retiro</b>: para qué fue y cuánto. Si no hubo, déjalo vacío.</p>
+          <section class="paso-c" id="pc2"><h2><span class="num">2</span>Distribuye lo que contaste</h2>
+            <p class="guia">Ahora decide qué parte del efectivo contado <b>va a administración (sobre)</b>, qué parte <b>retiras al terminar</b> y qué parte queda <b>para el siguiente turno</b>. Las tres deben sumar exactamente el conteo del paso 1.</p>
+            <label class="campo"><span>a) Sobre: dinero que recibirá la administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre != null ? esc(c.sobre) : ""}"></label>
+            <div class="retiros-box"><div class="rt-h">${svg("i-alerta")}b) Retiros hechos al repartir el corte</div>
+              <p>Ejemplo: sueldo o taxi que se aparta <b>ahora, del dinero que acabas de contar</b>. <b>No vuelvas a incluir gastos que ya pagaste y registraste durante el turno.</b> Si no retiras nada, deja esta lista vacía.</p>
               <div id="retiros"></div>
               <button class="btn btn-line btn-sm" type="button" id="mas-retiro">+ Agregar retiro</button></div>
-            <label class="campo"><span>c) Cambio que dejas para el siguiente turno</span><input class="t monto" name="cambio_sig" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.cambio_sig ? esc(c.cambio_sig) : ""}"></label>
-            <div class="reparto" id="reparto" aria-live="polite"></div>
+            <label class="campo"><span>c) Cambio que quedará físicamente en caja para el siguiente turno</span><input class="t monto" name="cambio_sig" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.cambio_sig != null ? esc(c.cambio_sig) : ""}"></label>
+            <div class="reparto" id="reparto" role="status" aria-live="polite"></div>
+            <div id="aviso-duplicado" role="alert"></div>
           </section>
           <section class="paso-c" id="pc3"><h2><span class="num">3</span>Revisa y entrega</h2>
-            <p class="guia">Revisa que estén todos los gastos (${E.gastos.length}) e ingresos extra (${E.extras.length}) de tu turno; están aquí al lado. Luego entrega el corte.</p>
+            <p class="guia">Revisa los <b>${E.gastos.length} gastos del turno</b> y <b>${E.extras.length} ingresos extra</b> que aparecen debajo o junto al formulario. Esos movimientos ocurrieron <b>antes del conteo</b>. Verifica que no repitas el mismo pago entre gastos y retiros del paso 2.</p>
+            <label class="confirmacion-corte"><input type="checkbox" id="revisado-corte"><span>Revisé los movimientos anteriores al conteo. El sobre es exactamente lo que entregaré a administración y los retiros son del dinero ya contado.</span></label>
             <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Algo que la administración deba saber">${c ? esc(c.notas || "") : ""}</textarea></label>
             <p class="err" id="err-corte" role="alert"></p>
             <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
@@ -1431,7 +1440,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       </div>`;
     const f = $("#f-corte");
     const num = v => { const n = Number(String(v || "").replace(/[$,\s]/g, "")); return isFinite(n) ? n : 0; };
-    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="¿Para qué?" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" value="${r.monto ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
+    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="Sueldo, taxi…" aria-label="Motivo del retiro al finalizar el turno" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" aria-label="Importe del retiro al finalizar el turno" value="${r.monto != null ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
     // Borrador: lo escrito se guarda en la tablet y se recupera si la pantalla se redibuja o se cierra la app
     const llaveB = `turno:borrador:${E.persona}:${E.dia}:${E.turno}`;
     const b = leerLS(llaveB, null);
