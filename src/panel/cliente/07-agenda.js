@@ -735,6 +735,7 @@ window.interpretarAgenda = function (texto, hoy) {
     if (!ta || !caja) return;
     const actual = buscarMencion(ta, encargados());
     caja.hidden = !actual || !actual.personas.length;
+    ta.setAttribute("aria-expanded", String(!caja.hidden));
     caja.innerHTML = actual ? actual.personas.map((p,i) => `<button type="button" role="option" aria-selected="${i === 0}" data-mention-pick="${esc(p.clave)}">${tarjetaMencion(p)}<small>${esc(p.clave)}</small></button>`).join("") : "";
     if (seleccion) {
       const claves = [...ta.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m => m[1].toUpperCase());
@@ -757,7 +758,7 @@ window.interpretarAgenda = function (texto, hoy) {
     const caja = form && form.querySelector("[data-mention-list]");
     if (!caja || caja.hidden) return;
     const opciones = [...caja.querySelectorAll("[data-mention-pick]")];
-    if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; return; }
+    if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; ta.setAttribute("aria-expanded", "false"); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       let i = opciones.findIndex(b => b.getAttribute("aria-selected") === "true");
@@ -834,8 +835,8 @@ window.interpretarAgenda = function (texto, hoy) {
         ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a ${conMenciones("@" + h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
         <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="😅" aria-label="Insertar emoji 😅">😅</button><button type="button" data-com-emoji="😡" aria-label="Insertar emoji 😡">😡</button><button type="button" data-com-emoji="💩" aria-label="Insertar emoji 💩">💩</button><button type="button" data-com-emoji="👽" aria-label="Insertar emoji 👽">👽</button><button type="button" data-com-emoji="🙊" aria-label="Insertar emoji 🙊">🙊</button><button type="button" data-com-emoji="🙉" aria-label="Insertar emoji 🙉">🙉</button><button type="button" data-com-emoji="🙈" aria-label="Insertar emoji 🙈">🙈</button><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button></div>
         <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
-        <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-         <div class="casta-mention-list" role="listbox" aria-label="Elegir encargado para etiquetar" data-mention-list hidden></div><div class="casta-mention-selected" aria-label="Personas etiquetadas" data-mention-selected hidden></div>
+        <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" aria-autocomplete="list" aria-controls="casta-men-${esc(it.id)}" aria-expanded="false" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
+         <div class="casta-mention-list" id="casta-men-${esc(it.id)}" role="listbox" aria-label="Elegir encargado para etiquetar" data-mention-list hidden></div><div class="casta-mention-selected" aria-label="Personas etiquetadas" data-mention-selected hidden></div>
         ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip casta-chip-perfil ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">${tarjetaMencion(x)}</button>`).join("")}</div>` : ""}
         ${!h.responderA && h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
         <div class="com-acc">${!h.responderA ? `<label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label>` : ""}<button class="btn btn-primary" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
