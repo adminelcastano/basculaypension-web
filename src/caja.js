@@ -19,6 +19,55 @@ const FORMAS_GASTO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"];
 // no cuenta como ingreso del negocio.
 export const CONCEPTOS_EXTRA = ["Renta", "Aumento de cambio", "Otro ingreso"];
 export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
+ 
+// Aporte de Administración hecho AL INICIAR un turno. ID fijo: una corrección o reenvío
+// offline modifica el mismo movimiento; nunca crea una segunda entrada de efectivo.
+export const idAumentoInicio = (dia, turno) => "inicio-aumento:" + dia + ":" + turno;
+export const totalCambioInicio = (recibido, aumento = 0) =>
+  (Math.round(Number(recibido) * 100) + Math.round(Number(aumento) * 100)) / 100;
+
+// Recibido es SOLO lo que se contó del turno anterior; aumento es dinero nuevo
+// desde los sobres. El recibido va en turno_inicio y el aporte en caja_extra
+// (ingreso=0), aprovechando los cálculos actuales de Caja y Finanzas.
+export async function guardarCambioInicio(env, { dia, turno, persona, recibido, aumento }, ahora = new Date().toISOString()) {
+  const mes = dia.slice(0, 7), id = idAumentoInicio(dia, turno);
+  const [anterior, extra] = await Promise.all([
+    env.DB.prepare("SELECT cambio, persona FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).first(),
+    env.DB.prepare("SELECT monto, concepto, ingreso FROM caja_extra WHERE id = ?").bind(id).first()
+  ]);
+  if (extra && (extra.concepto !== "Aumento de cambio" || Number(extra.ingreso) !== 0))
+    throw new Error("El movimiento de aumento de cambio no corresponde al inicio del turno.");
+  const cambio = !anterior || Number(anterior.cambio) !== recibido || anterior.persona !== persona
+    || Number(extra && extra.monto || 0) !== aumento;
+  const sentencias = [
+    env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona,
+        cambio = excluded.cambio, actualizado = excluded.actualizado`)
+      .bind(dia, turno, mes, persona, recibido, ahora, ahora)
+  ];
+  if (aumento > 0) {
+    sentencias.push(env.DB.prepare(`INSERT INTO caja_extra
+      (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
+      VALUES (?, ?, ?, ?, 'Aumento de cambio', 'Aporte al iniciar turno', ?, 0, NULL, ?, ?, ?)
+      ON CONFLICT (id) DO UPDATE SET monto = excluded.monto, persona = excluded.persona`)
+      .bind(id, mes, dia, turno, aumento, persona, ahora, "tablet:" + persona));
+  } else if (extra) {
+    // Exclusivamente el registro automático propio; los aumentos manuales se conservan.
+    sentencias.push(env.DB.prepare("DELETE FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0")
+      .bind(id));
+  }
+  if (cambio) sentencias.push(stmtBitacora(env, {
+    quien: "tablet:" + persona, accion: anterior ? "editar" : "crear",
+    que: "Cambio al inicio de turno", ref: dia + "|" + turno, mes,
+    detalle: { antes: anterior ? { recibido: anterior.cambio, aumento: Number(extra && extra.monto || 0) } : null,
+      recibido, aumento, total: totalCambioInicio(recibido, aumento) }
+  }));
+  // D1.batch es transaccional: no puede guardarse el recibido sin el aporte ni viceversa.
+  await env.DB.batch(sentencias);
+  return { cambio: recibido, aumento, total: totalCambioInicio(recibido, aumento), persona, actualizado: ahora };
+}
+
 // Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
 export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO").replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
