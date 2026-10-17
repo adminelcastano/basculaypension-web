@@ -204,7 +204,7 @@ export function recortar({ facturas, caja, turno, agenda, pagos, finanzas, perso
   }
   return {
     facturas: facturas && { conteos: facturas.conteos || {}, solicitudes: (facturas.solicitudes || []).slice(0, 6) },
-    caja: caja && { cortes: caja.cortes, gastos_recientes: caja.gastos_recientes || [], sync: caja.sync || null, conectado: caja.conectado, transf_por_dia: transfPorDia },
+    caja: caja && { cortes: caja.cortes, cobros: caja.cobros || [], gastos_recientes: caja.gastos_recientes || [], sync: caja.sync || null, conectado: caja.conectado, transf_por_dia: transfPorDia },
     turno: turno && turno.activo || null,
     agenda, pagos,
     finanzas: finanzas && { mes: finanzas.mes, ingresos: finanzas.ingresos, egresos: finanzas.egresos, resultado: finanzas.resultado, diferencias: finanzas.diferencias && { faltantes: finanzas.diferencias.faltantes, sobrantes: finanzas.diferencias.sobrantes },
