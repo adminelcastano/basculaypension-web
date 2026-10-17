@@ -114,6 +114,17 @@ function validar(tipo, c, previo = {}) {
     repetir: tipo === "tarea" && REPETIR[v("repetir")] ? v("repetir") : null
   };
   const e = {};
+  // En publicaciones nuevas, nunca interpretar destinatarios omitidos como "Todos".
+  // Se conserva normalizarPara para los avisos históricos y otras lecturas existentes.
+  if (tipo === "aviso") {
+    let elegidos = v("para");
+    if (typeof elegidos === "string") { try { elegidos = JSON.parse(elegidos); } catch { elegidos = null; } }
+    const valido = elegidos && typeof elegidos === "object" &&
+      (elegidos.todos === true || elegidos.admin === true ||
+       (Array.isArray(elegidos.turnos) && elegidos.turnos.some(t => TURNOS.includes(String(t).toUpperCase()))) ||
+       (Array.isArray(elegidos.personas) && elegidos.personas.some(p => !!texto(p,12))));
+    if (!valido) e.para = "Elige al menos un destinatario.";
+  }
   if (d.titulo.length < 2) e.titulo = tipo === "compra" ? "Escribe qué hay que comprar." : tipo === "incidencia" ? "Describe la incidencia." : "Escribe un título.";
   if (d.fecha && !RE_DIA.test(d.fecha)) e.fecha = "Fecha inválida.";
   if (tipo === "evento" && !d.fecha) e.fecha = "Elige la fecha del evento.";
