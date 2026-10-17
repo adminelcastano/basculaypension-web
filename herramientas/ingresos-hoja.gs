@@ -11,7 +11,8 @@
  *
  * Cambia CLAVE por la misma clave que se guarda en Cloudflare como INGRESOS_TOKEN.
  */
-const CLAVE = "PEGA_AQUI_LA_CLAVE";
+// Configura INGRESOS_TOKEN en Propiedades de secuencia de comandos; no en el código.
+const CLAVE = () => PropertiesService.getScriptProperties().getProperty("INGRESOS_TOKEN");
 const ZONA = "America/Mexico_City";
 // ID de la hoja "BASCULA Y PENSION 2026" (está en su enlace, entre /d/ y /edit)
 const HOJA_ID = "11f1UfV4O4D6IDFlLdJodsTtfSSvxZ-yHst65ObadSjA";
@@ -23,7 +24,7 @@ const HOJAS = {
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (!CLAVE || CLAVE === "PEGA_AQUI_LA_CLAVE" || p.token !== CLAVE) return salida({ ok: false, error: "no autorizado" });
+  if (!CLAVE() || p.token !== CLAVE()) return salida({ ok: false, error: "no autorizado" });
   const mes = /^\d{4}-\d{2}$/.test(p.mes || "") ? p.mes : Utilities.formatDate(new Date(), ZONA, "yyyy-MM");
   // Funciona pegado dentro de la hoja o como proyecto aparte
   const libro = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(HOJA_ID);
@@ -64,17 +65,40 @@ function leer(hoja, cols, mes) {
     }
     const fecha = Utilities.formatDate(marca, ZONA, "yyyy-MM-dd'T'HH:mm:ss");
     if (fecha.slice(0, 7) !== mes) continue;
+    const cobro = analizarImporte(f[idx.importe]);
+    if (cobro.error) return { error: "Importe inválido en " + hoja.getName() + ", fila " + (i + 1) + ": " + cobro.error };
+    if (cobro.excluir) continue;
     salidaFilas.push({
       fecha: fecha,
       folio: String(f[idx.folio]),
       matricula: String(f[idx.matricula]),
       cliente: String(f[idx.cliente]),
-      importe: f[idx.importe] === "" ? 0 : f[idx.importe], // Conservar cifras y texto (MENOS, $, comas) para el parser de Caja
+      importe: cobro.importe,
+      pendiente: !!cobro.pendiente,
+      monto_pendiente: cobro.monto_pendiente || 0,
       forma: String(f[idx.forma]),
       turno: String(f[idx.turno])
     });
   }
   return salidaFilas;
+}
+
+// Etiquetas operativas reconocidas. Ninguna crea un ingreso ficticio.
+function analizarImporte(v) {
+  if (v == null || v === "") return { importe: 0 };
+  if (typeof v === "number") return Number.isFinite(v) ? { importe: v } : { error: "cantidad no finita" };
+  const t = String(v).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/^(PRUEBA|CANCELAD[OA])\b/.test(t)) return { excluir: true };
+  const pendiente = /^PENDIENTE\s+DE\s+PAGO\b\s*\$?\s*([\d,.]+)?\s*$/.exec(t);
+  if (pendiente) {
+    const m = pendiente[1] ? Number(pendiente[1].replace(/,/g, "")) : 0;
+    if (!Number.isFinite(m) || m < 0 || m > 100000000) return { error: "monto por cobrar inválido" };
+    return { importe: 0, pendiente: true, monto_pendiente: Math.round(m * 100) / 100 };
+  }
+  let n = t.replace(/[$,\s]/g, "");
+  n = n.replace(/^(MENOS|-|−)+/, "");
+  if (!/^\d+(\.\d+)?$/.test(n)) return { error: "texto desconocido" };
+  return { importe: v };
 }
 
 function normalizar(t) {
@@ -87,6 +111,6 @@ function salida(obj) {
 
 // Para probar desde el editor: muestra cuántos registros hay este mes
 function probar() {
-  const r = JSON.parse(doGet({ parameter: { token: CLAVE } }).getContent());
+  const r = JSON.parse(doGet({ parameter: { token: CLAVE() } }).getContent());
   Logger.log(r.ok ? ("Báscula: " + r.bascula.length + " · Pensión: " + r.pension.length) : r.error);
 }
