@@ -1183,7 +1183,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       elegirMencion(form, (opciones.find(b => b.getAttribute("aria-selected") === "true") || opciones[0]).dataset.mentionPick);
     }
   }
-  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
+  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || [])].filter(Boolean);
   const etqParaHtml = p => etqPara(p).map(t => {
     const persona = E.personas.find(x => x.clave === t);
     return `<span class="etq-p">${persona ? tarjetaMencion(persona) : "@" + esc(t)}</span>`;
@@ -1272,7 +1272,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${castaFotos(f,a.id)}
       <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${castaComentar}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
-      ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
+      ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${cv.ultimo.texto ? conMenciones(cv.ultimo.texto) : "Mandó una foto"}</span></button>` : ""}
       </article>`;
   }
   async function abrirHilo(id) {
