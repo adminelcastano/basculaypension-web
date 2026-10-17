@@ -664,6 +664,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const c = await request.json().catch(() => null);
     if (!c || typeof c.texto !== "string" || c.texto.length > 20000)
       return json({ ok: false, error: "Tabla inválida o demasiado larga." }, 422);
+    if (c.aplicar === true && !meses.includes("2026-10"))
+      return json({ ok: false, error: "Octubre de 2026 está cerrado; no se permite cambiar documentación del mes." }, 409);
     const estado = await procesarHistoricos(env, c.texto, {
       aplicar: c.aplicar === true, quien: usuario && usuario.email || null
     });
