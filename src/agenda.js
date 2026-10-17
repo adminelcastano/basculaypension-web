@@ -1,4 +1,5 @@
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
+import { asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
@@ -217,6 +218,10 @@ export async function insertarItem(env, id, tipo, d, creadoPor, ahora, extra = {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, tipo, d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, creadoPor, ahora, d.aviso, d.para_turno || 0, d.area || null, extra.reporto || null, extra.foto || null,
       extra.autor || (tipo === "aviso" ? "admin" : null), d.para || null, d.quien || null).run();
+  if (tipo === "aviso") {
+    await asegurarEsquemaAvisos(env);
+    await stmtHistorial(env, id, extra.autor || "admin", "publicar", { titulo: d.titulo, detalle: d.detalle, para: normalizarPara(d.para), por: creadoPor || null }, ahora).run();
+  }
 }
 // Fotos de una incidencia (varias): llegan como data URL ya comprimidas en el navegador.
 // foto = la primera (la que ve la tablet); fotos = todas (JSON con las llaves).
@@ -253,6 +258,7 @@ async function borrarItems(env, items) {
   }
   for (const v of items) for (const f of listaFotos(v)) await borrarArchivo(env, f).catch(() => {});
   await env.DB.batch(stmts);
+  await borrarConversaciones(env, items.filter(v => v.tipo === "aviso").map(v => v.id), borrarArchivo);
 }
 export { validar as validarItem, ABIERTO };
 
@@ -260,10 +266,7 @@ export { validar as validarItem, ABIERTO };
 // Lo que sigue abierto no se toca, aunque sea viejo.
 export async function limpiarAgenda(env, ahora = new Date()) {
   await asegurarEsquemaAgenda(env);
-  // Los avisos que dejan los encargados se archivan solos a los 3 días (los de la administración, cuando ella decida)
-  const tresDias = new Date(ahora.getTime() - 3 * 864e5).toISOString();
-  await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE tipo = 'aviso' AND estado = 'activo' AND autor IS NOT NULL AND autor != 'admin' AND creado < ?")
-    .bind(ahora.toISOString(), ahora.toISOString(), tresDias).run();
+  // Los avisos no se archivan solos ni se borran: la administración los archiva y quedan en el archivo (trazabilidad)
   // Historial de pagos hechos: 13 meses
   const lim13 = sumarMeses(hoyMx(), -13);
   for (const f of (await env.DB.prepare("SELECT comprobante FROM agenda_pagos WHERE fecha < ? AND comprobante IS NOT NULL LIMIT 50").bind(lim13).all()).results) await borrarArchivo(env, f.comprobante).catch(() => {});
@@ -272,7 +275,7 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   const limite = new Date(ahora.getTime() - 40 * 864e5).toISOString();
   const diaLimite = limite.slice(0, 10);
   const viejos = (await env.DB.prepare(`SELECT id, foto, fotos FROM agenda_items
-    WHERE (NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
+    WHERE (tipo != 'aviso' AND NOT (${ABIERTO}) AND COALESCE(cerrado, actualizado, creado) < ?)
        OR (tipo = 'evento' AND fecha < ?) LIMIT 500`).bind(limite, diaLimite).all()).results;
   if (!viejos.length) return 0;
   await borrarItems(env, viejos);
@@ -283,9 +286,17 @@ export async function limpiarAgenda(env, ahora = new Date()) {
 // Avisos de los encargados para la administración que todavía no se leen en el panel (para Hoy)
 export async function avisosSinLeer(env) {
   await asegurarEsquemaAgenda(env);
+  await asegurarEsquemaAvisos(env);
   const filas = (await env.DB.prepare(`SELECT i.id, i.titulo, i.autor, i.para, i.creado, i.prioridad FROM agenda_items i WHERE i.tipo = 'aviso' AND i.estado = 'activo' AND COALESCE(i.autor, 'admin') != 'admin'
     AND NOT EXISTS (SELECT 1 FROM agenda_lecturas l WHERE l.item_id = i.id AND l.persona = 'ADMIN') ORDER BY i.creado DESC LIMIT 50`).all()).results;
-  return filas.filter(f => normalizarPara(f.para).admin).map(({ para, ...f }) => f);
+  const nuevos = filas.filter(f => normalizarPara(f.para).admin).map(({ para, ...f }) => f);
+  // Avisos con comentarios de los encargados que la administración todavía no ve
+  const conCom = (await env.DB.prepare(`SELECT i.id, i.titulo, i.creado, i.prioridad, c.autor, COUNT(*) n FROM aviso_comentarios c JOIN agenda_items i ON i.id = c.item_id
+    LEFT JOIN aviso_vistos v ON v.item_id = c.item_id AND v.persona = 'ADMIN'
+    WHERE i.tipo = 'aviso' AND i.estado = 'activo' AND c.autor != 'admin' AND c.borrado IS NULL AND (v.at IS NULL OR c.creado > v.at)
+    GROUP BY i.id ORDER BY MAX(c.creado) DESC LIMIT 50`).all()).results;
+  for (const c of conCom) if (!nuevos.some(n => n.id === c.id)) nuevos.push({ id: c.id, titulo: c.titulo + (c.n === 1 ? " (1 comentario nuevo)" : ` (${c.n} comentarios nuevos)`), autor: c.autor, creado: c.creado, prioridad: c.prioridad });
+  return nuevos;
 }
 
 export async function resumenAgenda(env) {
@@ -443,6 +454,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const deIds = async (sql, ids) => { const out = []; for (let i = 0; i < ids.length; i += 90) { const l = ids.slice(i, i + 90); out.push(...(await env.DB.prepare(sql.replace("(?)", "(" + l.map(() => "?").join(",") + ")")).bind(...l).all()).results); } return out; };
     const lect = await deIds("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id));
     for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
+    // Conversación de cada aviso (comentarios, nuevos para la administración, último comentario)
+    const conv = await resumenConversaciones(env, items.filter(it => it.tipo === "aviso"), "ADMIN");
+    for (const it of items) if (it.tipo === "aviso") it.conv = conv[it.id];
     // Informes de la tablet sobre las tareas
     const rep = (await deIds("SELECT * FROM agenda_reportes WHERE item_id IN (?)", items.filter(it => it.tipo === "tarea").map(it => it.id))).sort((a, b) => b.creado.localeCompare(a.creado));
     for (const it of items) if (it.tipo === "tarea") it.reportes = rep.filter(r => r.item_id === it.id);
@@ -451,7 +465,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6).map(x => ({ id: x.id, fecha: x.fecha, importe: x.importe, forma: x.forma, comprobante: x.comprobante ? 1 : 0 }));
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
-    const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")).length;
+    const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && ((it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")) || (it.conv && it.conv.nuevos))).length;
     const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, p.cuenta, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
     // Forma de pago de las compras ya compradas (está en su egreso)
@@ -562,9 +576,41 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     return json({ ok: true, id });
   }
 
+  // Archivo de avisos: todos los archivados con su conversación (no se borran)
+  if (partes[1] === "avisos-archivo" && request.method === "GET") {
+    const sp = url.searchParams;
+    return json({ ok: true, ...(await archivoAvisos(env, { q: sp.get("q") || "", persona: sp.get("persona") || "", desde: sp.get("desde") || "", hasta: sp.get("hasta") || "", pagina: sp.get("pagina") || 0 })) });
+  }
+
   const id = partes[1];
   const fila = id ? await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(id).first() : null;
   if (!fila) return json({ ok: false, error: "No existe ese registro." }, 404);
+
+  // ---- Conversación de un aviso ----
+  if (fila.tipo === "aviso" && partes[2] === "conversacion" && request.method === "GET") {
+    const historial = url.searchParams.get("historial") === "1";
+    const r = await conversacion(env, fila, "ADMIN", { historial });
+    if (fila.estado === "activo" && !historial) await marcarVisto(env, fila.id, "ADMIN", ahora);
+    return json({ ok: true, aviso: { ...fila, para: normalizarPara(fila.para), autor: fila.autor || "admin", fotos: listaFotos(fila) }, ...r });
+  }
+  if (fila.tipo === "aviso" && partes[2] === "comentar" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    let foto = null;
+    if (c.foto) { try { [foto] = await guardarFotosInc(env, [c.foto], "Comentario " + fila.titulo); } catch (er) { return json({ ok: false, error: er.message }, 422); } }
+    const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all().catch(() => ({ results: [] }))).results.map(r => r.clave);
+    let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
+    catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
+    if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "La administración comentó un aviso", cuerpo: fila.titulo + "\n" + (r.comentario.texto || "Mandó una foto"), sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
+    return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas });
+  }
+  if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && ["editar", "borrar"].includes(partes[4]) && request.method === "POST") {
+    let c = {}; try { c = await request.json(); } catch {}
+    try {
+      if (partes[4] === "editar") return json({ ok: true, comentario: await editarComentario(env, fila, partes[3], c.texto, usuario && usuario.email, ahora) });
+      await borrarComentario(env, fila, partes[3], usuario && usuario.email, ahora);
+      return json({ ok: true });
+    } catch (er) { return json({ ok: false, error: er.message }, 422); }
+  }
 
   // Agregar o quitar fotos de una incidencia ya registrada
   if (partes[2] === "fotos" && request.method === "POST" && fila.tipo === "incidencia") {
@@ -622,6 +668,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para), repetir=? WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, d.repetir, id).run();
     if (fila.tipo === "tarea" && d.estado === "hecho" && fila.estado !== "hecho") await repetirTarea(env, id, ahora);
+    // Historial del aviso: archivar / reactivar y cambios del texto o de los destinatarios
+    if (fila.tipo === "aviso") {
+      const quien = usuario && usuario.email || null, h = [];
+      if (d.estado !== fila.estado) h.push(stmtHistorial(env, id, "admin", d.estado === "archivado" ? "archivar" : "reactivar", { por: quien }, ahora));
+      const antes = { titulo: fila.titulo, detalle: fila.detalle || null, para: normalizarPara(fila.para) }, despues = { titulo: d.titulo, detalle: d.detalle || null, para: normalizarPara(d.para) };
+      if (JSON.stringify(antes) !== JSON.stringify(despues)) h.push(stmtHistorial(env, id, "admin", "editar-aviso", { antes, despues, por: quien }, ahora));
+      if (h.length) { await asegurarEsquemaAvisos(env); await env.DB.batch(h); }
+    }
     // Compra que pidió un encargado desde la tablet: al comprarla, la tablet se entera
     if (fila.tipo === "compra" && fila.reporto && d.estado === "comprado" && fila.estado !== "comprado")
       await notificar(env, "tablet", { titulo: "Ya se compró: " + d.titulo, cuerpo: `La pidió ${fila.reporto}${d.cantidad ? " · " + d.cantidad : ""}`, sec: "inicio", url: "/turno", etiqueta: "compra-" + id });
@@ -672,6 +726,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
 
   if (partes[2] === "eliminar" && request.method === "POST") {
+    // Los avisos no se eliminan: se archivan y quedan con su conversación (trazabilidad)
+    if (fila.tipo === "aviso") return json({ ok: false, error: "Los avisos no se eliminan: archívalo y queda en el archivo con su conversación." }, 422);
     await borrarItems(env, [fila]);
     return json({ ok: true });
   }

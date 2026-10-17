@@ -71,7 +71,7 @@ export function armarHoy(d, ahora = new Date()) {
 
   // ---- Avisos de los encargados sin leer ----
   const av = d.avisos || [];
-  if (av.length) add("alta", "avisos", `${av.length} ${av.length === 1 ? "aviso nuevo" : "avisos nuevos"} de los encargados`, av.slice(0, 2).map(a => `${a.autor}: ${a.titulo}`).join(" · "), { mod: "agenda", tab: "aviso" }, av.length);
+  if (av.length) add("alta", "avisos", `${av.length} ${av.length === 1 ? "aviso con novedades" : "avisos con novedades"} de los encargados`, av.slice(0, 2).map(a => `${a.autor}: ${a.titulo}`).join(" · "), { mod: "agenda", tab: "aviso" }, av.length);
 
   // ---- Agenda: incidencias, tareas vencidas, pagos ----
   const ag = d.agenda || {}, ab = ag.abiertos || {};

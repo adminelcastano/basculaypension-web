@@ -152,3 +152,16 @@ Los encargados se administran en Turnos → Encargados; nombre, PIN, expediente 
 - **Sesión vencida**: en el panel y en la tablet ya no sale un `alert()`; aparece un diálogo `dialog.sesion-vencida` con «Volver a entrar», que recarga la página.
 - **Accesibilidad**: enlace «Saltar al contenido» en el panel y en el sitio público; la factura enfoca el primer campo con error; la tablet, la factura y el expediente respetan «reducir movimiento»; títulos de sección en mayúscula inicial (sin mayúsculas sostenidas) y texto mínimo de 13 px en el panel.
 
+## Avisos como publicaciones (desde el 16 oct 2026)
+Los avisos funcionan como un muro de red social, en el panel (Agenda → Avisos) y en la tablet (sección **Avisos**). Código: `src/avisos.js`.
+- **Publicar**: se etiqueta a los destinatarios (@Administración, @Todos, @Turno…, @CLAVE). Solo ven el aviso la administración, quien lo publicó y los etiquetados.
+- **Comentar**: todos los que lo ven comentan en la misma publicación, con foto opcional. Con «@CLAVE» en el texto o con los botones «Etiquetar a alguien más» se suma a otra persona (se agrega a `para.personas`).
+- **Novedades**: `aviso_vistos` guarda cuándo abrió cada quien la conversación; lo comentado después por otros cuenta como nuevo (contador de la tablet, de Agenda y de Hoy). Al abrir la conversación también queda como «Enterado».
+- **Avisos push**: si comenta la administración, a la tablet; si comenta un encargado, a la administración cuando participa (no a la misma tablet).
+- **Solo la administración** edita o borra comentarios. El borrado es lógico (`borrado`): en la tablet se ve «Comentario borrado por la administración»; el texto original queda en el historial.
+- **Archivar**: solo la administración. Ya no hay archivado automático a los 3 días ni se borran los avisos en la limpieza diaria, y el botón de eliminar no aplica a avisos.
+- **Archivo de avisos** (botón al final del muro): todos los archivados sin límite de tiempo, con búsqueda por texto (también en comentarios), persona y fechas; cada uno muestra su conversación y el **historial** (`aviso_historial`: publicar, comentar, etiquetar, editar, borrar, archivar, reactivar, cambios del aviso, con el correo de quien lo hizo en el panel).
+- Rutas del panel: `GET agenda/<id>/conversacion[?historial=1]`, `POST agenda/<id>/comentar`, `POST agenda/<id>/comentarios/<cid>/editar|borrar`, `GET agenda/avisos-archivo`. Tablet: `GET avisos/<id>/conversacion`, `POST avisos/<id>/comentar`.
+
+## Tablet con el diseño del panel (desde el 16 oct 2026)
+Secciones: **Hoy, Avisos, Tareas, Incidencias, Calendario, Corte** (Avisos y Tareas ya van separadas). Hasta 1200 px, Hoy muestra un índice de tarjetas como el panel (avisos con novedades, tareas, corte, incidencias, gastos e ingresos extra; lo urgente primero); al tocar una se ve solo ese bloque y «‹ Hoy» o el botón atrás regresan al índice. En pantallas anchas se ve todo.

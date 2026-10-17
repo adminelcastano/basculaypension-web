@@ -294,11 +294,12 @@ dialog .acciones .btn { flex: 1 1 160px; }
 /* Tablet vertical y teléfono: secciones abajo, como una app */
 @media (max-width: 900px) {
   header.bar { height: 56px; }
-  .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-radius: 0;
+  .modulos { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border-radius: 0;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: #161617; border-top: 1px solid rgba(255,255,255,.08); }
-  .modulos button { flex-direction: column; gap: 3px; padding: 6px 2px; font-size: 12px; letter-spacing: 0; text-transform: none; font-weight: 500; color: #8e8e93; min-height: 56px; justify-content: center; }
+  .modulos button { flex-direction: column; gap: 3px; padding: 6px 2px; font-size: 11px; letter-spacing: -0.01em; min-width: 0; text-transform: none; font-weight: 500; color: #8e8e93; min-height: 56px; justify-content: center; }
   .modulos button[aria-current="page"] { background: transparent; color: var(--amber); }
   .modulos .mi { display: block; }
+  .modulos button > span:not(.n) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .modulos .n { position: absolute; top: 2px; left: calc(50% + 6px); }
   .modulos button[aria-current="page"] .n { background: #d70015; color: #fff; }
   .yo { margin-left: auto; }
@@ -306,12 +307,92 @@ dialog .acciones .btn { flex: 1 1 160px; }
   #toast { bottom: calc(90px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 520px) { .yo small .largo, .salir span { display: none; } .yo b { max-width: 120px; } }
+@media (max-width: 1180px) { .yo small .largo { display: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 dialog.sesion-vencida { border: 1px solid #3a3a3c; border-radius: 22px; background: #1c1c1e; color: #f5f5f7; padding: 26px; max-width: min(440px, calc(100vw - 32px)); }
 dialog.sesion-vencida::backdrop { background: rgba(0,0,0,.7); }
 dialog.sesion-vencida h2 { margin: 0 0 8px; font-size: 1.3rem; }
 dialog.sesion-vencida p { margin: 0 0 18px; color: #a1a1a6; }
 dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-radius: 14px; background: #f5a623; color: #111; font: inherit; font-weight: 700; cursor: pointer; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* ---- Un tipo a la vez en Hoy (como el panel): índice de tarjetas ---- */
+.t-idx, .t-volver { display: none; }
+.sec.uno.en-idx .t-idx { display: grid; }
+.sec.uno:not(.en-idx) .t-volver { display: inline-flex; }
+.sec.uno .ini-grid > [data-bloque]:not(.activo), .sec.uno .grupo-h { display: none; }
+.sec.uno .ini-grid > [data-bloque].activo { grid-column: 1 / -1; }
+.sec.uno:not(.en-idx) .push-card { display: none; }
+.t-idx { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 600px) { .t-idx { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ti { --c: var(--amber); position: relative; display: grid; grid-template-columns: auto 1fr; align-content: start; min-height: 156px; padding: 16px 16px 15px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: background .15s, transform .15s; }
+.ti:hover { background: var(--surface2); }
+.ti:active { transform: scale(.985); }
+.ti-i { grid-column: 1; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); }
+.ti-i svg { width: 21px; height: 21px; }
+.ti-c { grid-column: 2; justify-self: end; width: 18px; height: 18px; margin-top: 2px; color: var(--muted); }
+.ti-v { grid-column: 1 / -1; margin-top: 20px; font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ti-v.vacio { color: var(--muted); font-weight: 600; }
+.ti-t { grid-column: 1 / -1; margin-top: 10px; font-weight: 600; line-height: 1.25; }
+.ti-s { grid-column: 1 / -1; margin-top: 3px; font-size: .88rem; color: var(--muted); line-height: 1.35; }
+.ti.sin-v .ti-v { display: none; }
+.ti.sin-v .ti-t { margin-top: auto; padding-top: 40px; }
+.ti.urg { order: -1; grid-column: 1 / -1; min-height: 0; border-color: color-mix(in srgb, #ff453a 50%, var(--line)); box-shadow: inset 4px 0 0 #ff453a; }
+.ti.urg .ti-v { font-size: 2.6rem; }
+.ti.urg .ti-s { color: #ff8a80; font-weight: 600; }
+.t-volver { grid-column: 1 / -1; justify-self: start; align-items: center; gap: 2px; min-height: 44px; padding: 0 18px 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; }
+.t-volver svg { width: 18px; height: 18px; transform: rotate(180deg); }
+/* ---- Avisos: muro de publicaciones con conversación ---- */
+.muro { display: grid; gap: 14px; max-width: 760px; }
+.muro-in { margin-top: 12px; max-width: none; }
+.muro-in .post { background: #1b1b1d; }
+.muro-nuevo { max-width: 760px; margin-bottom: 14px; padding: 14px 16px; }
+.muro-btn { display: flex; gap: 12px; align-items: center; width: 100%; border: 0; background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer; padding: 0; }
+.muro-btn > span:nth-child(2) { flex: 1; min-height: 48px; display: flex; align-items: center; padding: 0 16px; border-radius: 999px; background: #0b0b0c; border: 1px solid var(--line); }
+.muro-nota { max-width: 760px; margin-top: 14px; }
+.post { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 16px 18px 6px; min-width: 0; }
+.post.nuevo { border-color: rgba(255, 204, 0, .45); box-shadow: inset 3px 0 0 var(--amber); }
+.post-h { display: flex; gap: 12px; align-items: center; }
+.post-q { display: grid; min-width: 0; flex: 1; }
+.post-q span { color: var(--muted); font-size: .85rem; }
+.post-para { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: .85rem; }
+.etq-p { background: #26262a; color: #d2d2d7; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+.post-t { margin: 12px 0 0; font-size: 1.15rem; line-height: 1.3; overflow-wrap: anywhere; }
+.post-d { margin: 6px 0 0; color: #d6d6da; overflow-wrap: anywhere; }
+.men { color: var(--amber); font-weight: 600; }
+.post-fotos { display: grid; gap: 4px; margin-top: 12px; border-radius: 14px; overflow: hidden; }
+.post-fotos.n2, .post-fotos.n3 { grid-template-columns: 1fr 1fr; }
+.post-fotos.n3 a:first-child { grid-row: span 2; }
+.post-fotos img { display: block; width: 100%; height: 100%; max-height: 360px; object-fit: cover; }
+.post-st { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: center; margin-top: 10px; color: var(--muted); font-size: .85rem; }
+.post-st svg { width: 14px; height: 14px; vertical-align: -2px; color: var(--ok); }
+.post-st .lnk { min-height: 40px; color: #d2d2d7; font-size: .85rem; }
+.nuevo-n { display: inline-block; background: var(--amber); color: var(--amber-ink); border-radius: 999px; padding: 0 8px; margin-left: 4px; font-weight: 700; }
+.post-ult { display: flex; gap: 8px; align-items: center; width: 100%; margin-top: 6px; padding: 8px 10px; border: 0; border-radius: 14px; background: #0b0b0c; color: #d2d2d7; font: inherit; font-size: .9rem; text-align: left; cursor: pointer; }
+.post-ult span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-acc { display: flex; border-top: 1px solid var(--line); margin-top: 8px; }
+.post-acc .pa { flex: 1; display: inline-flex; gap: 8px; justify-content: center; align-items: center; min-height: 52px; border: 0; background: none; color: #d2d2d7; font: inherit; font-weight: 600; border-radius: 12px; cursor: pointer; }
+.post-acc .pa:active { background: #26262a; }
+.post-acc .pa svg { width: 20px; height: 20px; }
+.post-acc .pa-si { color: var(--amber); }
+.hilo { border-top: 1px solid var(--line); padding: 12px 0 10px; display: grid; gap: 10px; }
+.com, .com-form { display: flex; gap: 10px; align-items: flex-start; }
+.com .avi, .com-form .avi { margin-top: 4px; }
+.com-b { min-width: 0; flex: 1; }
+.com-burb { display: inline-block; max-width: 100%; background: #26262a; border-radius: 16px; padding: 8px 12px; }
+.com-burb b { font-size: .92rem; }
+.com-t { margin: 2px 0 0; overflow-wrap: anywhere; }
+.com.borrado .com-burb { background: transparent; border: 1px dashed #3a3a3c; color: var(--muted); }
+.com-foto img { display: block; max-width: min(260px, 100%); max-height: 220px; border-radius: 10px; margin-top: 6px; object-fit: cover; }
+.com-m { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 2px 10px 0; color: var(--muted); font-size: .8rem; }
+.com-form textarea { min-height: 72px; resize: vertical; }
+.com-etq { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; color: var(--muted); font-size: .85rem; }
+.chip-sm { min-height: 40px; padding: 0 14px; font-size: .9rem; }
+.com-prev { position: relative; display: inline-block; margin-top: 8px; }
+.com-prev img { width: 84px; height: 84px; object-fit: cover; border-radius: 12px; display: block; }
+.com-prev button { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.75); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.com-acc { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.com-form .err { margin: 6px 0 0; }
+@media (max-width: 560px) { .post { padding: 14px 14px 4px; border-radius: 18px; } }
 </style>
 </head>
 <body>
@@ -346,6 +427,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 </script>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-flecha" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/></symbol>
   <symbol id="i-aviso" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 10v4h3l6 4V6L7 10z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.4 9a4 4 0 0 1 0 6M18.8 6.6a7.4 7.4 0 0 1 0 10.8"/></symbol>
   <symbol id="i-tarea" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" d="M8.4 12.2l2.5 2.5 4.8-5"/></symbol>
   <symbol id="i-alerta" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.6 4.4a1.6 1.6 0 0 1 2.8 0l7.4 13.2a1.6 1.6 0 0 1-1.4 2.4H4.6a1.6 1.6 0 0 1-1.4-2.4z"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M12 9.6v4.4"/><circle cx="12" cy="16.9" r="1.1" fill="currentColor"/></symbol>
@@ -395,8 +478,9 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   <header class="bar">
     <img src="/img/logo.png" alt="" width="167" height="229">
     <nav class="modulos" aria-label="Secciones">
-      <button type="button" data-sec="inicio"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Inicio</span></button>
-      <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos y tareas</span><span class="n" data-n="avisos" hidden></span></button>
+      <button type="button" data-sec="inicio"><svg class="mi" aria-hidden="true"><use href="#i-casa"/></svg><span>Hoy</span></button>
+      <button type="button" data-sec="avisos"><svg class="mi" aria-hidden="true"><use href="#i-aviso"/></svg><span>Avisos</span><span class="n" data-n="avisos" hidden></span></button>
+      <button type="button" data-sec="tareas"><svg class="mi" aria-hidden="true"><use href="#i-tarea"/></svg><span>Tareas</span><span class="n" data-n="tareas" hidden></span></button>
       <button type="button" data-sec="incidencias"><svg class="mi" aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><span class="n" data-n="incidencias" hidden></span></button>
       <button type="button" data-sec="calendario"><svg class="mi" aria-hidden="true"><use href="#i-cal"/></svg><span>Calendario</span></button>
       <button type="button" data-sec="corte"><svg class="mi" aria-hidden="true"><use href="#i-billete"/></svg><span>Corte</span></button>
@@ -581,7 +665,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     // Abierta desde una notificación (/turno?sec=avisos): va directo a esa sección
     const q = new URLSearchParams(location.search).get("sec");
     if (q) history.replaceState(null, "", location.pathname);
-    ir(["avisos", "incidencias", "calendario"].includes(q) ? q : "inicio");
+    ir(["avisos", "tareas", "incidencias", "calendario"].includes(q) ? q : "inicio");
   }
 
   // ---------- Notificaciones push (de la tablet, no de la persona) ----------
@@ -623,23 +707,24 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     if (!E || $("#app").hidden) return;
     const ocupado = $("#dlg").open || sucio || seccion === "corte" || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (m.tipo === "push") { if (ocupado) await cargar().catch(() => {}); else { const y = scrollY; await refrescar().then(() => scrollTo({ top: y })).catch(() => {}); } }
-    if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "incidencias", "calendario"].includes(m.sec)) ir(m.sec); }
+    if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "tareas", "incidencias", "calendario"].includes(m.sec)) ir(m.sec); }
   });
-  const sinLeer = () => E.avisos.filter(a => !a.leido).length;
+  const sinLeer = () => E.avisos.filter(a => !a.leido || (a.conv && a.conv.nuevos)).length;
   function pintarCabecera() {
     pintarAvatar($("#avatar"), E.avatar_url, E.persona);
     aplicarPrefs(E.prefs);
     $("#nombre").textContent = E.nombre;
     $("#turno-txt").innerHTML = `Turno de la ${esc(TURNO_TXT[E.turno])}<span class="largo"> · ${esc(diaTxt(E.dia))}</span>`;
     // Contadores: avisos sin leer + tareas pendientes; en incidencias solo las graves abiertas
-    const n = { avisos: sinLeer() + E.tareas.length, incidencias: E.incidencias.filter(i => i.gravedad === "grave").length };
-    for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k] > 99 ? "99+" : n[k]; el.hidden = !n[k]; el.setAttribute("aria-label", k === "avisos" ? `${n[k]} pendientes` : `${n[k]} graves`); }
+    const n = { avisos: sinLeer(), tareas: E.tareas.length, incidencias: E.incidencias.filter(i => i.gravedad === "grave").length };
+    const TXT = { avisos: "con novedades", tareas: "pendientes", incidencias: "graves" };
+    for (const k in n) { const el = document.querySelector(`[data-n="${k}"]`); el.textContent = n[k] > 99 ? "99+" : n[k]; el.hidden = !n[k]; el.setAttribute("aria-label", `${n[k]} ${TXT[k]}`); }
     pintarRed();
   }
   document.querySelector(".modulos").addEventListener("click", e => { const b = e.target.closest("button[data-sec]"); if (b) ir(b.dataset.sec); });
   let sucio = false; // hay algo escrito sin guardar en la sección
   function ir(s) {
-    seccion = s; sucio = false;
+    seccion = s; sucio = false; vistaHoy = null;
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.sec === s) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     pintar();
     window.scrollTo({ top: 0 });
@@ -650,8 +735,9 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   const faltaInicio = () => E && !E.corte && (!E.inicio || pedirInicio);
   function pintar() {
     $("#app").classList.toggle("sin-inicio", faltaInicio());
+    sec().classList.remove("uno", "en-idx");
     if (faltaInicio()) return verCambioInicial();
-    ({ inicio: verInicio, avisos: verAvisos, incidencias: verIncidencias, calendario: verCalendario, corte: verCorte })[seccion]();
+    ({ inicio: verInicio, avisos: verAvisos, tareas: verTareas, incidencias: verIncidencias, calendario: verCalendario, corte: verCorte })[seccion]();
   }
   function verCambioInicial(corrigiendo) {
     const ant = E.cambio_anterior, ya = !corrigiendo && E.inicio;
@@ -691,7 +777,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     const hora = new Date().toLocaleString("es-MX", { hour: "numeric", hour12: false, timeZone: "America/Mexico_City" });
     const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
     const urg = E.tareas.filter(t => t.prioridad === "alta").length, graves = E.incidencias.filter(i => i.gravedad === "grave").length;
-    const nuevos = E.avisos.filter(a => !a.leido);
+    const nuevos = E.avisos.filter(a => !a.leido || (a.conv && a.conv.nuevos));
     const c = E.corte;
     sec().innerHTML = titulo(`${saludo}, ${esc((E.prefs && E.prefs.apodo) || E.nombre.split(" ")[0])}.`, `Turno de la ${esc(TURNO_TXT[E.turno])} · ${esc(diaTxt(E.dia))}`) + `
       ${tarjetaPush()}
@@ -707,30 +793,65 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
             <button type="button" class="accion" data-accion="corte"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span>${c ? "Corregir corte" : "Hacer corte"}</button>
           </div>
         </section>
-        <h2 class="sec-h cat-b"><span class="pt" aria-hidden="true"></span><span>Mi turno</span><span class="ln" aria-hidden="true"></span></h2>
-        <section class="ini-card cat-b s3">
+        ${indiceHoy()}
+        <h2 class="sec-h cat-b grupo-h"><span class="pt" aria-hidden="true"></span><span>Mi turno</span><span class="ln" aria-hidden="true"></span></h2>
+        <section class="ini-card cat-b s3" data-bloque="tareas">
           <div class="ini-top"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-tarea"/></svg></span><span class="ini-k">Tareas pendientes</span><b class="ini-cta">${E.tareas.length}</b>${urg ? `<span class="etq e-alta" style="margin-left:6px">${urg} ${urg === 1 ? "urgente" : "urgentes"}</span>` : ""}</div>
-          ${E.tareas.length ? `<div class="lista">${E.tareas.slice(0, 5).map(filaTarea).join("")}</div>${E.tareas.length > 5 ? `<button class="lnk" type="button" data-ir="avisos">Ver las ${E.tareas.length} tareas</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">No hay tareas pendientes. ¡Bien!</p>`}
+          ${E.tareas.length ? `<div class="lista">${E.tareas.slice(0, 5).map(filaTarea).join("")}</div>${E.tareas.length > 5 ? `<button class="lnk" type="button" data-ir="tareas">Ver las ${E.tareas.length} tareas</button>` : ""}` : `<p class="vacio" style="padding:4px 0 0">No hay tareas pendientes. ¡Bien!</p>`}
         </section>
-        <div class="ini-card cat-b ini-hero corte-mini" data-ir="corte" tabindex="0" role="link">
+        <div class="ini-card cat-b ini-hero corte-mini" data-bloque="corte" data-ir="corte" tabindex="0" role="link">
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
           <span class="note">${c ? `${esc(hora12(c.actualizado))} · ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar, cuenta el efectivo y entrégalo."}</span>
           <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
-        <section class="ini-card cat-c s4">
-          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos sin leer</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Todos los avisos (${E.avisos.length})</button></div>
-          ${nuevos.length ? `<div class="lista">${nuevos.map(filaAviso).join("")}</div>` : `<p class="vacio" style="padding:4px 0 0">Ya leíste todos los avisos.</p>`}
+        <section class="ini-card cat-c s4" data-bloque="avisos">
+          <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Avisos con novedades</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Todos los avisos (${E.avisos.length})</button></div>
+          ${nuevos.length ? `<div class="muro muro-in">${nuevos.map(postHtml).join("")}</div>` : `<p class="vacio" style="padding:4px 0 0">Estás al día con los avisos.</p>`}
         </section>
-        <section class="ini-card cat-d s4">
+        <section class="ini-card cat-d s4" data-bloque="incidencias">
           <div class="ini-top"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span><span class="ini-k">Incidencias abiertas</span><b class="ini-cta">${E.incidencias.length}</b>${graves ? `<span class="etq g-grave" style="margin-left:6px">${svg("i-alerta")}${graves} ${graves === 1 ? "grave" : "graves"}</span>` : ""}<button class="btn btn-line btn-sm" type="button" data-accion="incidencia" style="margin-left:auto">+ Reportar</button></div>
           ${E.incidencias.length ? `<div class="lista">${E.incidencias.map(filaIncidencia).join("")}</div><p class="note" style="margin:10px 0 0">De todos los turnos, hasta que la administración las resuelva.</p>` : `<p class="vacio" style="padding:4px 0 0">No hay incidencias abiertas.</p>`}
         </section>
-        <h2 class="sec-h cat-a"><span class="pt" aria-hidden="true"></span><span>Movimientos del turno</span><span class="ln" aria-hidden="true"></span></h2>
-        <section class="ini-card cat-a s2">${bloqueMovs("gastos")}</section>
-        <section class="ini-card cat-a s2">${bloqueMovs("extras")}</section>
+        <h2 class="sec-h cat-a grupo-h"><span class="pt" aria-hidden="true"></span><span>Movimientos del turno</span><span class="ln" aria-hidden="true"></span></h2>
+        <section class="ini-card cat-a s2" data-bloque="gastos">${bloqueMovs("gastos")}</section>
+        <section class="ini-card cat-a s2" data-bloque="extras">${bloqueMovs("extras")}</section>
       </div>`;
+    aplicarIndice();
   }
+  // ---------- Un tipo a la vez (celular y tablet, como en el panel): índice de tarjetas en Hoy ----------
+  const mqUno = matchMedia("(max-width: 1200px)");
+  let vistaHoy = null;
+  function indiceHoy() {
+    const urg = E.tareas.filter(t => t.prioridad === "alta").length, graves = E.incidencias.filter(i => i.gravedad === "grave").length;
+    const nuevos = E.avisos.filter(a => !a.leido || (a.conv && a.conv.nuevos)), imp = nuevos.some(a => a.prioridad === "alta" && !a.leido);
+    const c = E.corte;
+    const T = [
+      ["avisos", "i-aviso", "#ffcc00", "Avisos con novedades", nuevos.length, nuevos.length ? (imp ? "Hay un aviso importante sin leer" : "Toca para leerlos") : "Estás al día", imp],
+      ["tareas", "i-tarea", "#64d2ff", "Tareas pendientes", E.tareas.length, urg ? `${urg} ${urg === 1 ? "urgente" : "urgentes"}` : E.tareas.length ? "Cuéntale a la administración cómo quedaron" : "Nada pendiente", urg > 0],
+      ["corte", "i-billete", "#2dd4bf", "Corte del turno", null, c ? (c.cambios_despues ? "Hay movimientos después: vuelve a entregarlo" : `Entregado a las ${hora12(c.actualizado)}`) : "Pendiente: al terminar, cuenta el efectivo", !!(c && c.cambios_despues)],
+      ["incidencias", "i-alerta", "#ff6961", "Incidencias abiertas", E.incidencias.length, graves ? `${graves} ${graves === 1 ? "grave" : "graves"}` : E.incidencias.length ? "De todos los turnos" : "Ninguna abierta", graves > 0],
+      ["gastos", "i-gasto", "#ff7a70", "Gastos del turno", dinero(sumar(E.gastos)), E.gastos.length ? `${E.gastos.length} ${E.gastos.length === 1 ? "gasto" : "gastos"}` : "Sin gastos", false],
+      ["extras", "i-mas", "#30d158", "Ingresos extra", dinero(sumar(E.extras)), E.extras.length ? `${E.extras.length} ${E.extras.length === 1 ? "ingreso" : "ingresos"}` : "Sin ingresos extra", false]
+    ];
+    return `<div class="t-idx" role="list" aria-label="Lo de tu turno">${T.map(([k, i, col, t, v, sub, u]) => `<button type="button" role="listitem" class="ti ${u ? "urg" : ""} ${v == null ? "sin-v" : ""}" data-hoy="${k}" style="--c:${col}">
+        <span class="ti-i">${svg(i)}</span><svg class="ti-c" aria-hidden="true"><use href="#i-flecha"/></svg>
+        <span class="ti-v ${v === 0 ? "vacio" : ""}">${v == null ? "" : esc(v)}</span><span class="ti-t">${esc(t)}</span><span class="ti-s">${esc(sub)}</span></button>`).join("")}</div>
+      <button type="button" class="t-volver" data-hoy-volver>${svg("i-flecha")}Hoy</button>`;
+  }
+  function aplicarIndice() {
+    const el = sec(), uno = seccion === "inicio" && mqUno.matches && !!el.querySelector(".t-idx");
+    el.classList.toggle("uno", uno);
+    el.classList.toggle("en-idx", uno && !vistaHoy);
+    el.querySelectorAll(".ini-grid [data-bloque]").forEach(b => b.classList.toggle("activo", b.dataset.bloque === vistaHoy));
+  }
+  function verBloqueHoy(k) {
+    vistaHoy = k;
+    try { history.pushState({ hoy: k }, ""); } catch {}
+    aplicarIndice(); scrollTo({ top: 0 });
+  }
+  addEventListener("popstate", () => { if (vistaHoy) { vistaHoy = null; aplicarIndice(); scrollTo({ top: 0 }); } });
+  mqUno.addEventListener("change", aplicarIndice);
   // Gastos o ingresos extra del turno (en Inicio y en Corte)
   function bloqueMovs(tipo, conBoton = true) {
     const l = tipo === "gastos" ? E.gastos : E.extras, cerrado = !!E.corte;
@@ -742,18 +863,58 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
         <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
   }
 
-  // ---------- Avisos y tareas ----------
-  function filaAviso(a) {
-    const de = a.propio ? "Tú" : nombreDe(a.autor);
-    return `<div class="fila-l ${a.leido ? "" : "nuevo"}">${avi(a.autor)}
-      <span class="tt">${esc(a.titulo)}</span>
-      <span class="acc">${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</span>
-      <span class="mm"><span>${a.propio ? "Lo dejaste tú" : `De <b>${esc(de)}</b>`} para ${esc(paraTxt(a.para))}</span><span>${esc(fechaCorta(a.creado))}</span></span>
-      ${a.detalle ? `<span class="det">${esc(a.detalle)}</span>` : ""}
-      ${(a.fotos || []).length ? `<span class="det av-fotos">${a.fotos.map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</span>` : ""}
-      <span class="acc2">${!a.leido ? `<button class="btn btn-primary btn-sm" type="button" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : a.propio ? "" : `<span class="etq e-ok">${svg("i-check")}Enterado</span>`}
-        ${a.propio ? `<button class="btn btn-line btn-sm" type="button" data-quitar="${esc(a.id)}">Quitar aviso</button>` : `<button class="btn btn-line btn-sm" type="button" data-responder="${esc(a.id)}">Responder</button>`}</span>
-    </div>`;
+  // ---------- Avisos: muro de publicaciones con conversación ----------
+  // Cada aviso es una publicación: los etiquetados y la administración comentan debajo hasta que la administración lo archiva.
+  const hilos = {}, hilosAb = new Set();
+  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => E.personas.some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m).replace(/\n/g, "<br>");
+  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
+  function comHtml(c) {
+    return `<div class="com ${c.borrado ? "borrado" : ""}">${avi(c.autor, 1)}<div class="com-b"><div class="com-burb"><b>${esc(c.autor === E.persona ? "Tú" : nombreDe(c.autor))}</b>
+      ${c.borrado ? `<p class="com-t">Comentario borrado por la administración</p>` : `${c.texto ? `<p class="com-t">${conMenciones(c.texto)}</p>` : ""}${c.foto ? `<a class="com-foto" href="/turno/api/foto/${encodeURIComponent(c.foto)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(c.foto)}" alt="Foto del comentario" loading="lazy"></a>` : ""}`}</div>
+      <div class="com-m"><span>${esc(fechaCorta(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado por la administración</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}</div></div></div>`;
+  }
+  function hiloHtml(a) {
+    const h = hilos[a.id];
+    if (!h) return `<div class="hilo"><p class="note">Cargando la conversación…</p></div>`;
+    if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-re="${esc(a.id)}">Reintentar</button></p></div>`;
+    const p = a.para || {}, fuera = p.todos ? [] : E.personas.filter(x => x.clave !== E.persona && x.clave !== a.autor && !(p.personas || []).includes(x.clave));
+    const sel = h.etq || [];
+    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}
+      <form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
+        <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
+        <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
+        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc"><label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label><button class="btn btn-primary btn-sm" type="submit">Comentar</button></div>
+        <p class="err" role="alert"></p></div></form></div>`;
+  }
+  function postHtml(a) {
+    const cv = a.conv || { n: 0, nuevos: 0 }, ab = hilosAb.has(a.id), nuevo = !a.leido || cv.nuevos;
+    const f = a.fotos || [];
+    return `<article class="post ${nuevo ? "nuevo" : ""}" data-post="${esc(a.id)}">
+      <header class="post-h">${avi(a.autor)}<div class="post-q"><b>${esc(a.propio ? "Tú" : nombreDe(a.autor))}</b><span>${esc(fechaCorta(a.creado))}</span></div>${a.prioridad === "alta" ? `<span class="etq e-alta">${svg("i-alerta")}Importante</span>` : ""}</header>
+      <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+      <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
+      ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+      <div class="post-st"><span>${a.leido && !a.propio ? `${svg("i-check")} Enterado` : ""}</span><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
+      <div class="post-acc">${!a.leido ? `<button type="button" class="pa pa-si" data-enterado="${esc(a.id)}">${svg("i-check")}Enterado</button>` : ""}<button type="button" class="pa" data-hilo="${esc(a.id)}" data-escribir="1">${svg("i-chat")}Comentar</button></div>
+      ${ab ? hiloHtml(a) : ""}</article>`;
+  }
+  async function abrirHilo(id) {
+    const prev = hilos[id] || {};
+    try {
+      const j = await api(`avisos/${id}/conversacion`);
+      hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
+      const a = E.avisos.find(x => x.id === id); if (a) { a.leido = true; if (a.conv) a.conv.nuevos = 0; }
+      pintarCabecera();
+    } catch (er) { hilos[id] = { ...prev, error: er.message, comentarios: [] }; }
+    repintarPost(id);
+  }
+  // Vuelve a pintar solo una publicación (para no perder lo que se está escribiendo en otras)
+  function repintarPost(id) {
+    const a = E.avisos.find(x => x.id === id), el = sec().querySelector(`[data-post="${CSS.escape(id)}"]`);
+    if (a && el) el.outerHTML = postHtml(a);
   }
   function filaTarea(t) {
     const ult = t.reportes && t.reportes[0];
@@ -766,18 +927,17 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     </div>`;
   }
   function verAvisos() {
-    sec().innerHTML = titulo("Avisos y tareas.", "Tareas de la administración para tu turno y avisos de ida y vuelta con la administración y los demás encargados.") + `
-      <div class="cols">
-        <section class="card"><h2>${ico("i-tarea", "c-tarea")}Tareas del turno</h2>
-          <p class="note">Marca cada tarea y cuenta cómo quedó: cumplida, en parte o no se pudo. La administración recibe tu informe.</p>
-          ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
-          ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${t.hecho_por && !t.hecho_por.includes("@") ? avi(t.hecho_por, 1) : ""}${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
-        </section>
-        <section class="card"><h2>${ico("i-aviso", "c-aviso")}Avisos<button class="btn btn-primary btn-sm der" type="button" data-accion="aviso">+ Nuevo aviso</button></h2>
-          <p class="note">Los de la administración y los que se dejan entre encargados. Marca "Enterado" al leerlos. Los avisos entre encargados se quitan solos a los 3 días.</p>
-          ${E.avisos.length ? `<div class="lista">${E.avisos.map(filaAviso).join("")}</div>` : `<p class="vacio">No hay avisos.</p>`}
-        </section>
-      </div>`;
+    sec().innerHTML = titulo("Avisos.", "Lo que publican la administración y los encargados. Solo ves los avisos donde te etiquetaron o que publicaste tú.") + `
+      <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
+      <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
+      <p class="note muro-nota">Los avisos se quedan aquí hasta que la administración los archive. Comenta en el mismo aviso para dar seguimiento.</p>`;
+  }
+  function verTareas() {
+    sec().innerHTML = titulo("Tareas.", "Tareas de la administración para tu turno. Marca cada una y cuenta cómo quedó: cumplida, en parte o no se pudo.") + `
+      <section class="card"><h2>${ico("i-tarea", "c-tarea")}Tareas del turno</h2>
+        ${E.tareas.length ? `<div class="lista">${E.tareas.map(filaTarea).join("")}</div>` : `<p class="vacio">No hay tareas pendientes. ¡Bien!</p>`}
+        ${E.hechas.length ? `<details style="margin-top:10px"><summary class="note" style="cursor:pointer;font-weight:600">Cumplidas en las últimas 24 horas (${E.hechas.length})</summary><div class="lista">${E.hechas.map(t => `<div class="fila-l hecha"><span class="chk on">${svg("i-check")}</span><span class="tt">${esc(t.titulo)}</span><span></span><span class="mm"><span>${t.hecho_por && !t.hecho_por.includes("@") ? avi(t.hecho_por, 1) : ""}${esc(t.hecho_por || "")} · ${esc(fechaCorta(t.cerrado))}</span>${t.nota_cierre ? `<span>${esc(t.nota_cierre)}</span>` : ""}</span></div>`).join("")}</div></details>` : ""}
+      </section>`;
   }
 
   // ---------- Calendario: tareas programadas para los encargados (todos los turnos) ----------
@@ -1067,10 +1227,10 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
   }
   function hojaAviso(base = {}) {
     let fotoAviso = null;
-    const ops = [["admin", "Administración"], ["todos", "Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "Turno " + TURNO_TXT[t]]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, esc(p.clave)])];
+    const ops = [["admin", "@Administración"], ["todos", "@Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "@Turno " + TURNO_TXT[t].toLowerCase()]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, "@" + esc(p.clave)])];
     const sel = base.para || ["admin"];
-    hoja(`<h2>${base.titulo ? "Responder aviso" : "Nuevo aviso"}</h2><p class="muted" style="margin:0 0 14px">Para la administración, para todos o para un turno o encargado. La administración ve todos los avisos.</p>
-      <div class="campo"><span class="lb">¿Para quién?</span>${chips("a-para", ops, sel, true)}</div>
+    hoja(`<h2>Publicar un aviso</h2><p class="muted" style="margin:0 0 14px">Etiqueta a quién va dirigido. Solo lo ven ellos y la administración, y todos pueden comentar en la misma publicación.</p>
+      <div class="campo"><span class="lb">Etiquetar a</span>${chips("a-para", ops, sel, true)}</div>
       <label class="campo"><span>Aviso</span><input class="t" name="titulo" maxlength="140" placeholder="Ej. Quedó pendiente pesar el tráiler de la línea X" value="${esc(base.titulo || "")}" autocomplete="off"></label>
       <label class="campo"><span>Detalle (opcional)</span><textarea class="t" name="detalle" maxlength="1000"></textarea></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("a-foto", "Tomar foto")}</div>
@@ -1080,7 +1240,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
         if (!v.length) throw new Error("Elige para quién es el aviso.");
         const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
         const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para, foto: fotoAviso });
-        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Aviso publicado."); await refrescar();
+        toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Aviso publicado."); await cargar(); ir("avisos");
       });
     // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
     $("#a-para").addEventListener("click", e => {
@@ -1131,29 +1291,59 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 
   // ---------- Acciones (botones en cualquier sección) ----------
   sec().addEventListener("click", async e => {
+    // Índice de Hoy y muro de avisos
+    const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
+    const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
+    if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
+    if (hv) { if (history.state && history.state.hoy) history.back(); else { vistaHoy = null; aplicarIndice(); } return; }
+    if (hl) {
+      const id = hl.dataset.hilo, escribir = !!hl.dataset.escribir;
+      if (hilosAb.has(id) && !escribir) hilosAb.delete(id); else hilosAb.add(id);
+      repintarPost(id);
+      if (hilosAb.has(id)) { if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } await abrirHilo(id); if (escribir) { const t = document.getElementById("tc-" + id); t && t.focus(); } }
+      return;
+    }
+    if (hr) { abrirHilo(hr.dataset.hiloRe); return; }
+    if (et) { const f = et.closest("form"), h = hilos[f.dataset.av]; h.etq = h.etq || []; const k = et.dataset.etq; h.etq = h.etq.includes(k) ? h.etq.filter(x => x !== k) : [...h.etq, k]; et.setAttribute("aria-pressed", h.etq.includes(k)); return; }
+    if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
     const ac = e.target.closest("[data-accion]"), irA = e.target.closest("[data-ir]");
-    const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), resp = e.target.closest("[data-responder]"), qu = e.target.closest("[data-quitar]"), bo = e.target.closest("[data-borrar]");
+    const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), bo = e.target.closest("[data-borrar]");
     if (ac) {
       const a = ac.dataset.accion;
       if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
     } else if (en) {
       en.disabled = true;
-      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); await refrescar(); } catch (er) { toast(er.message, true); en.disabled = false; }
+      try { await api(`avisos/${en.dataset.enterado}/enterado`, {}); const a = E.avisos.find(x => x.id === en.dataset.enterado); if (a) a.leido = true; pintarCabecera(); repintarPost(en.dataset.enterado); } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
       const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
-    } else if (resp) {
-      const a = E.avisos.find(x => x.id === resp.dataset.responder); if (!a) return;
-      hojaAviso({ titulo: ("Re: " + a.titulo).slice(0, 140), para: [a.autor === "admin" ? "admin" : "p:" + a.autor] });
-    } else if (qu) {
-      if (!(await confirmar("¿Quitar este aviso?", "Ya no lo verán los demás encargados. La administración lo conserva archivado.", "Quitar"))) return;
-      try { await api(`avisos/${qu.dataset.quitar}/archivar`, {}); toast("Aviso quitado."); await refrescar(); } catch (er) { toast(er.message, true); }
     } else if (bo) {
       const [tipo, id] = bo.dataset.borrar.split(":");
       if (!(await confirmar(tipo === "gastos" ? "¿Borrar este gasto?" : "¿Borrar este ingreso?", "Se quitará de este turno.", "Borrar"))) return;
       try { await api(`${tipo}/${id}/eliminar`, {}); toast("Borrado."); await refrescar(); } catch (er) { toast(er.message, true); }
     } else if (irA) ir(irA.dataset.ir);
   });
-  sec().addEventListener("input", () => { sucio = true; });
+  sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av]) hilos[f.dataset.av].borrador = e.target.value; });
+  sec().addEventListener("change", async e => {
+    const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
+    const f = inp.closest("form"), h = hilos[f.dataset.av];
+    try { h.foto = await comprimir(inp.files[0]); h.borrador = f.texto.value; repintarPost(f.dataset.av); } catch { toast("No se pudo leer la foto. Intenta otra vez.", true); }
+  });
+  sec().addEventListener("submit", async e => {
+    const f = e.target.closest("form.com-form"); if (!f) return;
+    e.preventDefault();
+    const id = f.dataset.av, h = hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
+    if (!f.texto.value.trim() && !h.foto) { err.textContent = "Escribe tu comentario."; f.texto.focus(); return; }
+    err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
+    try {
+      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] }, { cola: false });
+      const a = E.avisos.find(x => x.id === id);
+      if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0 }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
+      hilos[id] = { comentarios: [...h.comentarios, r.comentario] };
+      sucio = false; repintarPost(id);
+      const t = document.getElementById("tc-" + id); t && t.focus();
+      toast("Comentario publicado.");
+    } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = "Comentar"; }
+  });
   sec().addEventListener("keydown", e => { const c = e.target.closest(".ini-card[data-ir]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ir(c.dataset.ir); } });
   const hora12 = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
 

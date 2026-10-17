@@ -445,47 +445,213 @@
     EC.bloqueInfo("finanzas", "hechos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: hechos.length ? pl(hechos.length, "pago este mes", "pagos este mes") : "Nada pagado este mes" });
   }
 
-  // ---- Avisos para la tablet ----
+  // ---- Avisos: muro de publicaciones con conversación ----
+  // Cada aviso es una publicación: quien publica etiqueta a los destinatarios y todos comentan debajo
+  // hasta que la administración la archiva. Solo la administración edita o borra comentarios.
+  const T_AV = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
+  const encargados = () => (st.personas || []).filter(p => p.activo);
+  const nomDe = k => k === "admin" ? "Administración" : ((encargados().find(p => p.clave === k) || {}).nombre || k);
+  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + T_AV[t]), ...(p.personas || [])].filter(Boolean);
+  const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => encargados().some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m);
+  const parrafos = t => conMenciones(t).replace(/\n/g, "<br>");
+  st.hilos = st.hilos || {};
+  st.abiertosAv = st.abiertosAv || new Set();
+  function pintarAvisos() { const el = $("#ab-aviso"); if (el) { el.innerHTML = vistaAvisos(); conectar(el); } contadores(); }
+
+  function comentarioHtml(it, c, admin = true, editable = true) {
+    if (st.editCom === c.id) return `<form class="com-edit" data-av="${esc(it.id)}" data-cid="${esc(c.id)}"><label class="sr">Editar comentario<textarea name="texto" rows="2" maxlength="1000">${esc(c.texto)}</textarea></label>
+      <div class="com-acc"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-line" type="button" data-com-cancelar>Cancelar</button></div><span class="err" role="alert"></span></form>`;
+    return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
+      <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
+        ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
+        ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
+  }
+
+  function hiloHtml(it) {
+    const h = st.hilos[it.id];
+    if (!h) return `<div class="hilo"><p class="note">Cargando la conversación…</p></div>`;
+    if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-reintentar="${esc(it.id)}">Reintentar</button></p></div>`;
+    const p = it.para || {}, fuera = encargados().filter(x => !p.todos && !(p.personas || []).includes(x.clave) && x.clave !== it.autor);
+    const sel = h.etq || [];
+    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}
+      ${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
+        <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
+        <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
+        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc"><label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label><button class="btn btn-primary" type="submit">Comentar</button></div>
+        <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div>`;
+  }
+
+  function postHtml(it) {
+    if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
+    const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0 };
+    const leidoAdmin = (it.lecturas || []).some(l => l.persona === "ADMIN");
+    const nuevo = deEnc && p.admin && abierto(it) && !leidoAdmin;
+    const dest = p.todos || (p.turnos || []).length ? encargados() : encargados().filter(x => (p.personas || []).includes(x.clave));
+    const lec = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
+    const vistos = dest.filter(x => x.clave !== it.autor && lec.has(x.clave)), faltan = dest.filter(x => x.clave !== it.autor && !lec.has(x.clave));
+    const abiertoHilo = st.abiertosAv.has(it.id);
+    return `<article class="post ${nuevo || cv.nuevos ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
+      <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
+        ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
+      <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+      <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
+      ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+      <div class="post-st">${dest.length ? `<span title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">${vistos.length ? `✓ Lo vio ${vistos.map(x => esc(x.clave)).join(", ")}` : "Nadie lo ha visto"}${faltan.length ? ` · falta ${faltan.map(x => esc(x.clave)).join(", ")}` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Lo viste" : ""}</span>`}
+        <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
+      <div class="post-acc">
+        <button type="button" class="pa" data-hilo="${esc(it.id)}">${ico("i-chat")}Comentar</button>
+        ${nuevo ? `<button type="button" class="pa" data-leer="${esc(it.id)}">${ico("i-check")}Enterado</button>` : ""}
+        ${abierto(it) ? `<button type="button" class="pa" data-archivar="${esc(it.id)}">${ico("i-archivo")}Archivar</button>` : `<button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button>`}
+        ${it.autor === "admin" && abierto(it) ? `<button type="button" class="pa" data-editar="${esc(it.id)}">Editar</button>` : ""}
+      </div>
+      ${abiertoHilo ? hiloHtml(it) : ""}</article>`;
+  }
+
   function vistaAvisos() {
-    const todos = st.items.filter(x => x.tipo === "aviso");
-    const act = todos.filter(abierto).sort((a, b) => b.creado.localeCompare(a.creado)), arch = todos.filter(x => !abierto(x));
-    const activos = (st.personas || []).filter(p => p.activo);
-    const T = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
-    const paraTxt = p => [p.admin ? "Administración" : "", p.todos ? "Todos los encargados" : "", ...(p.turnos || []).map(t => "Turno " + T[t]), ...(p.personas || [])].filter(Boolean).join(", ") || "Todos";
-    const deTxt = it => it.autor === "admin" ? "Administración" : (activos.find(p => p.clave === it.autor) || { nombre: it.autor }).nombre + " (" + it.autor + ")";
-    const leidoAdmin = it => (it.lecturas || []).some(l => l.persona === "ADMIN");
-    const lecturas = it => {
-      const p = it.para || {};
-      // Encargados a los que va dirigido (por turno no se sabe quién: se muestran todos)
-      const dest = p.todos || (p.turnos || []).length ? activos : activos.filter(x => (p.personas || []).includes(x.clave));
-      const l = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
-      return dest.filter(x => x.clave !== it.autor).map(x => l.has(x.clave) ? `<span class="lect si" title="Enterado ${esc(cuando(l.get(x.clave)))}">✓ ${esc(x.clave)} ${esc(cuando(l.get(x.clave)).replace(/^.*?, /, ""))}</span>` : `<span class="lect" title="Todavía no lo lee">${esc(x.clave)}</span>`).join("");
-    };
-    const fila = it => {
-      if (st.editando === it.id) return `<div class="aitem">${formEditar(it)}</div>`;
-      const deEnc = it.autor !== "admin", paraAdmin = it.para && it.para.admin, nuevo = deEnc && paraAdmin && abierto(it) && !leidoAdmin(it);
-      return `<div class="aitem ${abierto(it) ? "" : "hecho"}">${avP(deEnc ? it.autor : "admin", 1)}
-      <span class="tt">${nuevo ? `<span class="tag hoy" style="margin-right:6px">Nuevo</span>` : ""}${esc(it.titulo)}</span>
-      <span class="acc">${nuevo ? `<button class="btn btn-primary" type="button" data-leer="${esc(it.id)}" style="min-height:40px;padding:0 12px">Enterado</button>` : ""}${deEnc ? `<button class="btn btn-line" type="button" data-responder="${esc(it.id)}" style="min-height:40px;padding:0 12px">Responder</button>` : ""}${abierto(it) ? `<button class="btn btn-line" type="button" data-archivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Archivar</button>` : `<button class="btn btn-line" type="button" data-reactivar="${esc(it.id)}" style="min-height:40px;padding:0 12px">Reactivar</button>`}${it.autor === "admin" ? `<button class="btn btn-line edit" type="button" data-editar="${esc(it.id)}">Editar</button>` : ""}<button class="del" type="button" data-del="${esc(it.id)}" aria-label="Eliminar ${esc(it.titulo)}">${ico("i-trash")}</button></span>
-      <span class="mm"><span>De <b>${esc(deTxt(it))}</b> para <b>${esc(paraTxt(it.para || {}))}</b></span>${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}<span>${esc(cuando(it.creado))}</span>${it.fecha && it.fecha > st.hoy ? `<span>Se muestra desde ${esc(diaTxt(it.fecha))}</span>` : ""}${it.detalle ? `<span>${esc(it.detalle)}</span>` : ""}${deEnc && paraAdmin && leidoAdmin(it) ? `<span class="lect si">✓ Leído por ti</span>` : ""}</span>
-      ${fotosDe(it).length ? `<span class="inc-gal">${fotosDe(it).map((k, i) => `<span class="inc-th"><a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a></span>`).join("")}</span>` : ""}
-      <span class="mm" style="margin-top:4px">${lecturas(it)}</span></div>`;
-    };
+    if (st.archivo) return vistaArchivo();
+    const act = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a, b) => String((b.conv && b.conv.actividad) || b.creado).localeCompare(String((a.conv && a.conv.actividad) || a.creado)));
     const r = st.resp || {}; st.resp = null;
-    const opPara = [["todos", "Todos los encargados"], ...Object.entries(T).map(([k, v]) => ["t:" + k, "Turno " + v]), ...activos.map(p => ["p:" + p.clave, p.clave])];
+    const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, p.clave])];
     const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
-    return `<section class="card"><form class="aform" data-tipo="aviso"><label class="w4">${r.persona ? "Responder a " + esc(r.persona) : "Nuevo aviso para los encargados"}<input name="titulo" maxlength="140" placeholder="Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label>
-      <label class="w4">Mensaje <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
-      <div class="w4 para-op"><span>Para</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>${esc(t)}</label>`).join("")}</div>
-      <label>Mostrar desde<input type="date" name="fecha"></label><label>Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
-      <div class="w4 inc-fotos"><span class="lbl">Foto <span style="font-weight:400">(opcional · hasta 8)</span></span>
+    return `<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Publicar un aviso<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
+      <label class="w4 extra">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
+      <div class="w4 para-op extra"><span>Etiquetar a</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
+      <label class="extra">Mostrar desde<input type="date" name="fecha"></label><label class="extra">Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
+      <div class="w4 inc-fotos extra"><span class="lbl">Foto <span style="font-weight:400">(opcional · hasta 8)</span></span>
         <div class="inc-fbtns"><label class="btn btn-line"><input type="file" accept="image/*" capture="environment" class="inc-f" hidden>Tomar foto</label><label class="btn btn-line"><input type="file" accept="image/*" multiple class="inc-f" hidden>Subir fotos</label></div>
         <div class="inc-prev"></div></div>
-      <button class="btn btn-primary" type="submit">Publicar</button><span class="err"></span></form>
-      <p class="note" style="margin:10px 0 0">Se ve en la tablet hasta que lo archives. Cada encargado marca "Enterado". Los encargados también pueden dejarte avisos a ti o entre ellos; aquí los ves todos.</p></section>
-      <section class="card"><div class="alist">${act.length ? act.map(fila).join("") : `<p class="note">No hay avisos activos.</p>`}</div>
-      ${arch.length ? `<details class="hechos"><summary>Archivados en los últimos 30 días (${arch.length})</summary><div class="alist">${arch.map(fila).join("")}</div></details>` : ""}</section>`;
+      <button class="btn btn-primary extra" type="submit">Publicar</button><span class="err"></span></form>
+      <p class="note extra-n" style="margin:10px 0 0">Solo lo ven las personas etiquetadas y quien lo publica. Todos comentan en la misma publicación hasta que la archives; lo archivado se guarda con su conversación en el archivo.</p></section>
+      <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay avisos activos. Publica uno arriba.</p>`}</div>
+      <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de avisos</button>`;
   }
+
+  // ---- Archivo de avisos: todo lo archivado, con búsqueda, conversación e historial ----
+  const ACC_TXT = { publicar: "publicó el aviso", comentar: "comentó", etiquetar: "etiquetó a", editar: "editó un comentario", borrar: "borró un comentario", archivar: "archivó el aviso", reactivar: "reactivó el aviso", "editar-aviso": "cambió el aviso" };
+  function historialHtml(l) {
+    return `<ol class="hist">${l.map(h => {
+      const d = h.detalle || {};
+      let extra = "";
+      if (h.accion === "comentar") extra = d.texto ? `«${esc(d.texto)}»` : "una foto";
+      else if (h.accion === "etiquetar") extra = (d.personas || []).map(k => "@" + esc(k)).join(", ");
+      else if (h.accion === "editar") extra = `de ${esc(nomDe(d.autor))}: antes «${esc(d.antes)}», ahora «${esc(d.despues)}»`;
+      else if (h.accion === "borrar") extra = `de ${esc(nomDe(d.autor))}: «${esc(d.texto || (d.foto ? "foto" : ""))}»`;
+      else if (h.accion === "editar-aviso") extra = d.antes && d.despues && d.antes.titulo !== d.despues.titulo ? `título: «${esc(d.antes.titulo)}» → «${esc(d.despues.titulo)}»` : "texto o destinatarios";
+      else if (h.accion === "publicar" && d.para) extra = "para " + etqPara(d.para).map(t => "@" + esc(t)).join(", ");
+      return `<li><time>${esc(cuando(h.at))}</time><span><b>${esc(nomDe(h.quien))}</b> ${ACC_TXT[h.accion] || esc(h.accion)} ${extra}${d.por ? ` <span class="muted">(${esc(d.por)})</span>` : ""}</span></li>`;
+    }).join("")}</ol>`;
+  }
+  function vistaArchivo() {
+    const a = st.archivo;
+    const filtros = `<form class="arch-f" id="arch-f"><label>Buscar<input name="q" type="search" value="${esc(a.q || "")}" placeholder="Palabra del aviso o de un comentario…" autocomplete="off"></label>
+      <label>Persona<select name="persona"><option value="">Todas</option><option value="ADMIN" ${a.persona === "ADMIN" ? "selected" : ""}>Administración</option>${encargados().map(p => `<option value="${esc(p.clave)}" ${a.persona === p.clave ? "selected" : ""}>${esc(p.clave)}</option>`).join("")}</select></label>
+      <label>Archivado desde<input type="date" name="desde" value="${esc(a.desde || "")}"></label><label>Hasta<input type="date" name="hasta" value="${esc(a.hasta || "")}"></label>
+      <button class="btn btn-primary" type="submit">Buscar</button></form>`;
+    if (a.sel) {
+      const d = a.det;
+      if (!d) return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo</button><p class="note">Cargando…</p>`;
+      const it = { ...d.aviso, conv: null };
+      return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de avisos</button>
+        <article class="post hecho"><header class="post-h">${avP(it.autor === "admin" ? "admin" : it.autor, 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))} · archivado ${esc(cuando(it.cerrado))}</span></div></header>
+          <p class="post-para">Para ${etqPara(it.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+          <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
+          ${(it.fotos || []).length ? `<div class="post-fotos n${Math.min(it.fotos.length, 3)}">${it.fotos.map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
+          <div class="post-acc"><button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button></div>
+          <div class="hilo">${d.comentarios.length ? d.comentarios.map(c => comentarioHtml(it, c, true, false)).join("") : `<p class="note">Sin comentarios.</p>`}</div></article>
+        <section class="card"><h4 class="hist-t">Historial</h4>${historialHtml(d.historial || [])}</section>`;
+    }
+    return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Avisos activos</button>
+      <section class="card"><h4 class="hist-t">Archivo de avisos</h4><p class="note" style="margin:0 0 10px">Todo lo archivado se conserva con su conversación y su historial.</p>${filtros}</section>
+      ${a.cargando ? `<p class="note">Buscando…</p>` : a.error ? `<p class="empty">${esc(a.error)}</p>` : `<div class="arch-l">${(a.items || []).length ? a.items.map(it => `<button type="button" class="arch-i" data-archivo-ver="${esc(it.id)}">${avP(it.autor === "admin" ? "admin" : it.autor)}<span class="arch-t"><b>${esc(it.titulo)}</b><span>${esc(nomDe(it.autor))} · archivado ${esc(cuando(it.cerrado || it.actualizado))}${it.conv && it.conv.n ? ` · ${it.conv.n} ${it.conv.n === 1 ? "comentario" : "comentarios"}` : ""}</span></span></button>`).join("") : `<p class="empty">No hay avisos archivados con esos filtros.</p>`}</div>
+      ${a.pagina > 0 || a.mas ? `<div class="arch-pag">${a.pagina > 0 ? `<button class="btn btn-line" type="button" data-archivo-pag="-1">Anteriores</button>` : ""}${a.mas ? `<button class="btn btn-line" type="button" data-archivo-pag="1">Más</button>` : ""}</div>` : ""}`}`;
+  }
+  async function buscarArchivo() {
+    const a = st.archivo; a.cargando = true; a.error = ""; pintarAvisos();
+    const q = new URLSearchParams({ q: a.q || "", persona: a.persona || "", desde: a.desde || "", hasta: a.hasta || "", pagina: a.pagina || 0 });
+    try { const j = await api("agenda/avisos-archivo?" + q); a.items = j.items; a.mas = j.mas; } catch (e) { if (e.message !== "sesion") a.error = "No se pudo cargar el archivo: " + e.message; }
+    a.cargando = false; if (st.archivo === a) pintarAvisos();
+  }
+  async function abrirHilo(id, forzar) {
+    if (!forzar && st.hilos[id] && !st.hilos[id].error) return;
+    const prev = st.hilos[id] || {};
+    try {
+      const j = await api(`agenda/${id}/conversacion`);
+      st.hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
+      const it = st.items.find(x => x.id === id);
+      if (it && it.conv) { if (it.conv.nuevos) st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1); it.conv.nuevos = 0; }
+    } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
+    if (st.abiertosAv.has(id)) pintarAvisos();
+  }
+  // Eventos del muro (se conectan una vez sobre el bloque; el contenido se vuelve a pintar)
+  function conectarMuro() {
+    const el = $("#ab-aviso"); if (!el || el._muro) return; el._muro = true;
+    // El cuadro para publicar se abre completo al tocarlo (como en una red social)
+    el.addEventListener("focusin", e => { const f = e.target.closest(".muro-nuevo form.aform"); if (f) f.classList.add("abierto"); });
+    el.addEventListener("click", async e => {
+      const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
+      const d = t.dataset;
+      if (d.reactivar && st.archivo) { st.archivo = null; return; }
+      if (d.hilo) {
+        const id = d.hilo;
+        if (st.abiertosAv.has(id) && t.classList.contains("lnk")) st.abiertosAv.delete(id); else st.abiertosAv.add(id);
+        pintarAvisos();
+        if (st.abiertosAv.has(id)) { abrirHilo(id, true); const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta && t.classList.contains("pa")) ta.focus(); }
+      } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
+      else if (d.etq) {
+        const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];
+        h.etq = h.etq.includes(d.etq) ? h.etq.filter(x => x !== d.etq) : [...h.etq, d.etq];
+        t.classList.toggle("on"); t.setAttribute("aria-pressed", h.etq.includes(d.etq));
+      } else if ("comSinfoto" in d) { const f = t.closest("form"); st.hilos[f.dataset.av].foto = null; st.hilos[f.dataset.av].borrador = f.texto.value; pintarAvisos(); }
+      else if (d.comEditar) { st.editCom = d.comEditar; pintarAvisos(); const ta = el.querySelector("form.com-edit textarea"); ta && ta.focus(); }
+      else if ("comCancelar" in d) { st.editCom = null; pintarAvisos(); }
+      else if (d.comBorrar) {
+        if (!(await EC.confirmar("¿Borrar este comentario?", "Deja de verse en la conversación. Queda registrado en el historial del aviso.", "Borrar", true))) return;
+        try { await post(`agenda/${d.av}/comentarios/${d.comBorrar}/borrar`, {}); toast("Comentario borrado"); await abrirHilo(d.av, true); } catch (er) { if (er.message !== "sesion") toast(er.message); }
+      } else if ("archivoAbrir" in d) { st.archivo = { pagina: 0 }; buscarArchivo(); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80 }); }
+      else if ("archivoVolver" in d) { if (st.archivo && st.archivo.sel) { st.archivo.sel = null; st.archivo.det = null; } else st.archivo = null; pintarAvisos(); }
+      else if (d.archivoPag) { st.archivo.pagina = Math.max(0, (st.archivo.pagina || 0) + Number(d.archivoPag)); buscarArchivo(); }
+      else if (d.archivoVer) {
+        const a = st.archivo; a.sel = d.archivoVer; a.det = null; pintarAvisos();
+        try { a.det = await api(`agenda/${d.archivoVer}/conversacion?historial=1`); } catch (er) { if (er.message !== "sesion") { toast(er.message); a.sel = null; } }
+        if (st.archivo === a) pintarAvisos();
+      }
+    });
+    el.addEventListener("change", async e => {
+      const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
+      const f = inp.closest("form"), h = st.hilos[f.dataset.av];
+      try { h.foto = await comprimirFoto(inp.files[0]); h.borrador = f.texto.value; pintarAvisos(); } catch (er) { f.querySelector(".err").textContent = er.message; }
+    });
+    el.addEventListener("input", e => { const f = e.target.closest("form.com-form"); if (f && st.hilos[f.dataset.av]) st.hilos[f.dataset.av].borrador = e.target.value; });
+    el.addEventListener("submit", async e => {
+      const f = e.target;
+      if (f.id === "arch-f") { e.preventDefault(); Object.assign(st.archivo, { q: f.q.value, persona: f.persona.value, desde: f.desde.value, hasta: f.hasta.value, pagina: 0 }); buscarArchivo(); return; }
+      if (f.classList.contains("com-form")) {
+        e.preventDefault();
+        const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
+        err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
+        try {
+          await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] });
+          h.borrador = ""; h.foto = null; const etq = h.etq || []; h.etq = [];
+          if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
+          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: new Date().toISOString() };
+          await abrirHilo(id, true);
+          const ta = $(`#com-${CSS.escape(id)}`); ta && ta.focus();
+        } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = "Comentar"; }
+        return;
+      }
+      if (f.classList.contains("com-edit")) {
+        e.preventDefault();
+        const b = f.querySelector("[type=submit]"); b.disabled = true;
+        try { await post(`agenda/${f.dataset.av}/comentarios/${f.dataset.cid}/editar`, { texto: f.texto.value }); st.editCom = null; toast("Comentario editado"); await abrirHilo(f.dataset.av, true); }
+        catch (er) { if (er.message !== "sesion") f.querySelector(".err").textContent = er.message; b.disabled = false; }
+      }
+    });
+  }
+  setTimeout(conectarMuro, 0);
 
   // ---- Turno: turno activo, encargados de la tablet (cada dato se guarda por separado) y cortes ciegos ----
   // modo "curso": turno abierto en la tablet; modo "encargados": encargados de la tablet (sección Turnos)

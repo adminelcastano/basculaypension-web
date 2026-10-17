@@ -14,6 +14,7 @@ import AV5 from "./avatares/a5.webp";
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
+import { resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
@@ -217,8 +218,12 @@ async function estado(env, s) {
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
   const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
   const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  const avisos = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50)
-    .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id) }));
+  const visibles = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50);
+  // Conversación de cada aviso: comentarios, nuevos para esta persona y último comentario; el muro va por actividad
+  const conv = await resumenConversaciones(env, visibles, s.persona);
+  const avisos = visibles
+    .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id), conv: conv[a.id] }))
+    .sort((x, y) => String(y.conv && y.conv.actividad || y.creado).localeCompare(String(x.conv && x.conv.actividad || x.creado)));
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
   const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
@@ -416,17 +421,29 @@ export async function turnoRuta(request, env, url, h) {
     await notificar(env, "admin", { titulo: `${d.prioridad === "alta" ? "Aviso urgente" : "Aviso"} de ${s.nombre}`, cuerpo: d.titulo + (d.detalle ? "\n" + d.detalle : ""), sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
   }
-  if (partes[0] === "avisos" && partes[2] && request.method === "POST") {
-    const a = await env.DB.prepare("SELECT id, autor, para FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(partes[1]).first();
-    if (!a || !avisoParaEncargado(a, s.persona, s.turno)) return json({ ok: false, error: "Ese aviso ya no existe." }, 404);
-    if (partes[2] === "enterado") {
+  // Conversación de un aviso: solo la ven la administración, quien lo publicó y los etiquetados
+  if (partes[0] === "avisos" && partes[2]) {
+    const a = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(partes[1]).first();
+    if (!a || a.estado !== "activo" || !avisoParaEncargado(a, s.persona, s.turno)) return json({ ok: false, error: "Ese aviso ya no está disponible." }, 404);
+    if (partes[2] === "conversacion" && request.method === "GET") {
+      const r = await conversacion(env, a, s.persona);
+      await marcarVisto(env, a.id, s.persona, ahora);
+      return json({ ok: true, ...r });
+    }
+    if (partes[2] === "enterado" && request.method === "POST") {
       await env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(a.id, s.persona, ahora).run();
       return json({ ok: true });
     }
-    if (partes[2] === "archivar") {
-      if (a.autor !== s.persona) return json({ ok: false, error: "Solo puedes quitar tus propios avisos." }, 403);
-      await env.DB.prepare("UPDATE agenda_items SET estado = 'archivado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, a.id).run();
-      return json({ ok: true });
+    if (partes[2] === "comentar" && request.method === "POST") {
+      let foto = null;
+      try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
+      const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
+      let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
+      catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
+      const cuerpo = a.titulo + "\n" + (r.comentario.texto || "Mandó una foto");
+      if (r.notificar.admin) await notificar(env, "admin", { titulo: `${s.nombre} comentó un aviso`, cuerpo, sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
+      // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
+      return recordar(json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas }));
     }
   }
 
