@@ -1,5 +1,5 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
-import { normalizarFolioTicket, faltantesParaFacturar } from "./facturacion-reglas.js";
+import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
@@ -190,6 +190,7 @@ async function crearSolicitud(request, env, ctx) {
   const comentario = texto(form, "comentario").slice(0, 500);
 
   if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
+  if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
   if (email && !RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
@@ -662,6 +663,7 @@ async function rutasPanel(request, env, url, usuario) {
         const telefono = "telefono" in cuerpo ? String(cuerpo.telefono || "").replace(/\D/g, "").slice(-10) : (fila.telefono || "");
         if (telefono && telefono.length !== 10) errores.telefono = "El WhatsApp debe tener 10 dígitos.";
         const folioTicket = "folio_ticket" in cuerpo ? String(cuerpo.folio_ticket || "").trim().slice(0, 40) : (fila.folio_ticket || "");
+        if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "Escribe únicamente el número del ticket.";
         const placas = "placas" in cuerpo ? limpiarPlacas(cuerpo.placas) : (fila.placas || "");
         const descripcion = "descripcion" in cuerpo ? String(cuerpo.descripcion || "").replace(/\s+/g, " ").trim().slice(0, 120) : (fila.descripcion || "");
         const tarifa = "tarifa" in cuerpo ? String(cuerpo.tarifa || "").replace(/\s+/g, " ").trim().slice(0, 60) : (fila.tarifa || "");
