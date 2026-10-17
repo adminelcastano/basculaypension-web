@@ -8,7 +8,7 @@
 import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, mesesAbiertos, sumarMesesCaja, montoUsuario, leerRetiros, transferenciasMes, cambiosEntreTurnos, turnoAnterior, claseHoja, conceptoHoja } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from "./categorias.js";
-import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionDe, COMISION_INICIAL } from "./cuentas.js";
+import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacora, listaBitacora, ACCIONES } from "./bitacora.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
@@ -152,7 +152,7 @@ export async function datosFinanzas(env, mes) {
 
   // Comisión de la terminal por cada cobro con tarjeta
   const ticketsTarjeta = movs.filter(m => m.tipo === "ticket" && m.forma === "TARJETA");
-  const comision = r2(ticketsTarjeta.reduce((a, m) => a + comisionDe(m.importe, tj), 0));
+  const comision = r2(ticketsTarjeta.reduce((a, m) => a + comisionMercadoPago(m.importe, tj), 0));
   const retiros = retirosDeCortes(conteos);
   const hoja = renglonesHoja(movs);
   const gastosCaja = [...gastos, ...hoja.gastos];
@@ -220,7 +220,7 @@ export async function datosFinanzas(env, mes) {
   for (const x of hoja.ingresos) d(x.dia).ingresos += x.monto;
   for (const g of admin) d(g.dia).egresos += g.monto;
   for (const r of retiros) d(r.dia).egresos += r.monto;
-  for (const m of ticketsTarjeta) d(m.dia).egresos += comisionDe(m.importe, tj);
+  for (const m of ticketsTarjeta) d(m.dia).egresos += comisionMercadoPago(m.importe, tj);
   for (const x of dif.lista) { if (x.dif < 0) d(x.dia).egresos -= x.dif; else d(x.dia).ingresos += x.dif; }
   const porDia = Object.values(dias).filter(x => x.dia.slice(0, 7) === mes).map(x => ({ dia: x.dia, ingresos: r2(x.ingresos), egresos: r2(x.egresos) })).sort((a, b) => a.dia.localeCompare(b.dia));
 
