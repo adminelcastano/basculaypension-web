@@ -22,7 +22,7 @@ const base = n => ({
   uso: "G03", importe: "150.00"
 });
 
-function entorno(inicial) {
+function entorno(inicial, opciones = {}) {
   const registros = inicial.map(x => ({ ...x }));
   const folios = [];
   const db = {
@@ -33,6 +33,7 @@ function entorno(inicial) {
         async first() {
           const a = this.parametros;
           if (sql.startsWith("SELECT * FROM solicitudes WHERE id")) return registros.find(x => x.id === a[0]) || null;
+          if (sql.includes("FROM caja_pendientes")) return opciones.pendiente || null;
           if (sql.includes("FROM facturas_folios")) return folios.find(x => x.servicio === a[0] && x.folio_normalizado === a[1]) || null;
           if (sql.includes("FROM solicitudes WHERE id != ?")) return registros.find(x =>
             x.id !== a[0] && x.servicio === a[1] && ["facturada", "enviada"].includes(x.estado) &&
@@ -53,20 +54,29 @@ function entorno(inicial) {
           if (sql.startsWith("UPDATE solicitudes SET estado='rechazada'")) registros.find(x => x.id === a[2]).estado = "rechazada";
           return { success: true };
         },
-        async all() { return { results: [] }; }
+        async all() {
+          if (sql.includes("FROM caja_mov")) return { results: opciones.movimientos || [] };
+          return { results: [] };
+        }
       };
     },
     async batch(preparadas) { for (const p of preparadas) await p.run(); return []; }
   };
   const json = (body, status = 200) => ({ body, status });
   const ruta = factory(async () => {}, json, catalogos.regimenes, catalogos.usos, { bascula: "Báscula", pension: "Pensión" }, {});
+  const detalle = async id => ruta(
+    { method: "GET" },
+    { DB: db },
+    { pathname: "/panel/api/solicitudes/" + id },
+    { email: "admin@example.invalid" }
+  );
   const enviar = async (id, accion, datos = {}) => ruta(
     { method: "POST", json: async () => datos },
     { DB: db },
     { pathname: "/panel/api/solicitudes/" + id + "/" + accion },
     { email: "admin@example.invalid" }
   );
-  return { enviar, registros, folios };
+  return { enviar, detalle, registros, folios };
 }
 
 test("Registro y entrega: sólo después de emitir CFDI", async () => {
@@ -115,4 +125,26 @@ test("Admite folios numéricos actuales y series futuras A a ZZ sin mezclarlos",
   assert.equal(repetido.status, 409, "El prefijo A repetido debe bloquearse incluso con guion o minúscula");
   assert.equal(e.folios.length, 4);
   assert.equal(e.registros[3].estado, "pendiente");
+});
+
+test("Aviso de Caja: distinguir pendiente, parcial, pagado, conciliado y cancelado", async () => {
+  const movimientos = [{ folio: "17097", fecha: "2026-10-17", importe: 150, forma: "EFECTIVO" }];
+  for (const [estado, esperado] of [
+    ["pendiente", "cobro pendiente"], ["parcial", "cobro pendiente"],
+    ["pagado", null], ["conciliado", null], ["cancelado", "cancelado"]
+  ]) {
+    const e = entorno([base(1)], { pendiente: { estado, monto: 150 }, movimientos });
+    const r = await e.detalle(uid(1));
+    assert.equal(r.status, 200, "Consulta de factura: " + estado);
+    const aviso = r.body.contraste?.advertencia || "";
+    if (esperado) assert.ok(aviso.includes(esperado), estado + ": " + aviso);
+    else assert.equal(aviso, "", "No mostrar advertencia falsa a un cobro " + estado);
+  }
+});
+
+test("El panel impide abrir Facturador desde una solicitud marcada como duplicada", () => {
+  const panel = readFileSync(new URL("../src/panel/cliente/01-facturacion.js", import.meta.url), "utf8");
+  assert.match(panel, /const duplicada = !!\(j\.ya_facturado/);
+  assert.match(panel, /duplicada \? .*No emitir otro CFDI/);
+  assert.match(panel, /disabled title="Ticket ya facturado"/);
 });
