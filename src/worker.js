@@ -843,7 +843,7 @@ Copia los datos exactamente como aparecen en esta imagen. Si un dato no aparece,
   });
   const texto = String((r && (r.response ?? r.result?.response)) || "");
   const m = texto.match(/\{[\s\S]*\}/);
-  if (!m) { console.log("ticket sin json", texto.slice(0, 200)); return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
+  if (!m) { console.warn("ticket sin json: respuesta IA sin formato esperado"); return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
   let d;
   try { d = JSON.parse(m[0]); } catch { return { error: "No se pudieron leer datos del ticket. Captúralos viendo la foto." }; }
   const valor = v => (v === null || v === undefined || String(v).trim() === "" || /^null$/i.test(String(v).trim())) ? "" : String(v).trim();
