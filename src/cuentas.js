@@ -87,7 +87,14 @@ export async function cuentaDefecto(env, campo) {
 const r2 = v => Math.round(v * 100) / 100;
 
 // Comisión de un cobro con tarjeta (redondeada por cobro, como la cobra la terminal)
-export const comisionDe = (importe, cuenta) => !cuenta || !(cuenta.comision_pct > 0) ? 0 : r2(importe * cuenta.comision_pct / 100 * (cuenta.comision_iva ? 1 + IVA : 1));
+export const comisionDe = (importe, cuenta) => {
+  if (!cuenta) return 0;
+  // El único procesador de tickets con tarjeta es Mercado Pago: tasa histórica constante.
+  // No usar cambios de configuración para recalcular importes de meses ya cerrados.
+  if (cuenta.tarjeta) return r2(importe * COMISION_INICIAL / 100 * (1 + IVA));
+  return !(cuenta.comision_pct > 0) ? 0 :
+    r2(importe * cuenta.comision_pct / 100 * (cuenta.comision_iva ? 1 + IVA : 1));
+};
 
 // Flujos de un mes por cuenta y en el efectivo de la administración (sobres). Función pura: recibe los registros
 // del mes (ver leerFlujos en finanzas.js) y devuelve entradas y salidas, con el detalle de cada una.
@@ -174,6 +181,8 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      if (f.tarjeta && ("comision_pct" in c || "comision_iva" in c))
+        return json({ ok: false, error: "La comisión histórica de Mercado Pago es fija: 3.50 % + IVA." }, 409);
       let pct = f.comision_pct, iva = f.comision_iva;
       if ("comision_pct" in c) {
         const t = String(c.comision_pct ?? "").replace(/[%\s]/g, "");
