@@ -16,8 +16,8 @@
     const unidad = [s.descripcion, s.placas ? `placas ${s.placas}` : ""].filter(Boolean).join(", ");
     const ticket = (s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket") + (unidad ? ` (${unidad})` : "");
     const importe = s.importe ? ` por ${dinero(s.importe)}` : "";
-    if (s.estado === "facturada") {
-      return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. Te la enviamos a tu correo ${s.email}. Gracias por tu preferencia.`;
+    if (s.estado === "facturada" || s.estado === "enviada") {
+      return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. ${s.estado === "enviada" ? "La administración ya confirmó su entrega." : "La administración coordinará la entrega del comprobante."} Gracias por tu preferencia.`;
     }
     if (s.estado === "rechazada") {
       return `Hola, te saluda Báscula y Pensión El Castaño. No pudimos emitir la factura de tu solicitud ${s.folio}${s.folio_ticket ? ` (ticket ${s.folio_ticket})` : ""}: ${s.motivo || ""}. Puedes enviar tus datos de nuevo aquí:\nhttps://basculaypension.com/factura`;
@@ -177,6 +177,8 @@
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
+            ${j.ya_facturado && j.ya_facturado.solicitud_id !== s.id ? `<p class="warn"><b>Ticket ya facturado:</b> aparece con la factura ${esc(j.ya_facturado.folio_factura)}. No emitas otro CFDI; si corresponde, rechaza la nueva solicitud.</p>` : ""}
+            ${j.contraste?.advertencia ? `<p class="warn"><b>Verificación de ingresos:</b> ${esc(j.contraste.advertencia)}</p>` : ""}
             ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.aviso_ticket ? `<p class="warn"><b>Ojo:</b> ${esc(s.aviso_ticket)}</p>` : ""}
             ${(() => {
@@ -210,7 +212,8 @@
           </section>
           <section class="card">
             ${["pendiente", "en_revision"].includes(s.estado) ? `
-              <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Si la emitiste, escribe el folio de Facturador y marca facturada. La fecha se registra sola. Si no se puede facturar, recházala con el motivo.</p>
+              <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Comprueba los datos y el ticket. Después de emitir el CFDI en Facturador, registra su folio; si no procede, rechaza la solicitud con motivo.</p>
+              ${s.estado === "pendiente" ? `<div class="row"><button class="btn btn-line" id="iniciar-revision" type="button">Iniciar revisión</button></div>` : `<p class="note">En revisión por administración.</p>`}
               <div class="row">
                 <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
                 <button class="btn btn-primary" id="facturar" type="button">Facturada</button>
@@ -224,6 +227,8 @@
               </div>` : `
               <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
               <p>${s.estado === "facturada" ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              ${s.estado === "facturada" ? `<div class="row"><button class="btn btn-primary" id="marcar-enviada" type="button">Confirmar envío al cliente</button></div><p class="note">Sólo después de entregarla por Facturador; este botón no envía correo.</p>` : ""}
+              ${s.estado === "enviada" ? `<p class="note">Entrega confirmada: ${fecha(s.enviada_en)}</p>` : ""}
               ${s.estado === "rechazada" ? `
                 <h3 style="margin-top:6px">Cambiar estatus</h3>
                 <div class="row">
@@ -239,7 +244,7 @@
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
-            <p class="note">${{ pendiente: "Mientras está pendiente, el mensaje solo confirma que recibiste su solicitud. Al marcarla facturada o rechazada cambia solo al texto de ese caso.", facturada: "Texto de factura emitida: confirma el ticket, el importe y el folio de la factura.", rechazada: "Texto de rechazo: explica por qué no se pudo facturar." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
+            <p class="note">${{ pendiente: "Confirma recepción.", en_revision: "Confirma que está en revisión.", facturada: "CFDI emitido, pendiente de confirmar entrega.", enviada: "Entrega registrada por administración.", rechazada: "Explica el rechazo." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
             <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
@@ -262,10 +267,15 @@
     d.scrollTop = 0;
     d.classList.remove("entra"); void d.offsetWidth; d.classList.add("entra");
     $("#volver")?.addEventListener("click", () => $("#work").classList.remove("ver-detalle"));
+    $("#iniciar-revision")?.addEventListener("click", e => accion(e.target, "en-revision", {}, "En revisión"));
+    $("#marcar-enviada")?.addEventListener("click", async e => {
+      if (!confirmarEnPagina(e.target, "¿Ya entregaste el CFDI al cliente?")) return;
+      await accion(e.target, "enviada", {}, "Entrega confirmada");
+    });
     $("#facturar")?.addEventListener("click", async e => {
       const folio = $("#folio-factura").value.trim();
       if (!folio) { toast("Escribe el folio de la factura"); $("#folio-factura").focus(); return; }
-      if ((faltan || !$("#t-importe").value.trim()) && !confirmarEnPagina(e.target, faltan ? "Faltan datos fiscales" : "Falta el importe")) return;
+      if (faltan || !$("#t-importe").value.trim() || !$("#t-ticket").value.trim()) { toast("Verifica los datos fiscales, el folio y el importe antes de facturar."); return; }
       await accion(e.target, "facturar", { folio_factura: folio, folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value }, "Marcada como facturada");
     });
     $("#rechazar")?.addEventListener("click", e => {
