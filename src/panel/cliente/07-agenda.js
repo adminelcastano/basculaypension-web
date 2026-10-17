@@ -1077,7 +1077,7 @@ window.interpretarAgenda = function (texto, hoy) {
           const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: new Date().toISOString() };
           await abrirHilo(id, true);
           const ta = $(`#com-${CSS.escape(id)}`); ta && ta.focus();
-        } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = "Comentar"; }
+        } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
         return;
       }
       if (f.classList.contains("com-edit")) {
