@@ -99,10 +99,11 @@ export async function conversacion(env, item, persona, { historial = false } = {
 
 export async function marcarVisto(env, itemId, persona, ahora = new Date().toISOString()) {
   await asegurarEsquemaAvisos(env);
-  await env.DB.batch([
-    env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora),
-    env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(itemId, persona, ahora)
-  ]);
+  // Abrir la conversación solo cuenta como "visto". El "Enterado" de un encargado es aparte (botón Enterado);
+  // la administración, al abrirla, sí queda como enterada.
+  const st = [env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora)];
+  if (persona === "ADMIN") st.push(env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(itemId, persona, ahora));
+  await env.DB.batch(st);
 }
 
 // ¿Puede esta persona ver (y comentar) el aviso? La administración, siempre.

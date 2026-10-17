@@ -452,6 +452,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 #toast-acc button { flex: none; min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: #111; color: var(--amber); font: inherit; font-weight: 700; cursor: pointer; }
 @media (max-width: 760px) { #toast-acc { bottom: calc(84px + env(safe-area-inset-bottom)); } .agl-it { grid-template-columns: 62px 4px minmax(0, 1fr) auto; gap: 10px; } .ag-rapida { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { #toast-acc { transition: none; } }
+.muro, .tar, .agl { grid-template-columns: minmax(0, 1fr); }
+.post, .post-ult { min-width: 0; max-width: 100%; }
 </style>
 </head>
 <body>
@@ -968,7 +970,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     try {
       const j = await api(`avisos/${id}/conversacion`);
       hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
-      const a = E.avisos.find(x => x.id === id); if (a) { a.leido = true; if (a.conv) a.conv.nuevos = 0; }
+      const a = E.avisos.find(x => x.id === id); if (a && a.conv) a.conv.nuevos = 0;
       pintarCabecera();
     } catch (er) { hilos[id] = { ...prev, error: er.message, comentarios: [] }; }
     repintarPost(id);

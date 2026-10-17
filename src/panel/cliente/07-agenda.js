@@ -757,7 +757,7 @@ window.interpretarAgenda = function (texto, hoy) {
       <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
       ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st">${dest.length ? `<span title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">${vistos.length ? `✓ Lo vio ${vistos.map(x => esc(x.clave)).join(", ")}` : "Nadie lo ha visto"}${faltan.length ? ` · falta ${faltan.map(x => esc(x.clave)).join(", ")}` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Lo viste" : ""}</span>`}
+      <div class="post-st">${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
         <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
       <div class="post-acc">
@@ -1117,6 +1117,12 @@ window.interpretarAgenda = function (texto, hoy) {
     } catch (e) { if (e.message !== "sesion") toast(e.errores ? Object.values(e.errores).join(" ") : e.message); }
   }
   setTimeout(conectarAgenda, 0);
+  // Al volver a la app, la agenda y Dinero se actualizan (por ejemplo, para ver quién ya dio «Enterado»)
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || document.querySelector("dialog[open]") || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
+    const ag = $("#mod-agenda"), fi = $("#mod-finanzas");
+    if ((ag && !ag.hidden) || (fi && !fi.hidden && !st.tienda)) cargar();
+  });
   try { st.vistaCal = localStorage.getItem("ec-agenda-vista") || "mes"; } catch { st.vistaCal = "mes"; }
   // "N" abre el cuadro para agregar de la sección visible (como en las apps de escritorio)
   addEventListener("keydown", e => {

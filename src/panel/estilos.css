@@ -1476,3 +1476,11 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .agl-it > * { grid-row: 1; }
 .agl-it > .chk, .agl-it > .btn { grid-column: 4; }
 .seg.ag-vista { justify-self: start; width: max-content; }
+/* Que ningún texto largo en una sola línea (último comentario, títulos) ensanche el muro en pantallas angostas (Z Fold cerrado) */
+.muro, .arch-l, .cl-tks, .cl-tl, .cl-l, .tar, .agl { grid-template-columns: minmax(0, 1fr); }
+.post, .post-ult, .arch-i, .cl-tk, .cl-ti, .cl-it { min-width: 0; max-width: 100%; }
+.post-ult > span, .arch-t, .cl-tx { min-width: 0; }
+.post-ent { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.post-ent .si { color: #30d158; font-weight: 600; }
+.post-ent .si small { color: var(--muted); font-weight: 400; }
+.post-ent .no { color: var(--muted); }
