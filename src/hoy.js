@@ -126,7 +126,7 @@ export function armarHoy(d, ahora = new Date()) {
   const pendientes = (d.caja && d.caja.pendientes) || [];
   for (const p of pendientes.slice(0, 30)) {
     const titulo = `Cobro por resolver · ${p.servicio === "bascula" ? "Báscula" : "Pensión"} · folio ${p.folio}`;
-    const detalle = `${dinero(p.monto)} por cobrar · ${p.dia} · ${p.turno}. Marca Pagado o Cancelado en el corte.`;
+    const detalle = `${dinero(Math.max(0, p.monto - (p.abonado || 0)))} restante · ${p.dia} · ${p.turno}. ${p.origen_activo ? "Registra abono o cancelación en Caja." : "La hoja ya no lo marca pendiente: revisa y concilia el movimiento."}`;
     add("media", "cobro-" + p.id, titulo, detalle,
       { mod: "caja", corte: p.dia + "|" + p.turno, pendiente: p.id });
   }
