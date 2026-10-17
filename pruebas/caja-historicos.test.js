@@ -32,25 +32,25 @@ test("Guion significa desconocido y cero significa valor conocido", () => {
 });
 
 test("Un reparto completo sólo cuadra con total contado independiente", () => {
-  const t = "03-oct\tNoche\t0\t0\t500\t130";
+  const t = "03-oct\tNoche\t0\t0\t75\t25";
   const pendiente = leerTablaHistoricos(t).filas[0];
   assert.equal(pendiente.estado, "por_verificar");
-  const exacto = leerTablaHistoricos(t + "\t630").filas[0];
+  const exacto = leerTablaHistoricos(t + "\t100").filas[0];
   assert.equal(exacto.estado, "cuadra");
   assert.equal(exacto.diferencia, 0);
-  const diferencia = leerTablaHistoricos(t + "\t600").filas[0];
+  const diferencia = leerTablaHistoricos(t + "\t90").filas[0];
   assert.equal(diferencia.estado, "no_cuadra");
-  assert.equal(diferencia.diferencia, 30);
+  assert.equal(diferencia.diferencia, 10);
 });
 
 test("No inventa ceros donde faltan sueldo o retiro", () => {
-  const r = leerTablaHistoricos("01-oct\tTarde\t3500\t200\t—\t130\t3830");
+  const r = leerTablaHistoricos("01-oct\tTarde\t185\t15\t—\t22\t222");
   assert.equal(r.filas[0].estado, "incompleto");
   assert.equal(r.filas[0].sueldo, null);
 });
 
 test("Asterisco significa dato por verificar y no cifra confirmada", () => {
-  const x = leerTablaHistoricos("07-oct\tMañana\t0\t0\t0\t239*\t239");
+  const x = leerTablaHistoricos("07-oct\tMañana\t0\t0\t0\t17*\t17");
   assert.equal(x.filas[0].estado, "por_verificar");
   assert.equal(x.filas[0].dudoso, true);
 });
