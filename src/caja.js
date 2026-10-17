@@ -689,8 +689,22 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       return json({ ok: true, estado, abonado: Math.round((abonado + monto) * 100) / 100,
         resto: Math.max(0, restante), nota: "Abono contabilizado por su fecha y forma de pago." });
     }
+    if (c.estado === "conciliado") {
+      if (fila.origen_activo)
+        return json({ ok: false, error: "La hoja sigue indicando PENDIENTE DE PAGO: primero registra el pago o corrige su origen." }, 409);
+      if (fila.estado === "conciliado") return json({ ok: true, estado: "conciliado", sin_cambios: true });
+      await env.DB.batch([
+        env.DB.prepare("UPDATE caja_pendientes SET estado = 'conciliado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
+          .bind(ahora, quien, notas, id),
+        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
+          VALUES (?, ?, 'conciliado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien,
+            [`Comprobado en la hoja, sin asiento duplicado`, notas].filter(Boolean).join(" · "))
+      ]);
+      return json({ ok: true, estado: "conciliado" });
+    }
     if (c.estado === "cancelado") {
-      if (abonado > 0) return json({ ok: false, error: "Ya existen abonos: anúlalos antes de cancelar el pendiente." }, 409);
+      if (abonado > 0 && fila.origen_activo)
+        return json({ ok: false, error: "Ya existen abonos: anúlalos antes de cancelar el pendiente." }, 409);
       if (fila.estado === "cancelado") return json({ ok: true, estado: "cancelado", sin_cambios: true });
       await env.DB.batch([
         env.DB.prepare("UPDATE caja_pendientes SET estado = 'cancelado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
