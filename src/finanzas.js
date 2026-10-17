@@ -5,7 +5,7 @@
 // - Comisión de la terminal (Mercado Pago) por cada cobro con tarjeta: es egreso y a la cuenta entra el neto.
 // Saldos: el de cada cuenta y el de los sobres pasa solo de un mes al siguiente; capturarlo es opcional (conteo real)
 // y, si se captura, se muestra cuánto se desvió de lo calculado.
-import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, mesesAbiertos, sumarMesesCaja, montoUsuario, leerRetiros, transferenciasMes, cambiosEntreTurnos, turnoAnterior, claseHoja, conceptoHoja } from "./caja.js";
+import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, mesActual, mesesAbiertos, sumarMesesCaja, montoUsuario, leerCobrosAdmin, leerRetiros, transferenciasMes, cambiosEntreTurnos, turnoAnterior, claseHoja, conceptoHoja } from "./caja.js";
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from "./categorias.js";
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
@@ -107,7 +107,7 @@ export function resumenSueldos(gastosCaja, retiros, admin) {
 // Registros de dinero de varios meses (para los saldos encadenados), agrupados por mes
 async function leerFlujos(env, meses, cuentas) {
   const q = meses.map(() => "?").join(","), todos = sql => env.DB.prepare(sql).bind(...meses).all().then(r => r.results);
-  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs, hojaCaja] = await Promise.all([
+  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs, hojaCaja, cobrosAdmin] = await Promise.all([
     todos(`SELECT mes, dia, importe FROM caja_mov WHERE tipo = 'ticket' AND forma = 'TARJETA' AND mes IN (${q})`),
     todos(`SELECT mes, dia, fecha, servicio, folio, importe, forma, tipo FROM caja_mov WHERE tipo = 'ticket' AND forma LIKE 'TRANSF%' AND mes IN (${q})`),
     todos(`SELECT * FROM caja_transf WHERE mes IN (${q})`),
@@ -115,13 +115,25 @@ async function leerFlujos(env, meses, cuentas) {
     todos(`SELECT mes, dia, turno, persona, sobre FROM turno_cortes WHERE sobre > 0 AND mes IN (${q})`),
     todos(`SELECT mes, dia, turno, monto, persona, creado FROM caja_extra WHERE ingreso = 0 AND mes IN (${q})`),
     todos(`SELECT * FROM fin_movs WHERE mes IN (${q})`),
-    todos(`SELECT mes, dia, turno, fecha, folio, cliente, matricula, forma, importe, tipo FROM caja_mov WHERE tipo = 'caja' AND mes IN (${q})`)
+    todos(`SELECT mes, dia, turno, fecha, folio, cliente, matricula, forma, importe, tipo FROM caja_mov WHERE tipo = 'caja' AND mes IN (${q})`),
+    todos(`SELECT a.mes, a.fecha_pago AS dia, a.monto, a.forma, a.creado, a.por, p.servicio, p.folio
+      FROM caja_cobros_admin a JOIN caja_pendientes p ON p.id = a.pendiente_id
+      WHERE a.anulado = 0 AND p.origen_activo = 1 AND a.mes IN (${q})`)
   ]);
   const defTransf = (cuentas.find(c => c.def_transf && c.activa) || cuentas.find(c => c.def_transf) || {}).id || null;
   const por = {};
   for (const m of meses) {
     const delMes = l => l.filter(x => x.mes === m);
-    por[m] = { tarjeta: delMes(tarjeta), transf: transfConCuenta(delMes(ticketsTransf), delMes(transf), defTransf), admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), movs: delMes(movs), hojaAdmin: renglonesHoja(delMes(hojaCaja)).admin };
+    por[m] = {
+      tarjeta: [...delMes(tarjeta), ...delMes(cobrosAdmin).filter(x => x.forma === "TARJETA")
+        .map(x => ({ mes: x.mes, dia: x.dia, importe: x.monto }))],
+      transf: [...transfConCuenta(delMes(ticketsTransf), delMes(transf), defTransf),
+        ...delMes(cobrosAdmin).filter(x => x.forma === "TRANSFERENCIA")
+          .map(x => ({ fecha: x.dia, importe: x.monto, cuenta: defTransf }))],
+      cobrosAdmin: delMes(cobrosAdmin).filter(x => x.forma === "EFECTIVO"),
+      admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), movs: delMes(movs),
+      hojaAdmin: renglonesHoja(delMes(hojaCaja)).admin
+    };
   }
   return por;
 }
@@ -145,13 +157,24 @@ export async function datosFinanzas(env, mes) {
   const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
   const tr = transferenciasMes(movs, transf);
   const t = totalesMes(cortes, tr.contadas);
+  const cobrosAdmin = await leerCobrosAdmin(env, { mes });
+  for (const x of cobrosAdmin) {
+    t.ingresos += x.monto;
+    if (x.forma === "EFECTIVO") t.efectivo += x.monto;
+    else if (x.forma === "TARJETA") t.tarjeta += x.monto;
+    else t.transferencias += x.monto;
+    t[x.servicio] += x.monto;
+  }
   const admin = await clasificarAdmin(env, gastosAdmin);
   const suma = (l, f = () => true) => r2(l.filter(f).reduce((a, x) => a + (x.monto ?? x.importe ?? 0), 0));
   const cuentas = await listaCuentas(env, true);
   const tj = cuentas.find(c => c.tarjeta) || null;
 
   // Comisión de la terminal por cada cobro con tarjeta
-  const ticketsTarjeta = movs.filter(m => m.tipo === "ticket" && m.forma === "TARJETA");
+  const ticketsTarjeta = [
+    ...movs.filter(m => m.tipo === "ticket" && m.forma === "TARJETA"),
+    ...cobrosAdmin.filter(x => x.forma === "TARJETA").map(x => ({ ...x, importe: x.monto }))
+  ];
   const comision = r2(ticketsTarjeta.reduce((a, m) => a + comisionMercadoPago(m.importe, tj), 0));
   const retiros = retirosDeCortes(conteos);
   const hoja = renglonesHoja(movs);
@@ -159,7 +182,7 @@ export async function datosFinanzas(env, mes) {
   const cambios = [...cambiosEntreTurnos([...conteos, ...conteoAnt], inicios).values()].filter(x => x.dia.slice(0, 7) === mes);
   const dif = diferenciasCaja(cortes, cambios);
 
-  const ingresos = { efectivo: r2(t.efectivo), tarjeta: r2(t.tarjeta), transferencias: r2(t.transferencias), transf_hoja: r2(t.transf_hoja), transf_manual: r2(t.transf_manual), otros: r2(t.otros + suma(hoja.ingresos)), sobrantes: dif.sobrantes, bascula: r2(t.bascula), pension: r2(t.pension) };
+  const ingresos = { efectivo: r2(t.efectivo), tarjeta: r2(t.tarjeta), transferencias: r2(t.transferencias), transf_hoja: r2(t.transf_hoja), transf_manual: r2(t.transf_manual), otros: r2(t.otros + suma(hoja.ingresos)), cobros_admin: r2(cobrosAdmin.reduce((a, x) => a + x.monto, 0)), sobrantes: dif.sobrantes, bascula: r2(t.bascula), pension: r2(t.pension) };
   ingresos.total = r2(ingresos.efectivo + ingresos.tarjeta + ingresos.transferencias + ingresos.otros + ingresos.sobrantes);
   const egresos = { caja: suma(gastosCaja), caja_hoja: suma(hoja.gastos), retiros: suma(retiros), programado: suma(admin, x => x.cat === "programado"), no_programado: suma(admin, x => x.cat === "no_programado"), compra: suma(admin, x => x.cat === "compra"), otro: suma(admin, x => x.cat === "otro"), comision, faltantes: dif.faltantes };
   egresos.total = r2(egresos.caja + egresos.retiros + egresos.programado + egresos.no_programado + egresos.compra + egresos.otro + egresos.comision + egresos.faltantes);
@@ -216,6 +239,7 @@ export async function datosFinanzas(env, mes) {
   for (const c of cortes) d(c.dia).ingresos += c.efectivo + c.tarjeta + c.extra.ingreso;
   for (const h of tr.hoja) d(h.dia).ingresos += h.importe;
   for (const x of tr.contadas) d(x.fecha).ingresos += x.importe;
+  for (const x of cobrosAdmin) d(x.dia).ingresos += x.monto;
   for (const g of gastosCaja) d(g.dia).egresos += g.monto;
   for (const x of hoja.ingresos) d(x.dia).ingresos += x.monto;
   for (const g of admin) d(g.dia).egresos += g.monto;
@@ -237,7 +261,7 @@ export async function datosFinanzas(env, mes) {
 
   return {
     mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, retiros,
-    diferencias: dif, sueldos: resumenSueldos(gastosCaja, retiros, admin), renglones_hoja: hoja,
+    diferencias: dif, cobros_admin: cobrosAdmin, sueldos: resumenSueldos(gastosCaja, retiros, admin), renglones_hoja: hoja,
     gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles, por_dia: porDia, cortes
   };
 }
