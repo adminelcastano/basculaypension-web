@@ -25,6 +25,7 @@ const base = n => ({
 function entorno(inicial, opciones = {}) {
   const registros = inicial.map(x => ({ ...x }));
   const folios = [];
+  let lecturasConteos = 0;
   const db = {
     prepare(sql) {
       return {
@@ -55,6 +56,7 @@ function entorno(inicial, opciones = {}) {
           return { success: true };
         },
         async all() {
+          if (sql.includes("GROUP BY grupo")) { lecturasConteos++; return { results: [{ grupo: "pendiente", n: 1 }] }; }
           if (sql.includes("FROM caja_mov")) return { results: opciones.movimientos || [] };
           return { results: [] };
         }
@@ -76,7 +78,14 @@ function entorno(inicial, opciones = {}) {
     { pathname: "/panel/api/solicitudes/" + id + "/" + accion },
     { email: "admin@example.invalid" }
   );
-  return { enviar, detalle, registros, folios };
+  const listar = async (estado, soloLista) => ruta(
+    { method: "GET" }, { DB: db },
+    { pathname: "/panel/api/solicitudes", searchParams: {
+      get: clave => clave === "estado" ? estado : clave === "solo_lista" ? (soloLista ? "1" : null) : null
+    } },
+    { email: "admin@example.invalid" }
+  );
+  return { enviar, detalle, listar, lecturasConteos: () => lecturasConteos, registros, folios };
 }
 
 test("Registro y entrega: sólo después de emitir CFDI", async () => {
@@ -147,4 +156,16 @@ test("El panel impide abrir Facturador desde una solicitud marcada como duplicad
   assert.match(panel, /const duplicada = !!\(j\.ya_facturado/);
   assert.match(panel, /duplicada \? .*No emitir otro CFDI/);
   assert.match(panel, /disabled title="Ticket ya facturado"/);
+});
+
+test("La consulta rápida omite conteos; otras llamadas siguen entregándolos", async () => {
+  const e = entorno([base(1)]);
+  const rapida = await e.listar("facturada", true);
+  assert.equal(rapida.status, 200);
+  assert.deepEqual(rapida.body.conteos, {});
+  assert.equal(e.lecturasConteos(), 0);
+  const completa = await e.listar("pendiente", false);
+  assert.equal(completa.status, 200);
+  assert.equal(completa.body.conteos.pendiente, 1);
+  assert.equal(e.lecturasConteos(), 1);
 });
