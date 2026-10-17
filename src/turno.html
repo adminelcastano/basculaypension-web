@@ -1439,23 +1439,75 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         </div>
       </div>`;
     const f = $("#f-corte");
-    const num = v => { const n = Number(String(v || "").replace(/[$,\s]/g, "")); return isFinite(n) ? n : 0; };
+    // Un campo vacío no es $0: el usuario debe escribir el cero expresamente.
+    // No mostrar "Cuadra" si hay importes incompletos o no válidos.
+    const importe = v => {
+      const original = String(v ?? "").trim();
+      if (!original) return null;
+      const limpio = original.replace(/[$,\s]/g, "");
+      return /^\d{1,9}(\.\d{1,2})?$/.test(limpio) ? Number(limpio) : NaN;
+    };
+    const num = v => importe(v) ?? 0;
     const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="Sueldo, taxi…" aria-label="Motivo del retiro al finalizar el turno" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" aria-label="Importe del retiro al finalizar el turno" value="${r.monto != null ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
-    // Borrador: lo escrito se guarda en la tablet y se recupera si la pantalla se redibuja o se cierra la app
+    // El borrador ya se aísla por persona, día y turno en esta tablet compartida.
     const llaveB = `turno:borrador:${E.persona}:${E.dia}:${E.turno}`;
     const b = leerLS(llaveB, null);
     if (b) for (const k of ["efectivo", "notas", "sobre", "cambio_sig"]) if (b[k] != null) f[k].value = b[k];
     $("#retiros").innerHTML = ((b && b.retiros) || (c && c.retiros) || []).map(filaRetiro).join("");
-    const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({ concepto: x.querySelector('[data-r="concepto"]').value.trim(), monto: x.querySelector('[data-r="monto"]').value.trim() })).filter(r => r.concepto || r.monto);
+    const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({
+      concepto: x.querySelector('[data-r="concepto"]').value.trim(),
+      monto: x.querySelector('[data-r="monto"]').value.trim()
+    })).filter(r => r.concepto || r.monto);
+    const concepto = v => String(v || "").trim().toUpperCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const coincidencias = () => retiros().filter(r => {
+      const m = importe(r.monto);
+      return Number.isFinite(m) && m > 0 && E.gastos.some(g =>
+        concepto(g.concepto) === concepto(r.concepto) && Math.round(Number(g.monto) * 100) === Math.round(m * 100));
+    });
     function reparto() {
-      const ef = num(f.efectivo.value), rt = retiros().reduce((a, r) => a + num(r.monto), 0);
-      const rep = num(f.sobre.value) + rt + num(f.cambio_sig.value), dif = Math.round((ef - rep) * 100) / 100;
+      const efectivo = importe(f.efectivo.value), sobre = importe(f.sobre.value);
+      const cambio = importe(f.cambio_sig.value), lista = retiros();
+      const importesRet = lista.map(x => importe(x.monto));
+      const completo = efectivo !== null && sobre !== null && cambio !== null;
+      const validos = completo && [efectivo, sobre, cambio, ...importesRet].every(x =>
+        Number.isFinite(x) && x >= 0 && x <= 1000000 && Math.round(x * 100) === x * 100);
+      const retiroValido = lista.every((x, i) => x.concepto.length >= 2 && importesRet[i] > 0);
+      const iguales = coincidencias();
+      const alerta = $("#aviso-duplicado"), confirmado = !!$("#dup-confirmo")?.checked;
+      alerta.className = iguales.length ? "aviso-duplicado" : "";
+      alerta.innerHTML = iguales.length
+        ? `<b>Posible pago repetido:</b> ${iguales.map(x => esc(x.concepto) + " " + dinero(importe(x.monto))).join(" · ")} ya aparece en los gastos del turno.
+          <p>Si es el mismo pago, <b>no debe estar en ambos lugares</b>: corrige el gasto o el retiro antes de entregar.
+          Si son pagos realmente diferentes, confírmalo expresamente.</p>
+          <label><input type="checkbox" id="dup-confirmo" ${confirmado ? "checked" : ""}><span>Confirmo que son pagos distintos y ambos salieron realmente de la caja.</span></label>`
+        : "";
       const el = $("#reparto");
-      $("#pc1").classList.toggle("listo", !!f.efectivo.value.trim());
-      $("#pc2").classList.toggle("listo", !!f.efectivo.value.trim() && Math.abs(dif) < 0.01);
-      if (!f.efectivo.value.trim()) { el.className = "reparto"; el.innerHTML = "Primero escribe el efectivo que contaste (paso 1)."; return dif; }
+      $("#pc1").classList.toggle("listo", efectivo !== null && Number.isFinite(efectivo) && efectivo >= 0);
+      $("#pc3").classList.toggle("listo", $("#revisado-corte").checked);
+      const listo = validos && retiroValido && (!iguales.length || confirmado);
+      const rep = listo ? sobre + cambio + importesRet.reduce((a, v) => a + v, 0) : NaN;
+      const dif = listo ? Math.round((efectivo - rep) * 100) / 100 : NaN;
+      $("#pc2").classList.toggle("listo", listo && Math.abs(dif) < 0.01);
+      el.className = "reparto";
+      if (efectivo === null) { el.textContent = "Primero escribe cuánto efectivo físico contaste (paso 1)."; return dif; }
+      if (!Number.isFinite(efectivo) || efectivo < 0) { el.textContent = "El efectivo contado no es un importe válido."; return dif; }
+      if (sobre === null || cambio === null) {
+        el.textContent = "Completa sobre y cambio para el siguiente turno. Escribe 0 cuando no corresponda.";
+        return dif;
+      }
+      if (!validos || !retiroValido) {
+        el.textContent = "Revisa los importes: números positivos o cero, máximo dos decimales. Cada retiro requiere motivo y monto.";
+        return dif;
+      }
+      if (iguales.length && !confirmado) {
+        el.textContent = "Antes de cuadrar, aclara el pago que coincide con un gasto del turno.";
+        return dif;
+      }
       el.className = "reparto " + (Math.abs(dif) < 0.01 ? "ok" : "mal");
-      el.innerHTML = `<span>Contaste <b>${dinero(ef)}</b> · repartiste: sobre <b>${dinero(num(f.sobre.value))}</b> + retiros <b>${dinero(rt)}</b> + cambio <b>${dinero(num(f.cambio_sig.value))}</b> = <b>${dinero(rep)}</b></span><span>${Math.abs(dif) < 0.01 ? "✓ Cuadra con lo contado" : dif > 0 ? `Faltan ${dinero(dif)} por repartir` : `Repartiste ${dinero(-dif)} de más`}</span>`;
+      el.innerHTML = `<span><b>Contaste ${dinero(efectivo)}</b> y distribuiste: <b>sobre para administración ${dinero(sobre)}</b> + retiros finales <b>${dinero(importesRet.reduce((a, v) => a + v, 0))}</b> + cambio siguiente <b>${dinero(cambio)}</b> = <b>${dinero(rep)}</b>.</span>
+        <span>${Math.abs(dif) < 0.01 ? "✓ Distribución completa: no falta ni sobra dinero" :
+          dif > 0 ? `Faltan ${dinero(dif)} por distribuir` : `Distribuiste ${dinero(-dif)} de más`}</span>`;
       return dif;
     }
     const cc = $("#ci-corregir"); if (cc) cc.addEventListener("click", () => verCambioInicial(true));
