@@ -8,6 +8,7 @@
 import PAGINA from "./panel/pagina.html";
 import CSS from "./panel/estilos.css";
 import J00 from "./panel/cliente/00-base.js";
+import J00P from "./panel/cliente/00-perfil-admin.js";
 import J01 from "./panel/cliente/01-facturacion.js";
 import J02 from "./panel/cliente/02-personal.js";
 import J03 from "./panel/cliente/03-caja.js";
@@ -22,7 +23,7 @@ import J11 from "./panel/cliente/11-configuracion.js";
 import J12 from "./panel/cliente/12-submenu.js";
 import { swPush } from "./push.js";
 
-export const JS = [J00, J01, J02, J03, J04, J05, J06, J07, J08, J09, J10, J11, J12].join("\n;\n");
+export const JS = [J00, J00P, J01, J02, J03, J04, J05, J06, J07, J08, J09, J10, J11, J12].join("\n;\n");
 // Para instalar el panel como app en el celular ("Agregar a pantalla principal")
 const MANIFIESTO = {
   id: "/panel", name: "Panel · El Castaño", short_name: "El Castaño", start_url: "/panel", scope: "/panel", display: "standalone",
