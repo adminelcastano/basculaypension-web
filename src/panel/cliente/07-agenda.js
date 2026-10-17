@@ -423,7 +423,24 @@
     EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("finanzas", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
     const mes = (st.hoy || "").slice(0, 7);
-    EC.bloqueN("finanzas", "hechos", (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes).length);
+    const hechos = (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes);
+    EC.bloqueN("finanzas", "hechos", hechos.length);
+    // Línea de estado de cada tarjeta del índice (celular y tablet)
+    const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+    const D0 = v => EC.dinero(v, 0);
+    const evHoy = st.items.filter(x => x.tipo === "evento" && x.fecha === st.hoy).length;
+    const venc = tareas.filter(x => x.fecha && x.fecha < st.hoy).length;
+    const graves = inc.filter(x => x.gravedad === "grave").length;
+    EC.bloqueInfo("agenda", "calendario", { valor: evHoy, texto: evHoy ? pl(evHoy, "evento hoy", "eventos hoy") : "Nada programado hoy" });
+    EC.bloqueInfo("agenda", "tarea", { texto: !tareas.length ? "Nada pendiente" : venc ? pl(venc, "vencida", "vencidas") : "Al día" });
+    EC.bloqueInfo("agenda", "incidencia", { texto: !inc.length ? "Ninguna abierta" : graves ? pl(graves, "grave", "graves") : "Ninguna grave" });
+    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin avisos activos" });
+    const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
+    const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
+    EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
+    const urgC = compras.filter(x => x.prioridad === "alta").length, lugs = new Set(compras.map(x => x.lugar || "sin")).size;
+    EC.bloqueInfo("finanzas", "compras", { texto: !compras.length ? "Nada por comprar" : (urgC ? pl(urgC, "urgente", "urgentes") + " · " : "") + "en " + pl(lugs, "lugar", "lugares") });
+    EC.bloqueInfo("finanzas", "hechos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: hechos.length ? pl(hechos.length, "pago este mes", "pagos este mes") : "Nada pagado este mes" });
   }
 
   // ---- Avisos para la tablet ----

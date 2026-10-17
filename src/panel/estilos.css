@@ -1099,3 +1099,59 @@ dialog.confirmar .btn { min-height: var(--tap); }
 .lgrp-n { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .p-nuevos { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 820px) { .lgrp { top: 52px; scroll-margin-top: 52px; } }
+
+/* ---- Celular y tablet: un tipo a la vez (Dinero y Agenda, secciones con data-uno) ---- */
+.sub-idx, .sub-volver, .agregar-btn, .hoja-h, .hoja-fondo { display: none; }
+.mod.uno .bloque:not(.activo) { display: none; }
+.mod.uno .bloque.activo { margin-top: 0; padding-top: 0; border-top: 0; }
+.mod.uno.en-idx .sub-idx { display: grid; }
+.mod.uno:not(.en-idx) .sub-volver { display: inline-flex; }
+.mod.uno .sn-abrir { display: none; }
+/* Dentro de un tipo: sin el texto de presentación; el mes solo donde aplica (finanzas) */
+.mod.uno:not(.en-idx) > .titlebar > .note { display: none; }
+.mod.uno[data-activo="programados"] > .tools, .mod.uno[data-activo="compras"] > .tools, .mod.uno[data-activo="hechos"] > .tools { display: none; }
+/* Índice de tarjetas: el número es lo que se ve primero; lo urgente ocupa toda la fila */
+.sub-idx { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 600px) { .sub-idx { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ti { --c: var(--amber); position: relative; display: grid; grid-template-columns: auto 1fr; align-content: start; min-height: 156px; padding: 16px 16px 15px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); text-align: left; font: inherit; cursor: pointer; transition: background-color .15s, transform .15s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.ti:hover { background: var(--surface-2); }
+.ti:active { transform: scale(.985); }
+.ti-i { grid-column: 1; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--c); }
+.ti-i svg { width: 20px; height: 20px; }
+.ti-c { grid-column: 2; justify-self: end; align-self: start; width: 18px; height: 18px; margin-top: 2px; color: var(--muted); }
+.ti-v { grid-column: 1 / -1; margin-top: 20px; font-size: 34px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ti-v.vacio { color: var(--muted); font-weight: 600; }
+.ti-t { grid-column: 1 / -1; margin-top: 10px; font-size: var(--t-base); font-weight: 600; line-height: 1.25; }
+.ti-s { grid-column: 1 / -1; margin-top: 3px; font-size: var(--t-sm); color: var(--muted); line-height: 1.35; }
+.ti.sin-v .ti-v { display: none; }
+.ti.sin-v .ti-t { margin-top: auto; padding-top: 40px; }
+.ti.urg { order: -1; grid-column: 1 / -1; min-height: 0; border-color: color-mix(in srgb, #ff453a 50%, var(--line)); box-shadow: inset 4px 0 0 #ff453a; }
+.ti.urg .ti-v { font-size: 46px; }
+.ti.urg .ti-s { color: #ff8a80; font-weight: 600; }
+.sub-idx [data-ir="programados"], .sub-idx [data-ir="tarea"] { --c: #30d158; }
+.sub-idx [data-ir="compras"] { --c: #bf5af2; }
+.sub-idx [data-ir="hechos"], .sub-idx [data-ir="calendario"] { --c: #64d2ff; }
+.sub-idx [data-ir="cuentas"] { --c: #8e94ff; }
+.sub-idx [data-ir="transferencias"] { --c: #2dd4bf; }
+.sub-idx [data-ir="bitacora"] { --c: #a1a1a6; }
+.sub-idx [data-ir="incidencia"] { --c: #ff6961; }
+/* Volver al índice */
+.sub-volver { align-items: center; gap: 2px; justify-self: start; min-height: 40px; padding: 0 16px 0 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.sub-volver svg { width: 18px; height: 18px; transform: rotate(180deg); }
+@media (min-width: 821px) { .mod.uno:not(.en-idx) .sub-volver { display: none; } }
+/* Notas largas: una línea; se despliegan al tocarlas */
+.mod.uno p.nota-larga { cursor: pointer; }
+.mod.uno p.nota-larga::before { content: "ⓘ "; color: var(--amber); font-weight: 700; }
+.mod.uno p.nota-larga:not(.abierta) { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* Celular: formularios para agregar en una hoja desde abajo; totales en una fila deslizable */
+.hoja-x { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font-size: 22px; line-height: 1; cursor: pointer; }
+@media (max-width: 820px) {
+  .mod.uno .agregar-btn { display: flex; width: 100%; justify-content: center; min-height: 50px; font-size: var(--t-base); }
+  .mod.uno .hoja-form { display: none; }
+  .mod.uno .hoja-form.abierta { display: block; position: fixed; z-index: 80; left: 0; right: 0; bottom: 0; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; margin: 0; border-radius: 22px 22px 0 0; padding: 0 18px calc(22px + env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -16px 48px rgba(0, 0, 0, .55); animation: hoja-sube .3s cubic-bezier(.16, 1, .3, 1); }
+  .mod.uno .hoja-form.abierta .hoja-h { display: flex; position: sticky; top: 0; z-index: 1; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 12px; background: var(--surface); font-size: var(--t-lg); }
+  .mod.uno.hoja-on .hoja-fondo { display: block; position: fixed; inset: 0; z-index: 79; background: rgba(0, 0, 0, .6); }
+  .mod.uno .pg-res { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-inline: -4px; padding-inline: 4px; }
+  .mod.uno .pg-res .k { flex: 0 0 auto; min-width: 46%; scroll-snap-align: start; }
+}
+@keyframes hoja-sube { from { transform: translateY(100%); } to { transform: none; } }

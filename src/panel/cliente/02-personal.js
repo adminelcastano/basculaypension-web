@@ -32,6 +32,7 @@
     if (mod === "personal" && !personalCargado) { personalCargado = true; cargar(); }
     if (mod === "config") EC.cfgVista = vista;
     if (vista && mod !== "config" && EC.irBloque) EC.irBloque(mod, vista);
+    else if (mod !== "config" && EC.esUno && EC.esUno(mod) && EC.irBloque) EC.irBloque(mod, null);
     else if (!yaVisible) scrollTo({ top: 0 });
     document.dispatchEvent(new CustomEvent("modulo", { detail: mod }));
   }

@@ -190,6 +190,13 @@
     for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
     EC.bloqueN("finanzas", "transferencias", hojaSinLigar.length || null, hojaSinLigar.length > 0);
     EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
+    // Línea de estado de cada tarjeta del índice (celular y tablet)
+    const D0 = v => EC.dinero(v, 0);
+    EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
+    EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : null, texto: "en sobres" });
+    EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.faltan_saldo || []).length ? "Falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "") });
+    EC.bloqueInfo("finanzas", "transferencias", { texto: hojaSinLigar.length ? hojaSinLigar.length + " por ligar" : "Al corriente" });
+    EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();
     pintarConfigCuentas();
   }
