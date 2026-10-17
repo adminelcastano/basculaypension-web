@@ -50,6 +50,7 @@ test("Sesiones ya abiertas no pueden saltarse la pantalla v1 ni ver CASTAGRAM an
 });
 
 test("La tablet presenta documento completo, casilla sin marcar y confirmación explícita", () => {
+  assert.match(tablet, /Aviso digital de privacidad v1/); // enlace siempre disponible
   assert.match(tablet, /id="dlg-aviso-v1"/);
   assert.match(tablet, /id="aviso-v1-check"/);
   assert.match(tablet, /aviso-de-privacidad-encargados\//);
