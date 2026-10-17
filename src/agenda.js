@@ -284,6 +284,20 @@ export async function limpiarAgenda(env, ahora = new Date()) {
   return viejos.length;
 }
 
+// Varias confirmaciones de Enterado en la misma publicación cuentan como una novedad.
+export function incorporarEnteradosPendientes(novedades, enterados) {
+  const out = [...novedades], ids = new Set(out.map(x => x.id));
+  for (const e of enterados) {
+    if (ids.has(e.id)) continue;
+    const personas = String(e.personas || "").split(",").filter(Boolean);
+    const quien = personas.length === 1 ? personas[0] + " dio Enterado" :
+      (personas[0] || "Un encargado") + " y " + (personas.length - 1) + " más dieron Enterado";
+    ids.add(e.id);
+    out.push({ id: e.id, titulo: quien + ": " + e.titulo,
+      autor: personas[0] || "", creado: e.actividad, prioridad: e.prioridad });
+  }
+  return out;
+}
 // Resumen para el Inicio
 // Avisos de los encargados para la administración que todavía no se leen en el panel (para Hoy)
 export async function avisosSinLeer(env) {
@@ -298,7 +312,17 @@ export async function avisosSinLeer(env) {
     WHERE i.tipo = 'aviso' AND i.estado = 'activo' AND c.autor != 'admin' AND c.borrado IS NULL AND (v.at IS NULL OR c.creado > v.at)
     GROUP BY i.id ORDER BY MAX(c.creado) DESC LIMIT 50`).all()).results;
   for (const c of conCom) if (!nuevos.some(n => n.id === c.id)) nuevos.push({ id: c.id, titulo: c.titulo + (c.n === 1 ? " (1 comentario nuevo)" : ` (${c.n} comentarios nuevos)`), autor: c.autor, creado: c.creado, prioridad: c.prioridad });
-  return nuevos;
+  // Enterado es distinto de la mera lectura: se informa solo cuando ocurre después
+  // de la última apertura de la conversación por administración.
+  const enterados = (await env.DB.prepare(`SELECT i.id, i.titulo, i.prioridad,
+      GROUP_CONCAT(DISTINCT l.persona) AS personas, MAX(l.at) AS actividad
+      FROM agenda_lecturas l JOIN agenda_items i ON i.id = l.item_id
+      LEFT JOIN aviso_vistos v ON v.item_id = i.id AND v.persona = 'ADMIN'
+      WHERE i.tipo = 'aviso' AND i.estado = 'activo'
+        AND COALESCE(i.autor, 'admin') = 'admin'
+        AND l.persona != 'ADMIN' AND l.at > COALESCE(v.at, i.creado)
+      GROUP BY i.id ORDER BY MAX(l.at) DESC LIMIT 50`).all()).results;
+  return incorporarEnteradosPendientes(nuevos, enterados);
 }
 
 export async function resumenAgenda(env) {
@@ -469,7 +493,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     for (const it of items) if (it.tipo === "pago") it.pagos = pg.filter(x => x.item_id === it.id).slice(0, 6).map(x => ({ id: x.id, fecha: x.fecha, importe: x.importe, forma: x.forma, comprobante: x.comprobante ? 1 : 0 }));
     const conteos = (await env.DB.prepare(`SELECT tipo, COUNT(*) n FROM agenda_items WHERE ${ABIERTO} GROUP BY tipo`).all()).results;
     // Avisos de los encargados para la administración que todavía no se leen en el panel
-    const sinLeer = items.filter(it => it.tipo === "aviso" && it.estado === "activo" && ((it.autor !== "admin" && it.para.admin && !it.lecturas.some(l => l.persona === "ADMIN")) || (it.conv && it.conv.nuevos))).length;
+    const sinLeer = (await avisosSinLeer(env)).length;
     const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, p.cuenta, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
     // Forma de pago de las compras ya compradas (está en su egreso)
