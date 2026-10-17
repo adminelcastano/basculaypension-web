@@ -724,7 +724,7 @@ window.interpretarAgenda = function (texto, hoy) {
   // Autocompletado local: los identificadores en D1 permanecen @CLAVE.
   const buscarMencion = (ta, personas) => {
     const posicion = ta.selectionStart, antes = ta.value.slice(0, posicion);
-    const m = /@([A-Za-zÑñ0-9_]{0,20})$/.exec(antes);
+    const m = /@([A-Za-zÑñÁÉÍÓÚÜáéíóúü0-9_]{0,24})$/.exec(antes);
     if (!m || (m.index > 0 && !/[\s([{]/.test(antes[m.index - 1]))) return null;
     const normal = v => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
     const busqueda = normal(m[1]);
