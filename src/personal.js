@@ -8,6 +8,10 @@ import { correrIA } from "./neuronas.js";
 // ---------------------------------------------------------------------------
 import EXPEDIENTE_HTML from "./expediente.html";
 
+// Version estable: futuras versiones se registran por separado, sin sobreescribir la primera fecha.
+export const VERSION_AVISO_PERSONAL_V1 = "personal-aviso-v1-2026-10-17";
+const DOC_AVISO_PERSONAL = "aviso-privacidad-colaboradores";
+
 export const DOCUMENTOS = {
   ine: "INE",
   curp: "CURP",
@@ -107,6 +111,16 @@ export async function asegurarEsquemaPersonal(env) {
   )`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS campana_personas (
     campana_id TEXT NOT NULL, colaborador_id TEXT NOT NULL, enviado TEXT, PRIMARY KEY (campana_id, colaborador_id)
+  )`).run();
+  // Constancias digitales vinculadas únicamente al expediente laboral, no a PIN ni CASTAGRAM.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS personal_constancias (
+    colaborador_id TEXT NOT NULL,
+    documento TEXT NOT NULL,
+    version TEXT NOT NULL,
+    aceptado_en TEXT NOT NULL,
+    medio TEXT NOT NULL,
+    campana_id TEXT,
+    PRIMARY KEY (colaborador_id, documento, version)
   )`).run();
   // La fecha límite general de antes se convierte en una campaña (sin volver a mandar correos)
   const cfg = await leerConfig(env);
@@ -357,12 +371,29 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     return resp;
   }
 
+  if (resto[0] === "constancia" && request.method === "POST") {
+    const origin = request.headers.get("Origin");
+    if (origin && origin !== url.origin) return json({ ok: false, error: "Origen no permitido." }, 403);
+    if (Number(request.headers.get("Content-Length") || 0) > 2048) return json({ ok: false, error: "Solicitud demasiado grande." }, 413);
+    const c = await request.json().catch(() => ({}));
+    if (c.version !== VERSION_AVISO_PERSONAL_V1 || c.confirmo !== true)
+      return json({ ok: false, error: "Revisa la versión actual y marca la casilla." }, 422);
+    const ahora = new Date().toISOString();
+    const campanaId = await campanaDeConstanciaV1(env, fila, acceso);
+    await env.DB.prepare("INSERT OR IGNORE INTO personal_constancias (colaborador_id, documento, version, aceptado_en, medio, campana_id) VALUES (?, ?, ?, ?, 'expediente-web', ?)")
+      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, campanaId).run();
+    const constancia = await constanciaPersonalV1(env, fila.id);
+    return json({ ok: true, constancia });
+  }
   if (request.method === "GET") {
     const datos = parse(fila.datos);
     if (!datos.nombre) datos.nombre = fila.nombre;
     if (!datos.telefono && fila.telefono) datos.telefono = fila.telefono;
-    const solicitud = acceso.campana ? { nombre: acceso.campana.nombre, hasta: acceso.hasta, pide: estadoEnCampana(fila, acceso.campana).pendientes } : acceso.motivo === "alta" ? { nombre: "", hasta: acceso.hasta, pide: [] } : null;
-    return json({ ok: true, tipo: fila.tipo || "colaborador", datos, llenado_en: fila.llenado_en, solicitud, docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
+    const constancia = await constanciaPersonalV1(env, fila.id);
+    const solicitud = acceso.campana ? { nombre: acceso.campana.nombre, hasta: acceso.hasta, pide: estadoEnCampana({ ...fila, acuse_v1_en: constancia?.aceptado_en }, acceso.campana).pendientes } : acceso.motivo === "alta" ? { nombre: "", hasta: acceso.hasta, pide: [] } : null;
+    return json({ ok: true, tipo: fila.tipo || "colaborador", datos, llenado_en: fila.llenado_en, solicitud,
+      constancia_v1: constancia, aviso_version: VERSION_AVISO_PERSONAL_V1,
+      docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo), listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD } });
   }
 
   if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
@@ -379,15 +410,20 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
   const cuerpo = await request.json().catch(() => null);
   if (!cuerpo || typeof cuerpo !== "object") return json({ ok: false, error: "No pudimos leer tus datos." }, 400);
   const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, fila.tipo === "externo" ? REQUERIDOS.filter(k => k !== "correo" && k !== "telefono") : REQUERIDOS);
-  if (!cuerpo.acepto) errores.acepto = "Marca esta casilla para continuar.";
+  if (cuerpo.acepto !== true && !(await constanciaPersonalV1(env, fila.id))) errores.acepto = "Confirma la recepción del aviso v1 para continuar.";
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
   const ahora = new Date().toISOString();
+  const campanaId = await campanaDeConstanciaV1(env, fila, acceso);
   const previos = parse(fila.datos);
   const primeraVez = !fila.llenado_en;
   const cambios = CAMPOS_COLABORADOR.map(([k]) => [k, previos[k] || "", datos[k] || ""]).filter(([, a, b]) => a !== b);
-  await env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
-    .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id).run();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE colaboradores SET datos = ?, nombre = ?, telefono = ?, llenado_en = ?, llenado_aviso = ?, actualizado = ? WHERE id = ?")
+      .bind(JSON.stringify(datos), datos.nombre, datos.telefono || fila.telefono, primeraVez ? ahora : fila.llenado_en, ahora, ahora, fila.id),
+    env.DB.prepare("INSERT OR IGNORE INTO personal_constancias (colaborador_id, documento, version, aceptado_en, medio, campana_id) VALUES (?, ?, ?, ?, 'expediente-web', ?)")
+      .bind(fila.id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, ahora, campanaId)
+  ]);
   await revisarCompletoExterno(env, fila, fila.id, enviarA, ctx);
   await renombrarSiCambio(env, fila, fila.id, ctx);
   if (avisar && env.AVISO_URL && env.AVISO_TOKEN) {
@@ -397,7 +433,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     const p = avisar(env, aviso).catch(e => console.error("aviso expediente", e && e.message));
     if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
   }
-  return json({ ok: true });
+  return json({ ok: true, constancia: await constanciaPersonalV1(env, fila.id) });
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +455,7 @@ function correoEnlace(nombre, token, admin, tipoPersona) {
 <p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${ext ? "Registro de externos" : "Expediente laboral"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
 <p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para ${ext ? "completar" : "actualizar"} ${que}, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.${ext ? "" : ` El enlace estará abierto ${DIAS_ALTA} días.`}</p>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${soloAcuse ? "Leer y confirmar aviso v1" : "Subir mis documentos"}</a></p>
 <p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>${ext ? "Documentos que necesitamos:" : "Entrega 2 copias de cada documento con Josué:"}</b></p>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
@@ -662,6 +698,23 @@ async function accesoDe(env, fila) {
   return { abierto: false };
 }
 
+// Sólo atribuir la constancia a una campaña que realmente solicite esta versión.
+// Otra campaña de documentos puede estar activa simultáneamente.
+async function campanaDeConstanciaV1(env, fila, acceso) {
+  if (acceso.campana?.docs?.includes("acuse_v1")) return acceso.campana.id;
+  const { results } = await env.DB.prepare(`SELECT c.id, c.docs FROM campanas c
+    JOIN campana_personas p ON p.campana_id = c.id
+    WHERE p.colaborador_id = ? AND c.estado = 'activa' AND c.limite >= ?
+    ORDER BY c.creado DESC LIMIT 30`).bind(fila.id, hoyLocal()).all();
+  return results.find(c => leerCampana(c).docs.includes("acuse_v1"))?.id || null;
+}
+
+// La recepción es una evidencia independiente; un formulario antiguo no equivale a v1.
+async function constanciaPersonalV1(env, id) {
+  return await env.DB.prepare("SELECT version, aceptado_en, medio, campana_id FROM personal_constancias WHERE colaborador_id = ? AND documento = ? AND version = ?")
+    .bind(id, DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1).first();
+}
+
 // Qué le falta a una persona dentro de una campaña.
 // Sin documentos elegidos: todo lo que le falte del expediente. Con documentos elegidos: cuenta lo entregado desde que empezó la campaña.
 function estadoEnCampana(fila, camp) {
@@ -675,6 +728,7 @@ function estadoEnCampana(fila, camp) {
   const desdeDia = diaLocal(camp.creado);
   const pendientes = [];
   for (const k of camp.docs) {
+    if (k === "acuse_v1") { if (!fila.acuse_v1_en) pendientes.push("Confirmar recepción del aviso de privacidad v1"); continue; }
     if (k === "datos") { if (!((fila.llenado_aviso || fila.llenado_en || "") >= camp.creado)) pendientes.push("Revisar y actualizar sus datos"); continue; }
     if (!nombres[k]) continue;
     const d = docs[k] || {};
@@ -695,18 +749,19 @@ function correoCampana(fila, camp, pendientes, recordatorio) {
   const enlace = `${SITIO}/expediente/${fila.token}`;
   const primer = String(fila.nombre || "").split(" ")[0];
   const lim = fechaLarga(camp.limite);
+  const soloAcuse = camp.docs.length === 1 && camp.docs[0] === "acuse_v1";
   const asunto = recordatorio ? `Recordatorio: ${camp.nombre} · antes del ${lim}` : `${camp.nombre} · Báscula y Pensión El Castaño`;
-  const intro = recordatorio ? `Te recordamos que tu enlace para «${camp.nombre}» se cierra el ${lim}. Te falta:` : `Abrimos «${camp.nombre}». Tienes hasta el ${lim} para entregar:`;
-  const texto = `Hola ${primer}:\n\n${intro}\n${pendientes.map(x => "- " + x).join("\n")}\n\nSube tus documentos y revisa tus datos en tu enlace personal (no lo compartas):\n${enlace}\n\nDespués de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué.\n\nBáscula y Pensión El Castaño\n962 564 2170`;
+  const intro = recordatorio ? `Te recordamos que tu enlace para «${camp.nombre}» se cierra el ${lim}. Te falta:` : `Abrimos «${camp.nombre}». Tienes hasta el ${lim} para ${soloAcuse ? "confirmar" : "entregar"}:`;
+  const texto = `Hola ${primer}:\n\n${intro}\n${pendientes.map(x => "- " + x).join("\n")}\n\n${soloAcuse ? "Lee el aviso y confirma su recepción desde tu enlace personal" : "Sube tus documentos y revisa tus datos en tu enlace personal"} (no lo compartas):\n${enlace}\n\nDespués de esa fecha el enlace se cierra.${soloAcuse ? " La confirmación digital no reemplaza la firma de documentos impresos." : " Entrega también las copias físicas con Josué."}\n\nBáscula y Pensión El Castaño\n962 564 2170`;
   const html = `<div style="background:#000;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;color:#f5f5f7">
 <div style="max-width:520px;margin:0 auto;background:#161617;border-radius:18px;padding:28px 24px">
 <img src="${SITIO}/img/logo.png" alt="El Castaño" width="56" style="display:block;margin-bottom:16px">
-<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${recordatorio ? "Recordatorio" : "Solicitud de documentos"}</p>
+<p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${recordatorio ? "Recordatorio" : soloAcuse ? "Aviso de privacidad" : "Solicitud de documentos"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
-<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">${recordatorio ? `Te recordamos que tu enlace para <b style="color:#f5f5f7">${escH(camp.nombre)}</b> se cierra el <b style="color:#f5f5f7">${escH(lim)}</b>. Te falta:` : `Abrimos <b style="color:#f5f5f7">${escH(camp.nombre)}</b>. Tienes hasta el <b style="color:#f5f5f7">${escH(lim)}</b> para entregar:`}</p>
+<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#a1a1a6">${recordatorio ? `Te recordamos que tu enlace para <b style="color:#f5f5f7">${escH(camp.nombre)}</b> se cierra el <b style="color:#f5f5f7">${escH(lim)}</b>. Te falta:` : `Abrimos <b style="color:#f5f5f7">${escH(camp.nombre)}</b>. Tienes hasta el <b style="color:#f5f5f7">${escH(lim)}</b> para ${soloAcuse ? "confirmar" : "entregar"}:`}</p>
 <ul style="margin:0 0 22px;padding-left:20px;font-size:15px;line-height:1.6;color:#f5f5f7">${pendientes.map(x => `<li>${escH(x)}</li>`).join("")}</ul>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
-<p style="margin:0 0 10px;font-size:13px;color:#86868b">Después de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué. No compartas este enlace.</p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${soloAcuse ? "Leer y confirmar aviso v1" : "Subir mis documentos"}</a></p>
+<p style="margin:0 0 10px;font-size:13px;color:#86868b">Después de esa fecha el enlace se cierra. ${soloAcuse ? "La recepción digital no sustituye documentos firmados en papel." : "Entrega también las copias físicas con Josué."} No compartas este enlace.</p>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#86868b;text-align:center">Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · 962 564 2170</p>
@@ -717,8 +772,10 @@ function correoCampana(fila, camp, pendientes, recordatorio) {
 // Manda el correo de la campaña a quien tenga correo y aún tenga pendientes
 async function enviarCampana(env, camp, filas, enviar, recordatorio) {
   const res = { enviados: 0, sin_correo: [], completos: 0, errores: 0, error: "" };
+  // Consulta una sola vez la evidencia v1, también para recordatorios de campaña.
+  const acuses = camp.docs.includes("acuse_v1") ? new Set((await env.DB.prepare("SELECT colaborador_id FROM personal_constancias WHERE documento = ? AND version = ?").bind(DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1).all()).results.map(x => x.colaborador_id)) : new Set();
   for (const f of filas) {
-    const { completo, pendientes } = estadoEnCampana(f, camp);
+    const { completo, pendientes } = estadoEnCampana({ ...f, acuse_v1_en: f.acuse_v1_en || (acuses.has(f.id) ? "registrado" : null) }, camp);
     if (completo) { res.completos++; continue; }
     const para = parse(f.datos).correo;
     if (!para) { res.sin_correo.push(f.nombre); continue; }
@@ -738,7 +795,10 @@ async function enviarCampana(env, camp, filas, enviar, recordatorio) {
 }
 
 async function personasDe(env, campId) {
-  const { results } = await env.DB.prepare("SELECT c.*, p.enviado AS camp_enviado FROM campana_personas p JOIN colaboradores c ON c.id = p.colaborador_id WHERE p.campana_id = ? ORDER BY c.nombre COLLATE NOCASE").bind(campId).all();
+  const { results } = await env.DB.prepare(`SELECT c.*, p.enviado AS camp_enviado, a.aceptado_en AS acuse_v1_en
+    FROM campana_personas p JOIN colaboradores c ON c.id = p.colaborador_id
+    LEFT JOIN personal_constancias a ON a.colaborador_id = c.id AND a.documento = ? AND a.version = ?
+    WHERE p.campana_id = ? ORDER BY c.nombre COLLATE NOCASE`).bind(DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1, campId).all();
   return results;
 }
 
@@ -747,7 +807,7 @@ function vistaCampana(c, filas) {
   const abierta = c.estado === "activa" && c.limite >= hoy;
   const personas = filas.map(f => {
     const e = estadoEnCampana(f, c);
-    return { id: f.id, nombre: f.nombre, folio: folioDe(f), telefono: f.telefono || "", correo: parse(f.datos).correo || "", token: f.token, enviado: f.camp_enviado || "", estatus: f.estatus === "inactivo" ? "inactivo" : "activo", completo: e.completo, pendientes: e.pendientes };
+    return { id: f.id, nombre: f.nombre, folio: folioDe(f), telefono: f.telefono || "", correo: parse(f.datos).correo || "", token: f.token, enviado: f.camp_enviado || "", acuse_v1_en: f.acuse_v1_en || null, estatus: f.estatus === "inactivo" ? "inactivo" : "activo", completo: e.completo, pendientes: e.pendientes };
   });
   return {
     id: c.id, nombre: c.nombre, creado: c.creado, limite: c.limite, docs: c.docs, recordada: c.recordada || "", cerrada: c.cerrada || "",
@@ -773,7 +833,7 @@ async function campanasPanel(request, env, partes, enviar) {
     if (!nombre) errores.nombre = "Ponle un nombre a la campaña.";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(limite) || limite < hoy) errores.limite = "Elige una fecha de hoy en adelante.";
     else if (limite > sumarDias(hoy, 90)) errores.limite = "Máximo 90 días.";
-    const docs = Array.isArray(b.docs) ? [...new Set(b.docs.filter(k => k === "datos" || DOCUMENTOS[k]))] : [];
+    const docs = Array.isArray(b.docs) ? [...new Set(b.docs.filter(k => k === "datos" || k === "acuse_v1" || DOCUMENTOS[k]))] : [];
     const { results } = await env.DB.prepare("SELECT * FROM colaboradores WHERE estatus != 'inactivo' AND COALESCE(tipo, 'colaborador') = 'colaborador'").all();
     let filas = results;
     if (b.destino === "incompletos") filas = results.filter(f => !estaCompleto(f));
@@ -845,7 +905,7 @@ export function resumenFila(f) {
     correo: parse(f.datos).correo || "", correo_enviado: f.correo_enviado || "",
     estatus: f.estatus === "inactivo" ? "inactivo" : "activo", fecha_baja: f.fecha_baja || "", motivo_baja: f.motivo_baja || "",
     entregados: docs.entregados, total: docs.total,
-    completo: !!f.llenado_en && docs.entregados === docs.total
+    acuse_v1_en: f.acuse_v1_en || null, completo: !!f.llenado_en && docs.entregados === docs.total
   };
 }
 
@@ -855,7 +915,9 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes.length === 1 && request.method === "GET") {
     const filtro = url.searchParams.get("filtro") || "todos";
     const q = (url.searchParams.get("q") || "").trim().toLowerCase().slice(0, 60);
-    const { results } = await env.DB.prepare("SELECT * FROM colaboradores ORDER BY nombre COLLATE NOCASE ASC LIMIT 500").all();
+    const { results } = await env.DB.prepare(`SELECT c.*, a.aceptado_en AS acuse_v1_en
+      FROM colaboradores c LEFT JOIN personal_constancias a ON a.colaborador_id = c.id AND a.documento = ? AND a.version = ?
+      ORDER BY c.nombre COLLATE NOCASE ASC LIMIT 500`).bind(DOC_AVISO_PERSONAL, VERSION_AVISO_PERSONAL_V1).all();
     const estatus = ["activo", "inactivo"].includes(url.searchParams.get("estatus")) ? url.searchParams.get("estatus") : "activo";
     const tipo = url.searchParams.get("tipo") === "externo" ? "externo" : "colaborador";
     const todas = results.map(resumenFila);
@@ -913,7 +975,8 @@ export async function personalPanel(request, env, url, partes, enviar) {
   if (partes.length === 2 && request.method === "GET") {
     return json({
       ok: true,
-      colaborador: { ...resumenFila(fila), acceso: await accesoDe(env, fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
+      colaborador: { ...resumenFila(fila), acuse_v1_en: (await constanciaPersonalV1(env, fila.id))?.aceptado_en || null,
+        aviso_version: VERSION_AVISO_PERSONAL_V1, acceso: await accesoDe(env, fila), token: fila.token, datos: parse(fila.datos), admin: parse(fila.admin), docs: docsResumen(parse(fila.docs), parse(fila.admin), fila.tipo).lista, admin_docs: JSON.parse(fila.admin_docs || "[]"), recordado: fila.recordado || "", falta: faltantes(fila) },
       config: await leerConfig(env),
       encargado: { correo: ENCARGADO_CORREO, wa: ENCARGADO_WA, avisado: fila.estatus_avisado || "" },
       listas: { estado_civil: ESTADO_CIVIL, escolaridad: ESCOLARIDAD, puestos: PUESTOS, nacionalidad: NACIONALIDAD, actividades: ACTIVIDADES }

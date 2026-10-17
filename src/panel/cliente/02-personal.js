@@ -177,6 +177,12 @@
                  </div>`}
           </section>
           <section class="card">
+            <h3>Constancias digitales · Personal y Campañas</h3>
+            <p class="note" style="margin:0">Aviso de privacidad v1 · <a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener">Leer documento</a></p>
+            <p class="note" style="margin:6px 0">${c.acuse_v1_en ? `Confirmada el ${esc(fecha(c.acuse_v1_en))}.` : "Pendiente: todavía no hay constancia v1."} Esta recepción no sustituye las firmas en papel.</p>
+            ${c.acuse_v1_en || c.estatus === "inactivo" ? "" : `<div class="row"><button type="button" class="btn btn-line" id="p-pedir-acuse">Solicitar constancia por campaña</button></div>`}
+          </section>
+          <section class="card">
             <h3>Documentos entregados</h3>
             <div class="row" style="justify-content:space-between"><span class="note">${c.tipo === "externo" ? "Se palomean solos cuando sube la foto. También puedes palomearlos tú." : "Se palomean solos cuando el colaborador sube la foto. También puedes palomearlos tú al recibir sus copias."}</span><b id="p-docs-n"></b></div>
             <div class="barra"><i id="p-barra" style="width:0"></i></div>
@@ -257,6 +263,7 @@
     pintarDocs(c.docs);
     pintarAdocs(id, c.admin_docs);
     if ($("#p-pedir")) $("#p-pedir").addEventListener("click", () => irACampanas([c.id]));
+    $("#p-pedir-acuse")?.addEventListener("click", () => irACampanas([c.id], ["acuse_v1"]));
     if ($("#p-recordar")) $("#p-recordar").addEventListener("click", async e => {
       const b = e.currentTarget; b.disabled = true;
       if (c.telefono) window.open(urlWa(c.telefono, mensajeRecordatorio(c.nombre, c.token, c.falta, c.tipo)), "_blank");
@@ -423,6 +430,14 @@
       if (!ext) { fila("Último grado", d.escolaridad); fila("Escuela", d.institucion); }
       seccion("Documentos");
       for (const x of c.docs) fila(x.nombre, x.recibido ? `Entregado ${fecha(x.fecha)}${x.fotos.length ? " · foto anexa" : " · en físico"}` : "Pendiente");
+      // La constancia digital forma parte del expediente exportado, sin simular una firma.
+      seccion("Constancia digital de privacidad");
+      fila("Documento", "Aviso de privacidad para colaboradores");
+      fila("Versión", "personal-aviso-v1-2026-10-17");
+      fila("Recepción", c.acuse_v1_en
+        ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" }).format(new Date(c.acuse_v1_en))
+        : "Pendiente - sin constancia digital v1");
+      texto("Esta constancia registra la recepcion declarada desde el enlace personal. No sustituye documentos firmados en papel.", { size: 9 });
       if (c.admin_docs.length) { seccion("Documentos administrativos"); for (const x of c.admin_docs) fila(fecha(x.fecha), x.descripcion); }
       if (a.notas) { seccion(ext ? "Notas" : "Notas de la entrevista"); texto(a.notas); }
       y -= 10; texto(`Generado el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long", timeStyle: "short" }).format(new Date())} · Datos tratados conforme al aviso de privacidad para colaboradores.`, { size: 8, color: rgb(0.5, 0.5, 0.5) });
@@ -468,22 +483,25 @@
     b.disabled = false;
   });
   // ---------------- Campañas de documentos ----------------
-  const DOC_NOMBRES = { datos: "Revisar y actualizar sus datos", ine: "INE", curp: "CURP", solicitud: "Solicitud de empleo", acta: "Acta de nacimiento", domicilio: "Comprobante de domicilio", estudios: "Comprobante de último grado de estudios" };
+  const DOC_NOMBRES = { acuse_v1: "Constancia de recepción del aviso de privacidad v1", datos: "Revisar y actualizar sus datos", ine: "INE", curp: "CURP", solicitud: "Solicitud de empleo", acta: "Acta de nacimiento", domicilio: "Comprobante de domicilio", estudios: "Comprobante de último grado de estudios" };
   const pillCamp = c => c.abierta ? `<span class="pill faltan">Activa</span>` : `<span class="pill inactivo">Cerrada</span>`;
-  const msgCampana = (cp, p) => `Hola ${(p.nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Abrimos «${cp.nombre}». Tienes hasta el ${fechaLarga(cp.limite)} para entregar: ${p.pendientes.map(x => x.toLowerCase()).join(", ")}.\n\nSúbelos en tu enlace personal (no lo compartas):\n${enlaceDe(p.token)}\n\nDespués de esa fecha el enlace se cierra. Entrega también las copias físicas con Josué.`;
+  const msgCampana = (cp, p) => {
+    const soloAcuse = cp.docs.length === 1 && cp.docs[0] === "acuse_v1";
+    return `Hola ${(p.nombre || "").split(" ")[0]}, te saluda Báscula y Pensión El Castaño. Abrimos «${cp.nombre}». Tienes hasta el ${fechaLarga(cp.limite)} para ${soloAcuse ? "confirmar" : "entregar"}: ${p.pendientes.map(x => x.toLowerCase()).join(", ")}.\n\n${soloAcuse ? "Lee el aviso de privacidad v1 y registra su recepción" : "Sube tus documentos y revisa tus datos"} en tu enlace personal (no lo compartas):\n${enlaceDe(p.token)}\n\nDespués de esa fecha el enlace se cierra. ${soloAcuse ? "Esta constancia no sustituye la firma de documentos impresos." : "Entrega también las copias físicas con Josué."}`;
+  };
   const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const masDias = (d, n) => new Date(new Date(d + "T12:00:00Z").getTime() + n * 864e5).toISOString().slice(0, 10);
 
-  function irACampanas(ids) {
+  function irACampanas(ids, pedidos = []) {
     st.tipo = "campanas";
     if (EC.irBloque) EC.irBloque("personal", "campanas", { suave: true });
-    nuevaCampana(ids);
+    nuevaCampana(ids, pedidos);
   }
 
   // Las campañas se ven en la misma lista que el personal
   async function cargarCampanas() { return cargar(); }
 
-  async function nuevaCampana(pre = []) {
+  async function nuevaCampana(pre = [], pedidos = []) {
     st.actual = null;
     document.querySelectorAll(".pitem").forEach(b => b.removeAttribute("aria-current"));
     $("#p-work").classList.add("ver-detalle");
@@ -512,10 +530,10 @@
         <span class="err" data-e="destino"></span>
         <h3>¿Qué se pide?</h3>
         <div class="camp-dest">
-          <label><input type="radio" name="cp-que" value="pendiente" checked> Todo lo que le falte de su expediente</label>
-          <label><input type="radio" name="cp-que" value="elegir"> Documentos específicos (por ejemplo, un comprobante de domicilio nuevo)</label>
+          <label><input type="radio" name="cp-que" value="pendiente" ${pedidos.length ? "" : "checked"}> Todo lo que le falte de su expediente</label>
+          <label><input type="radio" name="cp-que" value="elegir" ${pedidos.length ? "checked" : ""}> Documentos y constancias específicos</label>
         </div>
-        <div class="camp-docs" id="cp-docs" hidden>${Object.entries(DOC_NOMBRES).map(([k, n]) => `<label><input type="checkbox" value="${k}"> ${esc(n)}</label>`).join("")}</div>
+        <div class="camp-docs" id="cp-docs" ${pedidos.length ? "" : "hidden"}>${Object.entries(DOC_NOMBRES).map(([k, n]) => `<label><input type="checkbox" value="${k}" ${pedidos.includes(k) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
         <div class="row"><button class="btn btn-primary" id="cp-lanzar" type="button">Lanzar campaña</button><span class="note" id="cp-estado"></span></div>
       </section>`;
     const sync = () => {
@@ -584,6 +602,7 @@
             ${VINC[p.id] ? avP(VINC[p.id], 1) : iconoEst(p.estatus)}
             <b>${esc(p.nombre)}</b>
             ${p.completo ? `<span class="pill completo">Completó</span>` : `<span class="pill faltan">Pendiente</span>`}
+             ${cp.docs.includes("acuse_v1") ? `<span class="note">${p.acuse_v1_en ? "V1 recibida: " + esc(fecha(p.acuse_v1_en)) : "V1: sin constancia"}</span>` : ""}
             ${p.completo ? "" : `<span class="falta">Falta: ${esc(p.pendientes.join(", "))}</span>`}
             <span class="falta">${p.estatus === "inactivo" ? "Inactivo: su enlace no funciona." : p.enviado ? `Último correo: ${esc(fecha(p.enviado))}` : p.correo ? "Sin correo enviado todavía" : "Sin correo registrado"}</span>
             <span class="acc">
