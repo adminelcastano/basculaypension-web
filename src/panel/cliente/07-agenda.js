@@ -714,7 +714,23 @@ window.interpretarAgenda = function (texto, hoy) {
   const parrafos = t => conMenciones(t).replace(/\n/g, "<br>");
   st.hilos = st.hilos || {};
   st.abiertosAv = st.abiertosAv || new Set();
-  function pintarAvisos() { const el = $("#ab-aviso"); if (el) { el.innerHTML = vistaAvisos(); conectar(el); } contadores(); }
+  function pintarAvisos() { const el = $("#ab-aviso"); if (el) { el.innerHTML = vistaAvisos(); conectar(el); mostrarSheetAdmin(); } contadores(); }
+  // Una conversación visible a la vez, en una hoja modal. La lista de publicaciones no cambia.
+  function mostrarSheetAdmin() {
+    const el = $("#ab-aviso"), id = st.abiertosAv.values().next().value;
+    if (!el || !id || st.archivo) return;
+    const it = st.items.find(x => x.id === id);
+    if (!it) { st.abiertosAv.clear(); return; }
+    const dlg = document.createElement("dialog");
+    dlg.className = "casta-sheet";
+    dlg.dataset.av = id;
+    dlg.setAttribute("aria-label", "Comentarios de " + it.titulo);
+    dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" class="casta-sheet-x" data-sheet-cerrar aria-label="Cerrar comentarios">×</button></div>${hiloHtml(it)}`;
+    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    el.append(dlg);
+    dlg.showModal();
+  }
 
   function comentarioHtml(it, c, admin = true, editable = true) {
     if (st.editCom === c.id) return `<form class="com-edit" data-av="${esc(it.id)}" data-cid="${esc(c.id)}"><label class="sr">Editar comentario<textarea name="texto" rows="2" maxlength="1000">${esc(c.texto)}</textarea></label>
@@ -722,7 +738,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
         ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
-      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => "@" + esc(k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
 
@@ -732,14 +748,14 @@ window.interpretarAgenda = function (texto, hoy) {
     if (h.error) return `<div class="hilo"><p class="note">${esc(h.error)} <button class="lnk" type="button" data-hilo-reintentar="${esc(it.id)}">Reintentar</button></p></div>`;
     const p = it.para || {}, fuera = encargados().filter(x => !p.todos && !(p.personas || []).includes(x.clave) && x.clave !== it.autor);
     const sel = h.etq || [];
-    return `<div class="hilo">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}
-      ${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
+    return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(c => comentarioHtml(it, c)).join("") : `<p class="note">Todavía no hay comentarios.</p>`}</div>
+      <div class="casta-sheet-compose">${abierto(it) ? `<form class="com-form" data-av="${esc(it.id)}">${avP("admin")}<div class="com-b">
         <label class="sr" for="com-${esc(it.id)}">Escribe un comentario</label>
         <textarea id="com-${esc(it.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
         ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="pchip ${sel.includes(x.clave) ? "on" : ""}" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
         ${h.foto ? `<span class="inc-th"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
         <div class="com-acc"><label class="btn btn-line"><input type="file" accept="image/*" data-com-foto hidden>Foto</label><button class="btn btn-primary" type="submit">Comentar</button></div>
-        <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div>`;
+        <span class="err" role="alert"></span></div></form>` : `<p class="note">Archivado: ya no se puede comentar.</p>`}</div></div>`;
   }
 
   function postHtml(it) {
@@ -766,7 +782,7 @@ window.interpretarAgenda = function (texto, hoy) {
         ${abierto(it) ? `<button type="button" class="pa" data-archivar="${esc(it.id)}">${ico("i-archivo")}Archivar</button>` : `<button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button>`}
         ${it.autor === "admin" && abierto(it) ? `<button type="button" class="pa" data-editar="${esc(it.id)}">Editar</button>` : ""}
       </div>
-      ${abiertoHilo ? hiloHtml(it) : ""}</article>`;
+      </article>`;
   }
 
   function vistaAvisos() {
@@ -855,9 +871,19 @@ window.interpretarAgenda = function (texto, hoy) {
       if (d.reactivar && st.archivo) { st.archivo = null; return; }
       if (d.hilo) {
         const id = d.hilo;
-        if (st.abiertosAv.has(id) && t.classList.contains("lnk")) st.abiertosAv.delete(id); else st.abiertosAv.add(id);
+        st.abiertosAv.clear(); st.abiertosAv.add(id);
         pintarAvisos();
-        if (st.abiertosAv.has(id)) { abrirHilo(id, true); const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta && t.classList.contains("pa")) ta.focus(); }
+        await abrirHilo(id, true);
+        if (t.classList.contains("pa")) { const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta) ta.focus({ preventScroll: true }); }
+      } else if ("sheetCerrar" in d) { const sheet = t.closest("dialog.casta-sheet"); if (sheet) sheet.close(); }
+      else if (d.responder) {
+        const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av, ta = sheet && sheet.querySelector(".com-form textarea");
+        if (id && ta && st.hilos[id]) {
+          const mencion = "@" + d.responder + " ";
+          if (!ta.value.includes(mencion)) ta.value = mencion + ta.value;
+          st.hilos[id].borrador = ta.value;
+          ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length);
+        }
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];

@@ -1488,3 +1488,20 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .post-ent .si { color: #30d158; font-weight: 600; }
 .post-ent .si small { color: var(--muted); font-weight: 400; }
 .post-ent .no { color: var(--muted); }
+
+/* Castagram: comentarios en hoja modal inferior, sin modificar las tarjetas. */
+dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; padding:0; border:1px solid var(--line-2); border-radius:26px 26px 0 0; width:min(100%,640px); max-width:100%; height:min(82dvh,760px); max-height:calc(100dvh - 12px); background:#1b1b1d; color:var(--fg); overflow:hidden; box-shadow:0 -18px 75px #0009; }
+dialog.casta-sheet[open] { display:flex; flex-direction:column; animation:casta-subir .22s cubic-bezier(.2,.8,.2,1) both; }
+dialog.casta-sheet::backdrop { background:rgba(0,0,0,.68); }
+.casta-sheet-head { position:relative; flex:none; display:flex; align-items:center; justify-content:center; min-height:65px; padding:18px 48px 10px; border-bottom:1px solid var(--line); }
+.casta-sheet-head h3 { margin:0; font-size:var(--t-md); font-weight:600; }
+.casta-sheet-grip { position:absolute; top:9px; width:42px; height:4px; background:#86868f; border-radius:8px; }
+.casta-sheet-x { position:absolute; right:12px; top:15px; width:34px; height:34px; background:var(--fill); color:var(--fg); border:0; border-radius:50%; font:inherit; font-size:24px; cursor:pointer; }
+dialog.casta-sheet .hilo { display:flex; flex-direction:column; flex:1; min-height:0; padding:0; border:0; gap:0; }
+dialog.casta-sheet .casta-sheet-list { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:16px 16px 28px; display:grid; align-content:start; gap:14px; }
+dialog.casta-sheet .casta-sheet-compose { flex:none; background:#1b1b1d; border-top:1px solid var(--line); padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px)); max-height:44dvh; overflow-y:auto; }
+dialog.casta-sheet .com-form textarea { min-height:44px; max-height:100px; }
+dialog.casta-sheet .com-form .com-etq { max-height:85px; overflow-y:auto; }
+@keyframes casta-subir { from { transform:translateY(24px); opacity:.6; } to { transform:translateY(0); opacity:1; } }
+@media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
+@media(min-width:900px) { dialog.casta-sheet { height:min(76dvh,700px); } }
