@@ -160,8 +160,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           </div>
           <span class="err" data-err="ticket"></span>
         </div>
-        <label class="f">Folio completo del ticket <span class="hint">Opcional. Si aparece un prefijo de letras (A a ZZ), escríbelo también; es parte del folio.</span>
-          <input type="text" name="folio_ticket" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej. 17372 (o A17372 si aparece en el ticket)">
+        <label class="f">Número de folio del ticket <span class="hint">Opcional. Escríbelo tal como aparece en el ticket.</span>
+          <input type="text" name="folio_ticket" maxlength="40" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Ej. 17372">
         </label>
       </fieldset>
 
@@ -459,6 +459,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   function validar() {
     const e = {};
     if (!form.servicio.value) e.servicio = "Elige el servicio.";
+    if (form.folio_ticket.value.trim() && !/^\d+$/.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "El folio debe contener sólo números.";
     if (!form.forma_pago.value) e.forma_pago = "Elige cómo pagaste.";
     if (!archivos.ticket) e.ticket = "Agrega la foto del ticket.";
     if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia, o elige \"Escribir mis datos\".";
