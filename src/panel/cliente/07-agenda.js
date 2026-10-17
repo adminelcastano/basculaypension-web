@@ -713,6 +713,10 @@ window.interpretarAgenda = function (texto, hoy) {
   const avatarMencion = p => p.avatar_url || "/panel/api/turno/avatar/c/" + encodeURIComponent(p.clave);
   const tarjetaMencion = p => `<span class="casta-mention" title="@${esc(p.clave)}"><img src="${esc(avatarMencion(p))}" alt="" width="22" height="22" loading="lazy"><b>@${esc(perfilMencion(p))}</b></span>`;
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + T_AV[t]), ...(p.personas || [])].filter(Boolean);
+  const etqParaHtml = p => etqPara(p).map(t => {
+    const persona = (st.personas || []).find(x => x.clave === t);
+    return `<span class="etq-p">${persona ? tarjetaMencion(persona) : "@" + esc(t)}</span>`;
+  }).join("");
   const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m,k) => {
     const p = (st.personas || []).find(x => x.clave === k.toUpperCase());
     return p ? tarjetaMencion(p) : m;
@@ -899,7 +903,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<article class="post ${nuevo || cv.nuevos || cv.nuevosEnterado ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
       <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
-      <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+      <p class="post-para">Para ${etqParaHtml(p)}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
       ${castaFotos(fotosDe(it),it.id)}
       <div class="post-st"><div class="casta-acciones">${nuevo ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-leer="${esc(it.id)}" aria-label="Confirmar mi Enterado. ${cantidadEnterados} confirmaciones registradas" title="Confirmar mi Enterado">${pulgar}<small>${cantidadEnterados}</small></button>` : `<span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" role="img" aria-label="${cantidadEnterados} confirmaciones de Enterado" title="${cantidadEnterados} confirmaciones de Enterado">${pulgar}<small>${cantidadEnterados}</small></span>`}<button type="button" class="casta-comentar" data-hilo="${esc(it.id)}" aria-label="Abrir comentarios" title="Comentar">${comentarIcono}</button></div>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
@@ -995,7 +999,7 @@ window.interpretarAgenda = function (texto, hoy) {
       const it = { ...d.aviso, conv: null };
       return `<button class="btn btn-line" type="button" data-archivo-volver>‹ Archivo de Castagram</button>
         <article class="post hecho"><header class="post-h">${avP(it.autor === "admin" ? "admin" : it.autor, 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))} · archivado ${esc(cuando(it.cerrado))}</span></div></header>
-          <p class="post-para">Para ${etqPara(it.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
+          <p class="post-para">Para ${etqParaHtml(it.para || {})}</p>
           <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
           ${castaFotos(fotosDe(it),it.id)}
           <div class="post-acc"><button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button></div>
