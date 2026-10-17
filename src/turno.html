@@ -1176,13 +1176,19 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       </article>`;
   }
   async function abrirHilo(id) {
-    const prev = hilos[id] || {};
+    const sesion = E, prev = hilos[id] || {};
+    if (!sesion || !sesion.avisos.some(a => a.id === id)) return;
     try {
       const j = await api(`avisos/${id}/conversacion`);
+      // Una respuesta tardía no debe restaurar información de otra sesión PIN.
+      if (E !== sesion) return;
       hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const a = E.avisos.find(x => x.id === id); if (a && a.conv) a.conv.nuevos = 0;
       pintarCabecera();
-    } catch (er) { hilos[id] = { ...prev, error: er.message, comentarios: [] }; }
+    } catch (er) {
+      if (E !== sesion) return;
+      hilos[id] = { ...prev, error: er.message, comentarios: [] };
+    }
     repintarPost(id);
     castaRefrescarActividadTurno();
   }
