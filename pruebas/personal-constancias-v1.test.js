@@ -100,3 +100,32 @@ test("La exportación del expediente PDF documenta la recepción v1 sin simular 
   assert.match(panel, /Pendiente - sin constancia digital v1/);
   assert.match(panel, /No sustituye documentos firmados en papel/);
 });
+
+test("Campaña v1: correo y WhatsApp no exigen entregar documentos que no se solicitaron", () => {
+  const serverBlock = src.match(/function correoCampana\(fila, camp, pendientes, recordatorio\) \{[\s\S]*?\n\}/);
+  assert.ok(serverBlock);
+  const correoCampana = new Function("SITIO", "fechaLarga", "escH",
+    serverBlock[0] + "\nreturn correoCampana;")(
+    "https://basculaypension.com", () => "25 de octubre de 2026", s => s
+  );
+  const uiBlock = panel.match(/const msgCampana = \(cp, p\) => \{[\s\S]*?\n  \};/);
+  assert.ok(uiBlock);
+  const msgCampana = new Function("fechaLarga", "enlaceDe", uiBlock[0] + "\nreturn msgCampana;")(
+    () => "25 de octubre de 2026", token => "https://basculaypension.com/expediente/" + token
+  );
+  const persona = { nombre: "FICTICIO", token: "a".repeat(32), pendientes: ["Confirmar recepción del aviso v1"] };
+  const soloAcuse = { id: "c1", nombre: "Aviso v1", limite: "2026-10-25", docs: ["acuse_v1"] };
+  const correo = correoCampana(persona, soloAcuse, persona.pendientes, false);
+  const recordatorio = correoCampana(persona, soloAcuse, persona.pendientes, true);
+  const wa = msgCampana(soloAcuse, persona);
+  assert.match(correo.texto, /Lee el aviso y confirma/);
+  assert.match(correo.html, /Leer y confirmar aviso v1/);
+  assert.doesNotMatch(correo.texto, /Entrega también las copias físicas con Josué/);
+  assert.doesNotMatch(correo.html, /Subir mis documentos/);
+  assert.doesNotMatch(recordatorio.texto, /Entrega también las copias físicas/);
+  assert.match(wa, /Lee el aviso de privacidad v1/);
+  assert.doesNotMatch(wa, /Entrega también las copias físicas con Josué/);
+  const ordinario = correoCampana(persona, { ...soloAcuse, docs: ["datos"] }, ["Actualizar datos"], false);
+  assert.match(ordinario.texto, /Sube tus documentos/);
+  assert.match(ordinario.html, /Subir mis documentos/);
+});
