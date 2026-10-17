@@ -226,6 +226,9 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   let docsActual = null, esExterno = false;
   function pintarConstancia(c) {
     $("#acuse-v1-acciones").hidden = !!c;
+    // No pedir de nuevo la misma recepción al editar datos del expediente.
+    const casillaForm = form.elements.acepto;
+    if (casillaForm) { casillaForm.closest("label").hidden = !!c; if (c) casillaForm.checked = false; }
     $("#acuse-v1-estado").textContent = c
       ? "Recepción registrada: " + fmt.format(new Date(c.aceptado_en)) + " · versión 1"
       : "Aún no has registrado la recepción de la versión 1.";
