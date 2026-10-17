@@ -430,6 +430,14 @@
       if (!ext) { fila("Último grado", d.escolaridad); fila("Escuela", d.institucion); }
       seccion("Documentos");
       for (const x of c.docs) fila(x.nombre, x.recibido ? `Entregado ${fecha(x.fecha)}${x.fotos.length ? " · foto anexa" : " · en físico"}` : "Pendiente");
+      // La constancia digital forma parte del expediente exportado, sin simular una firma.
+      seccion("Constancia digital de privacidad");
+      fila("Documento", "Aviso de privacidad para colaboradores");
+      fila("Versión", "personal-aviso-v1-2026-10-17");
+      fila("Recepción", c.acuse_v1_en
+        ? new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" }).format(new Date(c.acuse_v1_en))
+        : "Pendiente - sin constancia digital v1");
+      texto("Esta constancia registra la recepcion declarada desde el enlace personal. No sustituye documentos firmados en papel.", { size: 9 });
       if (c.admin_docs.length) { seccion("Documentos administrativos"); for (const x of c.admin_docs) fila(fecha(x.fecha), x.descripcion); }
       if (a.notas) { seccion(ext ? "Notas" : "Notas de la entrevista"); texto(a.notas); }
       y -= 10; texto(`Generado el ${new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "long", timeStyle: "short" }).format(new Date())} · Datos tratados conforme al aviso de privacidad para colaboradores.`, { size: 8, color: rgb(0.5, 0.5, 0.5) });
