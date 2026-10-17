@@ -18,3 +18,5 @@ jobs:
           node-version: '22'
       - name: Pruebas del proyecto (sin datos productivos)
         run: node --test pruebas/*.test.js
+      - name: Validar compilación de Workers sin publicar
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/bascula-worker-validado

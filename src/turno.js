@@ -20,7 +20,7 @@ import { asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conve
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
-import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
+import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio } from "./caja.js";
 
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
@@ -262,8 +262,13 @@ async function estado(env, s) {
   const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
   const inicio = await env.DB.prepare("SELECT cambio, persona, actualizado FROM turno_inicio WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
-  // Lo que dejó de cambio el turno anterior (referencia para el cambio inicial)
-  const anterior = inicio ? null : await env.DB.prepare("SELECT persona, dia, turno, cambio_sig FROM turno_cortes WHERE NOT (dia = ? AND turno = ?) AND cambio_sig IS NOT NULL ORDER BY actualizado DESC LIMIT 1").bind(s.dia, s.turno).first();
+  // Referencia del turno cronológicamente anterior, también al corregir el inicio.
+  // No usar el último corte actualizado: una corrección histórica podría referir otro día.
+  const prev = turnoAnterior(s.dia, s.turno);
+  const anterior = prev ? await env.DB.prepare("SELECT persona, dia, turno, cambio_sig FROM turno_cortes WHERE dia = ? AND turno = ? AND cambio_sig IS NOT NULL").bind(prev.dia, prev.turno).first() : null;
+  const auto = extras.find(x => x.id === idAumentoInicio(s.dia, s.turno));
+  const inicioCompleto = inicio ? { ...inicio, aumento: auto ? Number(auto.monto) : 0,
+    total: totalCambioInicio(inicio.cambio, auto ? auto.monto : 0) } : null;
   if (corte) {
     corte.retiros = leerRetiros(corte.retiros);
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
@@ -279,7 +284,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -620,21 +625,33 @@ export async function turnoRuta(request, env, url, h) {
     const tabla = partes[0] === "gastos" ? "caja_gastos" : "caja_extra";
     const g = await env.DB.prepare(`SELECT id, foto FROM ${tabla} WHERE id = ? AND persona = ? AND dia = ? AND turno = ?`).bind(partes[1], s.persona, s.dia, s.turno).first();
     if (!g) return json({ ok: false, error: "Solo puedes borrar lo que tú capturaste en este turno." }, 404);
+    if (tabla === "caja_extra" && g.id === idAumentoInicio(s.dia, s.turno))
+      return json({ ok: false, error: "Corrige este aporte desde Corte → Corregir cambio inicial." }, 409);
     await env.DB.prepare(`DELETE FROM ${tabla} WHERE id = ?`).bind(g.id).run();
     if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true });
   }
 
   // ---- Corte ciego: efectivo físico de la caja, incluido el cambio inicial ----
-  // ---- Cambio inicial: lo primero que se captura al empezar el turno (se puede corregir hasta entregar el corte) ----
+  // ---- Inicio: recibido del turno anterior + aporte administrativo opcional ----
   if (partes[0] === "inicio" && request.method === "POST") {
-    const cambio = numero(c.cambio);
-    if (!(cambio >= 0) || cambio > 1000000) return json({ ok: false, error: "Escribe con cuánto cambio empiezas (puede ser 0).", errores: { cambio: "Monto inválido." } }, 422);
+    const cambio = numero(c.cambio); // recibido físicamente; NO incluye el aporte
+    const aumento = c.aumento == null || c.aumento === "" ? 0 : numero(c.aumento);
+    const errores = {};
+    if (!(cambio >= 0) || cambio > 1000000) errores.cambio = "Escribe cuánto recibiste del turno anterior (puede ser 0).";
+    if (!(aumento >= 0) || aumento > 1000000) errores.aumento = "Monto de aporte inválido.";
+    if (!Object.keys(errores).length && totalCambioInicio(cambio, aumento) > 1000000)
+      errores.aumento = "El cambio total no puede superar $1,000,000.";
+    if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el cambio inicial.", errores }, 422);
     if (!(await sinCorte())) return json({ ok: false, error: "El corte de este turno ya se entregó; el cambio inicial ya no se puede cambiar." }, 409);
-    await env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona, cambio = excluded.cambio, actualizado = excluded.actualizado`)
-      .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, cambio, ahora, ahora).run();
-    return recordar(json({ ok: true, inicio: { cambio, persona: s.persona, actualizado: ahora } }));
+    // Una página antigua enviaba un único total. Impedir que sobreescriba un
+    // inicio nuevo con aporte automático y produzca un doble conteo.
+    if (c.aumento === undefined && await env.DB.prepare("SELECT 1 FROM caja_extra WHERE id = ?")
+      .bind(idAumentoInicio(s.dia, s.turno)).first())
+      return json({ ok: false, error: "Actualiza la tablet para corregir el cambio inicial con sus dos importes." }, 409);
+    const inicio = await guardarCambioInicio(env,
+      { dia: s.dia, turno: s.turno, persona: s.persona, recibido: cambio, aumento }, ahora);
+    return recordar(json({ ok: true, inicio }));
   }
 
   if (partes[0] === "corte" && request.method === "POST") {
