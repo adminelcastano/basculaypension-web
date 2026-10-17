@@ -9,9 +9,11 @@ const server = readFileSync(new URL("../src/avisos.js", import.meta.url), "utf8"
 const css = readFileSync(new URL("../src/panel/estilos.css", import.meta.url), "utf8");
 
 const personas = [
-  { clave: "JDOM", nombre: "JDOM", perfil: "Josué", avatar_url: "/perfil/jdom.webp" },
-  { clave: "JESC", nombre: "JESC", perfil: "José", avatar_url: "/perfil/jesc.webp" },
-  { clave: "ERI", nombre: "ERI", perfil: "Erika", avatar_url: "/perfil/eri.webp" }
+  { clave: "ERI", nombre: "eve", perfil: "Eve", avatar_url: "/perfil/eri.webp" },
+  { clave: "JDOM", nombre: "alex", perfil: "Alex", avatar_url: "/perfil/jdom.webp" },
+  { clave: "JESC", nombre: "Jess", perfil: "Jess", avatar_url: "/perfil/jesc.webp" },
+  { clave: "JOESC", nombre: "Koki", perfil: "Koki", avatar_url: "/perfil/joesc.webp" },
+  { clave: "JURB", nombre: "Jacky", perfil: "Jacky", avatar_url: "/perfil/jurb.webp" }
 ];
 
 function obtenerBuscador(fuente) {
@@ -24,7 +26,7 @@ test("La tablet y administración sugieren nombres al escribir únicamente @", (
   for (const src of [tablet,panel]) {
     const fn = obtenerBuscador(src);
     const r = fn({ value: "Hola @", selectionStart: 6 }, personas);
-    assert.deepEqual(r.personas.map(p => p.clave), ["JDOM","JESC","ERI"]);
+    assert.deepEqual(r.personas.map(p => p.clave), ["ERI","JDOM","JESC","JOESC","JURB"]);
     assert.equal(r.inicio, 5);
     assert.equal(r.fin, 6);
   }
@@ -33,9 +35,9 @@ test("La tablet y administración sugieren nombres al escribir únicamente @", (
 test("Se puede filtrar por nombre con acentos o por clave, sin escribir carácter por carácter", () => {
   for (const src of [tablet,panel]) {
     const fn = obtenerBuscador(src);
-    assert.deepEqual(fn({ value: "Para @jos", selectionStart: 9 }, personas).personas.map(p => p.clave), ["JDOM","JESC"]);
+    assert.deepEqual(fn({ value: "Para @j", selectionStart: 7 }, personas).personas.map(p => p.clave), ["JESC","JURB"]);
     assert.deepEqual(fn({ value: "@JDO", selectionStart: 4 }, personas).personas.map(p => p.clave), ["JDOM"]);
-    assert.deepEqual(fn({ value: "@Josué", selectionStart: 6 }, personas).personas.map(p => p.clave), ["JDOM"]);
+    assert.deepEqual(fn({ value: "@Alex", selectionStart: 5 }, personas).personas.map(p => p.clave), ["JDOM"]);
     assert.equal(fn({ value: "correo@empresa.com", selectionStart: 6 }, personas), null);
     assert.equal(fn({ value: "hola sin arroba", selectionStart: 16 }, personas), null);
   }
@@ -70,7 +72,7 @@ test("Etiquetas de publicaciones, comentarios y respuestas muestran perfil, sin 
 
 test("Los perfiles se obtienen solo de endpoints de sesión y se conserva el PIN", () => {
   assert.match(turno, /SELECT clave, nombre, avatar, foto_ver, prefs FROM turno_personas WHERE activo = 1/);
-  assert.match(turno, /perfil: leerPrefs\(p\.prefs\)\.apodo \|\| p\.nombre \|\| p\.clave/);
+  assert.match(turno, /perfil: nombrePerfil\(p\)/);
   assert.match(turno, /pinCorrecto\(pin, p\.pin_sal, p\.pin_hash\)/);
   assert.doesNotMatch(turno, /UPDATE agenda_lecturas.*perfil/);
   assert.doesNotMatch(turno, /UPDATE personal_constancias.*perfil/);
@@ -95,12 +97,12 @@ test("Cada mención renderizada lleva la foto y el nombre de perfil, no la clave
     const tarjeta = new Function("perfilMencion","esc", avatar[0] + "\n" + html[0] + "\nreturn tarjetaMencion;")(
       p => p.perfil || p.nombre || p.clave, esc
     );
-    const presentado = tarjeta(personas[0]);
+    const presentado = tarjeta(personas[1]);
     assert.match(presentado, /<img /);
     assert.match(presentado, /jdom\.webp/);
-    assert.match(presentado, /<b>@Josué<\/b>/);
+    assert.match(presentado, /<b>@Alex<\/b>/);
     assert.doesNotMatch(presentado, /<b>@JDOM<\/b>/);
-    const malicioso = tarjeta({ clave:"ERI", nombre:"Erika", perfil:"<img src=x onerror=alert(1)>" });
+    const malicioso = tarjeta({ clave:"ERI", nombre:"Eve", perfil:"<img src=x onerror=alert(1)>" });
     assert.match(malicioso, /&lt;img/);
     assert.doesNotMatch(malicioso, /<b>@<img/);
   }
