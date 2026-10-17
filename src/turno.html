@@ -622,6 +622,7 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
     E = null;
     Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
     const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
+    const form = $("#dlg-form"); if (form) { form.onsubmit = null; form.replaceChildren(); }
     const vista = $("#sec"); if (vista) vista.replaceChildren();
     $("#app").hidden = true; $("#entrada").hidden = false;
     aplicarPrefs(null);
