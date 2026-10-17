@@ -123,3 +123,11 @@ test("Panel: el cobro exige importe, fecha y método", () => {
   assert.match(source,/crypto\.randomUUID\(\)/);
   assert.doesNotThrow(()=>new Function(source));
 });
+
+test("Caja: no duplica un pago si ya aparece en hoja con el mismo folio", () => {
+  const src=readFileSync(new URL("../src/caja.js",import.meta.url),"utf8");
+  assert.match(src,/const cubiertosPorHoja = new Set\(filas\.filter/);
+  assert.match(src,/!x\.pendiente && x\.tipo === "ticket" && x\.importe > 0/);
+  assert.match(src,/cubiertosPorHoja\.has\(\[p\.mes, p\.servicio, p\.folio\]\.join\("\|"\)\) \? 0 : 1/);
+  assert.match(src,/p\.origen_activo = 1/);
+});
