@@ -139,7 +139,9 @@
       if (mime === "application/pdf") return `<div class="pdfview" data-pdf="${tipo}" aria-label="${titulo}"><p class="note">Cargando documento…</p></div><div class="row"><a class="btn btn-line" href="${archivo(tipo)}" target="_blank" rel="noopener">Abrir PDF completo</a></div>`;
       return `<a href="${archivo(tipo)}" target="_blank" rel="noopener"><img src="${archivo(tipo)}" alt="${titulo}" loading="lazy"></a>`;
     };
-    const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
+    const faltan = !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(String(s.rfc || "").toUpperCase()) ||
+      String(s.nombre || "").trim().length < 3 || !/^\d{5}$/.test(String(s.cp || "")) ||
+      !j.regimenes?.[s.regimen] || !j.usos?.[s.uso] || !j.formas_pago?.[s.forma_pago];
     const bloqueado = s.estado === "facturada" || s.estado === "enviada";
     const duplicada = !!(j.ya_facturado && j.ya_facturado.solicitud_id !== s.id);
     const esBascula = s.servicio === "bascula";
@@ -179,7 +181,7 @@
           </details>
           </section>
           <section class="card">
-            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura el folio y el importe tal como aparecen en la foto (paso 6). Si el ticket trae un prefijo de letras (A a ZZ), inclúyelo; los tickets actuales pueden no tenerlo. Al guardar quedan listos para copiar.</p>
+            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura el número de folio y el importe tal como aparecen en la foto (paso 6). Conserva los ceros iniciales. Al guardar quedan listos para copiar.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
@@ -200,7 +202,7 @@
             <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
             <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 17372, A17372 o ZZ15013" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 17372" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
               ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
               ${esBascula ? "" : `<label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
@@ -280,6 +282,7 @@
       if (bloqueado) return; // factura ya registrada: acceso sólo de consulta
       const folioEnPantalla = $("#t-ticket")?.value.trim() || "";
       const importeEnPantalla = $("#t-importe")?.value.trim() || "";
+      if (!/^\d+$/.test(folioEnPantalla.replace(/[\s-]/g, ""))) { e.preventDefault(); toast("Verifica el número de folio del ticket."); return; }
       const importeGuardado = s.importe ? Number(s.importe).toFixed(2) : "";
       if (!folioEnPantalla || !s.folio_ticket || folioEnPantalla !== s.folio_ticket ||
           !importeEnPantalla || !importeGuardado || Number(importeEnPantalla) !== Number(importeGuardado)) {
