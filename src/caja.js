@@ -270,6 +270,10 @@ export async function sincronizarCaja(env) {
         throw new Error("La hoja devolvió un importe pendiente inválido.");
       pendientes.set(id, { ...f, id });
     }
+    // Si la hoja registra otro ticket cobrado del mismo servicio/folio/mes,
+    // el asiento administrativo queda suspendido aunque siga el renglón pendiente.
+    const cubiertosPorHoja = new Set(filas.filter(x => !x.pendiente && x.tipo === "ticket" && x.importe > 0)
+      .map(x => [x.mes, x.servicio, x.folio].join("|")));
     // Se conservan el estado e historial decididos por la administración.
     // Sólo se actualiza la presencia y los datos de origen durante la conciliación.
     stmts.push(env.DB.prepare(`UPDATE caja_pendientes SET origen_activo = 0 WHERE mes IN (${q})`).bind(...meses));
@@ -277,12 +281,13 @@ export async function sincronizarCaja(env) {
     for (const p of pendientes.values()) stmts.push(
       env.DB.prepare(`INSERT INTO caja_pendientes
         (id, servicio, fecha, dia, turno, folio, matricula, cliente, forma, monto, mes, estado, origen_activo, actualizado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', 1, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
         ON CONFLICT(id) DO UPDATE SET dia=excluded.dia, turno=excluded.turno,
           matricula=excluded.matricula, cliente=excluded.cliente, forma=excluded.forma,
-          monto=excluded.monto, origen_activo=1, actualizado=excluded.actualizado`)
+          monto=excluded.monto, origen_activo=excluded.origen_activo, actualizado=excluded.actualizado`)
        .bind(p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.matricula, p.cliente,
-         p.forma, p.monto_pendiente, p.mes, ahora)
+         p.forma, p.monto_pendiente, p.mes,
+         cubiertosPorHoja.has([p.mes, p.servicio, p.folio].join("|")) ? 0 : 1, ahora)
     );
     for (let i = 0; i < borrar.length; i += 90) {
       const lote = borrar.slice(i, i + 90);
