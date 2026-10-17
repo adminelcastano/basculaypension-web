@@ -14,7 +14,8 @@ test("Enterado pendiente de sincronización no se presenta como confirmado", () 
 test("La publicación pendiente indica por enviar y evita duplicados al pulsar", () => {
   assert.match(turno, /cola\(\)\.some\(x => x\.ruta === `avisos\/\$\{a\.id\}\/enterado`/);
   assert.match(turno, /!a\.leido && !pendiente/);
-  assert.match(turno, /Enterado por enviar/);
+  assert.match(turno, /Enterado pendiente de conexión/);
+  assert.match(turno, /is-pendiente/);
 });
 test("La administración distingue Enterado de Leído en el mensaje de éxito", () => {
   assert.match(panel, /toast\("Enterado confirmado"\)/);
