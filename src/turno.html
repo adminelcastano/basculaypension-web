@@ -973,8 +973,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       ${corrigiendo ? `<button class="btn btn-line" type="button" id="ci-cancelar" style="width:100%;margin-top:8px">Cancelar</button>` : ""}
     </form></div>`;
     const f = $("#f-inicio");
-    const limpio = v => String(v || "").replace(/[$,\\s]/g, "");
-    const monto = v => /^\\d{1,9}(\\.\\d{1,2})?$/.test(limpio(v)) ? Number(limpio(v)) : null;
+    const limpio = v => String(v || "").replace(/[$,\s]/g, "");
+    const monto = v => /^\d{1,9}(\.\d{1,2})?$/.test(limpio(v)) ? Number(limpio(v)) : null;
     const actualizarTotal = () => {
       const recibido = monto(f.cambio.value), agregado = monto(f.aumento.value.trim() || "0");
       $("#ci-total").textContent = recibido === null || agregado === null || recibido + agregado > 1000000
