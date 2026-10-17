@@ -89,10 +89,17 @@ test("La carga histórica no se guarda si octubre ya está cerrado", () => {
 });
 
 test("Los turnos anteriores a la tablet no generan alertas falsas de corte sin entregar", () => {
+  const corte = (dia, turno, registros) => ({
+    dia, turno, registros, conteo:null, efectivo:0, tarjeta:0,
+    bascula:{EFECTIVO:0,TARJETA:0}, pension:{EFECTIVO:0,TARJETA:0},
+    gastos:{EFECTIVO:0,TARJETA:0,TRANSFERENCIA:0},
+    extra:{ingreso:0,importe:0}, caja:{n:0,importe:0},
+    cambio:{n:0,importe:0}, efectivo_caja:0, fuera:{formas:{}}
+  });
   const cortes=[
-    { dia:"2026-10-13", turno:"TARDE", registros:5, conteo:null },
-    { dia:"2026-10-14", turno:"MAÑANA", registros:3, conteo:null },
-    { dia:"2026-10-14", turno:"TARDE", registros:4, conteo:null }
+    corte("2026-10-13","TARDE",5),
+    corte("2026-10-14","MAÑANA",3),
+    corte("2026-10-14","TARDE",4)
   ];
   // 15/oct a las 12:00 en México, antes de que venza la gracia de turno siguiente.
   const p = armarHoy({ caja: { cortes }, agenda:{}, pagos:{} }, new Date("2026-10-15T18:00:00Z"));
