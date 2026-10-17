@@ -823,7 +823,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       }
       if (n && E && E.persona === persona && E.turno === turno && E.dia === dia) {
         toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`);
-        await refrescar().catch(() => {});
+        // Una sincronización offline no debe cerrar los comentarios que se estén leyendo.
+        if (seccion === "avisos" && sec().querySelector("dialog.casta-sheet[open]")) {
+          await cargar().then(() => {
+            if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) return;
+            for (const a of E.avisos || []) repintarPost(a.id);
+            castaRefrescarActividadTurno();
+          }).catch(() => {});
+        } else await refrescar().catch(() => {});
       }
     } finally { enviando = false; pintarRed(); }
   }
