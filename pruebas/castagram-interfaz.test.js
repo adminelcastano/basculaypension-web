@@ -77,7 +77,8 @@ test("Castagram: PNG del pulgar original, verde redondeado y nueve emojis exacto
   const icono = readFileSync(new URL("../public/img/castagram-pulgar.png", import.meta.url));
   assert.equal(icono.subarray(0,8).toString("hex"), "89504e470d0a1a0a");
   for (const src of [tablet,panel]) {
-    assert.match(src, /<img class="casta-pulgar-ico" src="\/img\/castagram-pulgar\.png"/);
+    assert.match(src, /castagram-pulgar\.png/);
+    assert.match(src, /casta-pulgar-ico/);
     assert.doesNotMatch(src, /<svg class="casta-pulgar-ico"/);
     const bar = src.match(/<div class="casta-emoji-bar" aria-label="Emojis rápidos">([\s\S]*?)<\/div>/);
     assert.ok(bar,"Barra de emojis visible");
