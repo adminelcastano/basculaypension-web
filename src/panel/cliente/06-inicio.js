@@ -203,6 +203,7 @@
   // Pide atención: una ficha corta por cosa (lo urgente en rojo), y tocarla lleva a donde se resuelve
   function irA(dest) {
     if (!dest || !window.irA) return;
+    if (dest.corte && dest.pendiente && window.cajaAbrirPendiente) return window.cajaAbrirPendiente(dest.corte, dest.pendiente);
     if (dest.corte && window.cajaAbrirCorte) return window.cajaAbrirCorte(dest.corte);
     if (dest.mod === "finanzas") return window.irA("finanzas", { historia: "push", vista: dest.vista || "resumen" });
     if (dest.tab && window.agendaAbrir && (dest.mod === "agenda" || dest.mod === "pagos")) return window.agendaAbrir(dest.tab);
