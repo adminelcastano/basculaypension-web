@@ -1788,7 +1788,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       repintarPost(id);
       const t = document.getElementById("tc-" + id); t && t.focus();
       toast("Comentario publicado.");
-    } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = "Comentar"; }
+    } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }
   });
   sec().addEventListener("keydown", e => { const c = e.target.closest(".ini-card[data-ir]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ir(c.dataset.ir); } });
   const hora12 = iso => iso ? new Date(iso).toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
