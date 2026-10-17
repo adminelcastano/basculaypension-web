@@ -3,6 +3,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const esc = EC.esc;
   const fmtF = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium" });
+  const hoyOperativo = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const fecha = iso => iso ? fmtF.format(new Date(iso.length === 10 ? iso + "T12:00:00-06:00" : iso)) : "";
   const toast = EC.toast;
   const api = EC.api;
@@ -170,7 +171,7 @@
               ? `<div class="row"><button class="btn btn-line" id="p-reactivar" type="button">${iconoEst("activo", "sm")} Reactivar</button></div>`
               : `<div class="row"><button class="btn btn-line" id="p-baja-abrir" type="button">${iconoEst("inactivo", "sm")} Marcar como inactivo</button></div>
                  <div class="grid-form" id="p-baja" hidden>
-                   ${input("fecha_baja", "Fecha de baja", "", "date", new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10))}
+                   ${input("fecha_baja", "Fecha de baja", "", "date", hoyOperativo())}
                    ${input("motivo_baja", "Motivo (opcional)", "")}
                    <div class="row wide"><button class="btn btn-bad" id="p-baja-ok" type="button">Confirmar baja</button></div>
                  </div>`}
@@ -240,7 +241,7 @@
             <div class="adocs" id="p-adocs-lista"></div>
             <div class="grid-form">
               <label class="wide">Descripción<input type="text" id="ad-desc" maxlength="200" placeholder="Ej. Contrato individual de trabajo" autocomplete="off"></label>
-              <label>Fecha de subida<input type="date" id="ad-fecha" value="${new Date(Date.now() - 6 * 3600e3).toISOString().slice(0, 10)}"></label>
+              <label>Fecha de subida<input type="date" id="ad-fecha" value="${hoyOperativo()}"></label>
               <label>Archivo<span class="btn btn-line archivo-sel"><input type="file" id="ad-archivo" accept="application/pdf,image/*"><span id="ad-archivo-n">Elegir PDF</span></span></label>
             </div>
             <div class="row"><button class="btn btn-primary" id="ad-subir" type="button">Subir documento</button><span class="note" id="ad-estado"></span></div>
