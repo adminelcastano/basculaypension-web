@@ -289,6 +289,15 @@ input.monto { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular
 /* Hoja (diálogo) */
 dialog { border: 0; border-radius: 24px; background: var(--surface); color: var(--fg); padding: 22px; width: min(94vw, 600px); max-height: 92dvh; overflow: auto; }
 dialog::backdrop { background: rgba(0,0,0,.7); }
+dialog.acuse-v1 { max-width:min(520px,94vw); border:1px solid #60503a; }
+dialog.acuse-v1 h2 { margin-top:0; }
+.acuse-v1 .explicacion { color:var(--muted); }
+.acuse-v1 .enlace-aviso { display:block; color:#ffcc77; font-weight:700; padding:10px 0; text-underline-offset:3px; }
+.acuse-v1 .marcar { display:flex; gap:12px; align-items:flex-start; padding:12px 2px; cursor:pointer; }
+.acuse-v1 .marcar input { width:24px; height:24px; accent-color:#ffb347; flex:none; margin-top:2px; }
+.acuse-v1 .error { min-height:1.4em; color:#ff9c99; }
+.acuse-v1 :focus-visible { outline:3px solid #ffcc77; outline-offset:3px; }
+.acuse-v1 button:disabled { opacity:.42; cursor:not-allowed; }
 dialog h2 { font-size: 1.3rem; margin-bottom: 6px; }
 dialog .acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; position: sticky; bottom: -22px; background: var(--surface); padding: 12px 0 2px; }
 dialog .acciones .btn { flex: 1 1 160px; }
@@ -637,6 +646,18 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 
 
 <dialog id="dlg"><form method="dialog" id="dlg-form"></form></dialog>
+<dialog id="dlg-aviso-v1" class="acuse-v1" aria-labelledby="aviso-v1-titulo" aria-describedby="aviso-v1-resumen">
+  <h2 id="aviso-v1-titulo">Aviso digital para encargados · v1</h2>
+  <p id="aviso-v1-resumen" class="explicacion">La tablet registra quién entra, sus operaciones de turno, cortes y comunicaciones internas. Las publicaciones de CASTAGRAM distinguen «Leído» de «Enterado».</p>
+  <a class="enlace-aviso" href="/aviso-de-privacidad-encargados/" target="_blank" rel="noopener">Leer aviso completo, versión 1 ↗</a>
+  <label class="marcar"><input type="checkbox" id="aviso-v1-check"><span>He recibido y leído el <strong>Aviso digital para encargados de turno, versión 1</strong>.</span></label>
+  <p class="explicacion">Se guardará una constancia por tu usuario y la fecha del servidor. No es una firma de documentos impresos ni un «Enterado» de CASTAGRAM.</p>
+  <p class="error" id="aviso-v1-error" role="alert"></p>
+  <div class="acciones">
+    <button type="button" class="btn" id="aviso-v1-cancelar">No ahora</button>
+    <button type="button" class="btn btn-primary" id="aviso-v1-confirmar" disabled>Confirmar recepción</button>
+  </div>
+</dialog>
 <div id="toast" role="status" hidden></div>
 
 <script>
@@ -653,6 +674,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const diaTxt = d => d ? new Date(d + "T12:00:00Z").toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : "";
   const ICONO_TURNO = { "MAÑANA": "i-sol", "TARDE": "i-tarde", "NOCHE": "i-luna" };
   const GRAV = { leve: "Leve", media: "Media", grave: "Grave" };
+  const VERSION_AVISO_TURNO = "turno-aviso-v1-2026-10-17";
   const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
 
   // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
@@ -702,12 +724,42 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   }
 
   // ======================= Entrada =======================
+  // Se muestra tras validar la identidad mediante PIN, nunca para otros usuarios
+  // de la tablet compartida. No se almacena el PIN ni el acuse en localStorage.
+  function solicitarAcuseDigital(onConfirmar) {
+    return new Promise(resolve => {
+      const d = $("#dlg-aviso-v1"), check = $("#aviso-v1-check");
+      const confirmar = $("#aviso-v1-confirmar"), cancelar = $("#aviso-v1-cancelar");
+      const error = $("#aviso-v1-error");
+      check.checked = false; confirmar.disabled = true; cancelar.disabled = false; error.textContent = "";
+      const limpiar = () => {
+        check.onchange = null; confirmar.onclick = null; cancelar.onclick = null; d.oncancel = null;
+        if (d.open) d.close();
+      };
+      const terminar = ok => { limpiar(); resolve(ok); };
+      check.onchange = () => { confirmar.disabled = !check.checked; };
+      cancelar.onclick = () => terminar(false);
+      d.oncancel = e => { e.preventDefault(); terminar(false); };
+      confirmar.onclick = async () => {
+        if (!check.checked) return;
+        confirmar.disabled = true; cancelar.disabled = true; error.textContent = "";
+        try { await onConfirmar(); terminar(true); }
+        catch (e) {
+          error.textContent = e.message || "No se pudo registrar la recepción. Intenta nuevamente.";
+          cancelar.disabled = false; confirmar.disabled = !check.checked;
+        }
+      };
+      d.showModal();
+    });
+  }
+
   let elegido = null, turnoElegido = null, pin = "";
   async function mostrarEntrada() {
     guardarLS("turno:estado", null); // borra estado legado con datos privados
     E = null;
     Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
     const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
+    const avisoDlg = $("#dlg-aviso-v1"); if (avisoDlg && avisoDlg.open) avisoDlg.close();
     const form = $("#dlg-form"); if (form) { form.onsubmit = null; form.replaceChildren(); }
     const vista = $("#sec"); if (vista) vista.replaceChildren();
     $("#app").hidden = true; $("#entrada").hidden = false;
@@ -745,8 +797,20 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     pintarPin(); $("#err-pin").textContent = "";
     if (pin.length === 4) {
       entrando = true;
-      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }); pedirInicio = true; await abrirApp(); }
-      catch (e) { $("#err-pin").textContent = e.message; const p = $("#puntos"); p.classList.remove("mal"); void p.offsetWidth; p.classList.add("mal"); }
+      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }, { cola: false }); pedirInicio = true; await abrirApp(); }
+      catch (e) {
+        if (e.datos?.requiere_acuse_v1 && e.datos.version === VERSION_AVISO_TURNO) {
+          const clave = elegido, turno = turnoElegido, pinValidado = pin, inicio = Date.now();
+          await solicitarAcuseDigital(async () => {
+            if (Date.now() - inicio > 120e3) throw new Error("Por seguridad vuelve a ingresar tu PIN; expiró el intento.");
+            await api("entrar", { clave, turno, pin: pinValidado, acuse_v1: VERSION_AVISO_TURNO }, { cola: false });
+            pedirInicio = true; await abrirApp();
+          });
+        } else {
+          $("#err-pin").textContent = e.message;
+          const p = $("#puntos"); p.classList.remove("mal"); void p.offsetWidth; p.classList.add("mal");
+        }
+      }
       finally { pin = ""; pintarPin(); entrando = false; }
     }
   }
@@ -852,6 +916,13 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
     await cargar();
+    if (E.requiere_acuse_v1) {
+      const ok = await solicitarAcuseDigital(async () => {
+        await api("acuse-v1", { version: VERSION_AVISO_TURNO, confirmo: true }, { cola: false });
+        await cargar();
+      });
+      if (!ok) { await api("salir", {}, { cola: false }).catch(() => {}); await mostrarEntrada(); return; }
+    }
     enviarCola();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" }).then(() => { if (pushListo()) suscribirPush(false).catch(() => {}); }).catch(() => {});
     $("#entrada").hidden = true; $("#app").hidden = false;
