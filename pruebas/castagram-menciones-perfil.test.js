@@ -84,3 +84,32 @@ test("Las interfaces y estilos conservan sintaxis válida", () => {
   assert.match(tablet, /\.casta-mention-list/);
   assert.match(css, /max-height:150px/);
 });
+
+test("Cada mención renderizada lleva la foto y el nombre de perfil, no la clave interna", () => {
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  for (const src of [tablet,panel]) {
+    const avatar = src.match(/  const avatarMencion = p => [^\n]+;/);
+    const html = src.match(/  const tarjetaMencion = p => [^\n]+;/);
+    assert.ok(avatar && html);
+    const tarjeta = new Function("perfilMencion","esc", avatar[0] + "\n" + html[0] + "\nreturn tarjetaMencion;")(
+      p => p.perfil || p.nombre || p.clave, esc
+    );
+    const presentado = tarjeta(personas[0]);
+    assert.match(presentado, /<img /);
+    assert.match(presentado, /jdom\.webp/);
+    assert.match(presentado, /<b>@Josué<\/b>/);
+    assert.doesNotMatch(presentado, /<b>@JDOM<\/b>/);
+    const malicioso = tarjeta({ clave:"ERI", nombre:"Erika", perfil:"<img src=x onerror=alert(1)>" });
+    assert.match(malicioso, /&lt;img/);
+    assert.doesNotMatch(malicioso, /<b>@<img/);
+  }
+});
+
+test("El selector es accesible y aparece en comentarios de ambas interfaces", () => {
+  for (const src of [tablet,panel]) {
+    assert.match(src, /aria-autocomplete="list" aria-controls="casta-men-/);
+    assert.match(src, /role="listbox"/);
+    assert.match(src, /aria-expanded="false"/);
+    assert.match(src, /ta\.setAttribute\("aria-expanded", String\(!caja\.hidden\)\)/);
+  }
+});
