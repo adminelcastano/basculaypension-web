@@ -755,7 +755,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
       FROM caja_pendientes WHERE estado IN ('pendiente', 'parcial')
       ORDER BY fecha ASC LIMIT 100`).all()).results;
-    const cobros = await leerCobrosAdmin(env, periodo);
+    const cobros = await leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" });
     const totales = totalesMes(cortes, tr.contadas);
     for (const x of cobros) {
       totales.ingresos += x.monto;
