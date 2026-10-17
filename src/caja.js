@@ -432,6 +432,24 @@ export function leerRetiros(v) {
   let l = v; if (typeof l === "string") { try { l = JSON.parse(l); } catch { l = []; } }
   return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
 }
+/**
+ * Detecta POSIBLES coincidencias entre gastos anteriores al conteo y retiros
+ * al distribuir el corte. Coincidencia no significa duplicado demostrado.
+ * El servidor exige una aclaración, nunca borra ni descuenta registros.
+ */
+export function posiblesPagosRepetidos(gastos = [], retiros = []) {
+  const normal = v => String(v || "").trim().toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+  const porMonto = v => Math.round(Number(v) * 100);
+  const claves = new Set(gastos.filter(g =>
+    (g.forma || "EFECTIVO") === "EFECTIVO" &&
+    (g.origen == null || g.origen === "caja") &&
+    Number.isFinite(Number(g.monto)) && Number(g.monto) > 0
+  ).map(g => normal(g.concepto) + "|" + porMonto(g.monto)));
+  return retiros.filter(r => Number.isFinite(Number(r.monto)) && Number(r.monto) > 0 &&
+    claves.has(normal(r.concepto) + "|" + porMonto(r.monto)));
+}
+
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;
   // Capturada por la administración: no hubo conteo ciego, así que no hay diferencia que calcular

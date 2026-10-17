@@ -19,7 +19,7 @@ import { asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conve
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
-import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
+import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, posiblesPagosRepetidos, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
@@ -650,6 +650,17 @@ export async function turnoRuta(request, env, url, h) {
     if (!errores.efectivo && difRep < -0.009) errores.sobre = `Repartiste $${(-difRep).toFixed(2)} más de lo que contaste. Revisa el sobre, los retiros y el cambio.`;
     else if (!errores.efectivo && difRep > 0.009) errores.sobre = `Faltan $${difRep.toFixed(2)} por repartir. Todo el efectivo contado va en el sobre, en un retiro o como cambio para el siguiente turno.`;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el corte.", errores }, 422);
+    // Fuente autorizada: la tablet no determina por sí sola si existe un gasto previo.
+    // Dos pagos idénticos podrían ser legítimos; se exige una declaración explícita.
+    const gastosPrevios = (await env.DB.prepare(`SELECT concepto, monto, forma, origen FROM caja_gastos
+      WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja' AND forma = 'EFECTIVO'`)
+      .bind(s.dia, s.turno).all()).results;
+    const coincidencias = posiblesPagosRepetidos(gastosPrevios, retiros);
+    if (coincidencias.length && c.pagos_distintos !== true)
+      return json({ ok: false,
+        error: "Un retiro coincide con un gasto ya registrado. Si es el mismo pago, corrige uno de los registros. Si son pagos distintos, confírmalo antes de entregar.",
+        errores: { retiros: "Coincidencia entre gasto del turno y retiro final." }
+      }, 422);
     // Corte, su historial y el cierre del turno en una sola operación (o se guarda todo o nada)
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
@@ -657,7 +668,9 @@ export async function turnoRuta(request, env, url, h) {
         sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros`)
         .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)),
       env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora),
+        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros,
+          pagos_distintos_confirmados: coincidencias.map(r => ({ concepto: r.concepto, monto: r.monto })),
+          notas: texto(c.notas, 500) || null }), ahora),
       env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno)
     ]);
     // Al celular de la administración: cómo se repartió el efectivo del turno
