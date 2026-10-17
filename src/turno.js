@@ -19,7 +19,7 @@ import { asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conve
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
-import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
+import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, conciliarGastosConRetiros, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros } from "./caja.js";
 
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
@@ -749,7 +749,7 @@ export async function turnoAdmin(request, env, url, partes) {
       const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE dia IN (${q})`).bind(...dias).all()).results;
       const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE dia IN (${q})`).bind(...dias).all()).results;
       const claves = new Set(conteos.map(x => x.dia + "|" + x.turno));
-      cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
+      cortes = unirConteos(calcularCortes(movs, conciliarGastosConRetiros(gastos, conteos).gastos, extras, inicios), conteos).filter(c => claves.has(c.dia + "|" + c.turno));
     }
     let abierto = await env.DB.prepare("SELECT persona, dia, turno, desde FROM turno_abierto WHERE id = 1").first();
     if (abierto && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(abierto.dia, abierto.turno).first()) abierto = null;
