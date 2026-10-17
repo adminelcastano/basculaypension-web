@@ -55,3 +55,17 @@ test("Facturas: no se escribe contenido de respuestas IA en logs", () => {
   const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
   assert.doesNotMatch(worker, /console\.log\("ticket sin json",\s*texto/);
 });
+
+test("Hoy: fuentes fallidas no mantienen importes o gráficas anteriores", () => {
+  const panel = readFileSync(new URL("../src/panel/cliente/06-inicio.js", import.meta.url), "utf8");
+  const inicio = panel.indexOf("function limpiarFuenteHoy(tipo)");
+  const fin = panel.indexOf("const tip =", inicio);
+  assert.ok(inicio >= 0 && fin > inicio);
+  const limpiar = panel.slice(inicio, fin);
+  for (const fuente of ["facturas", "personal", "caja", "agenda", "pagos", "finanzas", "calendario"])
+    assert.match(limpiar, new RegExp(fuente + ":\\s*\\{"));
+  assert.match(panel, /if \(F\.pagos\) pintarPagos\(F\.pagos\); else limpiarFuenteHoy\("pagos"\)/);
+  assert.match(panel, /if \(F\.finanzas\) pintarFinanzas\(F\.finanzas\); else limpiarFuenteHoy\("finanzas"\)/);
+  assert.match(panel, /if \(F\.calendario\) pintarCalendario\(F\.calendario\); else limpiarFuenteHoy\("calendario"\)/);
+  assert.match(panel, /generaciones\.get\(el\) !== gen/);
+});
