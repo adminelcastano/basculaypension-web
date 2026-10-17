@@ -162,7 +162,7 @@
     const msg = mensajeWa(c.nombre, c.token, c.docs.map(x => x.nombre), c.tipo);
     d.innerHTML = `
       <button class="btn btn-line back" id="p-volver" type="button">← Volver a la lista</button>
-      <div class="detail-head">${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="folio-tag" id="p-folio" type="button" title="Copiar folio">Folio ${esc(c.folio)}</button><button class="btn btn-bad" id="p-eliminar-top" type="button" style="margin-left:auto;min-height:36px;padding:0 14px"><svg aria-hidden="true" style="width:18px;height:18px"><use href="#i-trash"/></svg>Eliminar</button></div>
+      <div class="detail-head">${VINC[c.id] ? avP(VINC[c.id], 1) : iconoEst(c.estatus)}<h2>${esc(c.nombre)}</h2>${estadoPill(c)}<button class="folio-tag" id="p-folio" type="button" title="Copiar folio">Folio ${esc(c.folio)}</button></div>
       <div class="cols">
         <div style="display:grid;gap:24px">
           <section class="card" id="p-estatus">
@@ -251,11 +251,6 @@
             <p class="note" style="margin:0">Los llena el colaborador desde su enlace. Aquí puedes corregirlos.</p>
             <div class="grid-form">${CAMPOS.filter(([sec]) => !(c.tipo === "externo" && sec === "Escolaridad")).map(([sec, cs], i) => `${i ? `<span class="sep">${sec}</span>` : `<span class="sep" style="border:0;margin:0;padding:0">${sec}</span>`}${cs.map(([k, et, cl, tp]) => input(k, et, cl, tp, c.datos[k])).join("")}`).join("")}</div>
             <div class="row"><button class="btn btn-line" id="p-guardar-datos" type="button">Guardar datos</button></div>
-          </section>
-          <section class="card">
-            <h3>Eliminar ficha</h3>
-            <p class="note" style="margin:0">Borra al colaborador, sus datos y las fotos de sus documentos en el panel (su carpeta de Drive se conserva). Su enlace deja de funcionar. No se puede deshacer. Si solo dejó de trabajar, mejor márcalo como inactivo.</p>
-            <div class="row"><button class="btn btn-bad" id="p-eliminar" type="button">Eliminar ficha</button></div>
           </section>
         </div>
       </div>`;
@@ -350,13 +345,6 @@
       const cont = $("#p-datos");
       try { await post(`colaboradores/${id}/datos`, leer(cont)); errores(cont); toast("Datos guardados"); cargar(); abrir(id); } catch (e) { errores(cont, e.errores); toast(e.message); }
     });
-    const eliminar = async e => {
-      const b = e.currentTarget;
-      if (!b.classList.contains("armed")) { const antes = b.innerHTML; b.classList.add("armed"); b.textContent = "Toca otra vez para eliminar"; setTimeout(() => { b.classList.remove("armed"); b.innerHTML = antes; }, 4000); return; }
-      try { await post(`colaboradores/${id}/eliminar`); toast("Ficha eliminada"); st.actual = null; $("#p-detalle").innerHTML = `<p class="empty">Elige un colaborador o agrega uno nuevo.</p>`; $("#p-work").classList.remove("ver-detalle"); cargar(); } catch (err) { toast(err.message); }
-    };
-    $("#p-eliminar").addEventListener("click", eliminar);
-    $("#p-eliminar-top").addEventListener("click", eliminar);
   }
 
   function pintarAdocs(id, lista) {
