@@ -77,3 +77,30 @@ test("No permite salir hacia Facturador con un folio corregido pero no guardado"
   assert.match(panel, /Primero guarda el folio completo y el importe del ticket/);
   assert.doesNotThrow(() => new Function(panel));
 });
+
+test("Los reportes conservan fecha de entrega y número de columnas coherente", () => {
+  const cab = worker.match(/^const ENCABEZADOS = \[[^\n]+\];/m);
+  const filas = worker.match(/function filasExcel\(results\) \{[\s\S]*?\n\}/);
+  assert.ok(cab && filas);
+  const fn = new Function("SERVICIOS", "REGIMENES", "USOS", "FORMAS_PAGO",
+    cab[0] + "\n" + filas[0] + "\nreturn filasExcel;");
+  const filasExcel = fn({ bascula: "Báscula" }, { "612": "Actividad" },
+    { G03: "Gastos" }, { "01": "Efectivo" });
+  const datos = filasExcel([{
+    folio: "EC-PRUEBA", creado: "2026-10-17T13:00:00.000Z", estado: "enviada",
+    servicio: "bascula", folio_ticket: "17097", nombre: "CLIENTE FICTICIO",
+    regimen: "612", uso: "G03", resuelta_en: "2026-10-17T14:00:00.000Z",
+    enviada_en: "2026-10-17T15:00:00.000Z", folio_factura: "CFDI-1"
+  }]);
+  assert.equal(filasExcel.length, 1);
+  assert.equal(datos.length, 2);
+  assert.equal(datos[0].length, datos[1].length);
+  assert.equal(datos[1][datos[0].indexOf("Fecha entrega manual")], "2026-10-17 09:00");
+  assert.equal(datos[1][datos[0].indexOf("Estado")], "Enviada al cliente");
+});
+
+test("El panel reduce conteos duplicados sin alterar respuesta de otros clientes", () => {
+  assert.match(panel, /i > 0\) p\.set\("solo_lista", "1"\)/);
+  assert.match(worker, /url\.searchParams\.get\("solo_lista"\) === "1"/);
+  assert.match(worker, /soloLista \? null : await env\.DB\.prepare\(/);
+});
