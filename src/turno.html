@@ -1211,8 +1211,11 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const eventos = [];
     for (const a of E.avisos || []) {
       const cv = a.conv || {};
-      if (!a.leido && !a.propio) eventos.push({ id:a.id, at:a.creado,
-        mensaje:"Pendiente de Enterado", titulo:a.titulo });
+      if (!a.leido && !a.propio) {
+        const pendiente = cola().some(x => x.ruta === `avisos/${a.id}/enterado` && x.persona === E.persona && x.turno === E.turno && x.dia === E.dia);
+        eventos.push({ id:a.id, at:a.creado,
+          mensaje:pendiente ? "Enterado pendiente de conexión" : "Pendiente de Enterado", titulo:a.titulo });
+      }
       if (cv.nuevos > 0) {
         const otro = cv.ultimo && cv.ultimo.autor !== E.persona ? nombreDe(cv.ultimo.autor) : "";
         eventos.push({ id:a.id, at:cv.ultimo && cv.ultimo.creado || cv.actividad || a.creado,
@@ -1723,7 +1726,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       en.disabled = true;
       try {
         const r = await api(`avisos/${en.dataset.enterado}/enterado`, {});
-        if (r.enCola) { toast("Enterado pendiente: se confirmará cuando vuelva internet."); repintarPost(en.dataset.enterado); return; }
+        if (r.enCola) { toast("Enterado pendiente: se confirmará cuando vuelva internet."); repintarPost(en.dataset.enterado); castaRefrescarActividadTurno(); return; }
         const a = E.avisos.find(x => x.id === en.dataset.enterado);
         if (a) a.leido = true;
         pintarCabecera(); repintarPost(en.dataset.enterado);
