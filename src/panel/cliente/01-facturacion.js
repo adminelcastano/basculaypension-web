@@ -136,6 +136,7 @@
     };
     const faltan = !s.rfc || !s.nombre || !s.regimen || !s.cp;
     const bloqueado = s.estado === "facturada" || s.estado === "enviada";
+    const duplicada = !!(j.ya_facturado && j.ya_facturado.solicitud_id !== s.id);
     const esBascula = s.servicio === "bascula";
     const capturado = !!(s.folio_ticket || s.importe);
 
@@ -177,7 +178,7 @@
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
-            ${j.ya_facturado && j.ya_facturado.solicitud_id !== s.id ? `<p class="warn"><b>Ticket ya facturado:</b> aparece con la factura ${esc(j.ya_facturado.folio_factura)}. No emitas otro CFDI; si corresponde, rechaza la nueva solicitud.</p>` : ""}
+            ${duplicada ? `<p class="warn"><b>Ticket ya facturado:</b> aparece con la factura ${esc(j.ya_facturado.folio_factura)}. No emitas otro CFDI; si corresponde, rechaza la nueva solicitud.</p>` : ""}
             ${j.contraste?.advertencia ? `<p class="warn"><b>Verificación de ingresos:</b> ${esc(j.contraste.advertencia)}</p>` : ""}
             ${(j.duplicados || []).length ? `<p class="warn"><b>Ojo: el ticket ${esc(s.folio_ticket)} ya aparece en otra solicitud.</b> ${j.duplicados.map(x => `${esc(x.folio)} (${{ pendiente: "pendiente", facturada: "facturada" + (x.folio_factura ? " con factura " + esc(x.folio_factura) : ""), rechazada: "rechazada" }[x.estado] || esc(x.estado)})`).join(", ")}. Revisa que no se facture dos veces.</p>` : ""}
             ${s.aviso_ticket ? `<p class="warn"><b>Ojo:</b> ${esc(s.aviso_ticket)}</p>` : ""}
@@ -208,7 +209,7 @@
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">3</span>Factura en Facturador</h3><p class="note fguia">Abre Facturador en otra pestaña, emite la factura con los datos de los pasos 1 y 2 y regresa aquí.</p>
-            <div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>
+            ${duplicada ? `<p class="warn"><b>No emitir otro CFDI:</b> este ticket ya figura como facturado. Revisa los datos y usa Rechazar con el motivo correspondiente.</p>` : `<div class="row"><a class="btn btn-primary" href="https://auth.facturador.com/partiallogin?signin=3e13c6177909677b7a2b8adb862f68da" target="_blank" rel="noopener">Abrir Facturador ↗</a></div>`}
           </section>
           <section class="card">
             ${["pendiente", "en_revision"].includes(s.estado) ? `
@@ -216,7 +217,7 @@
               ${s.estado === "pendiente" ? `<div class="row"><button class="btn btn-line" id="iniciar-revision" type="button">Iniciar revisión</button></div>` : `<p class="note">En revisión por administración.</p>`}
               <div class="row">
                 <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
-                <button class="btn btn-primary" id="facturar" type="button">Facturada</button>
+                <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>Facturada</button>
               </div>
               <p class="note">Fecha: ${fecha(new Date().toISOString())} (automática). Se guardan también el folio del ticket y el importe del paso 2.</p>
               <div class="rechazo">
@@ -233,7 +234,7 @@
                 <h3 style="margin-top:6px">Cambiar estatus</h3>
                 <div class="row">
                   <input type="text" id="folio-factura" placeholder="Número o UUID de la factura" aria-label="Número de la factura">
-                  <button class="btn btn-primary" id="facturar" type="button">Marcar facturada</button>
+                  <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>Marcar facturada</button>
                 </div>
                 <div class="row">
                   ${s.archivos_borrados ? "" : `<button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button>`}
