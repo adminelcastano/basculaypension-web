@@ -512,13 +512,18 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   const porRango = !!(desde || hasta);
   const args = [...(porRango ? [] : meses), ...(desde ? [desde] : []), ...(hasta ? [hasta] : [])];
   const enMes = porRango ? "1 = 1" : `mes IN (${meses.map(() => "?").join(",")})`;
-  const movs = (await env.DB.prepare(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`).bind(...args).all()).results;
-  const todos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
+  // Son lecturas independientes; no hay que esperar a que termine cada consulta
+  // para iniciar las demás. Conservamos exactamente las mismas filas y filtros.
+  const consultar = sql => env.DB.prepare(sql).bind(...args).all().then(r => r.results);
+  const [movs, todos, transf, conteos, extras, inicios] = await Promise.all([
+    consultar(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`),
+    consultar(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
+    consultar(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`),
+    consultar(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`),
+    consultar(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
+    consultar(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`)
+  ]);
   const gastos = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
-  const transf = (await env.DB.prepare(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`).bind(...args).all()).results;
-  const conteos = (await env.DB.prepare(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
-  const extras = (await env.DB.prepare(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`).bind(...args).all()).results;
-  const inicios = (await env.DB.prepare(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`).bind(...args).all()).results;
   return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios };
 }
 
