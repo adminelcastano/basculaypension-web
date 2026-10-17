@@ -69,3 +69,10 @@ test("Hoy: fuentes fallidas no mantienen importes o gráficas anteriores", () =>
   assert.match(panel, /if \(F\.calendario\) pintarCalendario\(F\.calendario\); else limpiarFuenteHoy\("calendario"\)/);
   assert.match(panel, /generaciones\.get\(el\) !== gen/);
 });
+
+test("Panel administrativo: el JavaScript de las secciones editadas tiene sintaxis válida", () => {
+  for (const archivo of ["01-facturacion.js", "02-personal.js", "03-caja.js", "05-finanzas.js", "06-inicio.js"]) {
+    const fuente = readFileSync(new URL("../src/panel/cliente/" + archivo, import.meta.url), "utf8");
+    assert.doesNotThrow(() => new Function(fuente), archivo);
+  }
+});
