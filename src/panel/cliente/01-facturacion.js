@@ -189,7 +189,7 @@
               filas.push(campo(esBascula ? "Tarifa" : "Total impreso", imp ? Number(s.importe).toFixed(2) : ""));
               if (s.anotacion) filas.push(campo("Anotación a mano", s.anotacion));
               filas.push(campo("WhatsApp del cliente", s.telefono));
-              return `<div id="ticket-vista" ${capturado ? "" : "hidden"}><div class="fields">${filas.join("")}</div><div class="row"><button class="btn btn-line" id="editar-ticket" type="button">Editar datos del ticket</button></div></div>`;
+              return `<div id="ticket-vista" ${capturado ? "" : "hidden"}><div class="fields">${filas.join("")}</div><div class="row"><button class="btn btn-line" id="editar-ticket" type="button" ${bloqueado ? "hidden" : ""}>Editar datos del ticket</button></div></div>`;
             })()}
             <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
             <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
@@ -240,7 +240,7 @@
                   <button class="btn btn-bad" id="eliminar" type="button">Eliminar solicitud</button>
                 </div>
                 <p class="note">Eliminar borra la solicitud, el ticket y la constancia. No se puede deshacer.</p>` :
-                (s.archivos_borrados ? "" : `<div class="row"><button class="btn btn-line" id="reabrir" type="button">Regresar a pendientes</button></div>`)}`}
+                ""}`}
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
@@ -260,7 +260,7 @@
           <section class="card doc">
             <h3 class="fpaso"><span class="num">7</span>Constancia de Situación Fiscal</h3>
             ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
-            ${!s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
+            ${!bloqueado && !s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
           </section>` : ""}
       </div>`;
 
