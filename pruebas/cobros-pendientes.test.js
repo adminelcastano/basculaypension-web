@@ -43,7 +43,7 @@ test("Caja: importa el pendiente y registra cero como cobrado", async () => {
 });
 
 test("Hoy: aviso individual enlaza al cobro pendiente en el corte", () => {
-  const id="bascula|2026-10-01T14:56:04|17097|";
+  const id="bascula|2026-10-01T14:56:04|17097";
   const d={caja:{cortes:[],pendientes:[{
     id, servicio:"bascula",folio:"17097",monto:160,dia:"2026-10-01",turno:"TARDE"
   }]}, agenda:{}, pagos:{}};
