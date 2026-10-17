@@ -800,6 +800,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes.length === 1 && request.method === "GET") {
     const periodo = leerPeriodo(url);
+    // Hoy sólo necesita resumen, no folios/catálogos/tabla de movimientos.
+    const esResumenHoy = url.searchParams.get("resumen") === "1";
     // Las fuentes son independientes: no encadenar lecturas de D1, KV y
     // categorías cuando todas pueden comenzar juntas.
     const [{ movs, gastos, transf, conteos, extras, inicios }, sync, pendientes, cobros, categorias] = await Promise.all([
@@ -811,10 +813,22 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         FROM caja_pendientes p WHERE p.estado IN ('pendiente', 'parcial')
         ORDER BY fecha ASC LIMIT 100`).all().then(r => r.results),
       leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" }),
-      listaCategorias(env)
+      esResumenHoy ? Promise.resolve(null) : listaCategorias(env)
     ]);
     const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos), conteos, inicios);
     const tr = transferenciasMes(movs, transf);
+    // El camino ligero evita numeraciones de folios, escrituras y catálogos.
+    // Conserva todas las fuentes en vivo que utiliza Hoy y sus alertas.
+    if (esResumenHoy) {
+      const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
+      const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({
+        dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto,
+        forma: g.forma, persona: g.persona || null, creado: g.creado
+      }));
+      return json({ ok: true, mes, sync, pendientes, cobros, cortes,
+        transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes,
+        conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN) });
+    }
     const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
