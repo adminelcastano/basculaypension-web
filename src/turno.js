@@ -783,8 +783,13 @@ export async function turnoAdmin(request, env, url, partes) {
 
   if (partes.length === 1 && request.method === "GET") {
     const ahora = new Date().toISOString();
-    const personas = (await env.DB.prepare("SELECT clave, nombre, activo, avatar, avatar_base, foto_ver, colaborador, pin_hash IS NOT NULL AS tiene_pin, bloqueado_hasta, ultimo_acceso FROM turno_personas ORDER BY activo DESC, clave").all()).results
-      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso }));
+    const personas = (await env.DB.prepare(`SELECT p.clave, p.nombre, p.activo, p.avatar, p.avatar_base, p.foto_ver, p.colaborador,
+      p.pin_hash IS NOT NULL AS tiene_pin, p.bloqueado_hasta, p.ultimo_acceso,
+      a.aceptado_en AS acuse_v1_en
+      FROM turno_personas p LEFT JOIN turno_acuses a ON a.persona = p.clave AND a.version = ?
+      ORDER BY p.activo DESC, p.clave`).bind(AVISO_DIGITAL_V1).all()).results
+      .map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, activo: !!p.activo, colaborador: p.colaborador || null, avatar: avatarValido(p.avatar), avatar_base: p.avatar_base || null, avatar_url: urlAvatar(p, true), foto_url: p.foto_ver ? urlAvatar({ ...p, avatar: "foto" }, true) : null, tiene_pin: !!p.tiene_pin, bloqueado: !!(p.bloqueado_hasta && p.bloqueado_hasta > ahora), ultimo_acceso: p.ultimo_acceso,
+        acuse_v1_en: p.acuse_v1_en || null }));
     // Últimos cortes entregados con su comparación
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE COALESCE(admin, 0) = 0 ORDER BY dia DESC, actualizado DESC LIMIT 12").all()).results;
     let cortes = [];
@@ -801,6 +806,13 @@ export async function turnoAdmin(request, env, url, partes) {
     let abierto = await env.DB.prepare("SELECT persona, dia, turno, desde FROM turno_abierto WHERE id = 1").first();
     if (abierto && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(abierto.dia, abierto.turno).first()) abierto = null;
     return json({ ok: true, personas, cortes, abierto: abierto || null, avatares: Object.keys(AVATARES) });
+  }
+
+  if (partes[1] === "acuse-v1" && request.method === "GET") {
+    const personas = (await env.DB.prepare(`SELECT p.clave, p.nombre, p.activo, a.aceptado_en, a.medio
+      FROM turno_personas p LEFT JOIN turno_acuses a ON a.persona = p.clave AND a.version = ?
+      ORDER BY p.activo DESC, p.clave`).bind(AVISO_DIGITAL_V1).all()).results;
+    return json({ ok: true, version: AVISO_DIGITAL_V1, personas });
   }
 
   // La administración libera la tablet cuando un turno quedó sin corte (por ejemplo, el encargado ya no regresa)
