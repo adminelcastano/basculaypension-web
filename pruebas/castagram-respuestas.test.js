@@ -19,7 +19,7 @@ test("Castagram: logotipo reducido 20% y proporcional",()=>{
 test("Castagram: se pueden insertar emojis en comentarios y respuestas",()=>{
   for(const text of [tablet,panel]){
     assert.match(text,/data-com-emoji/);
-    assert.match(text, /\.dataset\.comEmoji/);
+    assert.match(text, /(?:\.dataset|\bd)\.comEmoji/);
     assert.match(text,/setRangeText\(emoji/);
     assert.match(text,/\b❤️\b|❤️/);
   }
