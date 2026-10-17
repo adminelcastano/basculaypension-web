@@ -147,9 +147,9 @@ async function hojasFacturacion(env, mes, filasFacturas) {
     hoja("Resumen", ["Concepto", "Valor"], [
       ["Mes", nombreMes(mes)], ["Generado", local(new Date().toISOString())],
       ["Solicitudes recibidas en el mes", n(s => mesLocal(s.creado) === mes)],
-      ["Facturadas en el mes", n(s => s.estado === "facturada" && s.resuelta_en && mesLocal(s.resuelta_en) === mes)],
+      ["Facturadas en el mes", n(s => ["facturada", "enviada"].includes(s.estado) && s.resuelta_en && mesLocal(s.resuelta_en) === mes)],
       ["Rechazadas en el mes", n(s => s.estado === "rechazada" && s.resuelta_en && mesLocal(s.resuelta_en) === mes)],
-      ["Pendientes al generar", n(s => s.estado === "pendiente")]
+      ["Pendientes al generar", n(s => ["pendiente", "en_revision"].includes(s.estado))]
     ]),
     { nombre: "Facturas", filas: filasFacturas(facturas).map(f => f.map(celda)) }
   ];
