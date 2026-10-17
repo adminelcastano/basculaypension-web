@@ -193,15 +193,15 @@ export async function archivoAvisos(env, { q = "", persona = "", desde = "", has
   let sql = "SELECT i.* FROM agenda_items i WHERE i.tipo = 'aviso' AND i.estado = 'archivado'", args = [];
   const t = String(q || "").trim().slice(0, 60);
   if (t) {
-    const like = "%" + t.replace(/[%_]/g, "") + "%";
-    sql += " AND (i.titulo LIKE ? OR COALESCE(i.detalle, '') LIKE ? OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.texto LIKE ?))"; args.push(like, like, like);
+    const like = "%" + t.replace(/[!%_]/g, x => "!" + x) + "%";
+    sql += " AND (i.titulo LIKE ? ESCAPE '!' OR COALESCE(i.detalle, '') LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.texto LIKE ? ESCAPE '!'))"; args.push(like, like, like);
   }
   const per = String(persona || "").toUpperCase().slice(0, 12);
   if (per) { sql += " AND (COALESCE(i.autor, 'admin') = ? OR i.para LIKE ? OR EXISTS (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.autor = ?))"; args.push(per === "ADMIN" ? "admin" : per, `%"${per}"%`, per === "ADMIN" ? "admin" : per); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) { sql += " AND substr(COALESCE(i.cerrado, i.actualizado), 1, 10) >= ?"; args.push(desde); }
   if (/^\d{4}-\d{2}-\d{2}$/.test(hasta)) { sql += " AND substr(COALESCE(i.cerrado, i.actualizado), 1, 10) <= ?"; args.push(hasta); }
   const pg = Math.max(0, Math.min(200, Number(pagina) || 0));
-  sql += " ORDER BY COALESCE(i.cerrado, i.actualizado) DESC LIMIT 31 OFFSET ?"; args.push(pg * 30);
+  sql += " ORDER BY COALESCE(i.cerrado, i.actualizado) DESC, i.id DESC LIMIT 31 OFFSET ?"; args.push(pg * 30);
   const filas = (await env.DB.prepare(sql).bind(...args).all()).results;
   const items = filas.slice(0, 30).map(a => ({ ...a, para: normalizarPara(a.para), autor: a.autor || "admin" }));
   const res = await resumenConversaciones(env, items, "ADMIN");
