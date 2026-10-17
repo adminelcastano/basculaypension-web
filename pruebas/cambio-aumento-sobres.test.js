@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  calcularCortes, unirConteos, totalesMes, cambiosEntreTurnos, claseHoja,
+  calcularCortes, unirConteos, totalesMes, cambiosEntreTurnos, claseHoja, esCambio, movimientosCaja,
   guardarCambioInicio, idAumentoInicio, totalCambioInicio
 } from "../src/caja.js";
 import { flujosMes } from "../src/cuentas.js";
@@ -42,11 +42,22 @@ test("Aumento adicional a medio turno usa el mismo origen (sobres), sin duplicar
   assert.deepEqual(flujo.sobres.movimientos.filter(x => x.tipo === "cambio").map(x => x.salida), [20,15]);
 });
 
-test("Aumentos desde la hoja también se tratan como salida de sobres", () => {
-  const m = { tipo: "caja", importe: 20, folio: "SE AGREGÓ AL CAMBIO", cliente: "", matricula: "", forma: "EFECTIVO" };
+test("Aumentos de la hoja salen de sobres y no reemplazan el fondo inicial", () => {
+  const m = { id: 123, mes: "2026-10", dia, turno, fecha: dia+"T16:00:00",
+    servicio:"bascula", tipo: "caja", importe: 20,
+    folio: "SE AGREGÓ AL CAMBIO", cliente: "", matricula: "", forma: "EFECTIVO" };
   assert.equal(claseHoja(m), "de_admin");
+  assert.equal(esCambio(m), false); // no debe sobrescribir los $90 de cambio inicial
+  const corte = calcularCortes([m], [], [], [{ dia, turno, persona, cambio:90 }])[0];
+  assert.equal(corte.cambio.importe, 90);
+  assert.equal(corte.caja.importe, 20);
+  assert.equal(corte.efectivo_caja, 110);
+  assert.equal(movimientosCaja({movs:[m]}).length,1); // queda en bitácora de movimientos
   const flujo = flujosMes({ hojaAdmin: [{ dia, turno, clase: "de_admin", monto: 20, concepto: m.folio }] }, []);
   assert.equal(flujo.sobres.salidas, 20);
+  const viejo = { ...m, importe:90, folio:"CAMBIO" };
+  assert.equal(esCambio(viejo), true); // preserva los fondos históricos originales
+  assert.equal(claseHoja(viejo), "cambio");
 });
 
 function dbSimulada() {
