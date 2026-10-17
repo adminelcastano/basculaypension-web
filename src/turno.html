@@ -598,6 +598,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     <img src="/img/logo.png" alt="">
     <h1>Tablet de turno</h1>
     <p class="muted" style="margin:0">Báscula y Pensión El Castaño</p>
+    <p class="muted" style="margin:12px 0 0;font-size:.88rem">
+      <a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener"
+         style="color:var(--amber);text-underline-offset:3px">Consultar aviso de privacidad para colaboradores · v1</a>
+    </p>
     <div class="paso">
       <h2>¿Quién está de turno?</h2>
       <p class="aviso-abierto" id="aviso-abierto" role="status" hidden></p>
@@ -1627,7 +1631,11 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       </div><input type="file" id="pf-foto" accept="image/*" style="position:absolute;opacity:0;width:1px;height:1px"></div>
       <div class="campo"><span class="lb">Color</span><div class="sws" id="pf-color">${Object.entries(E.acentos).map(([k, v]) => `<button type="button" data-v="${k}" style="--s:${v}" aria-pressed="${k === p.acento}" aria-label="${ACENTO_TXT[k] || k}" title="${ACENTO_TXT[k] || k}"></button>`).join("")}</div></div>
       <div class="campo"><span class="lb">Tamaño de letra</span>${chips("pf-letra", [["normal", "Normal"], ["grande", "Grande"], ["muy-grande", "Muy grande"]], p.letra)}</div>
-      <label class="campo"><span>¿Cómo te saludamos?</span><input class="t" name="apodo" maxlength="20" value="${esc(p.apodo || "")}" placeholder="${esc(E.nombre.split(" ")[0])}" autocomplete="off"></label>`,
+      <label class="campo"><span>¿Cómo te saludamos?</span><input class="t" name="apodo" maxlength="20" value="${esc(p.apodo || "")}" placeholder="${esc(E.nombre.split(" ")[0])}" autocomplete="off"></label>
+      <p class="muted" style="margin:12px 0 0;font-size:.88rem">
+        <a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener" style="color:var(--amber)">Consultar aviso de privacidad v1</a>.
+        Las constancias se gestionan exclusivamente en Personal y Campañas.
+      </p>`,
       async f => {
         p.apodo = f.apodo.value.trim();
         const r = await api("perfil", { avatar: elegido, foto: elegido === "foto" ? foto : null, prefs: p }, { cola: false });
