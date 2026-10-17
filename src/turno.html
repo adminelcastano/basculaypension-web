@@ -400,6 +400,13 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .com-form .err { margin: 6px 0 0; }
 @media (max-width: 560px) { .post { padding: 14px 14px 4px; border-radius: 18px; } }
 
+
+/* Emojis en comentarios y respuestas. Solo los comentarios admiten fotografía. */
+.casta-emoji-bar { display:flex; align-items:center; gap:4px; padding:2px 0 6px; overflow-x:auto; white-space:nowrap; }
+.casta-emoji-bar button { flex:none; min-width:40px; min-height:40px; padding:3px; border:0; border-radius:10px; background:transparent; color:var(--fg); font-size:22px; cursor:pointer; }
+.casta-emoji-bar button:hover, .casta-emoji-bar button:focus-visible { background:#333338; }
+.casta-reply { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding:6px 10px; border-radius:10px; background:#303034; font-size:.85rem; color:var(--fg); }
+.casta-reply button { min-width:32px; min-height:32px; background:transparent; color:var(--fg); border:0; cursor:pointer; font-size:22px; }
 /* Castagram: hoja inferior de comentarios; texto siempre disponible al pie. */
 dialog.casta-sheet { position:fixed; inset:auto 0 0; margin:0 auto; width:min(100%,680px); max-width:100%; height:min(82dvh,800px); max-height:calc(100dvh - 12px); padding:0; overflow:hidden; display:none; flex-direction:column; border:1px solid #38383b; border-radius:24px 24px 0 0; background:#1b1b1d; color:var(--fg); box-shadow:0 -15px 64px #0009; }
 dialog.casta-sheet[open] { display:flex; animation:casta-subir .22s ease-out both; }
@@ -1028,6 +1035,25 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const hilo = dlg.querySelector(".hilo");
     if (hilo) hilo.outerHTML = hiloHtml(a);
   }
+  function comenzarReplyTurno(h, persona) {
+    if (!h.responderA) h.antesReply = { texto: h.borrador || "", foto: h.foto || null, etq: h.etq || [] };
+    h.responderA = persona;
+    h.borrador = "@" + persona + " ";
+    h.foto = null; h.etq = [];
+  }
+  function terminarReplyTurno(h) {
+    if (!h.responderA) return;
+    const a = h.antesReply || {};
+    h.borrador = a.texto || ""; h.foto = a.foto || null; h.etq = a.etq || [];
+    h.responderA = null; delete h.antesReply;
+  }
+  function insertarEmojiTurno(form, emoji) {
+    const ta = form && form.querySelector('textarea[name="texto"]');
+    if (!ta || !emoji) return;
+    ta.setRangeText(emoji, ta.selectionStart, ta.selectionEnd, "end");
+    ta.dispatchEvent(new Event("input", { bubbles:true }));
+    ta.focus({ preventScroll:true });
+  }
   const conMenciones = t => esc(t).replace(/@([A-Za-zÑñ0-9_]{2,12})/g, (m, k) => E.personas.some(p => p.clave === k.toUpperCase()) ? `<b class="men">@${esc(k.toUpperCase())}</b>` : m).replace(/\n/g, "<br>");
   const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + TURNO_TXT[t].toLowerCase()), ...(p.personas || []).map(x => x === E.persona ? "Tú" : x)].filter(Boolean);
   function comHtml(c) {
@@ -1043,11 +1069,13 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     const sel = h.etq || [];
     return `<div class="hilo"><div class="casta-sheet-list">${h.comentarios.length ? h.comentarios.map(comHtml).join("") : `<p class="note">Todavía no hay comentarios. Escribe el primero.</p>`}</div>
       <div class="casta-sheet-compose"><form class="com-form" data-av="${esc(a.id)}" novalidate>${avi(E.persona, 1)}<div class="com-b">
+        ${h.responderA ? `<div class="casta-reply"><span>Respondiendo a @${esc(h.responderA)}</span><button type="button" data-reply-cancel aria-label="Cancelar respuesta">×</button></div>` : ""}
+        <div class="casta-emoji-bar" aria-label="Emojis rápidos"><button type="button" data-com-emoji="❤️" aria-label="Insertar emoji ❤️">❤️</button><button type="button" data-com-emoji="🙌" aria-label="Insertar emoji 🙌">🙌</button><button type="button" data-com-emoji="🔥" aria-label="Insertar emoji 🔥">🔥</button><button type="button" data-com-emoji="👏" aria-label="Insertar emoji 👏">👏</button><button type="button" data-com-emoji="🥹" aria-label="Insertar emoji 🥹">🥹</button><button type="button" data-com-emoji="😍" aria-label="Insertar emoji 😍">😍</button><button type="button" data-com-emoji="😮" aria-label="Insertar emoji 😮">😮</button><button type="button" data-com-emoji="😂" aria-label="Insertar emoji 😂">😂</button></div>
         <label class="sr" for="tc-${esc(a.id)}">Escribe un comentario</label>
         <textarea class="t" id="tc-${esc(a.id)}" name="texto" rows="2" maxlength="1000" placeholder="Escribe un comentario… usa @ para etiquetar">${esc(h.borrador || "")}</textarea>
-        ${fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
-        ${h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
-        <div class="com-acc"><label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label><button class="btn btn-primary btn-sm" type="submit">Comentar</button></div>
+        ${!h.responderA && fuera.length ? `<div class="com-etq"><span>Etiquetar a alguien más</span>${fuera.map(x => `<button type="button" class="chip chip-sm" data-etq="${esc(x.clave)}" aria-pressed="${sel.includes(x.clave)}">@${esc(x.clave)}</button>`).join("")}</div>` : ""}
+        ${!h.responderA && h.foto ? `<span class="com-prev"><img src="${h.foto}" alt="Foto para el comentario"><button type="button" data-com-sinfoto aria-label="Quitar la foto">×</button></span>` : ""}
+        <div class="com-acc">${!h.responderA ? `<label class="btn btn-line btn-sm">${svg("i-camara")}Foto<input type="file" accept="image/*" capture="environment" data-com-foto hidden></label>` : ""}<button class="btn btn-primary btn-sm" type="submit">${h.responderA ? "Responder" : "Comentar"}</button></div>
         <p class="err" role="alert"></p></div></form></div></div>`;
   }
   function postHtml(a) {
@@ -1533,18 +1561,31 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       const dlg = responder.closest("dialog.casta-sheet"), id = dlg && dlg.dataset.av;
       const ta = dlg && dlg.querySelector(".com-form textarea");
       if (id && ta && hilos[id]) {
-        const k = responder.dataset.responder;
-        const m = k === "admin" ? "" : "@" + k + " ";
-        if (m && !ta.value.includes(m)) ta.value = m + ta.value;
         hilos[id].borrador = ta.value;
-        ta.focus({ preventScroll:true });
-        ta.setSelectionRange(ta.value.length, ta.value.length);
+        comenzarReplyTurno(hilos[id], responder.dataset.responder);
+        const form = dlg.querySelector("form.com-form");
+        if (form) form.remove(); // No sobrescribir el borrador nuevo con el textarea anterior
+        repintarSheetTurno(id);
+        const nuevo = dlg.querySelector(".com-form textarea");
+        if (nuevo) { nuevo.focus({ preventScroll:true }); nuevo.setSelectionRange(nuevo.value.length,nuevo.value.length); }
       }
       return;
     }
+    const cancelarReply = e.target.closest("[data-reply-cancel]");
+    if (cancelarReply) {
+      const dlg = cancelarReply.closest("dialog.casta-sheet"), id = dlg && dlg.dataset.av;
+      if (id && hilos[id]) {
+        terminarReplyTurno(hilos[id]);
+        const form = dlg.querySelector("form.com-form"); if (form) form.remove();
+        repintarSheetTurno(id);
+      }
+      return;
+    }
+    const pulsacionEmoji = e.target.closest("[data-com-emoji]");
+    if (pulsacionEmoji) { insertarEmojiTurno(pulsacionEmoji.closest("form.com-form"), pulsacionEmoji.dataset.comEmoji); return; }
     if (hr) { abrirHilo(hr.dataset.hiloRe); return; }
     if (et) { const f = et.closest("form"), h = hilos[f.dataset.av]; h.etq = h.etq || []; const k = et.dataset.etq; h.etq = h.etq.includes(k) ? h.etq.filter(x => x !== k) : [...h.etq, k]; et.setAttribute("aria-pressed", h.etq.includes(k)); return; }
-    if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
+    if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; if (h.responderA) return; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
     const ac = e.target.closest("[data-accion]"), irA = e.target.closest("[data-ir]");
     const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), bo = e.target.closest("[data-borrar]");
     if (ac) {
@@ -1571,6 +1612,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   sec().addEventListener("change", async e => {
     const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
     const f = inp.closest("form"), h = hilos[f.dataset.av];
+    if (h.responderA) { inp.value = ""; return; }
     try { h.foto = await comprimir(inp.files[0]); h.borrador = f.texto.value; repintarPost(f.dataset.av); } catch { toast("No se pudo leer la foto. Intenta otra vez.", true); }
   });
   sec().addEventListener("input", e => { const f = e.target.closest("#t-rapida"); if (f) previaTurno(f); });
@@ -1598,11 +1640,17 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     if (!f.texto.value.trim() && !h.foto) { err.textContent = "Escribe tu comentario."; f.texto.focus(); return; }
     err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
     try {
-      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.foto || null, etiquetas: h.etq || [] }, { cola: false });
+      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] }, { cola: false });
       const a = E.avisos.find(x => x.id === id);
       if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0 }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
-      hilos[id] = { comentarios: [...h.comentarios, r.comentario] };
-      sucio = false; repintarPost(id);
+      const eraRespuesta = !!h.responderA;
+      if (eraRespuesta) terminarReplyTurno(h);
+      else { h.borrador = ""; h.foto = null; h.etq = []; }
+      h.comentarios = [...h.comentarios, r.comentario];
+      sucio = false;
+      const formPrevio = sec().querySelector("dialog.casta-sheet[open] form.com-form");
+      if (formPrevio) formPrevio.remove();
+      repintarPost(id);
       const t = document.getElementById("tc-" + id); t && t.focus();
       toast("Comentario publicado.");
     } catch (er) { err.textContent = errores(er); b.disabled = false; b.textContent = "Comentar"; }
