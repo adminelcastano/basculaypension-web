@@ -13,7 +13,7 @@ function helpers(fuente,inicio,fin,dependencias,cuerpo) {
 const escape = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const adminHelper=helpers(panel,"function castaActividadAdmin()","function vistaAvisos(",["st","abierto","nomDe","esc","ico"],
   "return {eventos:castaActividadAdmin,html:castaActividadVistaAdmin};");
-const turnoHelper=helpers(turno,"function castaActividadTurno()","function verAvisos(",["E","nombreDe","esc","svg"],
+const turnoHelper=helpers(turno,"function castaActividadTurno()","function verAvisos(",["E","nombreDe","esc","svg","cola"],
   "return {eventos:castaActividadTurno,html:castaActividadVistaTurno};");
 test("Actividad de administración: publicación, comentario y Enterado son eventos distintos",()=>{
   const items=[
@@ -41,7 +41,7 @@ test("Actividad en tablet: solo publicaciones autorizadas de la sesión PIN",()=
     {id:"1",titulo:"Publicación privada",creado:"2026-10-17T08:00:00Z",leido:false,propio:false,conv:{nuevos:2,ultimo:{autor:"admin",creado:"2026-10-17T09:00:00Z"}}},
     {id:"2",titulo:"Publicación propia",creado:"2026-10-17T07:00:00Z",leido:false,propio:true,conv:{nuevos:0}}
   ];
-  const h=turnoHelper({persona:"JESC",avisos:lista},x=>x,escape,()=>"<svg></svg>");
+  const h=turnoHelper({persona:"JESC",avisos:lista},x=>x,escape,()=>"<svg></svg>",()=>[]);
   assert.equal(h.eventos().length,2);
   assert.deepEqual(h.eventos().map(x=>x.id),["1","1"]);
   assert.match(h.html(),/Pendiente de Enterado/);
@@ -49,7 +49,7 @@ test("Actividad en tablet: solo publicaciones autorizadas de la sesión PIN",()=
   assert.doesNotMatch(h.html(),/data-casta-evento="2"/);
 });
 test("Lista de actividad escapa texto privado y no usa push general",()=>{
-  const h=turnoHelper({persona:"JESC",avisos:[{id:"x",titulo:'<img src=x onerror="alert(1)">',leido:false,propio:false,creado:"2026-10-17T07:00:00Z"}]},x=>x,escape,()=>"<svg></svg>");
+  const h=turnoHelper({persona:"JESC",avisos:[{id:"x",titulo:'<img src=x onerror="alert(1)">',leido:false,propio:false,creado:"2026-10-17T07:00:00Z"}]},x=>x,escape,()=>"<svg></svg>",()=>[]);
   const view=h.html();
   assert.ok(view.includes("&lt;img"));
   assert.ok(!view.includes('onerror="alert(1)"'));
@@ -81,7 +81,7 @@ test("Actividad de tablet: Enterado confirmado desaparece al actualizar la lista
   assert.ok(inicio>=0&&fin>inicio);
   const bloque=turno.slice(inicio,fin);
   const confirmado=bloque.indexOf('if (a) a.leido = true;');
-  const refresco=bloque.indexOf('castaRefrescarActividadTurno();');
+  const refresco=bloque.indexOf('castaRefrescarActividadTurno();', confirmado);
   assert.ok(confirmado>=0&&refresco>confirmado, "la actividad se refresca después de confirmar Enterado");
   assert.ok(bloque.indexOf('if (r.enCola)') < confirmado, "en cola no se presenta como confirmado");
   assert.match(bloque,/repintarPost\(en\.dataset\.enterado\)/);
