@@ -178,7 +178,13 @@ export async function asegurarEsquemaCaja(env) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, pendiente_id TEXT NOT NULL,
       anterior TEXT NOT NULL, nuevo TEXT NOT NULL,
       fecha TEXT NOT NULL, quien TEXT, notas TEXT)`),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_pendientes_estado ON caja_pendientes (estado, origen_activo, fecha)")
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_pendientes_estado ON caja_pendientes (estado, origen_activo, fecha)"),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS caja_cobros_admin (
+      id TEXT PRIMARY KEY, pendiente_id TEXT NOT NULL, fecha_pago TEXT NOT NULL, mes TEXT NOT NULL,
+      monto REAL NOT NULL, forma TEXT NOT NULL, creado TEXT NOT NULL, por TEXT,
+      anulado INTEGER NOT NULL DEFAULT 0, anulado_por TEXT, anulado_en TEXT)`),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_mes ON caja_cobros_admin (mes, anulado)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)")
   ]);
   await asegurarEsquemaBitacora(env);
   esquemaListo = true;
@@ -306,6 +312,19 @@ export async function sincronizarCaja(env) {
 }
 
 // Cortes por día y turno a partir de ingresos y gastos
+export async function leerCobrosAdmin(env, { mes = "", desde = "", hasta = "" } = {}) {
+  await asegurarEsquemaCaja(env);
+  const where = ["a.anulado = 0", "p.origen_activo = 1"], bind = [];
+  if (mes) { where.push("a.mes = ?"); bind.push(mes); }
+  if (desde) { where.push("a.fecha_pago >= ?"); bind.push(desde); }
+  if (hasta) { where.push("a.fecha_pago <= ?"); bind.push(hasta); }
+  return (await env.DB.prepare(`SELECT a.id, a.pendiente_id, a.fecha_pago AS dia,
+    a.mes, a.monto, a.forma, a.creado, a.por, p.folio, p.servicio, p.cliente
+    FROM caja_cobros_admin a JOIN caja_pendientes p ON p.id = a.pendiente_id
+    WHERE ${where.join(" AND ")} ORDER BY a.fecha_pago ASC, a.creado ASC`)
+    .bind(...bind).all()).results;
+}
+
 export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   const cortes = new Map();
   const corte = (dia, turno) => {
@@ -628,32 +647,97 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
   const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
+
   if (partes[1] === "pendiente" && partes[2] && partes[3] === "resolver" && request.method === "POST") {
     const id = decodeURIComponent(partes[2]);
     const fila = await env.DB.prepare("SELECT * FROM caja_pendientes WHERE id = ?").bind(id).first();
     if (!fila) return json({ ok: false, error: "No existe el cobro pendiente." }, 404);
     const c = await request.json().catch(() => ({}));
-    const nuevo = c.estado === "pagado" || c.estado === "cancelado" ? c.estado :
-      c.estado === "pendiente" ? "pendiente" : null;
-    if (!nuevo) return json({ ok: false, error: "Elige Pagado o Cancelado." }, 422);
-    if (nuevo === "pendiente" && !fila.origen_activo)
-      return json({ ok: false, error: "El registro ya no está pendiente en la hoja." }, 409);
-    if (nuevo === fila.estado) return json({ ok: true, estado: nuevo, sin_cambios: true });
-    const fecha = new Date().toISOString(), quien = usuario && usuario.email || null;
+    const quien = usuario && usuario.email || null, ahora = new Date().toISOString();
     const notas = String(c.notas || "").trim().slice(0, 240) || null;
-    const r = await env.DB.prepare(`UPDATE caja_pendientes
-      SET estado = ?, resuelto = ?, por = ?, notas = ?
-      WHERE id = ? AND estado = ?`).bind(nuevo, nuevo === "pendiente" ? null : fecha,
-        nuevo === "pendiente" ? null : quien, notas, id, fila.estado).run();
-    if (!(r.meta && r.meta.changes)) return json({ ok: false, error: "Otro cambio se guardó antes; recarga el corte." }, 409);
-    await env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-      VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, nuevo, fecha, quien, notas).run();
-    return json({ ok: true, estado: nuevo, nota: "El estado administrativo no suma ingresos. El cobro debe reflejarse en la hoja de origen." });
+    const cobrados = await env.DB.prepare(`SELECT COALESCE(SUM(monto), 0) AS total FROM caja_cobros_admin
+      WHERE pendiente_id = ? AND anulado = 0`).bind(id).first();
+    const abonado = Math.round(Number(cobrados.total || 0) * 100) / 100;
+    if (c.estado === "pagado") {
+      if (fila.estado === "cancelado" || !fila.origen_activo)
+        return json({ ok: false, error: "El cobro está cancelado o ya no figura pendiente en la hoja." }, 409);
+      const fecha = String(c.fecha || ""), forma = String(c.forma || "");
+      const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+      const monto = montoUsuario(c.monto);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoy ||
+          !(await mesesAbiertos(env)).includes(fecha.slice(0, 7)))
+        return json({ ok: false, error: "Elige una fecha de cobro válida dentro de un mes abierto." }, 422);
+      if (!FORMAS_GASTO.includes(forma))
+        return json({ ok: false, error: "Elige efectivo, tarjeta o transferencia." }, 422);
+      if (!(monto > 0) || monto > 100000000 || Math.round((abonado + monto) * 100) > Math.round(fila.monto * 100))
+        return json({ ok: false, error: "El abono debe ser positivo y no superar el saldo por cobrar." }, 422);
+      const pagoId = String(c.pago_id || "");
+      if (!/^[0-9a-f-]{36}$/i.test(pagoId)) return json({ ok: false, error: "Falta el identificador de la operación." }, 422);
+      if (await env.DB.prepare("SELECT id FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first())
+        return json({ ok: true, estado: fila.estado, sin_cambios: true });
+      const restante = Math.round((fila.monto - abonado - monto) * 100) / 100;
+      const estado = restante <= 0 ? "pagado" : "parcial";
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO caja_cobros_admin (id, pendiente_id, fecha_pago, mes, monto, forma, creado, por)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(pagoId, id, fecha, fecha.slice(0, 7), monto, forma, ahora, quien),
+        env.DB.prepare(`UPDATE caja_pendientes SET estado = ?, resuelto = ?, por = ?, notas = ?
+          WHERE id = ?`).bind(estado, estado === "pagado" ? ahora : null, quien, notas, id),
+        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
+          VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, estado, ahora, quien,
+            [`Abono de $${monto.toFixed(2)} el ${fecha} por ${forma}`, notas].filter(Boolean).join(" · "))
+      ]);
+      return json({ ok: true, estado, abonado: Math.round((abonado + monto) * 100) / 100,
+        resto: Math.max(0, restante), nota: "Abono contabilizado por su fecha y forma de pago." });
+    }
+    if (c.estado === "cancelado") {
+      if (abonado > 0) return json({ ok: false, error: "Ya existen abonos: anúlalos antes de cancelar el pendiente." }, 409);
+      if (fila.estado === "cancelado") return json({ ok: true, estado: "cancelado", sin_cambios: true });
+      await env.DB.batch([
+        env.DB.prepare("UPDATE caja_pendientes SET estado = 'cancelado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
+          .bind(ahora, quien, notas, id),
+        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
+          VALUES (?, ?, 'cancelado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
+      ]);
+      return json({ ok: true, estado: "cancelado" });
+    }
+    if (c.estado === "pendiente") {
+      if (abonado > 0 || !fila.origen_activo)
+        return json({ ok: false, error: "Para reabrir, anula primero los abonos y comprueba que siga pendiente en la hoja." }, 409);
+      if (fila.estado === "pendiente") return json({ ok: true, estado: "pendiente", sin_cambios: true });
+      await env.DB.batch([
+        env.DB.prepare("UPDATE caja_pendientes SET estado = 'pendiente', resuelto = NULL, por = ?, notas = ? WHERE id = ?")
+          .bind(quien, notas, id),
+        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
+          VALUES (?, ?, 'pendiente', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
+      ]);
+      return json({ ok: true, estado: "pendiente" });
+    }
+    if (c.estado === "anular-abono") {
+      const pagoId = String(c.pago_id || "");
+      const pago = await env.DB.prepare("SELECT * FROM caja_cobros_admin WHERE id = ? AND pendiente_id = ? AND anulado = 0")
+        .bind(pagoId, id).first();
+      if (!pago) return json({ ok: false, error: "No existe ese abono activo." }, 404);
+      if (!(await mesesAbiertos(env)).includes(pago.mes))
+        return json({ ok: false, error: "No se pueden modificar abonos de meses cerrados." }, 409);
+      const resto = Math.max(0, Math.round((abonado - pago.monto) * 100) / 100);
+      const estado = resto ? "parcial" : "pendiente";
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE caja_cobros_admin SET anulado = 1, anulado_por = ?, anulado_en = ?
+          WHERE id = ? AND anulado = 0`).bind(quien, ahora, pagoId),
+        env.DB.prepare("UPDATE caja_pendientes SET estado = ?, resuelto = NULL, por = ?, notas = ? WHERE id = ?")
+          .bind(estado, quien, notas, id),
+        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
+          VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, estado, ahora, quien,
+            [`Anulado abono de $${Number(pago.monto).toFixed(2)} (${pago.forma}, ${pago.fecha_pago})`, notas].filter(Boolean).join(" · "))
+      ]);
+      return json({ ok: true, estado, abonado: resto });
+    }
+    return json({ ok: false, error: "Operación no reconocida." }, 422);
   }
 
   if (partes[1] === "pendientes" && request.method === "GET") {
     const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado = 'pendiente'
+      FROM caja_pendientes WHERE estado IN ('pendiente', 'parcial')
       ORDER BY fecha ASC LIMIT 100`).all()).results;
     return json({ ok: true, pendientes });
   }
@@ -669,9 +753,18 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
     const pendientes = (await env.DB.prepare(`SELECT id, servicio, fecha, dia, turno, folio, cliente, monto, forma
-      FROM caja_pendientes WHERE estado = 'pendiente'
+      FROM caja_pendientes WHERE estado IN ('pendiente', 'parcial')
       ORDER BY fecha ASC LIMIT 100`).all()).results;
-    return json({ ok: true, mes, meses, periodo, sync, pendientes, totales: totalesMes(cortes, tr.contadas), cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    const cobros = await leerCobrosAdmin(env, periodo);
+    const totales = totalesMes(cortes, tr.contadas);
+    for (const x of cobros) {
+      totales.ingresos += x.monto;
+      if (x.forma === "EFECTIVO") totales.efectivo += x.monto;
+      else if (x.forma === "TARJETA") totales.tarjeta += x.monto;
+      else totales.transferencias += x.monto;
+      totales[x.servicio] += x.monto;
+    }
+    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias: await listaCategorias(env), conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
@@ -680,6 +773,11 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const gastos = (await env.DB.prepare(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`).bind(dia, turno).all()).results;
     const pendientes = (await env.DB.prepare(`SELECT * FROM caja_pendientes WHERE dia = ? AND turno = ?
       ORDER BY fecha ASC`).bind(dia, turno).all()).results;
+    for (const p of pendientes) {
+      p.abonos = (await env.DB.prepare(`SELECT id, monto, fecha_pago, forma, por, creado, anulado
+        FROM caja_cobros_admin WHERE pendiente_id = ? ORDER BY creado ASC`).bind(p.id).all()).results;
+      p.abonado = Math.round(p.abonos.filter(x => !x.anulado).reduce((a, x) => a + x.monto, 0) * 100) / 100;
+    }
     const conteos = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
     const extras = (await env.DB.prepare("SELECT * FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado ASC").bind(dia, turno).all()).results;
     const inicios = (await env.DB.prepare("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?").bind(dia, turno).all()).results;
