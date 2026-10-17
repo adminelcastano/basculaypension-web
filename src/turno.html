@@ -692,7 +692,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   async function mostrarEntrada() {
     guardarLS("turno:estado", null); // borra estado legado con datos privados
     E = null;
-    Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
+    Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
     const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
     const form = $("#dlg-form"); if (form) { form.onsubmit = null; form.replaceChildren(); }
     const vista = $("#sec"); if (vista) vista.replaceChildren();
@@ -778,8 +778,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   async function cargar() {
     try {
       const nuevo = await api("estado");
-      if (E && E.persona !== nuevo.persona) {
-        Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear();
+      if (E && (E.persona !== nuevo.persona || E.turno !== nuevo.turno || E.dia !== nuevo.dia)) {
+        Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
       }
       E = nuevo;
       sinRed = false;
