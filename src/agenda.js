@@ -4,6 +4,7 @@ import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
 import { stmtBitacora } from "./bitacora.js";
+import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras, cuentasTicket } from "./compras.js";
 import { notificar, enviarPush } from "./push.js";
 const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => { console.error("push", e && e.message); return 0; });
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
@@ -68,7 +69,7 @@ export async function asegurarEsquemaAgenda(env) {
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(agenda_items)").all()).results.map(r => r.name));
   // autor: null o "admin" = administración; si no, la clave del encargado. para: destinatarios del aviso (JSON).
   // quien: quién reporta la incidencia (texto libre en la tablet).
-  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"], ["lugar", "TEXT"], ["pospuesta", "INTEGER"]])
+  for (const [c, t] of [["para_turno", "INTEGER"], ["reporto", "TEXT"], ["foto", "TEXT"], ["hecho_por", "TEXT"], ["nota_cierre", "TEXT"], ["area", "TEXT"], ["autor", "TEXT"], ["para", "TEXT"], ["quien", "TEXT"], ["importe", "REAL"], ["gasto_id", "TEXT"], ["frecuencia", "TEXT"], ["forma", "TEXT"], ["fotos", "TEXT"], ["repetir", "TEXT"], ["sig_id", "TEXT"], ["lugar", "TEXT"], ["pospuesta", "INTEGER"], ["en_carrito", "INTEGER"]])
     if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE agenda_items ADD COLUMN ${c} ${t}`).run();
   // Historial de pagos hechos de cada pago programado (cada uno con su egreso de administración)
   // Se conserva 13 meses aunque el pago programado se borre (por eso guarda su propio título)
@@ -267,6 +268,7 @@ export { validar as validarItem, ABIERTO };
 export async function limpiarAgenda(env, ahora = new Date()) {
   await asegurarEsquemaAgenda(env);
   // Los avisos no se archivan solos ni se borran: la administración los archiva y quedan en el archivo (trazabilidad)
+  await limpiarMemoriaCompras(env).catch(() => {});
   // Historial de pagos hechos: 13 meses
   const lim13 = sumarMeses(hoyMx(), -13);
   for (const f of (await env.DB.prepare("SELECT comprobante FROM agenda_pagos WHERE fecha < ? AND comprobante IS NOT NULL LIMIT 50").bind(lim13).all()).results) await borrarArchivo(env, f.comprobante).catch(() => {});
@@ -469,9 +471,10 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const pagosHechos = (await env.DB.prepare("SELECT p.id, p.item_id, p.fecha, p.programado, p.importe, p.forma, p.nota, p.comprobante, p.comp_tipo, p.creado, p.categoria, p.cuenta, COALESCE(p.titulo, i.titulo) AS titulo, i.frecuencia FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.fecha >= ? ORDER BY p.fecha DESC, p.creado DESC LIMIT 1500").bind(sumarMeses(hoyMx(), -13)).all()).results;
     const abiertosMes = (await mesesAbiertos(env).catch(() => []));
     // Forma de pago de las compras ya compradas (está en su egreso)
-    const gc = await deIds("SELECT id, forma, cuenta FROM caja_gastos WHERE id IN (?)", items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id));
-    for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; it.cuenta_gasto = g ? g.cuenta : null; }
-    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), cuentas: await listaCuentas(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS, lugares: await listaLugares(env) });
+    const gc = await deIds("SELECT id, forma, cuenta, monto, dia FROM caja_gastos WHERE id IN (?)", [...new Set(items.filter(it => it.tipo === "compra" && it.gasto_id).map(it => it.gasto_id))]);
+    // Ticket de cada compra hecha: forma, cuenta, total del egreso y cuántos artículos van en él
+    for (const it of items) if (it.tipo === "compra" && it.gasto_id) { const g = gc.find(x => x.id === it.gasto_id); it.forma_gasto = g ? g.forma : null; it.cuenta_gasto = g ? g.cuenta : null; it.monto_gasto = g ? g.monto : null; it.dia_gasto = g ? g.dia : null; }
+    return json({ ok: true, items, pagos_hechos: pagosHechos, categorias: await listaCategorias(env), cuentas: await listaCuentas(env), meses_abiertos: abiertosMes, abiertos: Object.fromEntries(conteos.map(r => [r.tipo, r.n])), avisos_sin_leer: sinLeer, hoy: hoyMx(), estados: ESTADOS, frecuencias: FRECUENCIAS, lugares: await listaLugares(env), memoria_compras: await memoriaCompras(env).catch(() => []) });
   }
 
   // Lugares de compra: agregar, renombrar, quitar (las compras de un lugar quitado quedan "sin lugar")
@@ -576,6 +579,62 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     return json({ ok: true, id });
   }
 
+  // ---- Lista de compras: carrito y terminar la compra con un solo ticket ----
+  // Regresar a pendiente todos los artículos de un ticket (se borra su egreso)
+  if (partes[1] === "compras" && partes[2] === "regresar-ticket" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
+    const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(String(c.gasto_id || "")).first();
+    const its = (await env.DB.prepare("SELECT id, titulo FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(String(c.gasto_id || "")).all()).results;
+    if (!its.length) return json({ ok: false, error: "Ese ticket ya no existe." }, 404);
+    if (g && !(await mesesAbiertos(env)).includes(g.mes)) return json({ ok: false, error: "Ese ticket es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
+    const st = [];
+    if (g) st.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(g.id));
+    for (const it of its) st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, importe = NULL, gasto_id = NULL, actualizado = ? WHERE id = ?").bind(ahora, it.id), stmtQuitarHistorialCompra(env, it.id));
+    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: c.gasto_id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: its.map(x => x.titulo).join(", ") } }));
+    await env.DB.batch(st);
+    return json({ ok: true, n: its.length });
+  }
+  if (partes[1] === "compras" && request.method === "POST" && ["carrito", "terminar"].includes(partes[2])) {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const ids = [...new Set((Array.isArray(c.ids) ? c.ids : []).map(String))].slice(0, 80);
+    if (!ids.length) return json({ ok: false, error: "No hay artículos." }, 422);
+    const q = ids.map(() => "?").join(",");
+    const filas = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(...ids).all()).results;
+    if (partes[2] === "carrito") {
+      await env.DB.prepare(`UPDATE agenda_items SET en_carrito = ?, actualizado = ? WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(c.v ? 1 : null, ahora, ...ids).run();
+      return json({ ok: true, n: filas.length });
+    }
+    if (filas.length !== ids.length) return json({ ok: false, error: "Algún artículo ya no está pendiente. Actualiza la lista." }, 409);
+    const cu = cuentasTicket(ids, c.total, c.precios || {});
+    if (cu.error) return json({ ok: false, error: cu.error }, 422);
+    await normalizarMedio(env, c);
+    const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
+    await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
+    const dia = RE_DIA.test(String(c.fecha_compra || "")) ? String(c.fecha_compra) : hoyMx();
+    if (dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7))) return json({ ok: false, error: "La fecha de la compra tiene que ser del mes abierto y no futura." }, 422);
+    const lugares = await listaLugares(env), lugarIds = [...new Set(filas.map(f => f.lugar).filter(Boolean))];
+    const lugarN = lugarIds.length === 1 ? (lugares.find(l => l.id === lugarIds[0]) || {}).nombre : null;
+    const orden = ids.map(id => filas.find(f => f.id === id));
+    const lista = orden.map(f => f.titulo + (f.cantidad ? ` (${f.cantidad})` : "")).join(", ");
+    const concepto = ((lugarN ? `Compra en ${lugarN}: ` : "Compra: ") + lista).slice(0, 120);
+    // Categoría del egreso: la que más se repite entre los artículos
+    const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }
+    const cat = (await resolverCategoria(env, c.categoria)) || Object.entries(cats).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
+    const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = crypto.randomUUID();
+    const st = [env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
+    for (const f of orden) {
+      const imp = cu.precios[f.id] ?? null;
+      st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'comprado', cerrado = ?, actualizado = ?, importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(ahora, ahora, imp, gid, f.id));
+      st.push(stmtHistorialCompra(env, f, { importe: imp, fecha: dia, gasto_id: gid }));
+    }
+    st.push(stmtBitacora(env, { quien, accion: "crear", que: "Compra", ref: gid, mes: dia.slice(0, 7), detalle: { dia, concepto, importe: cu.total, forma, cuenta: cta, categoria: cat, articulos: orden.length } }));
+    await env.DB.batch(st);
+    const deTablet = orden.filter(f => f.reporto);
+    if (deTablet.length) await notificar(env, "tablet", { titulo: deTablet.length === 1 ? "Ya se compró: " + deTablet[0].titulo : `Ya se compraron ${deTablet.length} cosas que pidieron`, cuerpo: deTablet.map(f => `${f.titulo} (pidió ${f.reporto})`).join(", ").slice(0, 200), sec: "inicio", url: "/turno", etiqueta: "compra-" + gid });
+    return json({ ok: true, gasto_id: gid, total: cu.total });
+  }
+
   // Archivo de avisos: todos los archivados con su conversación (no se borran)
   if (partes[1] === "avisos-archivo" && request.method === "GET") {
     const sp = url.searchParams;
@@ -642,6 +701,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // si se regresa a pendiente, ese gasto se borra.
     // Lo que se escribe junto con el cambio del registro (compra ↔ egreso), en una sola operación
     const junto = [];
+    if (fila.tipo === "compra") await asegurarEsquemaCompras(env);
     if (fila.tipo === "compra" && d.estado === "comprado" && fila.estado !== "comprado" && !fila.gasto_id) {
       const t = String(c.importe ?? "").replace(/[$,\s]/g, ""), importe = /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN;
       const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
@@ -655,13 +715,24 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
       const cta = await cuentaDe(env, c, null, forma);
       junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
-        env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL WHERE id = ?").bind(importe, gid, id),
+        env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(importe, gid, id),
+        stmtHistorialCompra(env, { ...fila, titulo: d.titulo, cantidad: d.cantidad, categoria: catC }, { importe, fecha: dia, gasto_id: gid }),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Compra", ref: id, mes: dia.slice(0, 7), detalle: { dia, concepto, importe, forma, cuenta: cta, categoria: catC } }));
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).first();
       if (g && !(await mesesAbiertos(env)).includes(g.mes)) return json({ ok: false, error: "Esa compra es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
-      junto.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id),
+      // Ticket con varios artículos: se le resta el precio de este artículo y el ticket sigue con los demás
+      const otros = (await env.DB.prepare("SELECT COUNT(*) n FROM agenda_items WHERE gasto_id = ? AND id != ?").bind(fila.gasto_id, id).first()).n;
+      if (otros && g) {
+        if (!(fila.importe > 0) || !(g.monto - fila.importe > 0)) return json({ ok: false, error: "Esta compra va en un ticket junto con otras y no tiene precio propio. Regresa a pendiente todo el ticket o corrige el ticket en Dinero." }, 409);
+        const nuevo = Math.round((g.monto - fila.importe) * 100) / 100;
+        junto.push(env.DB.prepare("UPDATE caja_gastos SET monto = ? WHERE id = ?").bind(nuevo, g.id),
+          env.DB.prepare("UPDATE agenda_items SET importe = NULL, gasto_id = NULL WHERE id = ?").bind(id),
+          stmtQuitarHistorialCompra(env, id),
+          stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: "Compra", ref: g.id, mes: g.mes, detalle: { dia: g.dia, concepto: g.concepto, antes: g.monto, importe: nuevo, quitado: fila.titulo } }));
+      } else junto.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(fila.gasto_id),
         env.DB.prepare("UPDATE agenda_items SET importe = NULL, gasto_id = NULL WHERE id = ?").bind(id),
+        stmtQuitarHistorialCompra(env, id),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: fila.titulo } }));
     }
     if (junto.length) await env.DB.batch(junto);

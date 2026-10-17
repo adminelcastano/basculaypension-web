@@ -165,3 +165,14 @@ Los avisos funcionan como un muro de red social, en el panel (Agenda → Avisos)
 
 ## Tablet con el diseño del panel (desde el 16 oct 2026)
 Secciones: **Hoy, Avisos, Tareas, Incidencias, Calendario, Corte** (Avisos y Tareas ya van separadas). Hasta 1200 px, Hoy muestra un índice de tarjetas como el panel (avisos con novedades, tareas, corte, incidencias, gastos e ingresos extra; lo urgente primero); al tocar una se ve solo ese bloque y «‹ Hoy» o el botón atrás regresan al índice. En pantallas anchas se ve todo.
+
+## Lista de compras de la administración (desde el 16 oct 2026)
+Dinero → Compras por hacer, al estilo de las apps de compras. Código: `src/compras.js` y la lista en `07-agenda.js`.
+- **Barra rápida**: «2 cajas de papel térmico» separa cantidad y artículo; sugiere lo ya comprado (con lugar, último precio y cuántas veces) y lo manda al lugar donde se compró la última vez (o al lugar del filtro «Para comprar en»). No deja repetir lo que ya está pendiente. «Más opciones» abre el formulario completo.
+- **Lo que compras seguido**: lo comprado 2 veces o más que no está en la lista, a un toque.
+- **Precio de referencia**: «Última vez $X» en cada artículo y total aproximado por tienda.
+- **En la tienda** (botón de cada lugar): se toca cada artículo al echarlo al carrito (`en_carrito`, se guarda en el servidor). «Terminar compra» pide el total del ticket (o el precio de cada artículo), la forma de pago y el día, y registra **un solo egreso** en Dinero («Compra en Office Depot: …») ligado a todos los artículos. Los que pidió la tablet le avisan.
+- **Compartir**: manda la lista de un lugar por WhatsApp (o el menú de compartir del teléfono).
+- **Compradas**: agrupadas por ticket; «Regresar a pendiente» regresa todo el ticket y quita el egreso. Regresar un solo artículo de un ticket compartido le resta su precio al ticket (si no tiene precio propio, pide regresar el ticket completo).
+- **Memoria** (`compras_historial`): cada compra hecha guarda artículo, lugar, cantidad, precio y fecha; se conservan los 3000 más recientes aunque la agenda borre lo viejo.
+- Rutas: `POST agenda/compras/carrito {ids, v}`, `POST agenda/compras/terminar {ids, total, precios, forma, fecha_compra}`, `POST agenda/compras/regresar-ticket {gasto_id}`; `GET agenda` trae `memoria_compras`.
