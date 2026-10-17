@@ -1070,9 +1070,19 @@ window.interpretarAgenda = function (texto, hoy) {
       else if ("archivoVolver" in d) { if (st.archivo && st.archivo.sel) { st.archivo.sel = null; st.archivo.det = null; } else st.archivo = null; pintarAvisos(); }
       else if (d.archivoPag) { st.archivo.pagina = Math.max(0, (st.archivo.pagina || 0) + Number(d.archivoPag)); buscarArchivo(); }
       else if (d.archivoVer) {
-        const a = st.archivo; a.sel = d.archivoVer; a.det = null; pintarAvisos();
-        try { a.det = await api(`agenda/${d.archivoVer}/conversacion?historial=1`); } catch (er) { if (er.message !== "sesion") { toast(er.message); a.sel = null; } }
-        if (st.archivo === a) pintarAvisos();
+        const a = st.archivo;
+        if (!a) return;
+        const id = d.archivoVer;
+        a.sel = id; a.det = null; pintarAvisos();
+        try {
+          const detalle = await api(`agenda/${id}/conversacion?historial=1`);
+          if (st.archivo !== a || a.sel !== id) return;
+          a.det = detalle;
+        } catch (er) {
+          if (st.archivo !== a || a.sel !== id) return;
+          if (er.message !== "sesion") { toast(er.message); a.sel = null; }
+        }
+        if (st.archivo === a && a.sel === id) pintarAvisos();
       }
     });
     el.addEventListener("scroll", e => { if(e.target.matches(".casta-carrusel-pista"))castaSincronizar(e.target.closest("[data-casta-carrusel]")); }, true);
