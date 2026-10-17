@@ -173,7 +173,7 @@
           </details>
           </section>
           <section class="card">
-            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura a mano el folio y el importe viendo la foto del ticket (paso 6). Al guardar quedan listos para copiar.</p>
+            <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura el folio completo, incluido su prefijo de letras (A a ZZ), y el importe tal como aparecen en la foto (paso 6). Al guardar quedan listos para copiar.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
             </div>
@@ -194,7 +194,7 @@
             <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
             <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="${esBascula ? "Ej. 17372" : "Ej. 15013"}" autocomplete="off"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. A17372 o ZZ15013" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
               ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
               ${esBascula ? "" : `<label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
