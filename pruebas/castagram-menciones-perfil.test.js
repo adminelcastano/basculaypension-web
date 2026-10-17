@@ -35,6 +35,7 @@ test("Se puede filtrar por nombre con acentos o por clave, sin escribir carácte
     const fn = obtenerBuscador(src);
     assert.deepEqual(fn({ value: "Para @jos", selectionStart: 9 }, personas).personas.map(p => p.clave), ["JDOM","JESC"]);
     assert.deepEqual(fn({ value: "@JDO", selectionStart: 4 }, personas).personas.map(p => p.clave), ["JDOM"]);
+    assert.deepEqual(fn({ value: "@Josué", selectionStart: 6 }, personas).personas.map(p => p.clave), ["JDOM"]);
     assert.equal(fn({ value: "correo@empresa.com", selectionStart: 6 }, personas), null);
     assert.equal(fn({ value: "hola sin arroba", selectionStart: 16 }, personas), null);
   }
