@@ -62,3 +62,12 @@ test("Castagram: un solo pulgar por publicación y comentario por icono", () => 
   assert.match(tablet, /const confirmado = !!a\.leido && !a\.propio/);
   assert.match(panel, /cantidadEnterados \? "is-enterado"/);
 });
+test("Castagram: icono de comentario visible sin texto redundante", () => {
+  for (const fuente of [tablet, panel]) {
+    assert.match(fuente, /casta-comentar-ico/);
+    assert.match(fuente, /aria-label="Abrir comentarios"/);
+    assert.doesNotMatch(fuente, /\}Comentar<\/button>/);
+  }
+  assert.match(tablet, /\.casta-comentar \{[^\n]*color:#f5f5f7/);
+  assert.match(estilos, /\.casta-comentar \{[^\n]*color:#f5f5f7/);
+});
