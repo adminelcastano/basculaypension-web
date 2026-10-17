@@ -56,13 +56,14 @@ test("Hoy: aviso individual enlaza al cobro pendiente en el corte", () => {
   assert.equal(alert.ir.pendiente,id);
 });
 
-test("Caja: la resolución administrativa no añade un ingreso ficticio", () => {
+test("Caja: abonos respaldados por historial y asiento independiente", () => {
   const backend=readFileSync(new URL("../src/caja.js", import.meta.url),"utf8");
   assert.match(backend,/CREATE TABLE IF NOT EXISTS caja_pendientes/);
   assert.match(backend,/CREATE TABLE IF NOT EXISTS caja_pendientes_hist/);
-  assert.match(backend,/WHERE id = \? AND estado = \?/);
-  assert.match(backend,/El estado administrativo no suma ingresos/);
-  assert.match(backend,/WHERE estado = 'pendiente'/);
+  assert.match(backend,/CREATE TABLE IF NOT EXISTS caja_cobros_admin/);
+  assert.match(backend,/leerCobrosAdmin/);
+  assert.match(backend,/a\.anulado = 0/);
+  assert.match(backend,/WHERE estado IN \('pendiente', 'parcial'\)/);
 });
 
 test("Panel: interfaz de acciones administrativas válida", () => {
@@ -71,7 +72,10 @@ test("Panel: interfaz de acciones administrativas válida", () => {
     assert.doesNotThrow(()=>new Function(src),archivo);
   }
   const caja=readFileSync(new URL("../src/panel/cliente/03-caja.js",import.meta.url),"utf8");
-  assert.match(caja,/Marcar pagado/);
+  assert.match(caja,/Registrar pago/);
+  assert.match(caja,/name="monto"/);
+  assert.match(caja,/name="fecha"/);
+  assert.match(caja,/name="forma"/);
   assert.match(caja,/Reabrir pendiente/);
   assert.match(caja,/data-cobro-estado="cancelado"/);
   assert.match(caja,/window\.cajaAbrirPendiente/);
