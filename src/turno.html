@@ -421,8 +421,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 .casta-pulgar-boton { border:0; background:transparent; padding:8px; border-radius:12px; cursor:pointer; }
 .casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:#303035; }
 .casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
-.post-acc .pa.casta-comentar { color:#f5f5f7; min-height:50px; }
-.post-acc .pa.casta-comentar svg { color:inherit; width:23px; height:23px; stroke-width:2; }
+.casta-acciones { display:inline-flex; gap:4px; align-items:center; flex:none; }
+.casta-comentar { display:inline-grid; place-items:center; min-width:44px; min-height:44px; padding:8px; border:0; border-radius:12px; color:#f5f5f7; background:transparent; cursor:pointer; }
+.casta-comentar svg { width:24px; height:24px; color:inherit; stroke-width:2; }
+.casta-comentar:hover, .casta-comentar:focus-visible { background:#303035; }
 @keyframes casta-subir { from { transform:translateY(24px); opacity:.5; } to { transform:translateY(0); opacity:1; } }
 @media(prefers-reduced-motion:reduce) { dialog.casta-sheet[open] { animation:none; } }
 @media(max-width:900px) { dialog.casta-sheet { width:100%; max-width:100%; margin:0; } }
@@ -1058,9 +1060,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       <p class="post-para">Para ${etqPara(a.para || {}).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h3 class="post-t">${esc(a.titulo)}</h3>${a.detalle ? `<p class="post-d">${conMenciones(a.detalle)}</p>` : ""}
       ${f.length ? `<div class="post-fotos n${Math.min(f.length, 3)}">${f.slice(0, 4).map((k, i) => `<a href="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" target="_blank" rel="noopener"><img src="/turno/api/foto/${encodeURIComponent(k)}?castagram=2" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
+      <div class="post-st"><div class="casta-acciones">${!a.leido && !pendiente ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-enterado="${esc(a.id)}" aria-label="Confirmar Enterado" title="Confirmar Enterado">${castaPulgar}</button>` : `<span class="casta-pulgar ${confirmado ? "is-enterado" : pendiente ? "is-pendiente" : ""}" role="img" aria-label="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}" title="${confirmado ? "Enterado confirmado" : pendiente ? "Enterado pendiente de conexión" : "Sin confirmar"}">${castaPulgar}</span>`}<button type="button" class="casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios" title="Comentar">${svg("i-chat")}</button></div><button type="button" class="lnk" data-hilo="${esc(a.id)}" aria-expanded="${ab}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Sin comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "nuevo" : "nuevos"}</span>` : ""}</button></div>
       ${!ab && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(a.id)}">${avi(cv.ultimo.autor, 1)}<span><b>${esc(cv.ultimo.autor === E.persona ? "Tú" : nombreDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
-      <div class="post-acc"><button type="button" class="pa casta-comentar" data-hilo="${esc(a.id)}" data-escribir="1" aria-label="Abrir comentarios y escribir" title="Comentar">${svg("i-chat")}</button></div>
       </article>`;
   }
   async function abrirHilo(id) {
