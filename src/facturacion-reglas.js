@@ -1,9 +1,12 @@
 // Reglas puras de verificación de solicitudes, sin acceso a bases ni servicios externos.
-// Actualmente hay folios numéricos. Tras futuros reinicios puede aparecer un prefijo
-// de A a ZZ: si existe, es parte del folio y nunca se descarta, ni los ceros iniciales.
-// El folio completo se distingue además por servicio (báscula / pensión).
+// El folio operativo es numérico, incluidos los ceros iniciales.
+// Se admiten espacios y guiones visuales; no se altera el número al normalizar.
+// Se distingue además por servicio (báscula / pensión).
 export function normalizarFolioTicket(folio) {
   return String(folio ?? "").trim().replace(/[\s-]+/g, "").toUpperCase().slice(0, 40);
+}
+export function folioTicketValido(folio) {
+  return /^\d{1,40}$/.test(normalizarFolioTicket(folio));
 }
 export function claveTicket(servicio, folio) {
   return String(servicio || "").trim().toLowerCase() + ":" + normalizarFolioTicket(folio);
@@ -21,6 +24,6 @@ export function faltantesParaFacturar(s, catalogos) {
   if (!/^\d{5}$/.test(cp)) errores.push("código postal fiscal");
   if (!catalogos.regimenes?.[s.regimen]) errores.push("régimen fiscal");
   if (!catalogos.usos?.[s.uso]) errores.push("uso del CFDI");
-  if (!normalizarFolioTicket(s.folio_ticket)) errores.push("folio del ticket verificado");
+  if (!folioTicketValido(s.folio_ticket)) errores.push("folio numérico del ticket verificado");
   return errores;
 }
