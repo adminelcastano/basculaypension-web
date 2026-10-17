@@ -1511,13 +1511,23 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       return dif;
     }
     const cc = $("#ci-corregir"); if (cc) cc.addEventListener("click", () => verCambioInicial(true));
-    $("#mas-retiro").addEventListener("click", () => { $("#retiros").insertAdjacentHTML("beforeend", filaRetiro()); $("#retiros .retiro:last-child input").focus(); });
+    $("#mas-retiro").addEventListener("click", () => {
+      if ($("#retiros").querySelectorAll(".retiro").length >= 20) {
+        $("#err-corte").textContent = "El máximo es 20 retiros; revisa los ya registrados.";
+        return;
+      }
+      $("#retiros").insertAdjacentHTML("beforeend", filaRetiro());
+      $("#retiros .retiro:last-child input").focus();
+    });
     f.addEventListener("click", e => { const q = e.target.closest("[data-quitar-retiro]"); if (q) { q.closest(".retiro").remove(); reparto(); } });
     f.addEventListener("input", e => {
       // Si se edita un retiro, una confirmación previa de "dos pagos distintos" deja de valer.
       if (e.target.closest(".retiro")) {
         const c = $("#dup-confirmo"); if (c) c.checked = false;
       }
+      // Un cambio en la distribución requiere una revisión nueva del paso 3.
+      if (e.target.id !== "revisado-corte" && e.target.id !== "dup-confirmo" &&
+          e.target.name !== "notas") $("#revisado-corte").checked = false;
       $("#err-corte").textContent = "";
       reparto();
       guardarLS(llaveB, { efectivo: f.efectivo.value, notas: f.notas.value,
