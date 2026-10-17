@@ -1777,7 +1777,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     try {
       const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] }, { cola: false });
       const a = E.avisos.find(x => x.id === id);
-      if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0 }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
+      if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
       const eraRespuesta = !!h.responderA;
       if (eraRespuesta) terminarReplyTurno(h);
       else { h.borrador = ""; h.foto = null; h.etq = []; }
