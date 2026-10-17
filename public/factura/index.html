@@ -160,8 +160,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           </div>
           <span class="err" data-err="ticket"></span>
         </div>
-        <label class="f">Folio o número del ticket <span class="hint">Opcional</span>
-          <input type="text" name="folio_ticket" maxlength="40" autocomplete="off" inputmode="numeric" placeholder="Viene arriba en el ticket">
+        <label class="f">Folio completo del ticket <span class="hint">Opcional. Si aparece un prefijo de letras (A a ZZ), escríbelo también; es parte del folio.</span>
+          <input type="text" name="folio_ticket" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej. A17372 o ZZ17372, según tu ticket">
         </label>
       </fieldset>
 
