@@ -511,8 +511,8 @@ async function rutasPanel(request, env, url, usuario) {
     if (partes.length === 2 && request.method === "GET") {
       let duplicados = [];
       if (fila.folio_ticket) {
-        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE folio_ticket = ? AND id != ? AND (servicio = ? OR servicio = 'ambos' OR ? = 'ambos') ORDER BY creado DESC LIMIT 5")
-          .bind(fila.folio_ticket, id, fila.servicio, fila.servicio).all();
+        const r = await env.DB.prepare("SELECT folio, estado, folio_factura, creado FROM solicitudes WHERE REPLACE(REPLACE(UPPER(TRIM(folio_ticket)), ' ', ''), '-', '') = ? AND id != ? AND (servicio = ? OR servicio = 'ambos' OR ? = 'ambos') ORDER BY creado DESC LIMIT 5")
+          .bind(normalizarFolioTicket(fila.folio_ticket), id, fila.servicio, fila.servicio).all();
         duplicados = r.results;
       }
       const normalizado = normalizarFolioTicket(fila.folio_ticket);
