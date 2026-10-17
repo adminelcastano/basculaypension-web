@@ -22,11 +22,23 @@ test("Caja: JSON incompleto no se interpreta como tickets borrados", async () =>
 });
 
 test("Caja: hoja vacía pero completa se acepta como fuente definitiva", async () => {
-  assert.deepEqual(await lecturaSimulada({ ok: true, bascula: [], pension: [] }), []);
+  assert.deepEqual(await lecturaSimulada({ ok: true, mes: "2026-10", bascula: [], pension: [] }), []);
+});
+
+test("Caja: no reconcilia un mes distinto o una respuesta sin mes", async () => {
+  await assert.rejects(lecturaSimulada({ ok: true, mes: "2026-09", bascula: [], pension: [] }), /mes diferente/);
+  await assert.rejects(lecturaSimulada({ ok: true, bascula: [], pension: [] }), /mes diferente/);
+});
+
+test("Caja: no reconcilia filas incompletas ni fechas ajenas al mes pedido", async () => {
+  const base = { ok: true, mes: "2026-10", pension: [] };
+  await assert.rejects(lecturaSimulada({ ...base, bascula: [{ fecha: "mal" }] }), /inválidos/);
+  await assert.rejects(lecturaSimulada({ ...base, bascula: [{ fecha: "2026-09-30T21:45:00" }] }), /inválidos/);
+  await assert.rejects(lecturaSimulada({ ...base, bascula: [null] }), /inválidos/);
 });
 
 test("Caja: respuesta HTTP errónea no autoriza conciliación", async () => {
-  await assert.rejects(lecturaSimulada({ ok: true, bascula: [], pension: [] }, 503), /rechazó/);
+  await assert.rejects(lecturaSimulada({ ok: true, mes: "2026-10", bascula: [], pension: [] }, 503), /rechazó/);
 });
 
 test("Personal: no existe la eliminación definitiva del expediente", () => {
