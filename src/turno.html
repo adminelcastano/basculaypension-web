@@ -1580,7 +1580,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
       try {
-        const r = await api("corte", { efectivo: f.efectivo.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts });
+        const r = await api("corte", { efectivo: f.efectivo.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts, pagos_distintos_confirmados: !!$("#dup-confirmo")?.checked });
         guardarLS(llaveB, null);
         if (r.enCola) { b.disabled = false; toast("Sin internet: el corte se guardó en la tablet y se enviará al volver la conexión."); return; }
         await cargar(); verCorte();

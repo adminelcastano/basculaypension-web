@@ -650,6 +650,18 @@ export async function turnoRuta(request, env, url, h) {
     if (!errores.efectivo && difRep < -0.009) errores.sobre = `Repartiste $${(-difRep).toFixed(2)} más de lo que contaste. Revisa el sobre, los retiros y el cambio.`;
     else if (!errores.efectivo && difRep > 0.009) errores.sobre = `Faltan $${difRep.toFixed(2)} por repartir. Todo el efectivo contado va en el sobre, en un retiro o como cambio para el siguiente turno.`;
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa el corte.", errores }, 422);
+    // Protección en servidor: un retiro final podría corresponder al mismo
+    // gasto pagado antes del conteo. Nunca asumir duplicidad ni borrar datos.
+    const gastosPrevios = (await env.DB.prepare(
+      "SELECT concepto, monto FROM caja_gastos WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja' AND forma = 'EFECTIVO' AND creado <= ?"
+    ).bind(s.dia, s.turno, ahora).all()).results;
+    const normal = v => String(v || "").trim().toUpperCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const coinciden = retiros.filter(x => gastosPrevios.some(g =>
+      normal(g.concepto) === normal(x.concepto) &&
+      Math.round(Number(g.monto) * 100) === Math.round(x.monto * 100)));
+    if (coinciden.length && c.pagos_distintos_confirmados !== true)
+      return json({ ok: false, error: "Hay un retiro con el mismo concepto e importe que un gasto de este turno. Corrige la captura duplicada o confirma que son pagos diferentes.", errores: { retiros: "Posible gasto duplicado al repartir." } }, 409);
     // Corte, su historial y el cierre del turno en una sola operación (o se guarda todo o nada)
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO turno_cortes (dia, turno, mes, persona, efectivo, tarjeta, notas, creado, actualizado, veces, con_cambio, sobre, cambio_sig, retiros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)
