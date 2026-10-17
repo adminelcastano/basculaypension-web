@@ -1230,7 +1230,7 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 
 /* Identidad Castagram: solo afecta a la cabecera del feed. */
 .casta-identidad { display:flex; justify-content:center; max-width:720px; margin:0 0 8px; }
-.casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
+.casta-identidad img { display:block; width:min(210px,60vw); height:auto; background:transparent; }
 #n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
 /* Pulgar arriba = Confirmación Enterado, nunca Me gusta. */
 .casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:44px; min-height:44px; color:#f5f5f7; font-size:var(--t-xs); font-variant-numeric:tabular-nums; }
