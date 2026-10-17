@@ -219,9 +219,19 @@ async function estado(env, s) {
   const hoy = local().dia;
   const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p) }));
   // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
-  const todos = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC LIMIT 150").bind(hoy).all()).results;
+  // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
+  // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
+  const visibles = [];
+  const loteAvisos = 150;
+  for (let offset = 0; visibles.length < 50; offset += loteAvisos) {
+    const filas = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC, id DESC LIMIT ? OFFSET ?").bind(hoy, loteAvisos, offset).all()).results;
+    for (const a of filas) {
+      if (avisoParaEncargado(a, s.persona, s.turno)) visibles.push(a);
+      if (visibles.length === 50) break;
+    }
+    if (filas.length < loteAvisos) break;
+  }
   const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  const visibles = todos.filter(a => avisoParaEncargado(a, s.persona, s.turno)).slice(0, 50);
   // Conversación de cada aviso: comentarios, nuevos para esta persona y último comentario; el muro va por actividad
   const conv = await resumenConversaciones(env, visibles, s.persona);
   const avisos = visibles
