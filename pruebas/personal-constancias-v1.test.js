@@ -18,7 +18,7 @@ test("Constancia v1 se registra solo en el expediente y su fecha no se sobreescr
 test("No presume aceptación retroactiva ni crea acuses al capturar datos desde panel", () => {
   assert.match(src, /SELECT version, aceptado_en, medio, campana_id FROM personal_constancias/);
   assert.match(src, /c\.version !== VERSION_AVISO_PERSONAL_V1 \|\| c\.confirmo !== true/);
-  assert.match(src, /!cuerpo\.acepto && !\(await constanciaPersonalV1\(env, fila\.id\)\)/);
+  assert.match(src, /cuerpo\.acepto !== true && !\(await constanciaPersonalV1\(env, fila\.id\)\)/);
   assert.match(form, /casillaForm\.closest\("label"\)\.hidden = !!c/);
   assert.match(src, /env\.DB\.batch\(\[/);
   assert.doesNotMatch(src, /INSERT OR REPLACE INTO personal_constancias/);
