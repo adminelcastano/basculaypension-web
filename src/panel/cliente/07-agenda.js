@@ -679,7 +679,7 @@ window.interpretarAgenda = function (texto, hoy) {
     const tareas = N("tarea"), inc = N("incidencia"), pagos = N("pago"), compras = N("compra").filter(x => !x.pospuesta);
     EC.bloqueN("agenda", "tarea", tareas.length, tareas.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("agenda", "incidencia", inc.length, inc.some(x => x.gravedad === "grave"));
-    EC.bloqueN("agenda", "aviso", st.avisosSinLeer || N("aviso").length, !!st.avisosSinLeer);
+    EC.bloqueN("agenda", "aviso", Number.isFinite(st.avisosSinLeer) ? st.avisosSinLeer : N("aviso").length, !!st.avisosSinLeer);
     EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("finanzas", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
     const mes = (st.hoy || "").slice(0, 7);
