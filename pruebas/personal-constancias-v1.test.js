@@ -53,3 +53,42 @@ test("Aviso v1 describe responsable y distingue firmas impresas de lectura digit
   assert.match(aviso, /no es una firma autógrafa/i);
   assert.match(aviso, /CASTAGRAM/);
 });
+
+test("La recepción exige confirmación booleana y devuelve la hora real del servidor", () => {
+  assert.match(src, /cuerpo\.acepto !== true/);
+  assert.match(src, /return json\(\{ ok: true, constancia: await constanciaPersonalV1\(env, fila\.id\) \}\)/);
+  assert.match(form, /pintarConstancia\(j\.constancia\)/);
+  assert.doesNotMatch(form, /pintarConstancia\(\{ aceptado_en: new Date\(\)\.toISOString\(\) \}\)/);
+});
+
+test("Atribuye constancia v1 a la campaña correcta aunque haya otras campañas abiertas", async () => {
+  const found = src.match(/async function campanaDeConstanciaV1\(env, fila, acceso\) \{[\s\S]*?\n\}/);
+  assert.ok(found);
+  const helper = new Function("leerCampana", "hoyLocal", found[0] + "\nreturn campanaDeConstanciaV1")(
+    c => ({ ...c, docs: JSON.parse(c.docs || "[]") }), () => "2026-10-17"
+  );
+  let consulted = 0;
+  const env = { DB: { prepare(sql) {
+    assert.match(sql, /JOIN campana_personas p ON/);
+    return { bind(id, date) {
+      assert.equal(id, "ficticio-1");
+      assert.equal(date, "2026-10-17");
+      return { async all() {
+        consulted++;
+        return { results: [
+          { id: "c-otras", docs: '["datos","ine"]' },
+          { id: "c-aviso", docs: '["acuse_v1"]' }
+        ] };
+      } };
+    } };
+  } } };
+  assert.equal(await helper(env, { id: "ficticio-1" }, { campana: { id: "c-otras", docs: ["datos"] } }), "c-aviso");
+  assert.equal(await helper(env, { id: "ficticio-1" }, { campana: { id: "c-ya", docs: ["acuse_v1"] } }), "c-ya");
+  assert.equal(consulted, 1);
+  assert.match(src, /const campanaId = await campanaDeConstanciaV1\(env, fila, acceso\)/);
+});
+
+test("La tablet y CASTAGRAM siguen fuera de la captura de constancias", () => {
+  assert.doesNotMatch(src, /INSERT INTO turno_acuses/);
+  assert.doesNotMatch(src, /INSERT INTO aviso_vistos/);
+});
