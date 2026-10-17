@@ -1769,9 +1769,16 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   sec().addEventListener("input", e => { sucio = true; const f = e.target.closest("form.com-form"); if (f && hilos[f.dataset.av]) hilos[f.dataset.av].borrador = e.target.value; });
   sec().addEventListener("change", async e => {
     const inp = e.target.closest("[data-com-foto]"); if (!inp || !inp.files[0]) return;
-    const f = inp.closest("form"), h = hilos[f.dataset.av];
+    const f = inp.closest("form"), id = f && f.dataset.av, h = id && hilos[id], sesion = E;
+    if (!h || !sesion) return;
     if (h.responderA) { inp.value = ""; return; }
-    try { h.foto = await comprimir(inp.files[0]); h.borrador = f.texto.value; repintarPost(f.dataset.av); } catch { toast("No se pudo leer la foto. Intenta otra vez.", true); }
+    try {
+      const foto = await comprimir(inp.files[0]);
+      if (E !== sesion || hilos[id] !== h || !f.isConnected) return;
+      h.foto = foto; h.borrador = f.texto.value; repintarPost(id);
+    } catch {
+      if (E === sesion) toast("No se pudo leer la foto. Intenta otra vez.", true);
+    }
   });
   sec().addEventListener("input", e => { const f = e.target.closest("#t-rapida"); if (f) previaTurno(f); });
   sec().addEventListener("submit", async e => {
