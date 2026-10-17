@@ -105,6 +105,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .cargando { color: var(--muted); padding: 40px 0; }
 footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+  .acuse-card { border:1px solid #635228; background:var(--surface); border-radius:20px; padding:19px; display:grid; gap:10px; margin-bottom:20px; }
+  .acuse-card h2 { font-size:1.28rem; }
+  .acuse-card p { margin:0; }
+  .acuse-card a { color:var(--amber); }
+  .acuse-card button { justify-self:start; }
+  .acuse-card .check { margin:7px 0; }
 </style>
 </head>
 <body>
@@ -128,6 +134,18 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 
     <div class="solicitud" id="solicitud" hidden></div>
     <p class="ya" id="ya" hidden></p>
+
+    <section class="acuse-card" id="acuse-v1" aria-labelledby="acuse-v1-titulo">
+      <h2 id="acuse-v1-titulo">Aviso de privacidad · versión 1</h2>
+      <p class="hint">La constancia se vincula a tu expediente en Personal y Campañas. No sustituye la firma de documentos impresos.</p>
+      <p><a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener">Leer el aviso de privacidad v1 ↗</a></p>
+      <p id="acuse-v1-estado" class="hint" role="status">Consultando constancia…</p>
+      <div id="acuse-v1-acciones">
+        <label class="check"><input type="checkbox" id="acuse-v1-check"><span>He recibido y leído el aviso de privacidad para colaboradores, versión 1.</span></label>
+        <button class="btn btn-line" type="button" id="acuse-v1-confirmar" disabled>Registrar recepción v1</button>
+      </div>
+      <p class="err" id="acuse-v1-error" role="alert"></p>
+    </section>
 
     <form id="form" novalidate>
       <fieldset class="docs" aria-labelledby="t-docs">
@@ -180,7 +198,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       </fieldset>
 
       <div>
-        <label class="check"><input type="checkbox" name="acepto"><span>Acepto que Báscula y Pensión El Castaño use estos datos y documentos solo para <span id="para-que">mi expediente laboral</span>, conforme a su <a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener">aviso de privacidad para colaboradores</a>.</span></label>
+        <label class="check"><input type="checkbox" name="acepto"><span>He recibido y leído el <a href="/aviso-de-privacidad-colaboradores/" target="_blank" rel="noopener">aviso de privacidad v1</a> relativo a <span id="para-que">mi expediente laboral</span>. Al guardar mis datos también quedará constancia de su recepción si aún no la he registrado.</span></label>
         <span class="err" data-err="acepto"></span>
       </div>
       <div class="alerta" id="alerta" role="alert"></div>
@@ -206,6 +224,26 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   const ETIQ_PIEZA = { ine2: "Reverso", solicitud2: "Hoja 2" };
   const ETIQ_PRIMERA = { ine: "Frente", solicitud: "Hoja 1" };
   let docsActual = null, esExterno = false;
+  function pintarConstancia(c) {
+    $("#acuse-v1-acciones").hidden = !!c;
+    $("#acuse-v1-estado").textContent = c
+      ? "Recepción registrada: " + fmt.format(new Date(c.aceptado_en)) + " · versión 1"
+      : "Aún no has registrado la recepción de la versión 1.";
+  }
+  $("#acuse-v1-check").addEventListener("change", e => { $("#acuse-v1-confirmar").disabled = !e.target.checked; });
+  $("#acuse-v1-confirmar").addEventListener("click", async e => {
+    const b = e.currentTarget; if (!$("#acuse-v1-check").checked) return;
+    b.disabled = true; $("#acuse-v1-error").textContent = "";
+    try {
+      const r = await fetch(api + "/constancia", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: "personal-aviso-v1-2026-10-17", confirmo: true })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw Error(j.error || "No se pudo guardar la recepción.");
+      pintarConstancia(j.constancia);
+    } catch (error) { $("#acuse-v1-error").textContent = error.message; b.disabled = !$("#acuse-v1-check").checked; }
+  });
 
   function pintarDocs(d) {
     docsActual = d;
@@ -294,6 +332,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     }
     for (const k of ["estado_civil", "escolaridad"]) $("#sel-" + k).insertAdjacentHTML("beforeend", j.listas[k].map(v => `<option>${esc(v)}</option>`).join(""));
     for (const [k, v] of Object.entries(j.datos || {})) { const el = form.elements[k]; if (el && el.type !== "checkbox" && el.type !== "file") el.value = v; }
+    pintarConstancia(j.constancia_v1);
     if (j.tipo === "externo") {
       esExterno = true;
       document.title = "Mi registro · El Castaño";
@@ -302,7 +341,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       $("#nota-josue").hidden = true; $("#correo-op").hidden = false; $("#fs-escolaridad").hidden = true;
       $("#para-que").textContent = "su registro como externo";
       const acepta = form.querySelector("[name=acepto] + span");
-      if (acepta) acepta.firstChild.textContent = "La persona registrada acepta que Báscula y Pensión El Castaño use estos datos y documentos solo para ";
+      if (acepta) acepta.firstChild.textContent = "La persona registrada declara que ha recibido y leído el aviso de privacidad v1 relativo a ";
       $("#t-docs").lastChild.textContent = "Sus documentos";
       $("#enviar").textContent = j.llenado_en ? "Guardar cambios" : "Enviar registro";
     }
@@ -338,6 +377,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (primero && primero.focus) primero.focus({ preventScroll: true });
       return;
     }
+    pintarConstancia({ aceptado_en: new Date().toISOString() });
     const faltan = docsActual ? docsActual.total - docsActual.entregados : 0;
     const josue = esExterno ? "" : " Recuerda entregar 2 copias de cada documento con Josué.";
     if (esExterno) { $("#hecho h1").textContent = "Registro enviado"; $("#hecho p").textContent = faltan ? `Se guardó el registro. Faltan ${faltan} ${faltan === 1 ? "documento" : "documentos"}; puedes subirlos después con este mismo enlace. Cuando esté completo, te llega el aviso de que ya puede trabajar.` : "Registro completo. En unos momentos te llega el aviso de que ya puede trabajar dentro de El Castaño."; $("#vista").hidden = true; $("#hecho").hidden = false; scrollTo({ top: 0 }); return; }
