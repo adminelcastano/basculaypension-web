@@ -24,6 +24,7 @@ import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CO
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
+const AVISO_DIGITAL_V1 = "turno-aviso-v1-2026-10-17";
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
 // Fotos de la tablet: máximo 1.5 MB; pasan a Drive y viven lo mismo que su registro
 const FOTO_MAX = 1_500_000;
@@ -122,6 +123,12 @@ export async function asegurarEsquemaTurno(env) {
   await env.DB.prepare("UPDATE turno_personas SET avatar_base = avatar WHERE avatar_base IS NULL AND avatar IN ('a1','a2','a3','a4','a5')").run();
   // Turno abierto sin corte: mientras exista, nadie más puede entrar a otro turno (una sola fila)
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS turno_abierto (id INTEGER PRIMARY KEY CHECK (id = 1), persona TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, desde TEXT NOT NULL)").run();
+  // Acuse digital independiente de los Enterados de CASTAGRAM y de la firma en papel.
+  // Un registro por encargado y versión: no se reescribe la primera fecha.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS turno_acuses (
+    persona TEXT NOT NULL, version TEXT NOT NULL, aceptado_en TEXT NOT NULL,
+    medio TEXT NOT NULL, turno TEXT, dia TEXT, PRIMARY KEY (persona, version)
+  )`).run();
   const n = (await env.DB.prepare("SELECT COUNT(*) n FROM turno_personas").first()).n;
   if (!n) {
     const ahora = new Date().toISOString();
@@ -356,6 +363,15 @@ export async function turnoRuta(request, env, url, h) {
           : `Falta el corte ${cual}, que abrió ${ab.persona}. ${ab.persona} debe entrar y entregarlo, o la administración puede liberarlo desde el panel.`, turno_abierto: { persona: ab.persona, dia: ab.dia, turno: ab.turno } }, 409);
       }
     }
+    // Se comprueba el PIN ANTES de pedir el acuse, sin exponer el estado de otra persona.
+    const tieneAcuse = await env.DB.prepare("SELECT 1 FROM turno_acuses WHERE persona = ? AND version = ?")
+      .bind(clave, AVISO_DIGITAL_V1).first();
+    if (!tieneAcuse && c.acuse_v1 !== AVISO_DIGITAL_V1)
+      return json({ ok: false, requiere_acuse_v1: true, version: AVISO_DIGITAL_V1,
+        error: "Revisa el aviso digital v1 antes de continuar." }, 428);
+    if (!tieneAcuse)
+      await env.DB.prepare("INSERT OR IGNORE INTO turno_acuses (persona, version, aceptado_en, medio, turno, dia) VALUES (?, ?, ?, 'tablet-pin', ?, ?)")
+        .bind(clave, AVISO_DIGITAL_V1, ahora.toISOString(), turno, diaNuevo).run();
     if (!(await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(diaNuevo, turno).first()))
       await env.DB.prepare("INSERT INTO turno_abierto (id, persona, dia, turno, desde) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET persona = excluded.persona, dia = excluded.dia, turno = excluded.turno, desde = CASE WHEN turno_abierto.dia = excluded.dia AND turno_abierto.turno = excluded.turno THEN turno_abierto.desde ELSE excluded.desde END")
         .bind(clave, diaNuevo, turno, ahora.toISOString()).run();
@@ -379,6 +395,22 @@ export async function turnoRuta(request, env, url, h) {
   const s = await sesionActual(request, env);
   if (!s) return json({ ok: false, error: "Tu sesión terminó. Vuelve a entrar con tu PIN.", sesion: false }, 401, { "Set-Cookie": cookie("", 0) });
 
+  const yaAcusado = await env.DB.prepare("SELECT 1 FROM turno_acuses WHERE persona = ? AND version = ?")
+    .bind(s.persona, AVISO_DIGITAL_V1).first();
+  // Las sesiones que estaban abiertas antes de la versión v1 también deben recibir el aviso.
+  // Se presenta únicamente la identidad, sin adelantar datos privados del turno.
+  if (!yaAcusado && partes[0] === "estado" && request.method === "GET")
+    return json({ ok: true, requiere_acuse_v1: true, version_aviso: AVISO_DIGITAL_V1,
+      persona: s.persona, turno: s.turno, dia: s.dia, ver: versionDe(h.html) });
+  if (partes[0] === "acuse-v1" && request.method === "POST") {
+    const c = await request.json().catch(() => ({}));
+    if (c.version !== AVISO_DIGITAL_V1 || c.confirmo !== true)
+      return json({ ok: false, error: "Debes confirmar la recepción de la versión actual." }, 422);
+    await env.DB.prepare("INSERT OR IGNORE INTO turno_acuses (persona, version, aceptado_en, medio, turno, dia) VALUES (?, ?, ?, 'tablet-sesion', ?, ?)")
+      .bind(s.persona, AVISO_DIGITAL_V1, new Date().toISOString(), s.turno, s.dia).run();
+    return json({ ok: true, version: AVISO_DIGITAL_V1 });
+  }
+  if (!yaAcusado) return json({ ok: false, requiere_acuse_v1: true, error: "Primero registra la recepción del aviso digital v1." }, 428);
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
 
   if (partes[0] === "foto" && request.method === "GET") {
