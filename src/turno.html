@@ -1519,7 +1519,16 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       $("#retiros").insertAdjacentHTML("beforeend", filaRetiro());
       $("#retiros .retiro:last-child input").focus();
     });
-    f.addEventListener("click", e => { const q = e.target.closest("[data-quitar-retiro]"); if (q) { q.closest(".retiro").remove(); reparto(); } });
+    f.addEventListener("click", e => {
+      const q = e.target.closest("[data-quitar-retiro]");
+      if (!q) return;
+      q.closest(".retiro").remove();
+      $("#revisado-corte").checked = false;
+      $("#err-corte").textContent = "";
+      reparto();
+      guardarLS(llaveB, { efectivo: f.efectivo.value, notas: f.notas.value,
+        sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: retiros() });
+    });
     f.addEventListener("input", e => {
       // Si se edita un retiro, una confirmación previa de "dos pagos distintos" deja de valer.
       if (e.target.closest(".retiro")) {
