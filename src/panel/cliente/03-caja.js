@@ -55,7 +55,9 @@
       {
         const D0 = v => dinero(v, 0);
         const cur = j.cortes.find(x => x.dia === ahora.dia && x.turno === ahora.turno);
-        const sinCorte = j.cortes.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
+        const historicos = new Set((j.historicos || []).map(h => h.dia + "|" + h.turno));
+        const sinCorte = j.cortes.filter(x => !x.conteo && !historicos.has(x.dia + "|" + x.turno) &&
+          (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
         EC.bloqueInfo("caja", "curso", { valor: cur ? D0((cur.efectivo || 0) + (cur.tarjeta || 0)) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
         EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
         EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
@@ -188,11 +190,19 @@
     if (k && Math.abs(k.dif_efectivo) >= 1) problemas.push("efectivo " + dif(k.dif_efectivo));
     if (k && k.dif_tarjeta != null && Math.abs(k.dif_tarjeta) >= 1) problemas.push("tarjeta " + dif(k.dif_tarjeta));
     if (cs && Math.abs(cs.dif) >= 1) problemas.push("cambio dejado " + dif(cs.dif));
-    if (!k && !enCurso) problemas.push("falta el corte");
-    const estado = problemas.length ? "mal" : !k ? "esp" : k.admin ? "" : "ok";
+    if (!k && !enCurso && !j.historico) problemas.push("falta el corte");
+    const estado = problemas.length ? "mal" : !k ?
+      j.historico && j.historico.estado === "cuadra" ? "ok" :
+      j.historico && j.historico.estado === "no_cuadra" ? "mal" : "esp" :
+      k.admin ? "" : "ok";
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
-    return `<section class="card cficha ${estado}"><h3>Corte</h3>
-      <div class="cf-res ${estado}">${k && k.admin && !problemas.length ? "Entrega capturada por la administración" : estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") : "Revisar: " + esc(problemas.join(" · "))}</div>
+    return `<section class="card cficha ${estado}"><h3>${j.historico && !k ? "Archivo histórico" : "Corte"}</h3>
+      <div class="cf-res ${estado}">${k && k.admin && !problemas.length ? "Entrega capturada por la administración" :
+        j.historico && !k ? (({ cuadra:"✓ Reparto histórico cuadrado", no_cuadra:"Reparto histórico con diferencia",
+          incompleto:"Archivo histórico incompleto", sin_datos:"Archivo histórico sin datos",
+          por_verificar:"Archivo histórico por verificar" })[j.historico.estado] || "Archivo histórico") :
+        estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") :
+        "Revisar: " + esc(problemas.join(" · "))}</div>
       <ol class="cf">${pasos.join("")}</ol>
       <ol class="cf cf-aparte">${tj}</ol>
       ${c.fuera.n ? `<p class="note">No pasan por la caja: ${c.fuera.n} registros (${esc(fuera)}). Las transferencias cuentan como ingreso en Dinero.</p>` : ""}
