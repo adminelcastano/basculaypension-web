@@ -18,10 +18,13 @@
   const cuando = iso => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" });
   const st = { mes: "", datos: null, cargarRep: null };
 
+  let secuenciaDinero = 0;
   async function cargar() {
+    const solicitud = ++secuenciaDinero;
     const c = $("#fb-resumen");
     try {
       const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
+      if (solicitud !== secuenciaDinero) return;
       st.datos = j; st.mes = j.mes;
       try { pintarConfigCuentas(); } catch (er) { console.error(er); }
       if (j.cuentas_activas) window.CUENTAS = j.cuentas_activas;
@@ -30,7 +33,7 @@
       sel.value = j.mes;
       pintar();
       if (st.foco === "transf") { st.foco = null; const el = $("#f-ftransf"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.cliente.focus(); } }
-    } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+    } catch (e) { if (solicitud === secuenciaDinero && e.message !== "sesion") c.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
   function graf(porDia) {
