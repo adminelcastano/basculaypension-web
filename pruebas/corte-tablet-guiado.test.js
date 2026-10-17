@@ -85,5 +85,5 @@ test("Corte tablet: modificar o quitar un retiro exige revisión nueva y actuali
   assert.match(ui, /q\.closest\("\.retiro"\)\.remove\(\)/);
   assert.match(ui, /\$\("#revisado-corte"\)\.checked = false/);
   assert.match(ui, /const llaveB = `turno:borrador/);
-  assert.match(ui, /Máximo 20 retiros/);
+  assert.match(ui, /máximo es 20 retiros/);
 });
