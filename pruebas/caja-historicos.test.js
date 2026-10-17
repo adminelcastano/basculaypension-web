@@ -75,3 +75,13 @@ test("No se escribe en las tablas que alimentan Caja y Dinero", () => {
   assert.match(ui, /caja\/historicos/);
   assert.match(ui, /Revisar sin guardar/);
 });
+
+test("La carga histórica no se guarda si octubre ya está cerrado", () => {
+  const src = readFileSync(new URL("../src/caja.js", import.meta.url), "utf8");
+  assert.match(src, /c\.aplicar === true && !meses\.includes\("2026-10"\)/);
+  assert.match(src, /procesarHistoricos\(env, c\.texto/);
+  const ui = readFileSync(new URL("../src/panel/cliente/03-caja.js", import.meta.url), "utf8");
+  assert.match(ui, /No registra sobres, ingresos, retiros ni gastos contables/);
+  assert.match(ui, /const historicos = new Set/);
+  assert.match(ui, /j\.historico && !k/);
+});
