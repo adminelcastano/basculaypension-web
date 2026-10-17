@@ -677,17 +677,43 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         return json({ ok: true, estado: fila.estado, sin_cambios: true });
       const restante = Math.round((fila.monto - abonado - monto) * 100) / 100;
       const estado = restante <= 0 ? "pagado" : "parcial";
-      await env.DB.batch([
+      // La inserción comprueba el saldo dentro de la misma transacción de D1.
+      // Dos formularios simultáneos no pueden registrar más dinero del adeudado.
+      const resultados = await env.DB.batch([
         env.DB.prepare(`INSERT INTO caja_cobros_admin (id, pendiente_id, fecha_pago, mes, monto, forma, creado, por)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(pagoId, id, fecha, fecha.slice(0, 7), monto, forma, ahora, quien),
-        env.DB.prepare(`UPDATE caja_pendientes SET estado = ?, resuelto = ?, por = ?, notas = ?
-          WHERE id = ?`).bind(estado, estado === "pagado" ? ahora : null, quien, notas, id),
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?
+          WHERE EXISTS (
+            SELECT 1 FROM caja_pendientes p WHERE p.id = ? AND p.origen_activo = 1
+              AND p.estado IN ('pendiente', 'parcial')
+              AND ROUND(p.monto * 100) >= ROUND(? * 100) +
+                ROUND(COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a
+                  WHERE a.pendiente_id = p.id AND a.anulado = 0), 0) * 100)
+          )`).bind(pagoId, id, fecha, fecha.slice(0, 7), monto, forma, ahora, quien, id, monto),
+        env.DB.prepare(`UPDATE caja_pendientes SET
+          estado = CASE WHEN ROUND(COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a
+            WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0), 0) * 100) >= ROUND(monto * 100)
+            THEN 'pagado' ELSE 'parcial' END,
+          resuelto = CASE WHEN ROUND(COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a
+            WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0), 0) * 100) >= ROUND(monto * 100)
+            THEN ? ELSE NULL END,
+          por = ?, notas = ?
+          WHERE id = ? AND EXISTS (SELECT 1 FROM caja_cobros_admin WHERE id = ?)`)
+          .bind(ahora, quien, notas, id, pagoId),
         env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, estado, ahora, quien,
-            [`Abono de $${monto.toFixed(2)} el ${fecha} por ${forma}`, notas].filter(Boolean).join(" · "))
+          SELECT ?, ?, (SELECT estado FROM caja_pendientes WHERE id = ?), ?, ?, ?
+          WHERE EXISTS (SELECT 1 FROM caja_cobros_admin WHERE id = ?)`)
+          .bind(id, fila.estado, id, ahora, quien,
+            [`Abono de ${monto.toFixed(2)} el ${fecha} por ${forma}`, notas].filter(Boolean).join(" · "), pagoId)
       ]);
-      return json({ ok: true, estado, abonado: Math.round((abonado + monto) * 100) / 100,
-        resto: Math.max(0, restante), nota: "Abono contabilizado por su fecha y forma de pago." });
+      if (!resultados[0]?.meta?.changes)
+        return json({ ok: false, error: "El saldo pendiente cambió; recarga el corte antes de registrar otro abono." }, 409);
+      const saldoActual = await env.DB.prepare(`SELECT p.estado,
+        COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a WHERE a.pendiente_id = p.id AND a.anulado = 0), 0) AS abonado
+        FROM caja_pendientes p WHERE p.id = ?`).bind(id).first();
+      return json({ ok: true, estado: saldoActual.estado,
+        abonado: Math.round(Number(saldoActual.abonado) * 100) / 100,
+        resto: Math.max(0, Math.round((fila.monto - saldoActual.abonado) * 100) / 100),
+        nota: "Abono contabilizado por su fecha y forma de pago." });
     }
     if (c.estado === "conciliado") {
       if (fila.origen_activo)
