@@ -48,3 +48,17 @@ test("Castagram: la conversación abierta no se pierde al refrescar sola", () =>
   assert.match(tablet, /function repintarSheetTurno/);
   assert.match(panel, /const dlg = el\.querySelector\("dialog\.casta-sheet\[open\]"\)/);
 });
+
+test("Castagram: un solo pulgar por publicación y comentario por icono", () => {
+  for (const fuente of [tablet, panel]) {
+    assert.match(fuente, /casta-pulgar-boton/);
+    assert.match(fuente, /aria-label="Confirmar/);
+    assert.match(fuente, /casta-comentar/);
+    assert.doesNotMatch(fuente, /\$\{pulgar\} Enterado<\/button>/);
+    assert.doesNotMatch(fuente, /\$\{ico\("i-chat"\)\}Comentar<\/button>/);
+    assert.doesNotMatch(fuente, /\$\{svg\("i-chat"\)\}Comentar<\/button>/);
+  }
+  assert.match(tablet, /!a\.leido && !pendiente \? `<button type="button" class="casta-pulgar/);
+  assert.match(tablet, /const confirmado = !!a\.leido && !a\.propio/);
+  assert.match(panel, /cantidadEnterados \? "is-enterado"/);
+});

@@ -1233,12 +1233,15 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
 #n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
 /* Pulgar arriba = Confirmación Enterado, nunca Me gusta. */
-.casta-pulgar { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:var(--t-xs); }
-.casta-pulgar .casta-pulgar-ico { flex:none; width:22px; height:22px; }
+.casta-pulgar { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:44px; min-height:44px; color:#f5f5f7; font-size:var(--t-xs); font-variant-numeric:tabular-nums; }
+.casta-pulgar .casta-pulgar-ico { flex:none; width:24px; height:24px; stroke-width:2; color:inherit; }
+.post-st .casta-pulgar svg { width:24px; height:24px; color:inherit; vertical-align:middle; }
 .casta-pulgar.is-enterado, .post-ent .si { color:#30d158; }
-.post-acc .pa.casta-enterado { color:var(--fg-2); }
-.post-acc .pa.casta-enterado:hover { color:#30d158; }
-.post-acc .pa.casta-enterado .casta-pulgar-ico { width:21px; height:21px; }
+.casta-pulgar-boton { border:0; padding:8px; background:transparent; border-radius:12px; cursor:pointer; }
+.casta-pulgar-boton:hover, .casta-pulgar-boton:focus-visible { background:var(--fill); }
+.casta-pulgar-boton:disabled { opacity:.65; cursor:wait; }
+.post-acc .pa.casta-comentar { color:#f5f5f7; min-height:48px; }
+.post-acc .pa.casta-comentar svg { width:23px; height:23px; color:inherit; stroke-width:2; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; margin-top: 14px; max-width: 720px; }
 .muro-nuevo { max-width: 720px; }
