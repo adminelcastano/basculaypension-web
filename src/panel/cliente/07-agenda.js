@@ -855,13 +855,50 @@ window.interpretarAgenda = function (texto, hoy) {
       </article>`;
   }
 
+
+  // Actividad dentro de Castagram. Se deriva solo de los avisos ya autorizados
+  // y distingue el visto de una confirmación explícita de Enterado.
+  function castaActividadAdmin() {
+    const eventos = [];
+    for (const it of st.items || []) {
+      if (it.tipo !== "aviso" || !abierto(it)) continue;
+      const cv = it.conv || {}, para = it.para || {}, autor = it.autor || "admin";
+      const vistoAdmin = (it.lecturas || []).some(x => x.persona === "ADMIN");
+      if (autor !== "admin" && para.admin && !vistoAdmin)
+        eventos.push({ id: it.id, tipo: "publicacion", at: it.creado,
+          mensaje: nomDe(autor) + " publicó una novedad", titulo: it.titulo });
+      if (cv.nuevos > 0) {
+        const quien = cv.ultimo && cv.ultimo.autor !== "admin" ? nomDe(cv.ultimo.autor) : "";
+        eventos.push({ id: it.id, tipo: "comentario", at: cv.ultimo && cv.ultimo.creado || cv.actividad || it.creado,
+          mensaje: cv.nuevos === 1 ? (quien ? quien + " comentó" : "Comentario nuevo") : cv.nuevos + " comentarios nuevos",
+          titulo: it.titulo });
+      }
+      if (cv.nuevosEnterado > 0) {
+        const ultimos = (it.lecturas || []).filter(x => x.persona !== "ADMIN")
+          .sort((a,b) => String(b.at || "").localeCompare(String(a.at || "")))
+          .slice(0,cv.nuevosEnterado);
+        const quien = cv.nuevosEnterado === 1 && ultimos.length ? nomDe(ultimos[0].persona) + " confirmó Enterado" :
+          cv.nuevosEnterado + " confirmaciones de Enterado";
+        eventos.push({ id: it.id, tipo: "enterado", at: ultimos[0] && ultimos[0].at || cv.actividad || it.creado,
+          mensaje: quien, titulo: it.titulo });
+      }
+    }
+    return eventos.sort((a,b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0,20);
+  }
+  function castaActividadVistaAdmin() {
+    const eventos = castaActividadAdmin();
+    return `<details class="casta-actividad"><summary>${ico("i-aviso")}<span>Actividad</span>${eventos.length ? `<b aria-label="${eventos.length} novedades">${eventos.length > 99 ? "99+" : eventos.length}</b>` : ""}</summary>
+      <div class="casta-actividad-list">${eventos.length ? eventos.map(e => `<button type="button" data-casta-evento="${esc(e.id)}" aria-label="${esc(e.mensaje)}. Abrir conversación">
+      <strong>${esc(e.mensaje)}</strong><small>${esc(e.titulo)}</small></button>`).join("") : `<p>Sin novedades pendientes.</p>`}</div></details>`;
+  }
+
   function vistaAvisos() {
     if (st.archivo) return vistaArchivo();
     const act = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a, b) => String((b.conv && b.conv.actividad) || b.creado).localeCompare(String((a.conv && a.conv.actividad) || a.creado)));
     const r = st.resp || {}; st.resp = null;
     const opPara = [["todos", "Todos los encargados"], ...Object.entries(T_AV).map(([k, v]) => ["t:" + k, "Turno " + v]), ...encargados().map(p => ["p:" + p.clave, p.clave])];
     const marcado = v => r.persona ? v === "p:" + r.persona : v === "todos";
-    return `<div class="casta-identidad"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Nueva publicación<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
+    return `<div class="casta-identidad"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div>${castaActividadVistaAdmin()}<section class="card muro-nuevo"><form class="aform" data-tipo="aviso"><div class="w4 muro-q">${avP("admin", 1)}<label>Nueva publicación<input name="titulo" maxlength="140" placeholder="¿Qué necesitas avisar? Ej. Mañana viene el técnico de la báscula" autocomplete="off" value="${esc(r.titulo || "")}"></label></div>
       <label class="w4 extra">Detalle <span style="font-weight:400">(opcional)</span><textarea name="detalle" rows="2" maxlength="1000"></textarea></label>
       <div class="w4 para-op extra"><span>Etiquetar a</span>${opPara.map(([v, t]) => `<label class="pchip ${marcado(v) ? "on" : ""}"><input type="checkbox" data-para="${esc(v)}" ${marcado(v) ? "checked" : ""}>@${esc(t)}</label>`).join("")}</div>
       <label class="extra">Mostrar desde<input type="date" name="fecha"></label><label class="extra">Importancia<select name="prioridad"><option value="normal">Normal</option><option value="alta">Importante</option></select></label>
@@ -965,6 +1002,14 @@ window.interpretarAgenda = function (texto, hoy) {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
       const d = t.dataset;
       if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
+      if (d.castaEvento) {
+        const it = st.items.find(x => x.id === d.castaEvento && x.tipo === "aviso" && abierto(x));
+        if (!it) return;
+        st.abiertosAv.clear(); st.abiertosAv.add(it.id);
+        pintarAvisos();
+        await abrirHilo(it.id, true);
+        return;
+      }
       if (d.reactivar && st.archivo) { st.archivo = null; return; }
       if (d.hilo) {
         const id = d.hilo;

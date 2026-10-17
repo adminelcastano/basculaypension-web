@@ -1544,3 +1544,19 @@ dialog.casta-sheet .com-form .com-etq { max-height:85px; overflow-y:auto; }
 .casta-carrusel-puntos button[aria-current="true"]{background:#ffcc00;width:11px;height:11px;min-width:11px}
 .casta-carrusel button:focus-visible{outline:3px solid #ffcc00;outline-offset:1px}
 @media(max-width:420px){.casta-carrusel-arrow{width:36px;height:40px}.casta-carrusel-slide img{max-height:300px}}
+
+
+/* Actividad de Castagram, privada según la sesión actual. */
+.casta-actividad { max-width:760px; min-width:0; margin:2px 0 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+.casta-actividad summary { display:flex; gap:10px; align-items:center; min-height:48px; padding:9px 14px; list-style:none; cursor:pointer; color:var(--fg); font-weight:600; }
+.casta-actividad summary::-webkit-details-marker { display:none; }
+.casta-actividad summary svg { flex:none; width:21px; height:21px; }
+.casta-actividad summary span { flex:1; }
+.casta-actividad summary b { background:#d70015; color:#fff; font-size:12px; min-width:23px; height:23px; border-radius:100px; padding:0 6px; display:grid; place-items:center; font-variant-numeric:tabular-nums; }
+.casta-actividad-list { border-top:1px solid var(--line); max-height:300px; overflow-y:auto; overscroll-behavior:contain; display:grid; }
+.casta-actividad-list button { display:grid; text-align:left; min-width:0; width:100%; gap:2px; padding:12px 14px; border:0; border-bottom:1px solid var(--line); color:var(--fg); background:transparent; font:inherit; cursor:pointer; }
+.casta-actividad-list button:last-of-type { border-bottom:0; }
+.casta-actividad-list button:hover, .casta-actividad-list button:focus-visible { background:var(--fill, #303034); }
+.casta-actividad-list strong { overflow-wrap:anywhere; font-size:.9rem; }
+.casta-actividad-list small { color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
+.casta-actividad-list p { margin:0; padding:12px 14px; color:var(--muted); font-size:.85rem; }

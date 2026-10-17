@@ -347,6 +347,21 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .casta-subtitulo { color:var(--muted); font-size:.9rem; text-align:center; max-width:760px; margin:0 0 14px; }
 .accion[data-accion="aviso"] { position:relative; }
 .casta-alertas { position:absolute; top:8px; right:8px; display:inline-grid; place-items:center; min-width:21px; height:21px; padding:0 6px; border-radius:999px; background:#d70015; color:#fff; font-size:12px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* Actividad de Castagram, privada según la sesión actual. */
+.casta-actividad { max-width:760px; min-width:0; margin:2px 0 12px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+.casta-actividad summary { display:flex; gap:10px; align-items:center; min-height:48px; padding:9px 14px; list-style:none; cursor:pointer; color:var(--fg); font-weight:600; }
+.casta-actividad summary::-webkit-details-marker { display:none; }
+.casta-actividad summary svg { flex:none; width:21px; height:21px; }
+.casta-actividad summary span { flex:1; }
+.casta-actividad summary b { background:#d70015; color:#fff; font-size:12px; min-width:23px; height:23px; border-radius:100px; padding:0 6px; display:grid; place-items:center; font-variant-numeric:tabular-nums; }
+.casta-actividad-list { border-top:1px solid var(--line); max-height:300px; overflow-y:auto; overscroll-behavior:contain; display:grid; }
+.casta-actividad-list button { display:grid; text-align:left; min-width:0; width:100%; gap:2px; padding:12px 14px; border:0; border-bottom:1px solid var(--line); color:var(--fg); background:transparent; font:inherit; cursor:pointer; }
+.casta-actividad-list button:last-of-type { border-bottom:0; }
+.casta-actividad-list button:hover, .casta-actividad-list button:focus-visible { background:var(--fill, #303034); }
+.casta-actividad-list strong { overflow-wrap:anywhere; font-size:.9rem; }
+.casta-actividad-list small { color:var(--muted); font-size:.8rem; overflow-wrap:anywhere; }
+.casta-actividad-list p { margin:0; padding:12px 14px; color:var(--muted); font-size:.85rem; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; max-width: 760px; }
 .muro-in { margin-top: 12px; max-width: none; }
@@ -1187,8 +1202,34 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       ${ult ? `<span class="mm"><span class="etq ${RES[ult.resultado][1]}">${RES[ult.resultado][0]}</span><span>${esc(ult.persona)} · ${esc(fechaCorta(ult.creado))}${ult.nota ? " · " + esc(ult.nota) : ""}</span></span>` : ""}
     </div>`;
   }
+
+  // La lista solo utiliza publicaciones previamente filtradas para este encargado.
+  // Abrir una conversación NO confirma Enterado.
+  function castaActividadTurno() {
+    if (!E) return [];
+    const eventos = [];
+    for (const a of E.avisos || []) {
+      const cv = a.conv || {};
+      if (!a.leido && !a.propio) eventos.push({ id:a.id, at:a.creado,
+        mensaje:"Pendiente de Enterado", titulo:a.titulo });
+      if (cv.nuevos > 0) {
+        const otro = cv.ultimo && cv.ultimo.autor !== E.persona ? nombreDe(cv.ultimo.autor) : "";
+        eventos.push({ id:a.id, at:cv.ultimo && cv.ultimo.creado || cv.actividad || a.creado,
+          mensaje:cv.nuevos === 1 ? (otro ? otro + " comentó" : "Comentario nuevo") : cv.nuevos + " comentarios nuevos",
+          titulo:a.titulo });
+      }
+    }
+    return eventos.sort((a,b)=>String(b.at||"").localeCompare(String(a.at||""))).slice(0,20);
+  }
+  function castaActividadVistaTurno() {
+    const eventos=castaActividadTurno();
+    return `<details class="casta-actividad"><summary>${svg("i-aviso")}<span>Actividad</span>${eventos.length ? `<b aria-label="${eventos.length} novedades">${eventos.length > 99 ? "99+" : eventos.length}</b>` : ""}</summary>
+      <div class="casta-actividad-list">${eventos.length ? eventos.map(x=>`<button type="button" data-casta-evento="${esc(x.id)}" aria-label="${esc(x.mensaje)}. Abrir conversación">
+      <strong>${esc(x.mensaje)}</strong><small>${esc(x.titulo)}</small></button>`).join("") : `<p>Sin novedades pendientes.</p>`}</div></details>`;
+  }
+
   function verAvisos() {
-    sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>` + `
+    sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>${castaActividadVistaTurno()}` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
       <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
@@ -1610,6 +1651,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     }
     const controlFoto = e.target.closest("[data-casta-paso], [data-casta-ir]");
     if (controlFoto) { castaMover(controlFoto); return; }
+    const actividad = e.target.closest("[data-casta-evento]");
+    if (actividad) {
+      const id = actividad.dataset.castaEvento;
+      if (!E || !E.avisos.some(a => a.id === id)) return;
+      mostrarSheetTurno(id);
+      await abrirHilo(id);
+      return;
+    }
     const hb = e.target.closest("[data-hoy]"), hv = e.target.closest("[data-hoy-volver]"), hl = e.target.closest("[data-hilo]"), hr = e.target.closest("[data-hilo-re]");
     const et = e.target.closest("[data-etq]"), sf = e.target.closest("[data-com-sinfoto]");
     if (hb) { verBloqueHoy(hb.dataset.hoy); return; }
