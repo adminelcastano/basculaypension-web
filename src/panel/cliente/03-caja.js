@@ -396,7 +396,71 @@
       ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    // Archivo histórico: nunca llama al guardado de entregas que alimenta Dinero.
+    const hs = j.historicos || [];
+    const etqH = { cuadra: "Cuadra", no_cuadra: "No cuadra", incompleto: "Incompleto",
+      sin_datos: "Sin datos", por_verificar: "Por verificar" };
+    c.innerHTML += `<section class="card">
+      <h3>Cortes históricos · 1 al 14 de octubre</h3>
+      <p class="note">Archivo documental anterior al uso de la tablet. No registra sobres, ingresos, retiros ni gastos contables.
+        El cero significa $0 conocido; el guion «—» significa dato no disponible. Para marcar «Cuadra» o «No cuadra»
+        se requiere el total contado independiente, que puedes agregar como séptima columna.</p>
+      <div class="ctot">
+        <div class="k"><span>Archivados</span><b>${hs.length} / 40</b></div>
+        <div class="k"><span>Cuadran</span><b>${hs.filter(h => h.estado === "cuadra").length}</b></div>
+        <div class="k"><span>No cuadran</span><b>${hs.filter(h => h.estado === "no_cuadra").length}</b></div>
+        <div class="k"><span>Por verificar</span><b>${hs.filter(h => h.estado !== "cuadra" && h.estado !== "no_cuadra").length}</b></div>
+      </div>
+      <details id="ch-importar"><summary class="btn btn-line" style="cursor:pointer;display:inline-flex">Revisar o archivar los cortes antiguos</summary>
+        <p class="note">Copia filas de Excel o del archivo de cortes:
+          <b>fecha · turno · sobre · taxi · sueldo · cambio · total contado (opcional) · nota (opcional)</b>.
+          La vista previa no guarda nada. Los turnos ya archivados conservan historial cuando se corrigen.</p>
+        <textarea id="ch-texto" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)"
+          placeholder="01-oct&#9;Tarde&#9;$3,500&#9;$200&#9;—&#9;$130&#9;—"></textarea>
+        <div class="row" style="margin-top:8px"><button type="button" class="btn btn-primary" id="ch-revisar">Revisar sin guardar</button></div>
+        <div id="ch-resultado"></div>
+      </details>
+      ${hs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Archivo de cortes históricos">
+        <table class="cmovs"><thead><tr><th>Corte</th><th>Estado documental</th><th class="n">Distribuido</th><th class="n">Diferencia</th></tr></thead>
+        <tbody>${hs.map(h => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(h.dia + "|" + h.turno)}">${esc(diaTxt(h.dia))} · ${esc(TURNO_TXT[h.turno] || h.turno)}</button></td>
+          <td>${esc(etqH[h.estado] || "Por verificar")}${h.dudoso ? " · * por confirmar" : ""}</td>
+          <td class="n">${h.reparto == null ? "—" : dinero(h.reparto)}</td>
+          <td class="n">${h.diferencia == null ? "—" : dinero(h.diferencia)}</td></tr>`).join("")}</tbody></table></div>` : '<p class="note">Todavía no hay cortes históricos archivados.</p>'}
+    </section>`;
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
+    const ejecutarHistorico = async aplicar => {
+      const area = $("#ch-resultado"), texto = $("#ch-texto").value;
+      if (!texto.trim()) { area.innerHTML = '<p class="err">Pega los renglones de octubre.</p>'; return; }
+      area.innerHTML = '<p class="note">Revisando…</p>';
+      let data;
+      try { data = await api("caja/historicos", { method: "POST", body: JSON.stringify({ texto, aplicar }) }); }
+      catch (e) { if (e.message !== "sesion") area.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+      if (aplicar) {
+        if (data.aplicado) { toast("Archivo histórico guardado sin afectar Caja ni Dinero"); await cargar(); }
+        return;
+      }
+      const r = data.resumen;
+      area.innerHTML = `<div class="ctot" style="margin:10px 0">
+        <div class="k"><span>Turnos</span><b>${data.filas.length}</b></div>
+        <div class="k"><span>Completos con total que cuadra</span><b>${r.cuadra}</b></div>
+        <div class="k"><span>Diferencias</span><b>${r.no_cuadra}</b></div>
+        <div class="k"><span>Sin prueba suficiente</span><b>${r.por_verificar + r.incompleto + r.sin_datos}</b></div>
+      </div>
+      ${data.errores.length ? `<p class="err">${data.errores.map(e => `Línea ${e.linea}: ${esc(e.error)}`).join(" · ")}</p>` : ""}
+      <div class="tabla-scroll" tabindex="0" role="region" aria-label="Vista previa histórica"><table class="cmovs">
+      <thead><tr><th>Turno</th><th>Resultado</th><th class="n">Reparto</th><th>Acción</th></tr></thead>
+      <tbody>${data.filas.map(h => `<tr><td>${esc(diaTxt(h.dia))} · ${esc(TURNO_TXT[h.turno] || h.turno)}</td>
+        <td>${esc(etqH[h.estado] || "Por verificar")}</td>
+        <td class="n">${h.reparto == null ? "—" : dinero(h.reparto)}</td><td>${esc(h.accion)}</td></tr>`).join("")}</tbody></table></div>
+      ${!data.errores.length && data.filas.length ? '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-primary" id="ch-guardar">Guardar archivo histórico</button></div>' : ""}`;
+      const boton = $("#ch-guardar");
+      if (boton) boton.addEventListener("click", async () => {
+        if (!window.confirm("¿Guardar como documentación histórica? No cambiará el dinero ni los cierres operativos.")) return;
+        boton.disabled = true;
+        await ejecutarHistorico(true);
+      });
+    };
+    $("#ch-revisar").addEventListener("click", () => ejecutarHistorico(false));
     const EST = { nueva: ["Se agrega", "ok"], reemplaza: ["Reemplaza la captura anterior", "ok"], tablet: ["Ya entregó en la tablet", "no"], vacia: ["Sin datos", "no"], fuera: ["Fuera del mes", "no"], repetida: ["Repetida", "no"] };
     const enviar = async aplicar => {
       const r = $("#c-imp-r"), t = $("#c-imp-t").value;
