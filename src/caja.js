@@ -668,18 +668,22 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         return json({ ok: false, error: "El cobro está cancelado o ya no figura pendiente en la hoja." }, 409);
       const fecha = String(c.fecha || ""), forma = String(c.forma || "");
       const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+      const pagoId = String(c.pago_id || "");
+      if (!/^[0-9a-f-]{36}$/i.test(pagoId)) return json({ ok: false, error: "Falta el identificador de la operación." }, 422);
+      const previo = await env.DB.prepare("SELECT pendiente_id FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first();
+      if (previo) return previo.pendiente_id === id
+        ? json({ ok: true, estado: fila.estado, sin_cambios: true })
+        : json({ ok: false, error: "Identificador de pago utilizado en otro pendiente." }, 409);
       const monto = montoUsuario(c.monto);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoy ||
+      const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(Date.parse(fecha + "T12:00:00Z"))
+        && new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
+      if (!fechaReal || fecha > hoy ||
           !(await mesesAbiertos(env)).includes(fecha.slice(0, 7)))
         return json({ ok: false, error: "Elige una fecha de cobro válida dentro de un mes abierto." }, 422);
       if (!FORMAS_GASTO.includes(forma))
         return json({ ok: false, error: "Elige efectivo, tarjeta o transferencia." }, 422);
       if (!(monto > 0) || monto > 100000000 || Math.round((abonado + monto) * 100) > Math.round(fila.monto * 100))
         return json({ ok: false, error: "El abono debe ser positivo y no superar el saldo por cobrar." }, 422);
-      const pagoId = String(c.pago_id || "");
-      if (!/^[0-9a-f-]{36}$/i.test(pagoId)) return json({ ok: false, error: "Falta el identificador de la operación." }, 422);
-      if (await env.DB.prepare("SELECT id FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first())
-        return json({ ok: true, estado: fila.estado, sin_cambios: true });
       const restante = Math.round((fila.monto - abonado - monto) * 100) / 100;
       const estado = restante <= 0 ? "pagado" : "parcial";
       // La inserción comprueba el saldo dentro de la misma transacción de D1.
