@@ -1,6 +1,7 @@
 // Reglas puras de verificación de solicitudes, sin acceso a bases ni servicios externos.
-// El folio pertenece a un servicio. El prefijo alfabético del ticket (A…ZZ)
-// identifica una serie tras reiniciar la numeración: jamás descartarlo ni eliminar ceros iniciales.
+// Actualmente hay folios numéricos. Tras futuros reinicios puede aparecer un prefijo
+// de A a ZZ: si existe, es parte del folio y nunca se descarta, ni los ceros iniciales.
+// El folio completo se distingue además por servicio (báscula / pensión).
 export function normalizarFolioTicket(folio) {
   return String(folio ?? "").trim().replace(/[\s-]+/g, "").toUpperCase().slice(0, 40);
 }
