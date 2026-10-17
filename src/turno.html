@@ -345,7 +345,8 @@ dialog.sesion-vencida button { min-height: 52px; width: 100%; border: 0; border-
 .casta-identidad { display:flex; justify-content:center; max-width:760px; margin:0 0 8px; }
 .casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
 .casta-subtitulo { color:var(--muted); font-size:.9rem; text-align:center; max-width:760px; margin:0 0 14px; }
-.casta-alertas { display:inline-grid; place-items:center; align-self:flex-end; min-width:21px; height:21px; padding:0 6px; margin-top:auto; border-radius:999px; background:#d70015; color:#fff; font-size:12px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
+.accion[data-accion="aviso"] { position:relative; }
+.casta-alertas { position:absolute; top:8px; right:8px; display:inline-grid; place-items:center; min-width:21px; height:21px; padding:0 6px; border-radius:999px; background:#d70015; color:#fff; font-size:12px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; max-width: 760px; }
 .muro-in { margin-top: 12px; max-width: none; }
