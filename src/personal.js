@@ -409,7 +409,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
   const cuerpo = await request.json().catch(() => null);
   if (!cuerpo || typeof cuerpo !== "object") return json({ ok: false, error: "No pudimos leer tus datos." }, 400);
   const { datos, errores } = leerCampos(cuerpo, CAMPOS_COLABORADOR, fila.tipo === "externo" ? REQUERIDOS.filter(k => k !== "correo" && k !== "telefono") : REQUERIDOS);
-  if (!cuerpo.acepto && !(await constanciaPersonalV1(env, fila.id))) errores.acepto = "Confirma la recepción del aviso v1 para continuar.";
+  if (cuerpo.acepto !== true && !(await constanciaPersonalV1(env, fila.id))) errores.acepto = "Confirma la recepción del aviso v1 para continuar.";
   if (Object.keys(errores).length) return json({ ok: false, error: "Faltan datos o hay datos por revisar. Están marcados en rojo.", errores }, 422);
 
   const ahora = new Date().toISOString();
@@ -431,7 +431,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
     const p = avisar(env, aviso).catch(e => console.error("aviso expediente", e && e.message));
     if (ctx && ctx.waitUntil) ctx.waitUntil(p); else await p;
   }
-  return json({ ok: true });
+  return json({ ok: true, constancia: await constanciaPersonalV1(env, fila.id) });
 }
 
 // ---------------------------------------------------------------------------
