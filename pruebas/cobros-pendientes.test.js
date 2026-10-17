@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { leerHoja, calcularCortes, totalesMes } from "../src/caja.js";
+import { flujosMes } from "../src/cuentas.js";
 import { armarHoy } from "../src/hoy.js";
 
 const gs = readFileSync(new URL("../herramientas/ingresos-hoja.gs", import.meta.url), "utf8");
@@ -74,4 +75,46 @@ test("Panel: interfaz de acciones administrativas válida", () => {
   assert.match(caja,/Reabrir pendiente/);
   assert.match(caja,/data-cobro-estado="cancelado"/);
   assert.match(caja,/window\.cajaAbrirPendiente/);
+});
+
+test("Dinero: abonos recuperados ingresan a sobres, MP y transferencia sin duplicarse", () => {
+  const mp = { id:"mp", tarjeta:1, activa:1, comision_pct:3.5, comision_iva:1 };
+  const banco = { id:"banco", tarjeta:0, def_transf:1, activa:1 };
+  const flujos=flujosMes({
+    tarjeta: [{ mes:"2026-10", dia:"2026-10-17", importe:100 }],
+    transf: [{ fecha:"2026-10-17", importe:250, cuenta:"banco" }],
+    cobrosAdmin: [{ dia:"2026-10-17", monto:160, servicio:"bascula", folio:"17097", creado:"2026-10-17T12:00:00Z", por:"administracion" }]
+  },[mp,banco]);
+  assert.equal(flujos.cuentas.mp.entradas,95.94);
+  assert.equal(flujos.cuentas.mp.detalle.comision,4.06);
+  assert.equal(flujos.cuentas.banco.entradas,250);
+  assert.equal(flujos.sobres.entradas,160);
+  assert.equal(flujos.sobres.movimientos.length,1);
+});
+
+test("Caja y Dinero: abonos se excluyen cuando la hoja deja de indicar pendiente", () => {
+  const caja=readFileSync(new URL("../src/caja.js",import.meta.url),"utf8");
+  const finanzas=readFileSync(new URL("../src/finanzas.js",import.meta.url),"utf8");
+  assert.match(caja,/p\.origen_activo = 1/);
+  assert.match(finanzas,/a\.anulado = 0 AND p\.origen_activo = 1/);
+  assert.match(finanzas,/cobrosAdmin = await leerCobrosAdmin\(env, \{ mes \}\)/);
+  assert.match(finanzas,/ingresos\.total =/);
+  assert.match(finanzas,/cobrosAdmin\.filter\(x => x\.forma === "TARJETA"\)/);
+});
+
+test("Caja: los pagos requieren fecha en mes abierto, forma y un id de operación", () => {
+  const caja=readFileSync(new URL("../src/caja.js",import.meta.url),"utf8");
+  assert.match(caja,/mesesAbiertos\(env\)\)\.includes\(fecha\.slice\(0, 7\)\)/);
+  assert.match(caja,/FORMAS_GASTO\.includes\(forma\)/);
+  assert.match(caja,/pago_id/);
+  assert.match(caja,/anular-abono/);
+});
+
+test("Panel: el cobro exige importe, fecha y método", () => {
+  const source=readFileSync(new URL("../src/panel/cliente/03-caja.js",import.meta.url),"utf8");
+  assert.match(source,/name="monto"/);
+  assert.match(source,/name="fecha" type="date"/);
+  assert.match(source,/name="forma"/);
+  assert.match(source,/crypto\.randomUUID\(\)/);
+  assert.doesNotThrow(()=>new Function(source));
 });
