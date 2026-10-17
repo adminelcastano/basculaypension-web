@@ -1,4 +1,5 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
 import AV2 from "./avatares/a2.webp";
 import AV3 from "./avatares/a3.webp";
@@ -55,7 +56,7 @@ function urlAvatar(p, panel) {
 // sin imagen asignada se dibuja un círculo con las iniciales.
 async function servirAvatarDe(env, clave, urlBase) {
   clave = String(clave || "").toUpperCase();
-  if (clave === "ADMIN") return Response.redirect(new URL("/img/logo.png", urlBase).toString(), 302);
+  if (clave === "ADMIN") return servirFotoAdmin(env);
   if (!/^[A-ZÑ0-9]{1,12}$/.test(clave)) return new Response("No encontrado", { status: 404 });
   const p = await env.DB.prepare("SELECT clave, avatar, foto_ver FROM turno_personas WHERE clave = ?").bind(clave).first();
   const a = p && avatarValido(p.avatar);
@@ -278,7 +279,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicio || null, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
