@@ -714,7 +714,27 @@ window.interpretarAgenda = function (texto, hoy) {
   const parrafos = t => conMenciones(t).replace(/\n/g, "<br>");
   st.hilos = st.hilos || {};
   st.abiertosAv = st.abiertosAv || new Set();
-  function pintarAvisos() { const el = $("#ab-aviso"); if (el) { el.innerHTML = vistaAvisos(); conectar(el); mostrarSheetAdmin(); } contadores(); }
+  function pintarAvisos() {
+    const el = $("#ab-aviso");
+    if (el) {
+      const dlg = el.querySelector("dialog.casta-sheet[open]");
+      const html = vistaAvisos();
+      if (dlg) {
+        // Conservar el modal abierto en el DOM: quitarlo cerraría la hoja en pleno envío.
+        while (el.firstChild && el.firstChild !== dlg) el.firstChild.remove();
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        while (tmp.firstChild) el.insertBefore(tmp.firstChild, dlg);
+        const it = st.items.find(x => x.id === dlg.dataset.av);
+        if (it) { const hilo = dlg.querySelector(".hilo"); if (hilo) hilo.outerHTML = hiloHtml(it); }
+      } else {
+        el.innerHTML = html;
+        mostrarSheetAdmin();
+      }
+      conectar(el);
+    }
+    contadores();
+  }
   // Una conversación visible a la vez, en una hoja modal. La lista de publicaciones no cambia.
   function mostrarSheetAdmin() {
     const el = $("#ab-aviso"), id = st.abiertosAv.values().next().value;
@@ -767,18 +787,20 @@ window.interpretarAgenda = function (texto, hoy) {
     const lec = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
     const vistos = dest.filter(x => x.clave !== it.autor && lec.has(x.clave)), faltan = dest.filter(x => x.clave !== it.autor && !lec.has(x.clave));
     const abiertoHilo = st.abiertosAv.has(it.id);
+    const pulgar = `<svg class="casta-pulgar-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>`;
+    const cantidadEnterados = vistos.length + (deEnc && p.admin && leidoAdmin ? 1 : 0);
     return `<article class="post ${nuevo || cv.nuevos || cv.nuevosEnterado ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
       <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
       <p class="post-para">Para ${etqPara(p).map(t => `<span class="etq-p">@${esc(t)}</span>`).join("")}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
       ${fotosDe(it).length ? `<div class="post-fotos n${Math.min(fotosDe(it).length, 3)}">${fotosDe(it).slice(0, 4).map((k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener"><img src="${urlFoto(k)}" alt="Foto ${i + 1} del aviso" loading="lazy"></a>`).join("")}</div>` : ""}
-      <div class="post-st">${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
+      <div class="post-st"><span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" title="${cantidadEnterados ? cantidadEnterados + " confirmaciones de Enterado" : "Sin confirmaciones de Enterado"}">${pulgar}<small>${cantidadEnterados}</small></span>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
         <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "Comentar"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "comentario nuevo" : "comentarios nuevos"}</span>` : ""}${cv.nuevosEnterado ? ` <span class="nuevo-n">${cv.nuevosEnterado} ${cv.nuevosEnterado === 1 ? "Enterado nuevo" : "Enterados nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${esc(cv.ultimo.texto || "Mandó una foto")}</span></button>` : ""}
       <div class="post-acc">
         <button type="button" class="pa" data-hilo="${esc(it.id)}">${ico("i-chat")}Comentar</button>
-        ${nuevo ? `<button type="button" class="pa" data-leer="${esc(it.id)}">${ico("i-check")}Enterado</button>` : ""}
+        ${nuevo ? `<button type="button" class="pa casta-enterado" data-leer="${esc(it.id)}" aria-label="Confirmar Enterado">${pulgar} Enterado</button>` : ""}
         ${abierto(it) ? `<button type="button" class="pa" data-archivar="${esc(it.id)}">${ico("i-archivo")}Archivar</button>` : `<button type="button" class="pa" data-reactivar="${esc(it.id)}">Reactivar</button>`}
         ${it.autor === "admin" && abierto(it) ? `<button type="button" class="pa" data-editar="${esc(it.id)}">Editar</button>` : ""}
       </div>

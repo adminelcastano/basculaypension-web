@@ -1232,6 +1232,13 @@ dialog.sesion-vencida .btn { width: 100%; min-height: 48px; background: var(--am
 .casta-identidad { display:flex; justify-content:center; max-width:720px; margin:0 0 8px; }
 .casta-identidad img { display:block; width:min(263px,75vw); height:auto; background:transparent; }
 #n-avisos.con-novedades { color:#fff; background:#d70015; border-radius:10px; padding:1px 9px; width:max-content; }
+/* Pulgar arriba = Confirmación Enterado, nunca Me gusta. */
+.casta-pulgar { display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:var(--t-xs); }
+.casta-pulgar .casta-pulgar-ico { flex:none; width:22px; height:22px; }
+.casta-pulgar.is-enterado, .post-ent .si { color:#30d158; }
+.post-acc .pa.casta-enterado { color:var(--fg-2); }
+.post-acc .pa.casta-enterado:hover { color:#30d158; }
+.post-acc .pa.casta-enterado .casta-pulgar-ico { width:21px; height:21px; }
 /* ---- Avisos: muro de publicaciones con conversación ---- */
 .muro { display: grid; gap: 14px; margin-top: 14px; max-width: 720px; }
 .muro-nuevo { max-width: 720px; }
