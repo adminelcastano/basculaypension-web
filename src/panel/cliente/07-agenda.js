@@ -709,10 +709,10 @@ window.interpretarAgenda = function (texto, hoy) {
   const T_AV = { "MAÑANA": "mañana", "TARDE": "tarde", "NOCHE": "noche" };
   const encargados = () => (st.personas || []).filter(p => p.activo);
   const perfilMencion = p => p.perfil || p.nombre || p.clave;
-  const nomDe = k => k === "admin" ? "Administración" : (perfilMencion((st.personas || []).find(p => p.clave === k) || {clave:k}));
+  const nomDe = k => k === "admin" ? (EC.nombreAdmin?.() || "Administración") : (perfilMencion((st.personas || []).find(p => p.clave === k) || {clave:k}));
   const avatarMencion = p => p.avatar_url || "/panel/api/turno/avatar/c/" + encodeURIComponent(p.clave);
   const tarjetaMencion = p => `<span class="casta-mention" title="@${esc(p.clave)}"><img src="${esc(avatarMencion(p))}" alt="" width="22" height="22" loading="lazy"><b>@${esc(perfilMencion(p))}</b></span>`;
-  const etqPara = p => [p.admin ? "Administración" : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + T_AV[t]), ...(p.personas || [])].filter(Boolean);
+  const etqPara = p => [p.admin ? (EC.nombreAdmin?.() || "Administración") : "", p.todos ? "Todos" : "", ...(p.turnos || []).map(t => "Turno " + T_AV[t]), ...(p.personas || [])].filter(Boolean);
   const etqParaHtml = p => etqPara(p).map(t => {
     const persona = (st.personas || []).find(x => x.clave === t);
     return `<span class="etq-p">${persona ? tarjetaMencion(persona) : "@" + esc(t)}</span>`;
