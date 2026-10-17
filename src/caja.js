@@ -70,7 +70,17 @@ export async function guardarCambioInicio(env, { dia, turno, persona, recibido, 
 
 // Cambio inicial (fondo de cambio): movimiento de caja que dice CAMBIO o FONDO en el folio, cliente,
 // matrícula o forma de pago. Siempre es efectivo, aunque la forma de pago venga vacía o diga otra cosa.
-export const esCambio = m => m.tipo === "caja" && /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma].map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO").replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
+// Un aporte de sobres a media jornada NO es el fondo recibido al inicio,
+// aunque su folio contenga la palabra "CAMBIO". Lo mismo aplica a los
+// movimientos provenientes de la hoja que dicen "SE AGREGÓ AL CAMBIO".
+const esAporteHoja = m => m.tipo === "caja" && Number(m.importe) > 0 &&
+  /\bADM|AGREG|AUMENT/.test([m.folio, m.cliente, m.matricula]
+    .map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+export const esCambio = m => m.tipo === "caja" && !esAporteHoja(m) &&
+  /\b(CAMBIO|FONDO)\b/.test([m.folio, m.cliente, m.matricula, m.forma]
+    .map(x => String(x || "")).join(" ").toUpperCase().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/CAMBI0/g, "CAMBIO")
+    .replace(/F0ND0|F0NDO|FOND0/g, "FONDO"));
 
 // Renglones de caja de la hoja (sin folio de ticket), según quién se queda con el dinero:
 //   "cambio"  → cambio inicial (no es movimiento)
@@ -83,7 +93,7 @@ export function claseHoja(m) {
   if (m.tipo !== "caja") return null;
   const t = sinAcento([m.folio, m.cliente, m.matricula].join(" "));
   // "SE AGREGÓ AL CAMBIO": la administración puso dinero (aunque diga CAMBIO, sale de los sobres)
-  if (m.importe > 0 && /\bADM|AGREG|AUMENT/.test(t)) return "de_admin";
+  if (esAporteHoja(m)) return "de_admin";
   if (esCambio(m)) return "cambio";
   if (!m.importe) return null;
   if (m.importe < 0) return /SE LLEV|\bLLEVO\b|\bRETIR|\bADMIN|\bADM\b/.test(t) ? "a_admin" : "gasto";
