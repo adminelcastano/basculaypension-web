@@ -529,7 +529,7 @@ export async function turnoRuta(request, env, url, h) {
         const previo = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
         if(previo){
           if(previo.item_id!==a.id||previo.autor!==s.persona) return json({ok:false,error:"Identificador reutilizado."},409);
-          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:true}));
+          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:!!(await env.DB.prepare("SELECT 1 FROM agenda_lecturas WHERE item_id = ? AND persona = ?").bind(a.id,s.persona).first())}));
         }
       }
       let foto = null;
