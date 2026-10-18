@@ -2073,7 +2073,15 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     if (!f.texto.value.trim() && !h.foto) { err.textContent = "Escribe tu comentario."; f.texto.focus(); return; }
     err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
     try {
-      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] }, { cola: false });
+      const postActual=E.avisos.find(x=>x.id===id),audiencia=postActual?.para||{};
+      const mencionados=[...f.texto.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m=>m[1].toUpperCase());
+      const elegidos=[...new Set([...(h.responderA?[]:h.etq||[]),...mencionados])];
+      const nuevas=audiencia.todos?[]:elegidos.filter(k=>k!==postActual?.autor&&!(audiencia.personas||[]).includes(k)&&E.personas.some(p=>p.clave===k));
+      if(nuevas.length && !(await confirmar("Ampliar destinatarios",
+        "Las personas @"+nuevas.join(", @")+" podrán ver esta publicación y toda la conversación anterior. ¿Permitirlo?", "Confirmar acceso"))) {
+        b.disabled=false;b.textContent=h.responderA?"Responder":"Comentar";return;
+      }
+      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0 }, { cola: false });
       const a = E.avisos.find(x => x.id === id);
       if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
       const eraRespuesta = !!h.responderA;
