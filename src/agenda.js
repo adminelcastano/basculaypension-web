@@ -640,6 +640,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
     const tipo = String(c.tipo || "");
+    if (tipo === "aviso" && (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid)))) return json({ ok:false, error:"Identificador de publicación inválido." },422);
     if (!TIPOS.includes(tipo)) return json({ ok: false, error: "Tipo inválido." }, 422);
     const { d, e } = validar(tipo, c);
     if (tipo === "aviso") { const error = await errorDestinatariosCastagram(env, c.para); if (error) e.para = error; }
@@ -746,6 +747,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
   if (fila.tipo === "aviso" && partes[2] === "comentar" && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de comentario inválido." },422);
     if (c.uid) {
       const uidId = await idOperacionCastagram("comentar", c.uid, "admin", fila.id);
       const anterior = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
