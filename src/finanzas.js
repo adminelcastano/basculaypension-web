@@ -39,7 +39,7 @@ export async function asegurarEsquemaFinanzas(env) {
 }
 
 // Qué es cada gasto de la administración: pago programado, pago sin programar, compra u otro
-async function clasificarAdmin(env, gastos) {
+export async function clasificarAdmin(env, gastos) {
   if (!gastos.length) return [];
   const ids = gastos.map(g => g.id), pagos = new Map(), compras = new Map();
   for (let i = 0; i < ids.length; i += 90) {
