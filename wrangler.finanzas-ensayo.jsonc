@@ -1,12 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Configuración exclusivamente de compilación del panel integral en ensayo.
-  // NO DESPLEGAR: sustituir el database_id por una D1 NUEVA, VACÍA y autorizada.
-  // Nunca vincular castano-facturas ni la D1 sintética del diagnóstico.
+  // Configuración exclusiva de ensayo integral de Finanzas, autorizada por el usuario.
+  // Solo Worker de ensayo y D1 INTEGRAL NUEVA; nunca usar datos, API keys ni rutas de producción.
+  // El subdominio workers.dev se protege con Cloudflare Access; no habilitar previews.
   "name": "castano-finanzas-ensayo-20261018",
   "main": "src/worker.js",
   "compatibility_date": "2026-06-01",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "assets": {
     "directory": "./public",
@@ -16,8 +16,8 @@
   },
   "d1_databases": [{
     "binding": "DB",
-    "database_name": "D1_NUEVA_PENDIENTE_NO_DESPLEGAR",
-    "database_id": "00000000-0000-0000-0000-000000000000"
+    "database_name": "castano-finanzas-integral-ensayo-20261018",
+    "database_id": "bb6fac21-f3e9-44b3-8e67-770c14796532"
   }],
   "kv_namespaces": [{
     "binding": "FILES",
