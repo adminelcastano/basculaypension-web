@@ -105,7 +105,6 @@
       b.disabled = true; $("#c-ferr").textContent = "";
       try {
         await api("caja/gastos", { method: "POST", body: JSON.stringify(cuerpo) });
-        delete f.dataset.uid;
         toast("Gasto de caja guardado");
         await cargar();
         abrirCorte(cuerpo.dia + "|" + cuerpo.turno);
@@ -308,7 +307,6 @@
       b.disabled = true; $("#c-xerr").textContent = "";
       try {
         await api("caja/extras", { method: "POST", body: JSON.stringify({ dia, turno, concepto: f.concepto.value, detalle: f.detalle.value, monto: f.monto.value.replace(/[$,\s]/g, ""), uid: f.dataset.uid || (f.dataset.uid = crypto.randomUUID()) }) });
-        delete f.dataset.uid;
         toast("Ingreso guardado"); await cargar(); abrir(k);
       } catch (e) { if (e.message !== "sesion") $("#c-xerr").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
     });
