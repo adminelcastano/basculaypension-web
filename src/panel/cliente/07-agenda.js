@@ -1297,7 +1297,7 @@ window.interpretarAgenda = function (texto, hoy) {
           if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
           const it = st.items.find(x => x.id === id);
           if (it) {
-            it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
+            it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + (respuesta.repetido ? 0 : 1), nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
             if (respuesta.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN"))
               it.lecturas=[...(it.lecturas||[]),{persona:"ADMIN",at:new Date().toISOString()}];
           }
