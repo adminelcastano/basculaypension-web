@@ -55,6 +55,18 @@ export default {
     // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
     env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
+    // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
+    // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
+    // variable explícita del Worker aislado (ausente en producción).
+    if (env.ENSAYO_FINANZAS === "1") {
+      const ruta = url.pathname;
+      if (ruta.startsWith("/api/") || ruta.startsWith("/expediente/") ||
+          ruta === "/turno" || ruta.startsWith("/turno/") ||
+          (request.method !== "GET" && request.method !== "HEAD" &&
+           !ruta.startsWith("/panel/api/"))) {
+        return json({ok:false,error:"Ruta no habilitada en el ensayo financiero."},403);
+      }
+    }
     try {
       // Modo ahorro (consumo cerca del límite incluido): se pausan los formularios públicos
       if (request.method === "POST" && (url.pathname === "/api/solicitud" || url.pathname === "/api/revisar-ticket" || url.pathname.startsWith("/api/expediente/")) && await enAhorro(env))
@@ -73,6 +85,9 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    // Nunca procesar tareas ni sincronizaciones si se disparara accidentalmente
+    // una ejecución programada del Worker de ensayo.
+    if (env.ENSAYO_FINANZAS === "1") return;
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") {
