@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { idFinanciero } from "../src/finanzas-idempotencia.js";
 import { validarTicketRef } from "../src/caja.js";
 import { stmtHistorialCompra, stmtQuitarHistorialCompra } from "../src/compras.js";
+import { stmtBitacoraSiCambio } from "../src/bitacora.js";
 
 const dbNueva = () => {
   const db = new DatabaseSync(":memory:");
@@ -144,5 +145,57 @@ test("SQLite: dos compradores del mismo artículo (UID diferentes) nunca generan
     db.exec("COMMIT");
     await comprar("550e8400-e29b-41d4-a716-446655440002");
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
+  }finally{db.close();}
+});
+
+test("SQLite: ligar un ticket único es atómico por mes y no inventa cambios de bitácora", async () => {
+  const db=dbNueva();
+  try {
+    db.exec(`CREATE TABLE fin_bitacora(id INTEGER PRIMARY KEY AUTOINCREMENT,cuando TEXT NOT NULL,
+      quien TEXT,accion TEXT NOT NULL,que TEXT NOT NULL,ref TEXT,mes TEXT,detalle TEXT)`);
+    const ins=db.prepare("INSERT INTO caja_transf(id,mes,fecha,cliente,importe,ticket_ref) VALUES(?,?,?,?,?,NULL)");
+    ins.run("t-a","2026-10","2026-10-18","Cliente A",350);
+    ins.run("t-b","2026-10","2026-10-18","Cliente B",350);
+    ins.run("t-c","2026-11","2026-11-02","Cliente C",350);
+    const env=d1Adaptador(db);
+    const sql="UPDATE caja_transf SET ticket_ref = ? WHERE id = ? AND mes = ? AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?)";
+    async function ligar(id,mes,ref) {
+      db.exec("BEGIN IMMEDIATE");
+      try{
+        const resultado=db.prepare(sql).run(ref,id,mes,mes,ref,id);
+        const bit=stmtBitacoraSiCambio(env,{quien:"ENSAYO",accion:"editar",que:"Transferencia de cliente",ref:id,mes,detalle:{ticket:ref}});
+        await bit.run();
+        db.exec("COMMIT");
+        return resultado.changes;
+      } catch(er) {db.exec("ROLLBACK");throw er;}
+    }
+    assert.equal(await ligar("t-a","2026-10","bascula:T-1"),1);
+    assert.equal(await ligar("t-b","2026-10","bascula:T-1"),0);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf WHERE mes='2026-10' AND ticket_ref='bascula:T-1'").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,1,"No registrar intentos rechazados como cambios");
+    assert.equal(await ligar("t-c","2026-11","bascula:T-1"),1,"Otro mes puede reutilizar folio");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,2);
+  } finally {db.close();}
+});
+
+test("SQLite: al crear transferencia vinculada, condición de unicidad conserva bitácora",async()=>{
+  const db=dbNueva();
+  try {
+    db.exec(`CREATE TABLE fin_bitacora(id INTEGER PRIMARY KEY AUTOINCREMENT,cuando TEXT NOT NULL,
+      quien TEXT,accion TEXT NOT NULL,que TEXT NOT NULL,ref TEXT,mes TEXT,detalle TEXT)`);
+    const sql="INSERT INTO caja_transf(id,mes,fecha,cliente,importe,ticket_ref) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)";
+    const env=d1Adaptador(db);
+    async function crear(id) {
+      db.exec("BEGIN IMMEDIATE");
+      try{
+        const x=db.prepare(sql).run(id,"2026-10","2026-10-18","Cliente sintético",700,"pension:P100","2026-10","pension:P100");
+        await stmtBitacoraSiCambio(env,{quien:"ENSAYO",accion:"crear",que:"Transferencia de cliente",ref:id,mes:"2026-10"}).run();
+        db.exec("COMMIT");return x.changes;
+      } catch(er) {db.exec("ROLLBACK");throw er;}
+    }
+    assert.equal(await crear("id-a"),1);
+    assert.equal(await crear("id-b"),0);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,1);
   }finally{db.close();}
 });
