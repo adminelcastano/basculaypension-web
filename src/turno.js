@@ -14,7 +14,7 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
-import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
+import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos, errorDestinatariosCastagram } from "./agenda.js";
 import { idOperacionCastagram, asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
 // El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
@@ -487,6 +487,8 @@ export async function turnoRuta(request, env, url, h) {
   // ---- Avisos ----
   if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
     const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
+    const errorAudiencia = await errorDestinatariosCastagram(env, c.para);
+    if (errorAudiencia) e.para = errorAudiencia;
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
     const id = await idOperacionCastagram("publicar", c.uid, s.persona);
     if (c.uid) {
