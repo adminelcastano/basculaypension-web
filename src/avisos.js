@@ -126,7 +126,7 @@ export const puedeVer = (item, persona, turno) => persona === "ADMIN" || avisoPa
 
 // Nuevo comentario. autor: "admin" o clave del encargado. foto: llave ya guardada (o null).
 // Devuelve { comentario, etiquetadas, notificar: { admin, tablet } }
-export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [] }, claves, ahora = new Date().toISOString()) {
+export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [], confirmar_ampliacion = false }, claves, ahora = new Date().toISOString()) {
   await asegurarEsquemaAvisos(env);
   if (item.tipo !== "aviso") throw new Error("Solo los avisos llevan comentarios.");
   if (item.estado !== "activo") throw new Error("Este aviso ya está archivado. Pide a la administración que lo reactive.");
@@ -134,6 +134,8 @@ export async function comentar(env, item, autor, { texto, foto = null, etiquetas
   if (!t && !foto) throw new Error("Escribe tu comentario.");
   const pedidas = [...(Array.isArray(etiquetas) ? etiquetas : []), ...menciones(t, claves)];
   const nuevas = etiquetasNuevas(item.para, pedidas, claves, item.autor);
+  if (nuevas.length && confirmar_ampliacion !== true)
+    throw new Error("Mencionar a un destinatario nuevo permite consultar toda la conversación anterior. Confirma expresamente la ampliación de audiencia.");
   const p = normalizarPara(item.para);
   const etqCom = [...new Set(pedidas.map(x => String(x).toUpperCase()).filter(k => (claves || []).map(c => String(c).toUpperCase()).includes(k)))];
   const id = crypto.randomUUID();
