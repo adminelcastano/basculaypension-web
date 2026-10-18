@@ -747,6 +747,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   let elegido = null, turnoElegido = null, pin = "";
   async function mostrarEntrada() {
     guardarLS("turno:estado", null); // borra estado legado con datos privados
+    if (castaVisor?.open) castaFotoCerrar(true);
+    const hojaPrivada = sec().querySelector("dialog.casta-sheet[open]"); if (hojaPrivada) hojaPrivada.close();
     E = null;
     Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
     const dlg = $("#dlg"); if (dlg && dlg.open) dlg.close();
@@ -1102,7 +1104,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     try { history.pushState({ hoy: k }, ""); } catch {}
     aplicarIndice(); scrollTo({ top: 0 });
   }
-  addEventListener("popstate", () => { if (vistaHoy) { vistaHoy = null; aplicarIndice(); scrollTo({ top: 0 }); } });
+  addEventListener("popstate", () => { if (document.querySelector("dialog.casta-visor[open], dialog.casta-sheet[open]")) return; if (vistaHoy) { vistaHoy = null; aplicarIndice(); scrollTo({ top: 0 }); } });
   mqUno.addEventListener("change", aplicarIndice);
   // Gastos o ingresos extra del turno (en Inicio y en Corte)
   function bloqueMovs(tipo, conBoton = true) {
