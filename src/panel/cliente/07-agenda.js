@@ -1214,7 +1214,8 @@ window.interpretarAgenda = function (texto, hoy) {
             "Las personas @"+nuevas.join(", @")+" podrán consultar el aviso y toda su conversación anterior. ¿Permitir acceso?", "Confirmar acceso"))) {
             b.disabled=false;b.textContent=h.responderA?"Responder":"Comentar";return;
           }
-          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0 });
+          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0, uid: h.uid || (h.uid = crypto.randomUUID()) });
+          delete h.uid;
           const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
           if (eraRespuesta) terminarReplyAdmin(h);
           else { h.borrador = ""; h.foto = null; h.etq = []; }
@@ -1510,6 +1511,7 @@ window.interpretarAgenda = function (texto, hoy) {
         datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
       }
       if (f._fotos && f._fotos.length) datos.fotos = f._fotos;
+      if(f.dataset.tipo==="aviso")datos.uid = f._castaUid || (f._castaUid=crypto.randomUUID());
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = c.querySelector("form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
