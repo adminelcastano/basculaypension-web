@@ -2154,7 +2154,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       if (E !== sesion || hilos[id] !== h) return; // PIN cambiado antes de la respuesta
       const a = E.avisos.find(x => x.id === id);
       if (a) {
-        a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) };
+        a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + (r.repetido ? 0 : 1), nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) };
         if(r.post_enterado) a.leido=true;
         if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])];
       }
@@ -2162,7 +2162,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       const eraRespuesta = !!h.responderA;
       if (eraRespuesta) terminarReplyTurno(h);
       else { h.borrador = ""; h.foto = null; h.etq = []; }
-      h.comentarios = [...h.comentarios, r.comentario];
+      if (!h.comentarios.some(x => x.id === r.comentario?.id)) h.comentarios = [...h.comentarios, r.comentario];
       sucio = false;
       const formPrevio = sec().querySelector("dialog.casta-sheet[open] form.com-form");
       if (formPrevio) formPrevio.remove();
