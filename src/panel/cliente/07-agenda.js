@@ -126,7 +126,11 @@ window.interpretarAgenda = function (texto, hoy) {
   async function cargar() {
     try {
       const j = await api("agenda");
-      st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || []; st.mesesAbiertos = j.meses_abiertos || [];
+      st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || [];
+       const castaOrden = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a,b)=>String(b.creado).localeCompare(String(a.creado)));
+       const castaUltimo = castaOrden[castaOrden.length-1];
+       st.castaCursor = castaUltimo ? castaUltimo.creado+"|"+castaUltimo.id : "";
+       st.castaMas = true; st.mesesAbiertos = j.meses_abiertos || [];
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
@@ -1006,6 +1010,7 @@ window.interpretarAgenda = function (texto, hoy) {
       <button class="btn btn-primary extra" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note extra-n" style="margin:10px 0 0">Solo lo ven las personas etiquetadas y quien lo publica. Todos comentan en la misma publicación hasta que la archives; lo archivado se guarda con su conversación en el archivo.</p></section>
       <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay publicaciones activas. Publica una arriba.</p>`}</div>
+      ${st.castaMas ? `<button type="button" class="btn btn-line casta-mas" data-casta-mas>Cargar publicaciones anteriores</button>` : ""}
       <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de Castagram</button>`;
   }
 
@@ -1122,6 +1127,17 @@ window.interpretarAgenda = function (texto, hoy) {
       const d = t.dataset;
       if (d.mentionPick) { elegirMencion(t.closest("form.com-form"), d.mentionPick); return; }
       if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
+      if("castaMas" in d){
+        t.disabled=true;t.textContent="Cargando…";
+        try{
+          const j=await api("agenda/avisos-feed?cursor="+encodeURIComponent(st.castaCursor||""));
+          const existentes=new Set(st.items.map(x=>x.id));
+          st.items.push(...j.items.filter(x=>!existentes.has(x.id)));
+          st.castaCursor=j.cursor;st.castaMas=j.mas;
+          const y=scrollY;pintarAvisos();scrollTo({top:y});
+        }catch(err){toast(err.message);t.disabled=false;t.textContent="Cargar publicaciones anteriores";}
+        return;
+      }
       if (d.castaEvento) {
         const it = st.items.find(x => x.id === d.castaEvento && x.tipo === "aviso" && abierto(x));
         if (!it) return;
