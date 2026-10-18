@@ -65,6 +65,15 @@ export async function asegurarEsquemaAvisos(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS aviso_historial (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, at TEXT NOT NULL, quien TEXT NOT NULL, accion TEXT NOT NULL, detalle TEXT)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS aviso_hist_item ON aviso_historial (item_id, at)")
   ]);
+  // Migración aditiva: conserva el primer Enterado y permite retirar solo el like visual.
+  const columnas = (await env.DB.prepare("PRAGMA table_info(aviso_com_enterados)").all()).results;
+  if (!columnas.some(c => c.name === "quitado")) {
+    try { await env.DB.prepare("ALTER TABLE aviso_com_enterados ADD COLUMN quitado TEXT").run(); }
+    catch (er) {
+      // Otra petición puede haber aplicado la columna mientras esta iniciaba.
+      if (!/duplicate column name|duplicate column/i.test(String(er?.message || ""))) throw er;
+    }
+  }
   listo = true;
 }
 
@@ -130,7 +139,7 @@ export async function conversacion(env, item, persona, { historial = false } = {
     .map(c => ({ ...c, etiquetas: (() => { try { return JSON.parse(c.etiquetas || "[]"); } catch { return []; } })(), ...(c.borrado && !admin ? { texto: "", foto: null } : {}) }));
   const ids = coms.filter(c => !c.borrado).map(c => c.id);
   const recibos = ids.length ? await enLotes(env,
-    "SELECT comentario_id, persona FROM aviso_com_enterados WHERE comentario_id IN (?)", ids) : [];
+    "SELECT comentario_id, persona FROM aviso_com_enterados WHERE comentario_id IN (?) AND quitado IS NULL", ids) : [];
   const totales = new Map(), propios = new Set();
   for (const r of recibos) {
     totales.set(r.comentario_id, (totales.get(r.comentario_id) || 0) + 1);
@@ -152,25 +161,39 @@ export async function marcarVisto(env, itemId, persona, ahora = new Date().toISO
   await env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora).run();
 }
 
-// El pulgar de comentario equivale a Enterado, no a un "like" reversible.
-export async function enterarComentario(env, item, comentarioId, persona, ahora = new Date().toISOString()) {
+// Reacción tipo Instagram. Se puede quitar el like sin borrar el primer Enterado
+// ni retirar la confirmación operativa ya registrada en agenda_lecturas.
+// El estado deseado (true/false), en vez de "alternar", hace seguros los reintentos.
+export async function enterarComentario(env, item, comentarioId, persona, ahora = new Date().toISOString(), activo = true) {
   await asegurarEsquemaAvisos(env);
+  if (typeof activo !== "boolean") throw new Error("Reacción inválida.");
   if (!item || item.tipo !== "aviso" || item.estado !== "activo") throw new Error("La publicación ya no está disponible.");
   const com = await env.DB.prepare("SELECT id FROM aviso_comentarios WHERE id = ? AND item_id = ? AND borrado IS NULL")
     .bind(comentarioId, item.id).first();
   if (!com) throw new Error("El comentario no está disponible.");
-  await env.DB.batch([
-    env.DB.prepare("INSERT OR IGNORE INTO aviso_com_enterados (comentario_id, persona, at) VALUES (?, ?, ?)")
-      .bind(comentarioId, persona, ahora),
-    // Quien confirma un comentario también confirma expresamente el post que lo contiene.
-    env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)")
-      .bind(item.id, persona, ahora),
-    env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at")
-      .bind(item.id, persona, ahora)
-  ]);
-  const fila = await env.DB.prepare("SELECT COUNT(*) AS total FROM aviso_com_enterados WHERE comentario_id = ?")
+  const anterior = await env.DB.prepare("SELECT at, quitado FROM aviso_com_enterados WHERE comentario_id = ? AND persona = ?")
+    .bind(comentarioId, persona).first();
+  const estabaActivo = !!anterior && !anterior.quitado;
+  if (estabaActivo !== activo) {
+    const ops = [];
+    if (activo) {
+      ops.push(env.DB.prepare("INSERT INTO aviso_com_enterados (comentario_id, persona, at, quitado) VALUES (?, ?, ?, NULL) ON CONFLICT(comentario_id, persona) DO UPDATE SET quitado = NULL")
+        .bind(comentarioId, persona, ahora));
+      // Confirmación de post irreversible; un unlike posterior no revoca el recibo.
+      ops.push(env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)")
+        .bind(item.id, persona, ahora));
+      ops.push(env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at")
+        .bind(item.id, persona, ahora));
+    } else {
+      ops.push(env.DB.prepare("UPDATE aviso_com_enterados SET quitado = ? WHERE comentario_id = ? AND persona = ? AND quitado IS NULL")
+        .bind(ahora, comentarioId, persona));
+    }
+    ops.push(stmtHistorial(env, item.id, persona, activo ? "like-comentario" : "quitar-like-comentario", { comentario_id: comentarioId }, ahora));
+    await env.DB.batch(ops);
+  }
+  const fila = await env.DB.prepare("SELECT COUNT(*) AS total FROM aviso_com_enterados WHERE comentario_id = ? AND quitado IS NULL")
     .bind(comentarioId).first();
-  return { comentario_id: comentarioId, enterados: Number(fila?.total || 0), mi_enterado: true, post_enterado: true };
+  return { comentario_id: comentarioId, enterados: Number(fila?.total || 0), mi_enterado: activo, post_enterado: activo };
 }
 
 // ¿Puede esta persona ver (y comentar) el aviso? La administración, siempre.

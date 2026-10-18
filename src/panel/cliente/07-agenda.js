@@ -859,7 +859,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
         ${!c.borrado && c.foto ? `<button type="button" class="com-foto casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(c.foto))}" aria-label="Ampliar foto del comentario de ${esc(nomDe(c.autor))}"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy" decoding="async"></button>` : ""}</div>
-      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${!c.borrado ? `<button type="button" class="casta-com-enterado ${c.mi_enterado ? "is-enterado" : ""}" data-com-enterado="${esc(c.id)}" data-av="${esc(it.id)}" aria-label="${c.mi_enterado ? "Enterado confirmado" : "Confirmar Enterado de este comentario"}" aria-pressed="${!!c.mi_enterado}" ${c.mi_enterado || !editable ? "disabled" : ""}><img src="/img/castagram-pulgar.png" alt="" width="18" height="18"> Enterado <small>${Number(c.enterados)||0}</small></button>` : ""}${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${!c.borrado ? `<button type="button" class="casta-com-enterado \${c.mi_enterado ? "is-enterado" : ""}" data-com-enterado="\${esc(c.id)}" data-av="\${esc(it.id)}" aria-label="\${c.mi_enterado ? "Quitar Me gusta" : "Me gusta"}" title="\${c.mi_enterado ? "Quitar Me gusta" : "Me gusta"}" aria-pressed="\${!!c.mi_enterado}" \${!editable ? "disabled" : ""}><svg class="casta-like-corazon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"/></svg></button><small class="casta-like-cuenta" aria-label="\${Number(c.enterados)||0} Me gusta" \${Number(c.enterados) ? "" : "hidden"}>\${Number(c.enterados)||0}</small>` : ""}${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
 
@@ -1054,7 +1054,7 @@ window.interpretarAgenda = function (texto, hoy) {
   }
 
   // ---- Archivo de avisos: todo lo archivado, con búsqueda, conversación e historial ----
-  const ACC_TXT = { publicar: "publicó el aviso", comentar: "comentó", etiquetar: "etiquetó a", editar: "editó un comentario", borrar: "borró un comentario", archivar: "archivó el aviso", reactivar: "reactivó el aviso", "editar-aviso": "cambió el aviso" };
+  const ACC_TXT = { publicar: "publicó el aviso", comentar: "comentó", etiquetar: "etiquetó a", editar: "editó un comentario", borrar: "borró un comentario", archivar: "archivó el aviso", reactivar: "reactivó el aviso", "editar-aviso": "cambió el aviso", "like-comentario": "dio Me gusta a un comentario", "quitar-like-comentario": "retiró Me gusta de un comentario" };
   function historialHtml(l) {
     return `<ol class="hist">${l.map(h => {
       const d = h.detalle || {};
@@ -1210,24 +1210,36 @@ window.interpretarAgenda = function (texto, hoy) {
         insertarEmojiCastagram(t.closest("form.com-form"), d.comEmoji);
       } else if (d.comEnterado) {
         const h=st.hilos[d.av], c=h?.comentarios?.find(x=>x.id===d.comEnterado);
-        if(!c || c.borrado || c.mi_enterado)return;
+        if(!c || c.borrado || t.disabled)return;
+        const antes=!!c.mi_enterado, totalAntes=Number(c.enterados)||0, deseado=!antes;
+        const pintar=(activo,total)=>{
+          t.classList.toggle("is-enterado",activo);
+          t.setAttribute("aria-pressed",String(activo));
+          t.setAttribute("aria-label",activo?"Quitar Me gusta":"Me gusta");
+          t.title=activo?"Quitar Me gusta":"Me gusta";
+          const n=t.nextElementSibling;
+          if(n?.classList.contains("casta-like-cuenta")){n.textContent=String(total);n.hidden=!total;n.setAttribute("aria-label",total+" Me gusta");}
+        };
+        // Respuesta inmediata como Instagram. La API confirma el estado y corrige la cifra.
+        c.mi_enterado=deseado;c.enterados=Math.max(0,totalAntes+(deseado?1:-1));
+        pintar(c.mi_enterado,c.enterados);
         t.disabled=true;
         try {
-          const r=await post(`agenda/${d.av}/comentarios/${d.comEnterado}/enterado`, {});
-          c.mi_enterado=true; c.enterados=r.enterados;
+          const res=await post(`agenda/${d.av}/comentarios/${d.comEnterado}/enterado`, {activo:deseado});
+          if(st.hilos[d.av]!==h)return;
+          c.mi_enterado=!!res.mi_enterado;c.enterados=Math.max(0,Number(res.enterados)||0);
+          if(t.isConnected)pintar(c.mi_enterado,c.enterados);
           const it=st.items.find(x=>x.id===d.av);
-          if(it && r.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN")){
+          if(it && res.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN")){
             it.lecturas=[...(it.lecturas||[]),{persona:"ADMIN",at:new Date().toISOString()}];
             const card=el.querySelector('[data-post="'+CSS.escape(d.av)+'"]');
             if(card)card.outerHTML=postHtml(it);
           }
-          t.classList.add("is-enterado");
-          t.setAttribute("aria-pressed","true");
-          t.setAttribute("aria-label","Enterado confirmado");
-          t.querySelector("small").textContent=String(r.enterados);
-          toast("Enterado confirmado");
           contadores();
-        } catch(er) { if(er.message!=="sesion")toast(er.message); t.disabled=false; }
+        } catch(er) {
+          if(st.hilos[d.av]===h){c.mi_enterado=antes;c.enterados=totalAntes;if(t.isConnected)pintar(antes,totalAntes);}
+          if(er.message!=="sesion")toast(er.message);
+        } finally { if(t.isConnected)t.disabled=false; }
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];

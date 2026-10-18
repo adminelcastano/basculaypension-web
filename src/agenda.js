@@ -766,7 +766,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas, post_enterado: true });
   }
   if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && partes[4] === "enterado" && request.method === "POST") {
-    try { return json({ ok:true, ...(await enterarComentario(env, fila, partes[3], "ADMIN", ahora)) }); }
+    let datos; try { datos = await request.json(); } catch { datos = {}; }
+    try { return json({ ok:true, ...(await enterarComentario(env, fila, partes[3], "ADMIN", ahora, datos.activo ?? true)) }); }
     catch (er) { return json({ ok:false, error:er.message },422); }
   }
   if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && ["editar", "borrar"].includes(partes[4]) && request.method === "POST") {

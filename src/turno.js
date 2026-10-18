@@ -518,7 +518,7 @@ export async function turnoRuta(request, env, url, h) {
     }
     if (partes[2] === "comentarios" && partes[3] && partes[4] === "enterado" && request.method === "POST") {
       try {
-        const recibido = await enterarComentario(env, a, partes[3], s.persona, ahora);
+        const recibido = await enterarComentario(env, a, partes[3], s.persona, ahora, c.activo ?? true);
         return recordar(json({ok:true,...recibido}));
       } catch (er) { return json({ok:false,error:er.message},422); }
     }
