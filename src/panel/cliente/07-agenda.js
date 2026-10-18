@@ -932,7 +932,16 @@ window.interpretarAgenda = function (texto, hoy) {
   // Visor protegido que no sale del post al abrir una fotografía.
   let castaVisor=null,castaFoco=null,castaUrls=[],castaIndex=0;
   function castaFotoMover(paso){const n=castaIndex+paso;if(!castaVisor?.open||n<0||n>=castaUrls.length)return;castaIndex=n;castaFotoPintar();}
-  function castaFotoPintar(){if(!castaVisor?.open)return;const img=castaVisor.querySelector("img");img.src=castaUrls[castaIndex];img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;}
+  function castaFotoPintar(){
+    if(!castaVisor?.open)return;
+    const img=castaVisor.querySelector("img"),estado=castaVisor.querySelector(".casta-visor-estado"),url=castaUrls[castaIndex];
+    estado.hidden=false;estado.textContent="Cargando fotografía…";img.style.visibility="hidden";
+    img.onload=()=>{if(castaVisor?.open&&img.getAttribute("src")===url){img.style.visibility="visible";estado.hidden=true;}};
+    img.onerror=()=>{if(castaVisor?.open&&img.getAttribute("src")===url)estado.textContent="No se pudo abrir esta fotografía.";};
+    img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;img.src=url;
+    castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;
+    for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;
+  }
   function castaFotoCerrar(pop=false){if(!castaVisor?.open)return;if(!pop&&history.state?.casta_layer==="foto"){history.back();return;}const d=castaVisor;castaVisor=null;d.close();d.remove();castaUrls=[];if(castaFoco?.isConnected)castaFoco.focus({preventScroll:true});castaFoco=null;}
   function castaFotoAbrir(b){
     if(castaVisor?.open)return;
@@ -940,7 +949,7 @@ window.interpretarAgenda = function (texto, hoy) {
     castaUrls=lista.map(x=>x.dataset.castaFotoUrl).filter(u=>u?.startsWith("/panel/api/turno/foto/"));
     castaIndex=lista.indexOf(b);if(!castaUrls.length||castaIndex<0)return;castaFoco=b;
     const d=document.createElement("dialog");d.className="casta-visor";d.setAttribute("aria-label","Fotografías de Castagram");
-    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt=""><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
+    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt="" decoding="async"><span class="casta-visor-estado" role="status">Cargando fotografía…</span><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
     d.addEventListener("click",e=>{if(e.target===d||e.target.closest("[data-visor-cerrar]"))castaFotoCerrar();else{const z=e.target.closest("[data-visor-paso]");if(z)castaFotoMover(+z.dataset.visorPaso);}});
     d.addEventListener("cancel",e=>{e.preventDefault();castaFotoCerrar();});
     let touch=null;d.addEventListener("touchstart",e=>{if(e.touches.length===1)touch=[e.touches[0].clientX,e.touches[0].clientY];},{passive:true});
