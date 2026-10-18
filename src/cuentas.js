@@ -195,8 +195,10 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
           EXISTS(SELECT 1 FROM agenda_pagos WHERE cuenta = ?) +
           EXISTS(SELECT 1 FROM caja_transf WHERE cuenta = ?) AS usado`)
           .bind(f.id, f.id, f.id, f.id, f.id, f.id).first();
-        if (actividad && actividad.usado)
-          return json({ok:false,error:"Esta cuenta ya tiene movimientos o saldos. Cambiarla entre débito y crédito reinterpretaría meses anteriores. Conserva el tipo y crea una cuenta nueva si corresponde."},409);
+        const origenes = (f.tarjeta || f.def_transf) ? await env.DB.prepare(`SELECT 1 FROM caja_mov
+          WHERE tipo = 'ticket' AND ${f.tarjeta && f.def_transf ? "(forma = 'TARJETA' OR forma LIKE 'TRANSF%')" : f.tarjeta ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'"} LIMIT 1`).first() : null;
+        if ((actividad && actividad.usado) || origenes)
+          return json({ok:false,error:"Esta cuenta ya tiene movimientos, cobros o saldos. Cambiarla entre débito y crédito reinterpretaría meses anteriores. Conserva el tipo y crea una cuenta nueva si corresponde."},409);
       }
       // Los cobros antiguos se asignan según el rol actual de estas cuentas.
       // Impedir un cambio silencioso mientras no exista un historial de asignaciones por fecha.
