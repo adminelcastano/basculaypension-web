@@ -2,7 +2,7 @@ import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
-import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -712,7 +712,7 @@ export async function validarTicketRef(env, valor, mes, excepto, importe = null)
     return { error: "Escribe un importe válido para comparar con el ticket." };
   if (Math.round(Number(pagados[0].importe) * 100) !== Math.round(importe * 100))
     return { error: "El importe de la transferencia no coincide con el ticket de la hoja. No los vincules: si es un abono parcial o varios tickets, hay que conciliarlo por separado." };
-  const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE ticket_ref = ? AND id != ?").bind(v, excepto || "").first();
+  const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?").bind(mes, v, excepto || "").first();
   if (otra) return { error: `Ese ticket ya está ligado a la transferencia de ${otra.cliente}.` };
   return { ref: v };
 }
@@ -1103,11 +1103,21 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const ref = await validarTicketRef(env, c.ticket_ref, mes, null, importe);
     if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
     try {
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null),
-        stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle: { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null } })
+      const sql = ref
+        ? `INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)`
+        : "INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+      const parametros = [id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null];
+      if (ref) parametros.push(mes, ref.ref);
+      const detalle = { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null };
+      const resultados = await env.DB.batch([
+        env.DB.prepare(sql).bind(...parametros),
+        ref ? stmtBitacoraSiCambio(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
+          : stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
       ]);
+      if (!resultados[0]?.meta?.changes)
+        return json({ ok: false, error: "Otra transferencia acaba de vincular ese ticket. Actualiza la lista antes de repetirlo." }, 409);
     } catch (er) {
       const ya = await repetida(); if (ya) return ya;
       throw er;
@@ -1132,10 +1142,21 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
     const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id, Number(x.importe));
     if (ref && ref.error) return json({ ok: false, error: ref.error }, 422);
-    await env.DB.batch([
-      env.DB.prepare("UPDATE caja_transf SET ticket_ref = ? WHERE id = ?").bind(ref ? ref.ref : null, x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { cliente: x.cliente, importe: x.importe, ticket_antes: x.ticket_ref, ticket: ref ? ref.ref : null } })
+    // Validar y escribir en una sola sentencia para impedir que dos sesiones
+    // liguen el mismo ticket antes de que la otra vea el nuevo vínculo.
+    const sql = ref
+      ? `UPDATE caja_transf SET ticket_ref = ? WHERE id = ? AND mes = ?
+         AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?)`
+      : "UPDATE caja_transf SET ticket_ref = NULL WHERE id = ? AND mes = ?";
+    const params = ref ? [ref.ref, x.id, mes, mes, ref.ref, x.id] : [x.id, mes];
+    const resultados = await env.DB.batch([
+      env.DB.prepare(sql).bind(...params),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "editar",
+        que: "Transferencia de cliente", ref: x.id, mes:x.mes,
+        detalle: { cliente: x.cliente, importe:x.importe, ticket_antes:x.ticket_ref, ticket:ref ? ref.ref : null } })
     ]);
+    if (!resultados[0]?.meta?.changes)
+      return json({ ok:false,error:"El vínculo cambió en otra sesión o ya no está disponible. Actualiza antes de intentarlo nuevamente." },409);
     return json({ ok: true });
   }
 
