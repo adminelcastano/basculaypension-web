@@ -85,7 +85,7 @@ test("Caja del panel conserva identidad al reintentar y asienta la bitácora",()
   assert.match(caja,/que:"Gasto de caja"/);
   assert.match(caja,/que:"Ingreso extra de caja"/);
   assert.match(uiCaja,/f\.dataset\.uid \|\| \(f\.dataset\.uid = crypto\.randomUUID\(\)\)/);
-  assert.match(uiCaja,/delete f\.dataset\.uid/);
+  assert.doesNotMatch(uiCaja,/delete f\.dataset\.uid/); // no perder protección si falla recarga
   assert.doesNotThrow(()=>new Function(uiCaja));
 });
 
