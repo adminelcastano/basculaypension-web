@@ -222,7 +222,7 @@ export async function servirFoto(env, llave) {
 
 async function paginaAvisosTurno(env, s, hoy, cursor = "", limite = 50) {
   // Primero se aplica autorización de destinatarios, después el límite.
-  const m = /^(\\d{4}-\\d\\d-\\d\\dT[^|]{8,28})\\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
+  const m = /^(\d{4}-\d\d-\d\dT[^|]{8,28})\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
   let creado = m ? m[1] : "", id = m ? m[2] : "";
   const visibles = [], lote = 120;
   let mas = false, ultimo = "", consultas = 0;
@@ -237,6 +237,7 @@ async function paginaAvisosTurno(env, s, hoy, cursor = "", limite = 50) {
       if(avisoParaEncargado(a,s.persona,s.turno))visibles.push(a);
       if(visibles.length===limite)break;
     }
+    if(visibles.length===limite){mas=true;break;}
     if(filas.length<lote){mas=false;break;}
     mas=true;
   }
