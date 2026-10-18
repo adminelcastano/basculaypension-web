@@ -822,7 +822,7 @@ window.interpretarAgenda = function (texto, hoy) {
       <div class="com-acc"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-line" type="button" data-com-cancelar>Cancelar</button></div><span class="err" role="alert"></span></form>`;
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
-        ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
+        ${!c.borrado && c.foto ? `<button type="button" class="com-foto casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(c.foto))}" aria-label="Ampliar foto del comentario de ${esc(nomDe(c.autor))}"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy" decoding="async"></button>` : ""}</div>
       <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
@@ -851,7 +851,7 @@ window.interpretarAgenda = function (texto, hoy) {
   const castaFotoActual = new Map();
   function castaFotos(fotos, id) {
     if (!Array.isArray(fotos) || !fotos.length) return "";
-    const foto = (k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    const foto = (k, i) => `<button type="button" class="casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(k))}" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy" decoding="async"></button>`;
     if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
     const actual = Math.max(0, Math.min(fotos.length-1, castaFotoActual.get(id) || 0));
     return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
