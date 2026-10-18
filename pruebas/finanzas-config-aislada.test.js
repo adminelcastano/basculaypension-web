@@ -13,16 +13,17 @@ test("Configuración de ensayo jamás apunta a D1 productiva ni a la base de dia
   assert.notEqual(cfg.name,"basculaypension-web");
   assert.equal(cfg.d1_databases.length,1);
   assert.equal(cfg.d1_databases[0].binding,"DB");
-  assert.equal(cfg.d1_databases[0].database_id,"00000000-0000-0000-0000-000000000000");
+  assert.equal(cfg.d1_databases[0].database_id,"bb6fac21-f3e9-44b3-8e67-770c14796532");
+  assert.equal(cfg.d1_databases[0].database_name,"castano-finanzas-integral-ensayo-20261018");
   assert.notEqual(cfg.d1_databases[0].database_name,"castano-facturas");
   assert.notEqual(cfg.d1_databases[0].database_id,"fc96fc85-e43a-4ca2-9c39-06de973ce437");
-  assert.match(raw,/NO DESPLEGAR/);
+  assert.match(raw,/D1 INTEGRAL NUEVA/);
   assert.match(product,/castano-facturas/,"No modificar el nombre productivo");
 });
 test("El ensayo tiene únicamente KV propia y cero procesos o servicios productivos",()=>{
   assert.deepEqual(cfg.kv_namespaces,[{binding:"FILES",id:"06093f14870a4df89ab81b0246dec74a"}]);
   assert.deepEqual(cfg.triggers.crons,[]);
-  assert.equal(cfg.workers_dev,false);
+  assert.equal(cfg.workers_dev,true); // Solo en subdominio protegido por Access, sin previews.
   assert.equal(cfg.preview_urls,false);
   assert.equal(cfg.vars.ENSAYO_FINANZAS,"1");
   assert.equal(cfg.vars.ADMIN_EMAILS,"administracion@basculaypension.com");
