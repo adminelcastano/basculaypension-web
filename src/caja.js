@@ -1,6 +1,7 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
+import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
@@ -1039,18 +1040,37 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (cliente.length < 2) errores.cliente = "Escribe el nombre del cliente.";
     if (!(importe > 0) || importe > 10000000) errores.importe = "Escribe un importe válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos de la transferencia.", errores }, 422);
-    const id = crypto.randomUUID();
+    const quien = usuario && usuario.email || null;
+    let id;
+    try { id = await idFinanciero("transferencia-cliente", c.uid, quien); }
+    catch (er) { return json({ ok: false, error: er.message }, 422); }
     // Cuenta a la que llegó (por defecto, la marcada para transferencias de clientes)
     await asegurarEsquemaCuentas(env);
     const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
+    const solicitada = String(c.ticket_ref || "").trim() || null;
+    const repetida = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.fecha === fecha && x.cliente === cliente && centavosIguales(x.importe, importe)
+        && (x.factura || null) === (factura || null) && (x.cuenta || null) === (cta || null)
+        && (x.ticket_ref || null) === solicitada;
+      return igual ? json({ ok: true, id, repetido: true }) :
+        json({ ok: false, error: "Esta transferencia ya se registró con otros datos. Actualiza la lista para revisarla." }, 409);
+    };
+    const ya = await repetida(); if (ya) return ya;
     // Ticket de la hoja pagado por transferencia al que corresponde (opcional)
     const ref = await validarTicketRef(env, c.ticket_ref, mes, null, importe);
     if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null, cta, ref ? ref.ref : null),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle: { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null } })
-    ]);
+    try {
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null),
+        stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle: { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null } })
+      ]);
+    } catch (er) {
+      const ya = await repetida(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
 
