@@ -14,8 +14,8 @@ import AV5 from "./avatares/a5.webp";
 // incidencias abiertas de todos los turnos y corte ciego (el encargado no ve cuánto debería haber).
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
-import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos } from "./agenda.js";
-import { asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
+import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos, errorDestinatariosCastagram } from "./agenda.js";
+import { idOperacionCastagram, asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
 // El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
@@ -219,31 +219,47 @@ export async function servirFoto(env, llave) {
   return new Response(r.value, { headers: { "Content-Type": (r.metadata && r.metadata.tipo) || "image/jpeg", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" } });
 }
 
+
+async function paginaAvisosTurno(env, s, hoy, cursor = "", limite = 50) {
+  // Primero se aplica autorización de destinatarios, después el límite.
+  const m = /^(\d{4}-\d\d-\d\dT[^|]{8,28})\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
+  let creado = m ? m[1] : "", id = m ? m[2] : "";
+  const visibles = [], lote = 120;
+  let mas = false, ultimo = "", consultas = 0;
+  while (visibles.length < limite && consultas++ < 100) {
+    const filtro = creado ? " AND (creado < ? OR (creado = ? AND id < ?))" : "";
+    const args = [hoy,...(creado ? [creado, creado, id] : []),lote];
+    const filas = (await env.DB.prepare(
+      "SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?)"+filtro+" ORDER BY creado DESC, id DESC LIMIT ?"
+    ).bind(...args).all()).results;
+    for(const a of filas) {
+      creado=a.creado; id=a.id;ultimo=creado+"|"+id;
+      if(avisoParaEncargado(a,s.persona,s.turno))visibles.push(a);
+      if(visibles.length===limite)break;
+    }
+    if(visibles.length===limite){mas=true;break;}
+    if(filas.length<lote){mas=false;break;}
+    mas=true;
+  }
+  const leidos = visibles.length ? new Set((await env.DB.prepare(
+    "SELECT item_id FROM agenda_lecturas WHERE persona = ? AND item_id IN ("+visibles.map(()=>"?").join(",")+")"
+  ).bind(s.persona,...visibles.map(a=>a.id)).all()).results.map(x=>x.item_id)) : new Set();
+  const conv = await resumenConversaciones(env,visibles,s.persona);
+  const avisos = visibles.map(a=>({...a,fotos:listaFotos(a),foto:undefined,autor:a.autor||"admin",
+    para:normalizarPara(a.para),propio:a.autor===s.persona,
+    leido:a.autor===s.persona||leidos.has(a.id),conv:conv[a.id]}))
+    .sort((a,b)=>String(b.conv?.actividad||b.creado).localeCompare(String(a.conv?.actividad||a.creado)));
+  return { avisos, cursor:ultimo, mas:mas && !!ultimo };
+}
+
 // ---------------------------------------------------------------------------
 // Datos que ve el encargado
 // ---------------------------------------------------------------------------
 async function estado(env, s) {
   const hoy = local().dia;
   const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, prefs FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: nombrePerfil(p), avatar_url: urlAvatar(p) }));
-  // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
-  // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
-  // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
-  const visibles = [];
-  const loteAvisos = 150;
-  for (let offset = 0; visibles.length < 50; offset += loteAvisos) {
-    const filas = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC, id DESC LIMIT ? OFFSET ?").bind(hoy, loteAvisos, offset).all()).results;
-    for (const a of filas) {
-      if (avisoParaEncargado(a, s.persona, s.turno)) visibles.push(a);
-      if (visibles.length === 50) break;
-    }
-    if (filas.length < loteAvisos) break;
-  }
-  const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  // Conversación de cada aviso: comentarios, nuevos para esta persona y último comentario; el muro va por actividad
-  const conv = await resumenConversaciones(env, visibles, s.persona);
-  const avisos = visibles
-    .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id), conv: conv[a.id] }))
-    .sort((x, y) => String(y.conv && y.conv.actividad || y.creado).localeCompare(String(x.conv && x.conv.actividad || x.creado)));
+  const pagina = await paginaAvisosTurno(env, s, hoy);
+  const { avisos } = pagina;
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
   const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir, reporto, creado FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
@@ -284,7 +300,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -392,6 +408,8 @@ export async function turnoRuta(request, env, url, h) {
   if (!s) return json({ ok: false, error: "Tu sesión terminó. Vuelve a entrar con tu PIN.", sesion: false }, 401, { "Set-Cookie": cookie("", 0) });
 
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
+  if (partes[0] === "avisos" && partes[1] === "pagina" && request.method === "GET")
+    return json({ ok: true, ...(await paginaAvisosTurno(env, s, local().dia, url.searchParams.get("cursor") || "", 25)) });
 
   if (partes[0] === "foto" && request.method === "GET") {
     let esFotoCastagram = false;
@@ -468,12 +486,19 @@ export async function turnoRuta(request, env, url, h) {
 
   // ---- Avisos ----
   if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
+    if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de publicación inválido." },422);
     const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
+    const errorAudiencia = await errorDestinatariosCastagram(env, c.para);
+    if (errorAudiencia) e.para = errorAudiencia;
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
+    const id = await idOperacionCastagram("publicar", c.uid, s.persona);
+    if (c.uid) {
+      const previo = await env.DB.prepare("SELECT id, autor FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(id).first();
+      if (previo) return previo.autor === s.persona ? recordar(json({ok:true,id,repetido:true})) : json({ok:false,error:"Identificador de publicación reutilizado."},409);
+    }
     // Foto opcional (llega ya comprimida desde la tablet)
     let foto = null;
     try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
-    const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona, ...(foto ? { foto } : {}) });
     await notificar(env, "admin", { titulo: d.prioridad === "alta" ? "Publicación importante en Castagram" : "Nueva publicación en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
@@ -492,10 +517,19 @@ export async function turnoRuta(request, env, url, h) {
       return json({ ok: true });
     }
     if (partes[2] === "comentar" && request.method === "POST") {
+      if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de comentario inválido." },422);
+      if (c.uid) {
+        const uidId = await idOperacionCastagram("comentar", c.uid, s.persona, a.id);
+        const previo = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
+        if(previo){
+          if(previo.item_id!==a.id||previo.autor!==s.persona) return json({ok:false,error:"Identificador reutilizado."},409);
+          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]}));
+        }
+      }
       let foto = null;
       try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
       const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
-      let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
+      let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas, confirmar_ampliacion: c.confirmar_ampliacion === true, uid: c.uid }, claves, ahora); }
       catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
       if (r.notificar.admin) await notificar(env, "admin", { titulo: "Nuevo comentario en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
       // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
@@ -820,7 +854,12 @@ export async function turnoAdmin(request, env, url, partes) {
   if (partes[1] === "avatar" && partes[2] === "p" && request.method === "GET") return servirFotoPerfil(env, partes[3]);
   if (partes[1] === "avatar" && request.method === "GET") return servirAvatar(partes[2]);
 
-  if (partes[1] === "foto" && request.method === "GET") return servirFoto(env, partes[2]);
+  if (partes[1] === "foto" && request.method === "GET") {
+    const respuesta = await servirFoto(env, partes[2]);
+    let clave = ""; try { clave = decodeURIComponent(partes[2] || ""); } catch {}
+    if (/^tf:(aviso|inc):/.test(clave)) respuesta.headers.set("Cache-Control", "private, no-store");
+    return respuesta;
+  }
 
   if (partes[1] === "personas" && partes[3] === "eliminar" && request.method === "POST") {
     await env.DB.prepare("DELETE FROM turno_personas WHERE clave = ?").bind(partes[2]).run();

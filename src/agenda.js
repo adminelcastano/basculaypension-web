@@ -1,5 +1,5 @@
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
-import { asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
+import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
@@ -79,6 +79,30 @@ export async function asegurarEsquemaAgenda(env) {
   // Pagos hechos sin programar (item_id = ''), comprobante (foto o PDF) y nota
   for (const c of ["comprobante", "nota", "comp_tipo"]) if (!colsP.has(c)) await env.DB.prepare(`ALTER TABLE agenda_pagos ADD COLUMN ${c} TEXT`).run();
   listo = true;
+}
+
+// En nuevas publicaciones se comprueban personas reales; nunca se amplía
+// inadvertidamente a "Todos" por un destinatario inválido.
+// La función de lectura normalizarPara conserva su compatibilidad histórica.
+export async function errorDestinatariosCastagram(env, entrada) {
+  let p = entrada;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch { return "Destinatarios inválidos."; } }
+  if (!p || typeof p !== "object" || Array.isArray(p)) return "Selecciona al menos un destinatario.";
+  if ((p.turnos != null && !Array.isArray(p.turnos)) || (p.personas != null && !Array.isArray(p.personas)))
+    return "Formato de destinatarios inválido.";
+  const turnos = p.turnos || [], personas = p.personas || [];
+  if (turnos.some(t => !TURNOS.includes(String(t).toUpperCase()))) return "Hay un turno destinatario inválido.";
+  if (personas.length > 30 || personas.some(k => !/^[A-ZÑ0-9_]{2,12}$/.test(String(k).toUpperCase())))
+    return "Hay una persona destinataria inválida.";
+  const claves = [...new Set(personas.map(k => String(k).toUpperCase()))];
+  if (claves.length) {
+    const filas = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1 AND clave IN (" + claves.map(() => "?").join(",") + ")").bind(...claves).all()).results;
+    if (new Set(filas.map(x => x.clave)).size !== claves.length)
+      return "Hay encargados que ya no están activos o no existen. Revisa los destinatarios.";
+  }
+  if (p.todos !== true && p.admin !== true && !turnos.length && !claves.length)
+    return "Selecciona al menos un destinatario.";
+  return null;
 }
 
 // Destinatarios de un aviso: { todos, admin, turnos: [...], personas: [...] }. Sin nada marcado = todos.
@@ -472,10 +496,35 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
 // Rutas: /panel/api/agenda...
 export async function agendaPanel(request, env, url, partes, usuario) {
   await asegurarEsquemaAgenda(env);
+  const ahora = new Date().toISOString();
+
+
+  // Feed independiente de compras, pagos e incidencias; no devuelve datos ajenos.
+  if (partes[1] === "avisos-feed" && request.method === "GET") {
+    await asegurarEsquemaAvisos(env);
+    const cursor = url.searchParams.get("cursor") || "";
+    const m = /^(\d{4}-\d\d-\d\dT[^|]{8,28})\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
+    const condiciones = ["tipo = 'aviso'", "estado = 'activo'"], args = [];
+    if(m){condiciones.push("(creado < ? OR (creado = ? AND id < ?))");args.push(m[1],m[1],m[2]);}
+    const rows = (await env.DB.prepare("SELECT * FROM agenda_items WHERE "+condiciones.join(" AND ")+" ORDER BY creado DESC,id DESC LIMIT 26").bind(...args).all()).results;
+    const items = rows.slice(0,25);
+    if(items.length){
+      const ids=items.map(x=>x.id),q=ids.map(()=>"?").join(",");
+      const [lect,vistos]=await Promise.all([
+        env.DB.prepare("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN ("+q+")").bind(...ids).all().then(x=>x.results),
+        env.DB.prepare("SELECT item_id FROM aviso_vistos WHERE persona = 'ADMIN' AND item_id IN ("+q+")").bind(...ids).all().then(x=>x.results)
+      ]);
+      const v=new Set(vistos.map(x=>x.item_id)), conv=await resumenConversaciones(env,items,"ADMIN");
+      for(const it of items){it.lecturas=lect.filter(x=>x.item_id===it.id);it.visto_admin=v.has(it.id);
+        it.para=normalizarPara(it.para);it.autor=it.autor||"admin";it.conv=conv[it.id];}
+    }
+    const ultimo=items[items.length-1];
+    return json({ok:true,items,mas:rows.length>25,cursor:ultimo?ultimo.creado+"|"+ultimo.id:""});
+  }
+
   await asegurarEsquemaCaja(env);
   await asegurarEsquemaCategorias(env);
   await asegurarEsquemaCuentas(env);
-  const ahora = new Date().toISOString();
 
   if (partes.length === 1 && request.method === "GET") {
     const tipo = url.searchParams.get("tipo");
@@ -492,7 +541,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Lecturas e informes solo de los registros que se listan (no de toda la historia)
     const deIds = async (sql, ids) => { const out = []; for (let i = 0; i < ids.length; i += 90) { const l = ids.slice(i, i + 90); out.push(...(await env.DB.prepare(sql.replace("(?)", "(" + l.map(() => "?").join(",") + ")")).bind(...l).all()).results); } return out; };
     const lect = await deIds("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id));
-    for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
+    const vistosAdmin = new Set((await deIds("SELECT item_id FROM aviso_vistos WHERE persona = 'ADMIN' AND item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id))).map(v => v.item_id));
+    for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.visto_admin = vistosAdmin.has(it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
     // Conversación de cada aviso (comentarios, nuevos para la administración, último comentario)
     const conv = await resumenConversaciones(env, items.filter(it => it.tipo === "aviso"), "ADMIN");
     for (const it of items) if (it.tipo === "aviso") it.conv = conv[it.id];
@@ -590,10 +640,16 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
     const tipo = String(c.tipo || "");
+    if (tipo === "aviso" && (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid)))) return json({ ok:false, error:"Identificador de publicación inválido." },422);
     if (!TIPOS.includes(tipo)) return json({ ok: false, error: "Tipo inválido." }, 422);
     const { d, e } = validar(tipo, c);
+    if (tipo === "aviso") { const error = await errorDestinatariosCastagram(env, c.para); if (error) e.para = error; }
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
-    const id = crypto.randomUUID();
+    const id = tipo === "aviso" ? await idOperacionCastagram("publicar", c.uid, usuario?.email || "admin") : crypto.randomUUID();
+    if (tipo === "aviso" && c.uid) {
+      const existe = await env.DB.prepare("SELECT id, tipo FROM agenda_items WHERE id = ?").bind(id).first();
+      if (existe) return existe.tipo === "aviso" ? json({ ok: true, id, repetido: true }) : json({ ok:false, error:"Identificador reutilizado." },409);
+    }
     // Incidencia desde el panel: fotos tomadas o subidas (opcional, varias)
     let fotos = [];
     // También los avisos llevan foto opcional
@@ -691,10 +747,20 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
   if (fila.tipo === "aviso" && partes[2] === "comentar" && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de comentario inválido." },422);
+    if (c.uid) {
+      const uidId = await idOperacionCastagram("comentar", c.uid, "admin", fila.id);
+      const anterior = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
+      if (anterior) {
+        if (anterior.item_id !== fila.id || anterior.autor !== "admin")
+          return json({ ok:false, error:"Identificador de comentario reutilizado." },409);
+        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]});
+      }
+    }
     let foto = null;
     if (c.foto) { try { [foto] = await guardarFotosInc(env, [c.foto], "Comentario " + fila.titulo); } catch (er) { return json({ ok: false, error: er.message }, 422); } }
     const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all().catch(() => ({ results: [] }))).results.map(r => r.clave);
-    let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
+    let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas, confirmar_ampliacion: c.confirmar_ampliacion === true, uid: c.uid }, claves, ahora); }
     catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
     if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "Nueva actividad en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
     return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas });
@@ -730,6 +796,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
     const { d, e } = validar(fila.tipo, c, fila);
+    if (fila.tipo === "aviso" && Object.hasOwn(c, "para") &&
+        JSON.stringify(normalizarPara(c.para)) !== JSON.stringify(normalizarPara(fila.para))) {
+      const error = await errorDestinatariosCastagram(env, c.para);
+      if (error) e.para = error;
+    }
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar

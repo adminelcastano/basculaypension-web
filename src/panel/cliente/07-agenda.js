@@ -125,8 +125,27 @@ window.interpretarAgenda = function (texto, hoy) {
 
   async function cargar() {
     try {
-      const j = await api("agenda");
-      st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || []; st.mesesAbiertos = j.meses_abiertos || [];
+      // La primera pantalla del muro llega sin esperar pagos/compras ni los 1000
+      // registros generales. Se conserva la consulta general para el resto de Agenda.
+      const esMuro = EC.ruta().mod === "agenda" && EC.ruta().vista === "aviso";
+      const feedP = esMuro ? api("agenda/avisos-feed").then(async f => {
+        if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
+        if (!st.hoy) st.hoy = EC.hoyMx();
+        if (!st.archivo && !document.activeElement?.closest("form")) {
+          st.items = [...st.items.filter(x => x.tipo !== "aviso"), ...f.items];
+          st.castaCursor = f.cursor; st.castaMas = f.mas;
+          pintarAvisos();
+        }
+        return f;
+      }).catch(()=>null) : Promise.resolve(null);
+      const j = await api("agenda"), feed = await feedP;
+      st.items = feed ? [...j.items.filter(x => x.tipo !== "aviso"), ...feed.items] : j.items;
+      st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || [];
+      const castaOrden = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a,b)=>String(b.creado).localeCompare(String(a.creado)));
+      const castaUltimo = castaOrden[castaOrden.length-1];
+      st.castaCursor = feed ? feed.cursor : castaUltimo ? castaUltimo.creado+"|"+castaUltimo.id : "";
+      st.castaMas = feed ? feed.mas : true;
+      st.mesesAbiertos = j.meses_abiertos || [];
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
@@ -159,7 +178,7 @@ window.interpretarAgenda = function (texto, hoy) {
     // pagos programados, compras por hacer y pagos hechos
     const B = { "ab-calendario": vistaCalendario, "ab-tarea": vistaTareas, "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
       "pg-prog": vistaProgramados, "pg-comp": () => resumenPagos("compras") + vistaCompras(), "pg-hechos": vistaHechos };
-    for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { el.innerHTML = f(); conectar(el); } }
+    for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { if(id==="ab-aviso") pintarAvisos(); else {el.innerHTML = f(); conectar(el);} } }
     contadores();
     pintarConfig();
   }
@@ -694,7 +713,7 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueInfo("agenda", "calendario", { valor: evHoy, texto: evHoy ? pl(evHoy, "evento hoy", "eventos hoy") : "Nada programado hoy" });
     EC.bloqueInfo("agenda", "tarea", { texto: !tareas.length ? "Nada pendiente" : venc ? pl(venc, "vencida", "vencidas") : "Al día" });
     EC.bloqueInfo("agenda", "incidencia", { texto: !inc.length ? "Ninguna abierta" : graves ? pl(graves, "grave", "graves") : "Ninguna grave" });
-    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? pl(st.avisosSinLeer, "sin leer", "sin leer") : N("aviso").length ? "Todos leídos" : "Sin publicaciones activas" });
+    EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? st.avisosSinLeer+" novedades o Enterados pendientes" : N("aviso").length ? "Sin novedades pendientes" : "Sin publicaciones activas" });
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
     EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
@@ -759,7 +778,7 @@ window.interpretarAgenda = function (texto, hoy) {
   function teclaMencion(e) {
     const ta = e.target.closest("form.com-form textarea"), form = ta && ta.closest("form");
     const caja = form && form.querySelector("[data-mention-list]");
-    if (!caja || caja.hidden) return;
+    if (!caja || caja.hidden || e.isComposing || e.keyCode === 229) return;
     const opciones = [...caja.querySelectorAll("[data-mention-pick]")];
     if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; ta.setAttribute("aria-expanded", "false"); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -800,6 +819,21 @@ window.interpretarAgenda = function (texto, hoy) {
     }
     contadores();
   }
+  // Actualiza solo el post y su diálogo: no tocar otras tarjetas ni sus scrolls.
+  function repintarPostAdmin(id){
+    if(st.archivo || castaVisor?.open){return;}
+    const root=$("#ab-aviso"),it=st.items.find(x=>x.id===id);
+    if(!root||!it)return;
+    const post=root.querySelector('[data-post="'+CSS.escape(id)+'"]');
+    if(post&&st.editando!==id)post.outerHTML=postHtml(it);
+    const dlg=root.querySelector('dialog.casta-sheet[open]');
+    if(dlg?.dataset.av===id){const hilo=dlg.querySelector(".hilo");if(hilo)hilo.outerHTML=hiloHtml(it);}
+    const anterior=root.querySelector("details.casta-actividad");
+    if(anterior){const abrir=anterior.open;anterior.outerHTML=castaActividadVistaAdmin();const nuevo=root.querySelector("details.casta-actividad");if(nuevo)nuevo.open=abrir;}
+    castaRestaurar(root);
+    contadores();
+  }
+
   // Una conversación visible a la vez, en una hoja modal. La lista de publicaciones no cambia.
   function mostrarSheetAdmin() {
     const el = $("#ab-aviso"), id = st.abiertosAv.values().next().value;
@@ -811,10 +845,12 @@ window.interpretarAgenda = function (texto, hoy) {
     dlg.dataset.av = id;
     dlg.setAttribute("aria-label", "Comentarios de " + it.titulo);
     dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" class="casta-sheet-x" data-sheet-cerrar aria-label="Cerrar comentarios">×</button></div>${hiloHtml(it)}`;
-    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); });
-    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); const volver=el.querySelector(`[data-post="${CSS.escape(id)}"] [data-hilo]`); if(volver)volver.focus({preventScroll:true}); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) castaHojaCerrar(dlg); });
     el.append(dlg);
     dlg.showModal();
+    history.pushState({...history.state,casta_layer:"comentarios"},"",location.href);
+    dlg.addEventListener("cancel",e=>{e.preventDefault();castaHojaCerrar(dlg);});
   }
 
   function comentarioHtml(it, c, admin = true, editable = true) {
@@ -822,7 +858,7 @@ window.interpretarAgenda = function (texto, hoy) {
       <div class="com-acc"><button class="btn btn-primary" type="submit">Guardar</button><button class="btn btn-line" type="button" data-com-cancelar>Cancelar</button></div><span class="err" role="alert"></span></form>`;
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
-        ${!c.borrado && c.foto ? `<a class="com-foto" href="${urlFoto(c.foto)}" target="_blank" rel="noopener"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy"></a>` : ""}</div>
+        ${!c.borrado && c.foto ? `<button type="button" class="com-foto casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(c.foto))}" aria-label="Ampliar foto del comentario de ${esc(nomDe(c.autor))}"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy" decoding="async"></button>` : ""}</div>
       <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
@@ -851,7 +887,7 @@ window.interpretarAgenda = function (texto, hoy) {
   const castaFotoActual = new Map();
   function castaFotos(fotos, id) {
     if (!Array.isArray(fotos) || !fotos.length) return "";
-    const foto = (k, i) => `<a href="${urlFoto(k)}" target="_blank" rel="noopener" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy"></a>`;
+    const foto = (k, i) => `<button type="button" class="casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(k))}" aria-label="Abrir foto ${i + 1} de ${fotos.length}"><img src="${urlFoto(k)}" alt="Foto ${i + 1} de ${fotos.length} de Castagram" loading="lazy" decoding="async"></button>`;
     if (fotos.length === 1) return `<div class="post-fotos">${foto(fotos[0],0)}</div>`;
     const actual = Math.max(0, Math.min(fotos.length-1, castaFotoActual.get(id) || 0));
     return `<div class="casta-carrusel" data-casta-carrusel="${esc(id)}" aria-label="Galería de ${fotos.length} fotografías">
@@ -892,13 +928,53 @@ window.interpretarAgenda = function (texto, hoy) {
     }));
   }
 
+
+  // Visor protegido que no sale del post al abrir una fotografía.
+  let castaVisor=null,castaFoco=null,castaUrls=[],castaIndex=0;
+  function castaFotoMover(paso){const n=castaIndex+paso;if(!castaVisor?.open||n<0||n>=castaUrls.length)return;castaIndex=n;castaFotoPintar();}
+  function castaFotoPintar(){
+    if(!castaVisor?.open)return;
+    const img=castaVisor.querySelector("img"),estado=castaVisor.querySelector(".casta-visor-estado"),url=castaUrls[castaIndex];
+    estado.hidden=false;estado.textContent="Cargando fotografía…";img.style.visibility="hidden";
+    img.onload=()=>{if(castaVisor?.open&&img.getAttribute("src")===url){img.style.visibility="visible";estado.hidden=true;}};
+    img.onerror=()=>{if(castaVisor?.open&&img.getAttribute("src")===url)estado.textContent="No se pudo abrir esta fotografía.";};
+    img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;img.src=url;
+    castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;
+    for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;
+  }
+  function castaFotoCerrar(pop=false){if(!castaVisor?.open)return;if(!pop&&history.state?.casta_layer==="foto"){history.back();return;}const d=castaVisor;castaVisor=null;d.close();d.remove();castaUrls=[];if(castaFoco?.isConnected)castaFoco.focus({preventScroll:true});castaFoco=null;}
+  function castaFotoAbrir(b){
+    if(castaVisor?.open)return;
+    const g=b.closest(".casta-carrusel,.post-fotos"),lista=g?[...g.querySelectorAll("[data-casta-foto-url]")]:[b];
+    castaUrls=lista.map(x=>x.dataset.castaFotoUrl).filter(u=>u?.startsWith("/panel/api/turno/foto/"));
+    castaIndex=lista.indexOf(b);if(!castaUrls.length||castaIndex<0)return;castaFoco=b;
+    const d=document.createElement("dialog");d.className="casta-visor";d.setAttribute("aria-label","Fotografías de Castagram");
+    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt="" decoding="async"><span class="casta-visor-estado" role="status">Cargando fotografía…</span><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
+    d.addEventListener("click",e=>{if(e.target===d||e.target.closest("[data-visor-cerrar]"))castaFotoCerrar();else{const z=e.target.closest("[data-visor-paso]");if(z)castaFotoMover(+z.dataset.visorPaso);}});
+    d.addEventListener("cancel",e=>{e.preventDefault();castaFotoCerrar();});
+    let touch=null;d.addEventListener("touchstart",e=>{if(e.touches.length===1)touch=[e.touches[0].clientX,e.touches[0].clientY];},{passive:true});
+    d.addEventListener("touchend",e=>{if(touch&&e.changedTouches.length){const dx=e.changedTouches[0].clientX-touch[0],dy=e.changedTouches[0].clientY-touch[1];if(Math.abs(dx)>60&&Math.abs(dx)>1.5*Math.abs(dy))castaFotoMover(dx<0?1:-1);}touch=null;},{passive:true});
+    document.body.append(d);castaVisor=d;d.showModal();castaFotoPintar();
+    history.pushState({...history.state,casta_layer:"foto"},"",location.href);
+  }
+  function castaHojaCerrar(d){if(history.state?.casta_layer==="comentarios")history.back();else d?.close();}
+  function castaRegreso(){
+    if(castaVisor?.open&&history.state?.casta_layer!=="foto"){castaFotoCerrar(true);return;}
+    const d=document.querySelector("#ab-aviso dialog.casta-sheet[open]");
+    if(d&&history.state?.casta_layer!=="comentarios"&&history.state?.casta_layer!=="foto"){d.close();return;}
+    if(st.archivo?.sel&&history.state?.casta_layer!=="archivo-detalle"){st.archivo.sel=null;st.archivo.det=null;pintarAvisos();return;}
+    if(st.archivo&&history.state?.casta_layer!=="archivo"){st.archivo=null;pintarAvisos();}
+  }
+
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
     const deEnc = it.autor !== "admin", p = it.para || {}, cv = it.conv || { n: 0, nuevos: 0, nuevosEnterado: 0 };
     const leidoAdmin = (it.lecturas || []).some(l => l.persona === "ADMIN");
-    const nuevo = deEnc && p.admin && abierto(it) && !leidoAdmin;
-    const dest = p.todos || (p.turnos || []).length ? encargados() : encargados().filter(x => (p.personas || []).includes(x.clave));
+    const pendienteEnterado = deEnc && p.admin && abierto(it) && !leidoAdmin;
+    const nuevo = pendienteEnterado && !it.visto_admin;
     const lec = new Map((it.lecturas || []).map(x => [x.persona, x.at]));
+    // Un destinatario por turno no significa que todos los encargados activos estén asignados.
+    const dest = p.todos ? encargados() : encargados().filter(x => (p.personas || []).includes(x.clave) || lec.has(x.clave));
     const vistos = dest.filter(x => x.clave !== it.autor && lec.has(x.clave)), faltan = dest.filter(x => x.clave !== it.autor && !lec.has(x.clave));
     const abiertoHilo = st.abiertosAv.has(it.id);
     const comentarIcono = "<svg class=\"casta-comentar-ico\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3.5h14a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5H9l-6.5 4V6A2.5 2.5 0 0 1 5 3.5Z\"/><path d=\"M7.5 9H17M7.5 13H15\"/></svg>";
@@ -907,10 +983,10 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<article class="post ${nuevo || cv.nuevos || cv.nuevosEnterado ? "nuevo" : ""} ${abierto(it) ? "" : "hecho"}" data-post="${esc(it.id)}">
       <header class="post-h">${avP(deEnc ? it.autor : "admin", 1)}<div class="post-q"><b>${esc(nomDe(it.autor))}</b><span>${esc(cuando(it.creado))}${it.fecha && it.fecha > st.hoy ? ` · se muestra desde ${esc(diaTxt(it.fecha))}` : ""}</span></div>
         ${it.prioridad === "alta" ? `<span class="tag alta">Importante</span>` : ""}</header>
-      <p class="post-para">Para ${etqParaHtml(p)}</p>
+      <p class="post-para">Para ${etqParaHtml(p)}${deEnc && p.admin ? `<span class="etq-p">${leidoAdmin ? "✓ Enterado" : it.visto_admin ? "Visto · Enterado pendiente" : "Sin Enterado"}</span>` : ""}</p>
       <h4 class="post-t">${esc(it.titulo)}</h4>${it.detalle ? `<p class="post-d">${parrafos(it.detalle)}</p>` : ""}
       ${castaFotos(fotosDe(it),it.id)}
-      <div class="post-st"><div class="casta-acciones">${nuevo ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-leer="${esc(it.id)}" aria-label="Confirmar mi Enterado. ${cantidadEnterados} confirmaciones registradas" title="Confirmar mi Enterado">${pulgar}<small>${cantidadEnterados}</small></button>` : `<span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" role="img" aria-label="${cantidadEnterados} confirmaciones de Enterado" title="${cantidadEnterados} confirmaciones de Enterado">${pulgar}<small>${cantidadEnterados}</small></span>`}<button type="button" class="casta-comentar" data-hilo="${esc(it.id)}" aria-label="Abrir comentarios" title="Comentar">${comentarIcono}</button></div>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
+      <div class="post-st"><div class="casta-acciones">${pendienteEnterado ? `<button type="button" class="casta-pulgar casta-pulgar-boton" data-leer="${esc(it.id)}" aria-label="Confirmar mi Enterado. ${cantidadEnterados} confirmaciones registradas" title="Confirmar mi Enterado">${pulgar}<small>${cantidadEnterados}</small></button>` : `<span class="casta-pulgar ${cantidadEnterados ? "is-enterado" : ""}" role="img" aria-label="${cantidadEnterados} confirmaciones de Enterado" title="${cantidadEnterados} confirmaciones de Enterado">${pulgar}<small>${cantidadEnterados}</small></span>`}<button type="button" class="casta-comentar" data-hilo="${esc(it.id)}" aria-label="Abrir comentarios" title="Comentar">${comentarIcono}</button></div>${dest.length ? `<span class="post-ent">${vistos.length ? `<span class="si" title="${esc(vistos.map(x => x.clave + " " + cuando(lec.get(x.clave))).join(", "))}">✓ Enterado: ${vistos.map(x => `${esc(x.clave)} <small>${esc(cuando(lec.get(x.clave)).replace(/^.*?, /, ""))}</small>`).join(", ")}</span>` : ""}${faltan.length ? `<span class="no">Sin enterado: ${faltan.map(x => esc(x.clave)).join(", ")}</span>` : ""}${(p.turnos || []).length ? `<span class="no">Turnos destinatarios: ${(p.turnos || []).map(x => esc(x)).join(", ")} · sin padrón individual confirmado</span>` : ""}</span>` : `<span>${deEnc && p.admin && leidoAdmin ? "✓ Enterado" : ""}</span>`}
         <button type="button" class="lnk" data-hilo="${esc(it.id)}" aria-expanded="${abiertoHilo}">${cv.n ? (cv.n === 1 ? "1 comentario" : cv.n + " comentarios") : "0 comentarios"}${cv.nuevos ? ` <span class="nuevo-n">${cv.nuevos} ${cv.nuevos === 1 ? "comentario nuevo" : "comentarios nuevos"}</span>` : ""}${cv.nuevosEnterado ? ` <span class="nuevo-n">${cv.nuevosEnterado} ${cv.nuevosEnterado === 1 ? "Enterado nuevo" : "Enterados nuevos"}</span>` : ""}</button></div>
       ${!abiertoHilo && cv.ultimo ? `<button type="button" class="post-ult" data-hilo="${esc(it.id)}">${avP(cv.ultimo.autor === "admin" ? "admin" : cv.ultimo.autor)}<span><b>${esc(nomDe(cv.ultimo.autor))}</b> ${cv.ultimo.texto ? parrafos(cv.ultimo.texto) : "Mandó una foto"}</span></button>` : ""}
       <div class="post-acc">
@@ -973,6 +1049,7 @@ window.interpretarAgenda = function (texto, hoy) {
       <button class="btn btn-primary extra" type="submit">Publicar</button><span class="err"></span></form>
       <p class="note extra-n" style="margin:10px 0 0">Solo lo ven las personas etiquetadas y quien lo publica. Todos comentan en la misma publicación hasta que la archives; lo archivado se guarda con su conversación en el archivo.</p></section>
       <div class="muro">${act.length ? act.map(postHtml).join("") : `<p class="empty">No hay publicaciones activas. Publica una arriba.</p>`}</div>
+      ${st.castaMas ? `<button type="button" class="btn btn-line casta-mas" data-casta-mas>Cargar publicaciones anteriores</button>` : ""}
       <button class="btn btn-line muro-arch" type="button" data-archivo-abrir>${ico("i-archivo")}Archivo de Castagram</button>`;
   }
 
@@ -1039,17 +1116,18 @@ window.interpretarAgenda = function (texto, hoy) {
       st.hilos[id] = { ...prev, error: "", comentarios: j.comentarios };
       const it = st.items.find(x => x.id === id);
       if (it) {
+        it.visto_admin = true;
         const nuevaPublicacion = it.autor !== "admin" && !!(it.para && it.para.admin) &&
           !(it.lecturas || []).some(x => x.persona === "ADMIN");
         const habiaNovedad = !!(it.conv && (it.conv.nuevos || it.conv.nuevosEnterado));
         // La conversación ya fue marcada vista por el servidor: reflejarlo de inmediato.
-        if (nuevaPublicacion) it.lecturas = [...(it.lecturas || []), { persona: "ADMIN", at: new Date().toISOString() }];
+        // Vista sin Enterado: no crear confirmación en la tabla de lecturas.
         if (it.conv) { it.conv.nuevos = 0; it.conv.nuevosEnterado = 0; }
-        if (nuevaPublicacion || habiaNovedad)
+        if (habiaNovedad && !nuevaPublicacion)
           st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1);
       }
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
-    if (st.abiertosAv.has(id)) pintarAvisos();
+    if (st.abiertosAv.has(id)) repintarPostAdmin(id);
   }
 
   function comenzarReplyAdmin(h, nombre) {
@@ -1084,9 +1162,21 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("focusin", e => { const f = e.target.closest(".muro-nuevo form.aform"); if (f) f.classList.add("abierto"); });
     el.addEventListener("click", async e => {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
+      if(t.matches("[data-casta-foto-url]")){castaFotoAbrir(t);return;}
       const d = t.dataset;
       if (d.mentionPick) { elegirMencion(t.closest("form.com-form"), d.mentionPick); return; }
       if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
+      if("castaMas" in d){
+        t.disabled=true;t.textContent="Cargando…";
+        try{
+          const j=await api("agenda/avisos-feed?cursor="+encodeURIComponent(st.castaCursor||""));
+          const existentes=new Set(st.items.map(x=>x.id));
+          st.items.push(...j.items.filter(x=>!existentes.has(x.id)));
+          st.castaCursor=j.cursor;st.castaMas=j.mas;
+          const y=scrollY;pintarAvisos();scrollTo({top:y});
+        }catch(err){toast(err.message);t.disabled=false;t.textContent="Cargar publicaciones anteriores";}
+        return;
+      }
       if (d.castaEvento) {
         const it = st.items.find(x => x.id === d.castaEvento && x.tipo === "aviso" && abierto(x));
         if (!it) return;
@@ -1102,7 +1192,7 @@ window.interpretarAgenda = function (texto, hoy) {
         pintarAvisos();
         await abrirHilo(id, true);
         if (t.classList.contains("pa")) { const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta) ta.focus({ preventScroll: true }); }
-      } else if ("sheetCerrar" in d) { const sheet = t.closest("dialog.casta-sheet"); if (sheet) sheet.close(); }
+      } else if ("sheetCerrar" in d) { castaHojaCerrar(t.closest("dialog.casta-sheet")); }
       else if (d.responder) {
         const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av;
         if (id && st.hilos[id]) {
@@ -1129,14 +1219,14 @@ window.interpretarAgenda = function (texto, hoy) {
       else if (d.comBorrar) {
         if (!(await EC.confirmar("¿Borrar este comentario?", "Deja de verse en la conversación. Queda registrado en el historial del aviso.", "Borrar", true))) return;
         try { await post(`agenda/${d.av}/comentarios/${d.comBorrar}/borrar`, {}); toast("Comentario borrado"); await abrirHilo(d.av, true); } catch (er) { if (er.message !== "sesion") toast(er.message); }
-      } else if ("archivoAbrir" in d) { st.archivo = { pagina: 0 }; buscarArchivo(); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80 }); }
-      else if ("archivoVolver" in d) { if (st.archivo && st.archivo.sel) { st.archivo.sel = null; st.archivo.det = null; } else st.archivo = null; pintarAvisos(); }
+      } else if ("archivoAbrir" in d) { st.archivo = { pagina: 0 }; history.pushState({...history.state,casta_layer:"archivo"},"",location.href); buscarArchivo(); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80 }); }
+      else if ("archivoVolver" in d) { if(["archivo","archivo-detalle"].includes(history.state?.casta_layer))history.back();else {if(st.archivo?.sel){st.archivo.sel=null;st.archivo.det=null;}else st.archivo=null;pintarAvisos();} }
       else if (d.archivoPag) { st.archivo.pagina = Math.max(0, (st.archivo.pagina || 0) + Number(d.archivoPag)); buscarArchivo(); }
       else if (d.archivoVer) {
         const a = st.archivo;
         if (!a) return;
         const id = d.archivoVer;
-        a.sel = id; a.det = null; pintarAvisos();
+        a.sel = id; a.det = null; history.pushState({...history.state,casta_layer:"archivo-detalle"},"",location.href); pintarAvisos();
         try {
           const detalle = await api(`agenda/${id}/conversacion?historial=1`);
           if (st.archivo !== a || a.sel !== id) return;
@@ -1159,6 +1249,8 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("click", e => { const ta = e.target.closest("form.com-form textarea"); if (ta) actualizarMenciones(ta.closest("form")); });
     el.addEventListener("keyup", e => { const ta = e.target.closest("form.com-form textarea"); if (ta && !["Enter","Escape","ArrowDown","ArrowUp"].includes(e.key)) actualizarMenciones(ta.closest("form")); });
     el.addEventListener("keydown", teclaMencion);
+    addEventListener("popstate",castaRegreso);
+    document.addEventListener("keydown",e=>{if(castaVisor?.open&&!e.isComposing&&e.keyCode!==229&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&(["ArrowLeft","ArrowRight","Home","End"].includes(e.key))){e.preventDefault();e.stopPropagation();if(e.key==="Home"||e.key==="End"){castaIndex=e.key==="Home"?0:castaUrls.length-1;castaFotoPintar();}else castaFotoMover(e.key==="ArrowLeft"?-1:1);}},true);
     el.addEventListener("submit", async e => {
       const f = e.target;
       if (f.id === "arch-f") { e.preventDefault(); Object.assign(st.archivo, { q: f.q.value, persona: f.persona.value, desde: f.desde.value, hasta: f.hasta.value, pagina: 0 }); buscarArchivo(); return; }
@@ -1167,7 +1259,18 @@ window.interpretarAgenda = function (texto, hoy) {
         const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
         err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
         try {
-          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
+          const postActual = st.items.find(x => x.id === id), audiencia = postActual?.para || {};
+          const mencionados = [...f.texto.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m => m[1].toUpperCase());
+          const elegidos = [...new Set([...(h.responderA ? [] : h.etq || []),...mencionados])];
+          const nuevas = audiencia.todos ? [] : elegidos.filter(k =>
+            k !== postActual?.autor && !(audiencia.personas || []).includes(k) &&
+            (st.personas || []).some(p => p.clave === k && p.activo));
+          if(nuevas.length && !(await EC.confirmar("Ampliar destinatarios",
+            "Las personas @"+nuevas.join(", @")+" podrán consultar el aviso y toda su conversación anterior. ¿Permitir acceso?", "Confirmar acceso"))) {
+            b.disabled=false;b.textContent=h.responderA?"Responder":"Comentar";return;
+          }
+          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0, uid: h.uid || (h.uid = crypto.randomUUID()) });
+          delete h.uid;
           const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
           if (eraRespuesta) terminarReplyAdmin(h);
           else { h.borrador = ""; h.foto = null; h.etq = []; }
@@ -1463,6 +1566,7 @@ window.interpretarAgenda = function (texto, hoy) {
         datos.para = { todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
       }
       if (f._fotos && f._fotos.length) datos.fotos = f._fotos;
+      if(f.dataset.tipo==="aviso")datos.uid = f._castaUid || (f._castaUid=crypto.randomUUID());
       const b = f.querySelector("button[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
       try { await post("agenda", datos); toast("Guardado"); if (datos.fecha && f.dataset.tipo === "evento") st.sel = datos.fecha; await cargar(); const n = c.querySelector("form.aform input[name=titulo]"); n && n.focus(); }
       catch (e) { if (e.message !== "sesion") f.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }

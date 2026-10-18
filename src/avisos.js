@@ -6,6 +6,18 @@
 import { asegurarEsquemaAgenda, normalizarPara, avisoParaEncargado } from "./agenda.js";
 
 export const MAX_COMENTARIO = 1000;
+ 
+// Idempotencia sin tablas nuevas: una operación con el mismo uid, autor y destino
+// genera la misma clave primaria. Las capturas antiguas sin uid siguen funcionando.
+export async function idOperacionCastagram(tipo, uid, autor, itemId = "") {
+  if (uid == null || uid === "") return crypto.randomUUID();
+  if (!/^[a-z0-9-]{8,40}$/i.test(String(uid))) throw new Error("Identificador de operación inválido.");
+  const input = new TextEncoder().encode(["castagram", tipo, String(autor).toUpperCase(), itemId, uid].join(":"));
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  const h = [...bytes.slice(0, 16)].map(x => x.toString(16).padStart(2, "0")).join("");
+  return h.slice(0, 8)+"-"+h.slice(8, 12)+"-"+h.slice(12, 16)+"-"+h.slice(16, 20)+"-"+h.slice(20, 32);
+}
+
 // Las fotografías de Castagram heredan el acceso y el estado de su publicación.
 export const fotoAvisoPermitida = (item, persona, turno, comentarioBorrado = false) =>
   !!item && item.estado === "activo" && !comentarioBorrado && avisoParaEncargado(item, persona, turno);
@@ -89,10 +101,15 @@ export async function resumenConversaciones(env, avisos, persona) {
     ? await enLotes(env, "SELECT item_id, persona, at FROM agenda_lecturas WHERE persona != 'ADMIN' AND item_id IN (?)", ids)
     : [];
   const autor = autorDe(persona);
+  // Una sola agrupación O(comentarios + confirmaciones) en lugar de filtrar
+  // todos los comentarios una y otra vez por publicación.
+  const porAviso = new Map(), porRecibos = new Map();
+  for(const c of coms){if(!porAviso.has(c.item_id))porAviso.set(c.item_id,[]);porAviso.get(c.item_id).push(c);}
+  for(const r of confirmaciones){if(!porRecibos.has(r.item_id))porRecibos.set(r.item_id,[]);porRecibos.get(r.item_id).push(r);}
   for (const a of avisos) {
-    const l = coms.filter(c => c.item_id === a.id), vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
+    const l = porAviso.get(a.id) || [], vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
     const recibos = persona === "ADMIN" && (a.autor || "admin") === "admin"
-      ? confirmaciones.filter(c => c.item_id === a.id) : [];
+      ? porRecibos.get(a.id) || [] : [];
     const conf = resumenEnterados(recibos, vistos.get(a.id));
     const ultimoComentario = u && u.creado > a.creado ? u.creado : a.creado;
     out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)),
@@ -117,11 +134,8 @@ export async function conversacion(env, item, persona, { historial = false } = {
 
 export async function marcarVisto(env, itemId, persona, ahora = new Date().toISOString()) {
   await asegurarEsquemaAvisos(env);
-  // Abrir la conversación solo cuenta como "visto". El "Enterado" de un encargado es aparte (botón Enterado);
-  // la administración, al abrirla, sí queda como enterada.
-  const st = [env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora)];
-  if (persona === "ADMIN") st.push(env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(itemId, persona, ahora));
-  await env.DB.batch(st);
+  // Leído/Visto nunca confirma Enterado. La confirmación requiere un POST expreso.
+  await env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora).run();
 }
 
 // ¿Puede esta persona ver (y comentar) el aviso? La administración, siempre.
@@ -129,7 +143,7 @@ export const puedeVer = (item, persona, turno) => persona === "ADMIN" || avisoPa
 
 // Nuevo comentario. autor: "admin" o clave del encargado. foto: llave ya guardada (o null).
 // Devuelve { comentario, etiquetadas, notificar: { admin, tablet } }
-export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [] }, claves, ahora = new Date().toISOString()) {
+export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [], confirmar_ampliacion = false, uid = null }, claves, ahora = new Date().toISOString()) {
   await asegurarEsquemaAvisos(env);
   if (item.tipo !== "aviso") throw new Error("Solo los avisos llevan comentarios.");
   if (item.estado !== "activo") throw new Error("Este aviso ya está archivado. Pide a la administración que lo reactive.");
@@ -137,9 +151,18 @@ export async function comentar(env, item, autor, { texto, foto = null, etiquetas
   if (!t && !foto) throw new Error("Escribe tu comentario.");
   const pedidas = [...(Array.isArray(etiquetas) ? etiquetas : []), ...menciones(t, claves)];
   const nuevas = etiquetasNuevas(item.para, pedidas, claves, item.autor);
+  if (nuevas.length && confirmar_ampliacion !== true)
+    throw new Error("Mencionar a un destinatario nuevo permite consultar toda la conversación anterior. Confirma expresamente la ampliación de audiencia.");
   const p = normalizarPara(item.para);
   const etqCom = [...new Set(pedidas.map(x => String(x).toUpperCase()).filter(k => (claves || []).map(c => String(c).toUpperCase()).includes(k)))];
-  const id = crypto.randomUUID();
+  const id = await idOperacionCastagram("comentar", uid, autor, item.id);
+  const previo = uid ? await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(id).first() : null;
+  if (previo) {
+    if (previo.item_id !== item.id || previo.autor !== autor)
+      throw new Error("El identificador del comentario ya fue utilizado.");
+    return { comentario: { ...previo, etiquetas: (()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})() },
+      etiquetadas: [], notificar: { admin: false, tablet: false }, repetido: true };
+  }
   const st = [
     env.DB.prepare("INSERT INTO aviso_comentarios (id, item_id, autor, texto, foto, etiquetas, creado) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, item.id, autor, t || "", foto, etqCom.length ? JSON.stringify(etqCom) : null, ahora),
     stmtHistorial(env, item.id, autor, "comentar", { id, texto: t, foto: foto ? 1 : 0 }, ahora),

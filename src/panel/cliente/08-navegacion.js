@@ -112,6 +112,8 @@
   });
   let ignorar = false;
   addEventListener("popstate", e => {
+    // Primero cierra fotografía/comentarios de Castagram; no cambiar el módulo.
+    if (document.querySelector("dialog.casta-visor[open], #ab-aviso dialog.casta-sheet[open], #ab-aviso [data-archivo-volver]")) return;
     if (ignorar) { ignorar = false; return; }
     const st = e.state || {};
     const z = zonaVisible();
@@ -128,7 +130,7 @@
 
   // ---- Teclado: ← → anterior y siguiente, Esc vuelve a la lista ----
   addEventListener("keydown", e => {
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing || e.keyCode === 229 || document.querySelector("dialog.casta-visor[open], #ab-aviso dialog.casta-sheet[open], #ab-aviso [data-archivo-volver]")) return;
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     const z = zonaVisible(); if (!z || !z.det.querySelector(":scope > .dnav")) return;
