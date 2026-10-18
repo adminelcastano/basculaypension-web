@@ -125,12 +125,27 @@ window.interpretarAgenda = function (texto, hoy) {
 
   async function cargar() {
     try {
-      const j = await api("agenda");
-      st.items = j.items; st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || [];
-       const castaOrden = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a,b)=>String(b.creado).localeCompare(String(a.creado)));
-       const castaUltimo = castaOrden[castaOrden.length-1];
-       st.castaCursor = castaUltimo ? castaUltimo.creado+"|"+castaUltimo.id : "";
-       st.castaMas = true; st.mesesAbiertos = j.meses_abiertos || [];
+      // La primera pantalla del muro llega sin esperar pagos/compras ni los 1000
+      // registros generales. Se conserva la consulta general para el resto de Agenda.
+      const esMuro = EC.ruta().mod === "agenda" && EC.ruta().vista === "aviso";
+      const feedP = esMuro ? api("agenda/avisos-feed").then(async f => {
+        if (!st.personas) try { st.personas = (await api("turno")).personas; } catch { st.personas = []; }
+        if (!st.hoy) st.hoy = EC.hoyMx();
+        if (!st.archivo && !document.activeElement?.closest("form")) {
+          st.items = [...st.items.filter(x => x.tipo !== "aviso"), ...f.items];
+          st.castaCursor = f.cursor; st.castaMas = f.mas;
+          pintarAvisos();
+        }
+        return f;
+      }).catch(()=>null) : Promise.resolve(null);
+      const j = await api("agenda"), feed = await feedP;
+      st.items = feed ? [...j.items.filter(x => x.tipo !== "aviso"), ...feed.items] : j.items;
+      st.hoy = j.hoy; st.pagosHechos = j.pagos_hechos || [];
+      const castaOrden = st.items.filter(x => x.tipo === "aviso" && abierto(x)).sort((a,b)=>String(b.creado).localeCompare(String(a.creado)));
+      const castaUltimo = castaOrden[castaOrden.length-1];
+      st.castaCursor = feed ? feed.cursor : castaUltimo ? castaUltimo.creado+"|"+castaUltimo.id : "";
+      st.castaMas = feed ? feed.mas : true;
+      st.mesesAbiertos = j.meses_abiertos || [];
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
       if (!st.mes) st.mes = j.hoy.slice(0, 7);
