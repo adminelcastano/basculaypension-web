@@ -25,8 +25,12 @@ export async function asegurarEsquemaCompras(env) {
 }
 
 // Registro de una compra hecha (para la memoria)
-export const stmtHistorialCompra = (env, it, { importe = null, fecha, lugar = null, gasto_id = null }) =>
-  env.DB.prepare("INSERT OR REPLACE INTO compras_historial (id, norm, titulo, lugar, cantidad, importe, fecha, gasto_id, categoria, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+// "exclusiva" impide que dos sesiones compren el mismo artículo simultáneamente.
+// La clave ag:<id> existe desde antes y se borra al devolver la compra a pendiente.
+export const stmtHistorialCompra = (env, it, { importe = null, fecha, lugar = null, gasto_id = null, exclusiva = false }) =>
+  env.DB.prepare(exclusiva
+    ? "INSERT INTO compras_historial (id, norm, titulo, lugar, cantidad, importe, fecha, gasto_id, categoria, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    : "INSERT OR REPLACE INTO compras_historial (id, norm, titulo, lugar, cantidad, importe, fecha, gasto_id, categoria, creado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     .bind("ag:" + it.id, normCompra(it.titulo), it.titulo, lugar || it.lugar || null, it.cantidad || null, importe, fecha, gasto_id, it.categoria || null, new Date().toISOString());
 
 // Si una compra regresa a pendiente, deja de contar en la memoria
