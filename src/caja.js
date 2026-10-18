@@ -696,13 +696,21 @@ export async function entregasAdmin(env, textoTabla, { aplicar = false, meses, h
 }
 
 // ticket_ref "servicio:folio" de un ticket de la hoja del mes pagado por transferencia y sin otra transferencia ligada
-async function validarTicketRef(env, valor, mes, excepto) {
+// El vínculo cambia cuánto se reconoce como ingreso: nunca asociar tickets
+// de importes distintos o folios ambiguos sin un modelo explícito de abonos.
+export async function validarTicketRef(env, valor, mes, excepto, importe = null) {
   const v = String(valor ?? "").trim();
   if (!v) return null;
   const m = /^(bascula|pension):(.{1,40})$/.exec(v);
   if (!m) return { error: "Ticket inválido." };
-  const t = (await env.DB.prepare("SELECT forma FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
-  if (!t.some(x => esTransf(x.forma))) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
+  const t = (await env.DB.prepare("SELECT forma, importe FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
+  const pagados = t.filter(x => esTransf(x.forma));
+  if (!pagados.length) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
+  if (pagados.length !== 1) return { error: "Hay varios tickets con ese folio. Revisa la hoja antes de vincular la transferencia; no se puede elegir uno con seguridad." };
+  if (!(Number.isFinite(importe) && importe > 0))
+    return { error: "Escribe un importe válido para comparar con el ticket." };
+  if (Math.round(Number(pagados[0].importe) * 100) !== Math.round(importe * 100))
+    return { error: "El importe de la transferencia no coincide con el ticket de la hoja. No los vincules: si es un abono parcial o varios tickets, hay que conciliarlo por separado." };
   const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE ticket_ref = ? AND id != ?").bind(v, excepto || "").first();
   if (otra) return { error: `Ese ticket ya está ligado a la transferencia de ${otra.cliente}.` };
   return { ref: v };
@@ -1036,7 +1044,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     await asegurarEsquemaCuentas(env);
     const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
     // Ticket de la hoja pagado por transferencia al que corresponde (opcional)
-    const ref = await validarTicketRef(env, c.ticket_ref, mes, null);
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, null, importe);
     if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
     await env.DB.batch([
       env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -1061,7 +1069,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
-    const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id);
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id, Number(x.importe));
     if (ref && ref.error) return json({ ok: false, error: ref.error }, 422);
     await env.DB.batch([
       env.DB.prepare("UPDATE caja_transf SET ticket_ref = ? WHERE id = ?").bind(ref ? ref.ref : null, x.id),
