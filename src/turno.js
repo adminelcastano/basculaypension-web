@@ -850,7 +850,12 @@ export async function turnoAdmin(request, env, url, partes) {
   if (partes[1] === "avatar" && partes[2] === "p" && request.method === "GET") return servirFotoPerfil(env, partes[3]);
   if (partes[1] === "avatar" && request.method === "GET") return servirAvatar(partes[2]);
 
-  if (partes[1] === "foto" && request.method === "GET") return servirFoto(env, partes[2]);
+  if (partes[1] === "foto" && request.method === "GET") {
+    const respuesta = await servirFoto(env, partes[2]);
+    let clave = ""; try { clave = decodeURIComponent(partes[2] || ""); } catch {}
+    if (/^tf:(aviso|inc):/.test(clave)) respuesta.headers.set("Cache-Control", "private, no-store");
+    return respuesta;
+  }
 
   if (partes[1] === "personas" && partes[3] === "eliminar" && request.method === "POST") {
     await env.DB.prepare("DELETE FROM turno_personas WHERE clave = ?").bind(partes[2]).run();
