@@ -9,7 +9,7 @@ const cfg=JSON.parse(raw.replace(/^\s*\/\/.*$/gm,""));
 const product=readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8");
 
 test("Configuración de ensayo jamás apunta a D1 productiva ni a la base de diagnóstico",()=>{
-  assert.equal(cfg.name,"castano-finanzas-app-ensayo");
+  assert.equal(cfg.name,"castano-finanzas-ensayo-20261018");
   assert.notEqual(cfg.name,"basculaypension-web");
   assert.equal(cfg.d1_databases.length,1);
   assert.equal(cfg.d1_databases[0].binding,"DB");
