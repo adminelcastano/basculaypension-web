@@ -1241,7 +1241,7 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("keyup", e => { const ta = e.target.closest("form.com-form textarea"); if (ta && !["Enter","Escape","ArrowDown","ArrowUp"].includes(e.key)) actualizarMenciones(ta.closest("form")); });
     el.addEventListener("keydown", teclaMencion);
     addEventListener("popstate",castaRegreso);
-    document.addEventListener("keydown",e=>{if(castaVisor?.open&&!e.isComposing&&e.keyCode!==229&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();castaFotoMover(e.key==="ArrowLeft"?-1:1);}},true);
+    document.addEventListener("keydown",e=>{if(castaVisor?.open&&!e.isComposing&&e.keyCode!==229&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&(["ArrowLeft","ArrowRight","Home","End"].includes(e.key))){e.preventDefault();e.stopPropagation();if(e.key==="Home"||e.key==="End"){castaIndex=e.key==="Home"?0:castaUrls.length-1;castaFotoPintar();}else castaFotoMover(e.key==="ArrowLeft"?-1:1);}},true);
     el.addEventListener("submit", async e => {
       const f = e.target;
       if (f.id === "arch-f") { e.preventDefault(); Object.assign(st.archivo, { q: f.q.value, persona: f.persona.value, desde: f.desde.value, hasta: f.hasta.value, pagina: 0 }); buscarArchivo(); return; }
