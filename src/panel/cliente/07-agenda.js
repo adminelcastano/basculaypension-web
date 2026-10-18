@@ -815,6 +815,8 @@ window.interpretarAgenda = function (texto, hoy) {
     dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
     el.append(dlg);
     dlg.showModal();
+    history.pushState({...history.state,casta_layer:"comentarios"},"",location.href);
+    dlg.addEventListener("cancel",e=>{e.preventDefault();castaHojaCerrar(dlg);});
   }
 
   function comentarioHtml(it, c, admin = true, editable = true) {
@@ -891,6 +893,29 @@ window.interpretarAgenda = function (texto, hoy) {
       castaSincronizar(caja);
     }));
   }
+
+
+  // Visor protegido que no sale del post al abrir una fotografía.
+  let castaVisor=null,castaFoco=null,castaUrls=[],castaIndex=0;
+  function castaFotoMover(paso){const n=castaIndex+paso;if(!castaVisor?.open||n<0||n>=castaUrls.length)return;castaIndex=n;castaFotoPintar();}
+  function castaFotoPintar(){if(!castaVisor?.open)return;const img=castaVisor.querySelector("img");img.src=castaUrls[castaIndex];img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;}
+  function castaFotoCerrar(pop=false){if(!castaVisor?.open)return;if(!pop&&history.state?.casta_layer==="foto"){history.back();return;}const d=castaVisor;castaVisor=null;d.close();d.remove();castaUrls=[];if(castaFoco?.isConnected)castaFoco.focus({preventScroll:true});castaFoco=null;}
+  function castaFotoAbrir(b){
+    if(castaVisor?.open)return;
+    const g=b.closest(".casta-carrusel,.post-fotos"),lista=g?[...g.querySelectorAll("[data-casta-foto-url]")]:[b];
+    castaUrls=lista.map(x=>x.dataset.castaFotoUrl).filter(u=>u?.startsWith("/panel/api/turno/foto/"));
+    castaIndex=lista.indexOf(b);if(!castaUrls.length||castaIndex<0)return;castaFoco=b;
+    const d=document.createElement("dialog");d.className="casta-visor";d.setAttribute("aria-label","Fotografías de Castagram");
+    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt=""><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
+    d.addEventListener("click",e=>{if(e.target===d||e.target.closest("[data-visor-cerrar]"))castaFotoCerrar();else{const z=e.target.closest("[data-visor-paso]");if(z)castaFotoMover(+z.dataset.visorPaso);}});
+    d.addEventListener("cancel",e=>{e.preventDefault();castaFotoCerrar();});
+    let touch=null;d.addEventListener("touchstart",e=>{if(e.touches.length===1)touch=[e.touches[0].clientX,e.touches[0].clientY];},{passive:true});
+    d.addEventListener("touchend",e=>{if(touch&&e.changedTouches.length){const dx=e.changedTouches[0].clientX-touch[0],dy=e.changedTouches[0].clientY-touch[1];if(Math.abs(dx)>60&&Math.abs(dx)>1.5*Math.abs(dy))castaFotoMover(dx<0?1:-1);}touch=null;},{passive:true});
+    document.body.append(d);castaVisor=d;d.showModal();castaFotoPintar();
+    history.pushState({...history.state,casta_layer:"foto"},"",location.href);
+  }
+  function castaHojaCerrar(d){if(history.state?.casta_layer==="comentarios")history.back();else d?.close();}
+  function castaRegreso(){if(castaVisor?.open&&history.state?.casta_layer!=="foto"){castaFotoCerrar(true);return;}const d=document.querySelector("#ab-aviso dialog.casta-sheet[open]");if(d&&history.state?.casta_layer!=="comentarios"&&history.state?.casta_layer!=="foto")d.close();}
 
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
