@@ -426,7 +426,13 @@ async function panel(request, env, url) {
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/panel";
   if (ruta === "/panel" && request.method === "GET") {
-    return new Response(await paginaPanel(), { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
+    let documento = await paginaPanel();
+    if (env.ENSAYO_FINANZAS === "1") {
+      // Señal permanente: nunca confundir un ensayo sintético con las cifras reales.
+      const aviso = '<div role="status" style="background:#fef3c7;color:#663c00;padding:12px 16px;text-align:center;font:700 15px system-ui,sans-serif;position:relative;z-index:9999">ENTORNO DE ENSAYO FINANCIERO · SOLO DATOS SINTÉTICOS · NO ES PRODUCCIÓN</div>';
+      documento = documento.replace(/<body>/, "<body>" + aviso);
+    }
+    return new Response(documento, { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
   }
   // Estilos y código del panel (con versión en la URL, se guardan en el navegador)
   if (request.method === "GET") { const r = await recursoPanel(ruta, url); if (r) return r; }
