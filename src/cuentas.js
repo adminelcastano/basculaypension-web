@@ -4,6 +4,7 @@
 //   gasto el día de la compra; pagar la tarjeta es un traspaso (no es un gasto nuevo, así no se cuenta dos veces).
 // Los cobros con tarjeta de los turnos caen en la cuenta marcada con `tarjeta = 1` (MDO PAGO).
 import { mesesAbiertos } from "./caja.js";
+import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
@@ -249,12 +250,30 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (tipo === "deposito" && cuentas[destino] && cuentas[destino].tipo === "credito") errores.destino = "Para abonar a una tarjeta de crédito usa «Pago de tarjeta de crédito».";
     if (tipo === "retiro" && cuentas[origen] && cuentas[origen].tipo === "credito") errores.origen = "El retiro de efectivo sale de una cuenta de débito.";
     if (Object.keys(errores).length) return json({ ok: false, error: Object.values(errores).join(" "), errores }, 422);
-    const id = crypto.randomUUID(), imp = Math.round(importe * 100) / 100, nota = String(c.nota || "").trim().slice(0, 200) || null;
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien),
-      stmtBitacora(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
-    ]);
+    let id;
+    try { id = await idFinanciero("mov", c.uid, quien); }
+    catch (er) { return json({ ok: false, error: er.message }, 422); }
+    const imp = Math.round(importe * 100) / 100, nota = String(c.nota || "").trim().slice(0, 200) || null;
+    const repetido = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM fin_movs WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.tipo === tipo && x.fecha === fecha && x.origen === origen && x.destino === destino
+        && centavosIguales(x.importe, imp) && (x.nota || null) === nota;
+      return igual ? json({ ok: true, id, repetido: true }) :
+        json({ ok: false, error: "Esta operación ya tiene otro importe, fecha o cuenta. Actualiza la lista antes de registrarla otra vez." }, 409);
+    };
+    const anterior = await repetido(); if (anterior) return anterior;
+    try {
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien),
+        stmtBitacora(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
+      ]);
+    } catch (er) {
+      // D1 protege la clave primaria incluso si dos sesiones escriben a la vez.
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
   if (partes[1] === "mov" && partes[3] === "eliminar") {
