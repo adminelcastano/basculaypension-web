@@ -77,3 +77,43 @@ test("Cuentas usadas o roles históricos impiden reinterpretación de saldos",()
   assert.match(cuentas,/Cambiarla entre débito y crédito reinterpretaría meses anteriores/);
   assert.match(cuentas,/Cambiar su cuenta por defecto alteraría saldos anteriores/);
 });
+
+test("Caja del panel conserva identidad al reintentar y asienta la bitácora",()=>{
+  const caja=source("../src/caja.js");
+  const uiCaja=source("../src/panel/cliente/03-caja.js");
+  for(const tipo of ["gasto-turno-admin","extra-turno-admin"])assert.match(caja,new RegExp("idFinanciero\\(\""+tipo+"\""));
+  assert.match(caja,/que:"Gasto de caja"/);
+  assert.match(caja,/que:"Ingreso extra de caja"/);
+  assert.match(uiCaja,/f\.dataset\.uid \|\| \(f\.dataset\.uid = crypto\.randomUUID\(\)\)/);
+  assert.match(uiCaja,/delete f\.dataset\.uid/);
+  assert.doesNotThrow(()=>new Function(uiCaja));
+});
+
+test("Compra agrupada puede reintentarse sin duplicar ticket ni perder cuenta",()=>{
+  const agenda=source("../src/agenda.js");
+  const ui=source("../src/panel/cliente/07-agenda.js");
+  const a=agenda.indexOf('if (partes[1] === "compras" && request.method');
+  const b=agenda.indexOf("// Archivo de avisos:",a);
+  assert.ok(a>0&&b>a);
+  const bloque=agenda.slice(a,b);
+  assert.match(bloque,/idFinanciero\("compra-ticket"/);
+  assert.match(bloque,/const anterior = await repetido\(\); if \(anterior\) return anterior/);
+  assert.match(bloque,/const ya = await repetido\(\); if \(ya\) return ya/);
+  assert.equal((bloque.match(/await normalizarMedio\(env, c\)/g)||[]).length,1);
+  assert.match(bloque,/gid = gidOperacion/);
+  assert.match(ui,/uidCompra = f\.dataset\.uid \|\| \(f\.dataset\.uid = crypto\.randomUUID\(\)\)/);
+  assert.match(ui,/uid: uidCompra/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
+
+test("Saldos parcialmente conocidos y sincronización no aparentan cifras completas",()=>{
+  const finanzas=source("../src/finanzas.js");
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  assert.match(finanzas,/dinero_parcial: deb\.some/);
+  assert.match(finanzas,/deuda_parcial: cred\.some/);
+  assert.match(finanzas,/d\.sync = await env\.FILES\.get\("caja:sync"/);
+  assert.match(ui,/Total parcial: faltan saldos/);
+  assert.match(ui,/Última actualización registrada de ingresos/);
+  assert.match(ui,/Puede haber consultas de la hoja sin cambios/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
