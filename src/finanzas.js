@@ -229,7 +229,9 @@ export async function datosFinanzas(env, mes) {
     movs: (await env.DB.prepare("SELECT * FROM fin_movs WHERE mes = ? ORDER BY fecha DESC, creado DESC").bind(mes).all()).results.map(m => ({ ...m, tipo_txt: TIPOS_MOV[m.tipo] || m.tipo, origen_txt: nomCuenta(m.origen), destino_txt: nomCuenta(m.destino) })),
     // Totales de las cuentas que ya tienen saldo (las que no, se listan en faltan_saldo)
     dinero: deb.some(c => c.saldo != null) ? r2(deb.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
+    dinero_parcial: deb.some(c => c.saldo == null),
     deuda: cred.some(c => c.saldo != null) ? r2(cred.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
+    deuda_parcial: cred.some(c => c.saldo == null),
     faltan_saldo: [...deb, ...cred].filter(c => c.saldo == null).map(c => c.nombre)
   };
 
@@ -277,6 +279,9 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
   if (partes.length === 1 && request.method === "GET") {
     const mes = RE_MES.test(url.searchParams.get("mes") || "") && meses.includes(url.searchParams.get("mes")) ? url.searchParams.get("mes") : meses[0];
     const d = await datosFinanzas(env, mes);
+    // Mostrar la frescura real de la fuente: una cifra de hoy puede proceder de
+    // la última sincronización de Google, no de una lectura en vivo.
+    d.sync = await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
     delete d.cortes; delete d.gastos_caja;
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
