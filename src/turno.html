@@ -257,8 +257,10 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 .casta-visor-panel button { display:grid; place-items:center; flex:none; width:48px; height:48px; border:0; border-radius:12px; font:inherit; font-size:30px; cursor:pointer; color:#fff; background:rgba(255,255,255,.12); }
 .casta-visor-panel button:focus-visible { outline:3px solid #ffcc00; outline-offset:2px; }
 .casta-visor-panel button:disabled { opacity:.25; cursor:default; }
-.casta-visor-centro { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:clamp(2px,2vw,20px); padding:8px; }
+.casta-visor-centro { position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:clamp(2px,2vw,20px); padding:8px; }
 .casta-visor-centro img { display:block; min-width:0; max-width:calc(100vw - 120px); max-height:calc(100dvh - 104px); width:auto; height:auto; object-fit:contain; }
+.casta-visor-estado { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#18181c; color:#fff; padding:12px 16px; border-radius:10px; text-align:center; pointer-events:none; max-width:65vw; }
+.casta-visor-estado[hidden] { display:none; }
 .casta-visor-n { font-variant-numeric:tabular-nums; font-size:15px; }
 @media(max-width:420px){.casta-visor-panel button {width:44px;height:44px}.casta-visor-centro img{max-width:calc(100vw - 100px)}.casta-visor-centro{gap:2px;padding:3px}}
 @media(prefers-reduced-motion:reduce){dialog.casta-visor *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
@@ -1321,7 +1323,16 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   // Visor protegido que no sale del post al abrir una fotografía.
   let castaVisor=null,castaFoco=null,castaUrls=[],castaIndex=0;
   function castaFotoMover(paso){const n=castaIndex+paso;if(!castaVisor?.open||n<0||n>=castaUrls.length)return;castaIndex=n;castaFotoPintar();}
-  function castaFotoPintar(){if(!castaVisor?.open)return;const img=castaVisor.querySelector("img");img.src=castaUrls[castaIndex];img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;}
+  function castaFotoPintar(){
+    if(!castaVisor?.open)return;
+    const img=castaVisor.querySelector("img"),estado=castaVisor.querySelector(".casta-visor-estado"),url=castaUrls[castaIndex];
+    estado.hidden=false;estado.textContent="Cargando fotografía…";img.style.visibility="hidden";
+    img.onload=()=>{if(castaVisor?.open&&img.getAttribute("src")===url){img.style.visibility="visible";estado.hidden=true;}};
+    img.onerror=()=>{if(castaVisor?.open&&img.getAttribute("src")===url)estado.textContent="No se pudo abrir esta fotografía.";};
+    img.alt="Foto "+(castaIndex+1)+" de "+castaUrls.length;img.src=url;
+    castaVisor.querySelector(".casta-visor-n").textContent=(castaIndex+1)+" / "+castaUrls.length;
+    for(const p of [-1,1])castaVisor.querySelector('[data-visor-paso="'+p+'"]').disabled=castaIndex+p<0||castaIndex+p>=castaUrls.length;
+  }
   function castaFotoCerrar(pop=false){if(!castaVisor?.open)return;if(!pop&&history.state?.casta_layer==="foto"){history.back();return;}const d=castaVisor;castaVisor=null;d.close();d.remove();castaUrls=[];if(castaFoco?.isConnected)castaFoco.focus({preventScroll:true});castaFoco=null;}
   function castaFotoAbrir(b){
     if(castaVisor?.open)return;
@@ -1329,7 +1340,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     castaUrls=lista.map(x=>x.dataset.castaFotoUrl).filter(u=>u?.startsWith("/turno/api/foto/"));
     castaIndex=lista.indexOf(b);if(!castaUrls.length||castaIndex<0)return;castaFoco=b;
     const d=document.createElement("dialog");d.className="casta-visor";d.setAttribute("aria-label","Fotografías de Castagram");
-    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt=""><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
+    d.innerHTML='<div class="casta-visor-panel"><header><button type="button" data-visor-cerrar aria-label="Cerrar fotografía">×</button><strong class="casta-visor-n" aria-live="polite"></strong></header><div class="casta-visor-centro"><button type="button" data-visor-paso="-1" aria-label="Fotografía anterior">‹</button><img alt="" decoding="async"><span class="casta-visor-estado" role="status">Cargando fotografía…</span><button type="button" data-visor-paso="1" aria-label="Fotografía siguiente">›</button></div></div>';
     d.addEventListener("click",e=>{if(e.target===d||e.target.closest("[data-visor-cerrar]"))castaFotoCerrar();else{const z=e.target.closest("[data-visor-paso]");if(z)castaFotoMover(+z.dataset.visorPaso);}});
     d.addEventListener("cancel",e=>{e.preventDefault();castaFotoCerrar();});
     let touch=null;d.addEventListener("touchstart",e=>{if(e.touches.length===1)touch=[e.touches[0].clientX,e.touches[0].clientY];},{passive:true});
