@@ -947,7 +947,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   if (soportaPush) navigator.serviceWorker.addEventListener("message", async e => {
     const m = e.data || {};
     if (!E || $("#app").hidden) return;
-    const ocupado = $("#dlg").open || sucio || seccion === "corte" || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+    const ocupado = $("#dlg").open || sucio || seccion === "corte" || !!document.querySelector("dialog.casta-visor[open], dialog.casta-sheet[open]") || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
     if (m.tipo === "push") { if (ocupado) await cargar().catch(() => {}); else { const y = scrollY; await refrescar().then(() => scrollTo({ top: y })).catch(() => {}); } }
     if (m.tipo === "abrir") { await cargar().catch(() => {}); if (!$("#dlg").open && ["avisos", "tareas", "incidencias", "calendario"].includes(m.sec)) ir(m.sec); }
   });
@@ -1141,7 +1141,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     dlg.dataset.av = id;
     dlg.setAttribute("aria-label", "Comentarios de " + a.titulo);
     dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" data-sheet-cerrar aria-label="Cerrar comentarios" class="casta-sheet-x">×</button></div>${hiloHtml(a)}`;
-    dlg.addEventListener("close", () => { hilosAb.delete(id); dlg.remove(); repintarPost(id); });
+    dlg.addEventListener("close", () => { hilosAb.delete(id); dlg.remove(); repintarPost(id); const volver=sec().querySelector(`[data-post="${CSS.escape(id)}"] [data-hilo]`); if(volver)volver.focus({preventScroll:true}); });
     dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
     sec().append(dlg);
     dlg.showModal();
