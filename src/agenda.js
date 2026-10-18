@@ -714,6 +714,30 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const ids = [...new Set((Array.isArray(c.ids) ? c.ids : []).map(String))].slice(0, 80);
     if (!ids.length) return json({ ok: false, error: "No hay artículos." }, 422);
+    let gidOperacion = null;
+    let repetido = async () => null;
+    if (partes[2] === "terminar") {
+      const quien = usuario && usuario.email || null;
+      try { gidOperacion = await idFinanciero("compra-ticket", c.uid, quien); }
+      catch (er) { return json({ok:false,error:er.message},422); }
+      await asegurarEsquemaCaja(env);
+      const total = cuentasTicket(ids, c.total, c.precios || {});
+      if (total.error) return json({ok:false,error:total.error},422);
+      await normalizarMedio(env, c);
+      const forma = ["EFECTIVO","TARJETA","TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
+      const dia = RE_DIA.test(String(c.fecha_compra||"")) ? String(c.fecha_compra) : hoyMx();
+      repetido = async () => {
+        const gasto = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(gidOperacion).first() : null;
+        if (!gasto) return null;
+        const filasPrev = (await env.DB.prepare("SELECT id FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gidOperacion).all()).results;
+        const coinciden = filasPrev.length === ids.length && filasPrev.every(f => ids.includes(f.id))
+          && centavosIguales(gasto.monto,total.total) && gasto.dia === dia && gasto.forma === forma
+          && (c.cuenta == null || (gasto.cuenta || null) === (c.cuenta || null));
+        return coinciden ? json({ok:true,gasto_id:gidOperacion,total:total.total,repetido:true}) :
+          json({ok:false,error:"Esta compra ya quedó registrada con otros datos. Revisa el ticket antes de intentar repetirla."},409);
+      };
+      const anterior = await repetido(); if (anterior) return anterior;
+    }
     const q = ids.map(() => "?").join(",");
     const filas = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(...ids).all()).results;
     if (partes[2] === "carrito") {
@@ -736,7 +760,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Categoría del egreso: la que más se repite entre los artículos
     const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }
     const cat = (await resolverCategoria(env, c.categoria)) || Object.entries(cats).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
-    const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = crypto.randomUUID();
+    const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
     const st = [env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
     for (const f of orden) {
       const imp = cu.precios[f.id] ?? null;
@@ -744,7 +768,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       st.push(stmtHistorialCompra(env, f, { importe: imp, fecha: dia, gasto_id: gid }));
     }
     st.push(stmtBitacora(env, { quien, accion: "crear", que: "Compra", ref: gid, mes: dia.slice(0, 7), detalle: { dia, concepto, importe: cu.total, forma, cuenta: cta, categoria: cat, articulos: orden.length } }));
-    await env.DB.batch(st);
+    try { await env.DB.batch(st); }
+    catch (er) { const ya = await repetido(); if (ya) return ya; throw er; }
     const deTablet = orden.filter(f => f.reporto);
     if (deTablet.length) await notificar(env, "tablet", { titulo: deTablet.length === 1 ? "Ya se compró: " + deTablet[0].titulo : `Ya se compraron ${deTablet.length} cosas que pidieron`, cuerpo: deTablet.map(f => `${f.titulo} (pidió ${f.reporto})`).join(", ").slice(0, 200), sec: "inicio", url: "/turno", etiqueta: "compra-" + gid });
     return json({ ok: true, gasto_id: gid, total: cu.total });
