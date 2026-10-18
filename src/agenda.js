@@ -594,7 +594,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (!TIPOS.includes(tipo)) return json({ ok: false, error: "Tipo inválido." }, 422);
     const { d, e } = validar(tipo, c);
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
-    const id = crypto.randomUUID();
+    const id = tipo === "aviso" ? await idOperacionCastagram("publicar", c.uid, usuario?.email || "admin") : crypto.randomUUID();
+    if (tipo === "aviso" && c.uid) {
+      const existe = await env.DB.prepare("SELECT id, tipo FROM agenda_items WHERE id = ?").bind(id).first();
+      if (existe) return existe.tipo === "aviso" ? json({ ok: true, id, repetido: true }) : json({ ok:false, error:"Identificador reutilizado." },409);
+    }
     // Incidencia desde el panel: fotos tomadas o subidas (opcional, varias)
     let fotos = [];
     // También los avisos llevan foto opcional
@@ -692,6 +696,15 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
   if (fila.tipo === "aviso" && partes[2] === "comentar" && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    if (c.uid) {
+      const uidId = await idOperacionCastagram("comentar", c.uid, "admin", fila.id);
+      const anterior = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
+      if (anterior) {
+        if (anterior.item_id !== fila.id || anterior.autor !== "admin")
+          return json({ ok:false, error:"Identificador de comentario reutilizado." },409);
+        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]});
+      }
+    }
     let foto = null;
     if (c.foto) { try { [foto] = await guardarFotosInc(env, [c.foto], "Comentario " + fila.titulo); } catch (er) { return json({ ok: false, error: er.message }, 422); } }
     const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all().catch(() => ({ results: [] }))).results.map(r => r.clave);
