@@ -219,31 +219,46 @@ export async function servirFoto(env, llave) {
   return new Response(r.value, { headers: { "Content-Type": (r.metadata && r.metadata.tipo) || "image/jpeg", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" } });
 }
 
+
+async function paginaAvisosTurno(env, s, hoy, cursor = "", limite = 50) {
+  // Primero se aplica autorización de destinatarios, después el límite.
+  const m = /^(\\d{4}-\\d\\d-\\d\\dT[^|]{8,28})\\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
+  let creado = m ? m[1] : "", id = m ? m[2] : "";
+  const visibles = [], lote = 120;
+  let mas = false, ultimo = "", consultas = 0;
+  while (visibles.length < limite && consultas++ < 100) {
+    const filtro = creado ? " AND (creado < ? OR (creado = ? AND id < ?))" : "";
+    const args = [hoy,...(creado ? [creado, creado, id] : []),lote];
+    const filas = (await env.DB.prepare(
+      "SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?)"+filtro+" ORDER BY creado DESC, id DESC LIMIT ?"
+    ).bind(...args).all()).results;
+    for(const a of filas) {
+      creado=a.creado; id=a.id;ultimo=creado+"|"+id;
+      if(avisoParaEncargado(a,s.persona,s.turno))visibles.push(a);
+      if(visibles.length===limite)break;
+    }
+    if(filas.length<lote){mas=false;break;}
+    mas=true;
+  }
+  const leidos = visibles.length ? new Set((await env.DB.prepare(
+    "SELECT item_id FROM agenda_lecturas WHERE persona = ? AND item_id IN ("+visibles.map(()=>"?").join(",")+")"
+  ).bind(s.persona,...visibles.map(a=>a.id)).all()).results.map(x=>x.item_id)) : new Set();
+  const conv = await resumenConversaciones(env,visibles,s.persona);
+  const avisos = visibles.map(a=>({...a,fotos:listaFotos(a),foto:undefined,autor:a.autor||"admin",
+    para:normalizarPara(a.para),propio:a.autor===s.persona,
+    leido:a.autor===s.persona||leidos.has(a.id),conv:conv[a.id]}))
+    .sort((a,b)=>String(b.conv?.actividad||b.creado).localeCompare(String(a.conv?.actividad||a.creado)));
+  return { avisos, cursor:ultimo, mas:mas && !!ultimo };
+}
+
 // ---------------------------------------------------------------------------
 // Datos que ve el encargado
 // ---------------------------------------------------------------------------
 async function estado(env, s) {
   const hoy = local().dia;
   const personas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, prefs FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, perfil: nombrePerfil(p), avatar_url: urlAvatar(p) }));
-  // Avisos: de la administración y de los encargados, solo los dirigidos a esta persona o a su turno (más los propios)
-  // Filtrar destinatarios ANTES de aplicar el límite del muro: 150 avisos ajenos
-  // no deben ocultar publicaciones más antiguas que sí puede consultar esta sesión.
-  const visibles = [];
-  const loteAvisos = 150;
-  for (let offset = 0; visibles.length < 50; offset += loteAvisos) {
-    const filas = (await env.DB.prepare("SELECT id, titulo, detalle, fecha, prioridad, creado, autor, para, foto, fotos FROM agenda_items WHERE tipo = 'aviso' AND estado = 'activo' AND (fecha IS NULL OR fecha <= ?) ORDER BY creado DESC, id DESC LIMIT ? OFFSET ?").bind(hoy, loteAvisos, offset).all()).results;
-    for (const a of filas) {
-      if (avisoParaEncargado(a, s.persona, s.turno)) visibles.push(a);
-      if (visibles.length === 50) break;
-    }
-    if (filas.length < loteAvisos) break;
-  }
-  const leidos = new Set((await env.DB.prepare("SELECT item_id FROM agenda_lecturas WHERE persona = ?").bind(s.persona).all()).results.map(r => r.item_id));
-  // Conversación de cada aviso: comentarios, nuevos para esta persona y último comentario; el muro va por actividad
-  const conv = await resumenConversaciones(env, visibles, s.persona);
-  const avisos = visibles
-    .map(a => ({ ...a, fotos: listaFotos(a), foto: undefined, autor: a.autor || "admin", para: normalizarPara(a.para), propio: a.autor === s.persona, leido: a.autor === s.persona || leidos.has(a.id), conv: conv[a.id] }))
-    .sort((x, y) => String(y.conv && y.conv.actividad || y.creado).localeCompare(String(x.conv && x.conv.actividad || x.creado)));
+  const pagina = await paginaAvisosTurno(env, s, hoy);
+  const { avisos } = pagina;
   // Tareas del turno, urgentes primero, con los informes que ya se mandaron
   const tareas = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, repetir, reporto, creado FROM agenda_items
     WHERE tipo = 'tarea' AND para_turno = 1 AND ${ABIERTO} AND (turno IS NULL OR turno = ?) AND (fecha IS NULL OR fecha <= ?)
@@ -284,7 +299,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -392,6 +407,8 @@ export async function turnoRuta(request, env, url, h) {
   if (!s) return json({ ok: false, error: "Tu sesión terminó. Vuelve a entrar con tu PIN.", sesion: false }, 401, { "Set-Cookie": cookie("", 0) });
 
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
+  if (partes[0] === "avisos" && partes[1] === "pagina" && request.method === "GET")
+    return json({ ok: true, ...(await paginaAvisosTurno(env, s, local().dia, url.searchParams.get("cursor") || "", 25)) });
 
   if (partes[0] === "foto" && request.method === "GET") {
     let esFotoCastagram = false;
