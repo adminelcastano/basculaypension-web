@@ -67,8 +67,13 @@ export async function asegurarEsquemaAvisos(env) {
   ]);
   // Migración aditiva: conserva el primer Enterado y permite retirar solo el like visual.
   const columnas = (await env.DB.prepare("PRAGMA table_info(aviso_com_enterados)").all()).results;
-  if (!columnas.some(c => c.name === "quitado"))
-    await env.DB.prepare("ALTER TABLE aviso_com_enterados ADD COLUMN quitado TEXT").run();
+  if (!columnas.some(c => c.name === "quitado")) {
+    try { await env.DB.prepare("ALTER TABLE aviso_com_enterados ADD COLUMN quitado TEXT").run(); }
+    catch (er) {
+      // Otra petición puede haber aplicado la columna mientras esta iniciaba.
+      if (!/duplicate column name|duplicate column/i.test(String(er?.message || ""))) throw er;
+    }
+  }
   listo = true;
 }
 
