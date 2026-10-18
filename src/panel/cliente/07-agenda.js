@@ -159,7 +159,7 @@ window.interpretarAgenda = function (texto, hoy) {
     // pagos programados, compras por hacer y pagos hechos
     const B = { "ab-calendario": vistaCalendario, "ab-tarea": vistaTareas, "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
       "pg-prog": vistaProgramados, "pg-comp": () => resumenPagos("compras") + vistaCompras(), "pg-hechos": vistaHechos };
-    for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { el.innerHTML = f(); conectar(el); } }
+    for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { if(id==="ab-aviso") pintarAvisos(); else {el.innerHTML = f(); conectar(el);} } }
     contadores();
     pintarConfig();
   }
@@ -1109,6 +1109,7 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("focusin", e => { const f = e.target.closest(".muro-nuevo form.aform"); if (f) f.classList.add("abierto"); });
     el.addEventListener("click", async e => {
       const t = e.target.closest("button"); if (!t || !el.contains(t)) return;
+      if(t.matches("[data-casta-foto-url]")){castaFotoAbrir(t);return;}
       const d = t.dataset;
       if (d.mentionPick) { elegirMencion(t.closest("form.com-form"), d.mentionPick); return; }
       if (t.matches("[data-casta-paso], [data-casta-ir]")) { castaMover(t); return; }
@@ -1127,7 +1128,7 @@ window.interpretarAgenda = function (texto, hoy) {
         pintarAvisos();
         await abrirHilo(id, true);
         if (t.classList.contains("pa")) { const ta = el.querySelector(`#com-${CSS.escape(id)}`); if (ta) ta.focus({ preventScroll: true }); }
-      } else if ("sheetCerrar" in d) { const sheet = t.closest("dialog.casta-sheet"); if (sheet) sheet.close(); }
+      } else if ("sheetCerrar" in d) { castaHojaCerrar(t.closest("dialog.casta-sheet")); }
       else if (d.responder) {
         const sheet = t.closest("dialog.casta-sheet"), id = sheet && sheet.dataset.av;
         if (id && st.hilos[id]) {
@@ -1184,6 +1185,8 @@ window.interpretarAgenda = function (texto, hoy) {
     el.addEventListener("click", e => { const ta = e.target.closest("form.com-form textarea"); if (ta) actualizarMenciones(ta.closest("form")); });
     el.addEventListener("keyup", e => { const ta = e.target.closest("form.com-form textarea"); if (ta && !["Enter","Escape","ArrowDown","ArrowUp"].includes(e.key)) actualizarMenciones(ta.closest("form")); });
     el.addEventListener("keydown", teclaMencion);
+    addEventListener("popstate",castaRegreso);
+    document.addEventListener("keydown",e=>{if(castaVisor?.open&&!e.isComposing&&e.keyCode!==229&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();e.stopPropagation();castaFotoMover(e.key==="ArrowLeft"?-1:1);}},true);
     el.addEventListener("submit", async e => {
       const f = e.target;
       if (f.id === "arch-f") { e.preventDefault(); Object.assign(st.archivo, { q: f.q.value, persona: f.persona.value, desde: f.desde.value, hasta: f.hasta.value, pagina: 0 }); buscarArchivo(); return; }
