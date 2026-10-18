@@ -1142,13 +1142,17 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
     const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id, Number(x.importe));
     if (ref && ref.error) return json({ ok: false, error: ref.error }, 422);
-    // Validar y escribir en una sola sentencia para impedir que dos sesiones
-    // liguen el mismo ticket antes de que la otra vea el nuevo vínculo.
+    const solicitado = ref ? ref.ref : null;
+    if ((x.ticket_ref || null) === solicitado) return json({ok:true,sin_cambios:true});
+    // La misma sentencia comprueba que el ticket sigue disponible Y que este
+    // registro no fue modificado por otra sesión mientras estaba abierto.
     const sql = ref
       ? `UPDATE caja_transf SET ticket_ref = ? WHERE id = ? AND mes = ?
+         AND COALESCE(ticket_ref, '') = ?
          AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?)`
-      : "UPDATE caja_transf SET ticket_ref = NULL WHERE id = ? AND mes = ?";
-    const params = ref ? [ref.ref, x.id, mes, mes, ref.ref, x.id] : [x.id, mes];
+      : "UPDATE caja_transf SET ticket_ref = NULL WHERE id = ? AND mes = ? AND COALESCE(ticket_ref, '') = ?";
+    const anterior = x.ticket_ref || "";
+    const params = ref ? [ref.ref, x.id, mes, anterior, mes, ref.ref, x.id] : [x.id, mes, anterior];
     const resultados = await env.DB.batch([
       env.DB.prepare(sql).bind(...params),
       stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "editar",
