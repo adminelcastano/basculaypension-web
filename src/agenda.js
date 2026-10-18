@@ -6,6 +6,7 @@ import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "
 import { stmtBitacora } from "./bitacora.js";
 import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras, cuentasTicket } from "./compras.js";
 import { notificar, enviarPush } from "./push.js";
+import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => { console.error("push", e && e.message); return 0; });
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
@@ -411,16 +412,37 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     await normalizarMedio(env, c);
     const v = await validarPagoHecho(env, c, null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
-    const gid = crypto.randomUUID(), pid = crypto.randomUUID();
+    const quien = usuario && usuario.email || null;
+    let gid, pid;
+    try {
+      gid = await idFinanciero("gasto-pago-suelto", c.uid, quien);
+      pid = await idFinanciero("pago-suelto", c.uid, quien);
+    } catch (er) { return json({ok:false,error:er.message},422); }
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
-    const cta = await cuentaDe(env, c, null, v.forma), quien = usuario && usuario.email || null;
-    // Egreso y pago en una sola operación: o quedan los dos o ninguno
-    await env.DB.batch([
-      env.DB.prepare(GASTO_ADMIN).bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
-      env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
-      stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
-    ]);
+    const cta = await cuentaDe(env, c, null, v.forma);
+    const repetido = async () => {
+      const p = c.uid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
+      if (!p) return null;
+      const igual = p.item_id === "" && p.fecha === v.fecha && p.titulo === v.titulo
+        && p.forma === v.forma && centavosIguales(p.importe, v.importe)
+        && (p.cuenta || null) === (cta || null) && (p.categoria || null) === (cat || null)
+        && (p.nota || null) === (v.nota || null) && p.gasto_id === gid;
+      return igual ? json({ok:true,id:pid,repetido:true}) :
+        json({ok:false,error:"Esta operación ya registró otro pago o importe. Actualiza los pagos hechos y verifica antes de repetirla."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
+    // Egreso y pago en una sola operación: o quedan los dos o ninguno.
+    try {
+      await env.DB.batch([
+        env.DB.prepare(GASTO_ADMIN).bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
+        env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
+        stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
+      ]);
+    } catch (er) {
+      const previo = await repetido(); if (previo) return previo;
+      throw er;
+    }
     return json({ ok: true, id: pid });
   }
   const pid = partes[2];
