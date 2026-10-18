@@ -117,3 +117,22 @@ test("Saldos parcialmente conocidos y sincronización no aparentan cifras comple
   assert.match(ui,/Puede haber consultas de la hoja sin cambios/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Una compra agrupada no se presenta como si el gasto completo fuera un solo artículo",async()=>{
+  const {clasificarAdmin}=await import("../src/finanzas.js");
+  const gasto={id:"ticket-1",mes:"2026-10",dia:"2026-10-18",forma:"EFECTIVO",cuenta:null,
+    concepto:"Compra en papelería: papel, plumones",monto:850,categoria:"Papelería"};
+  const db={prepare(sql){return {bind(){return {async all(){
+    if(sql.includes("FROM agenda_pagos"))return {results:[]};
+    if(sql.includes("FROM agenda_items"))return {results:[
+      {id:"a",gasto_id:"ticket-1",titulo:"Papel",cantidad:"2"},
+      {id:"b",gasto_id:"ticket-1",titulo:"Plumones",cantidad:"1"}
+    ]};
+    throw Error("SQL no reconocida "+sql);
+  }}}}};
+  const [fila]=await clasificarAdmin({DB:db},[gasto]);
+  assert.equal(fila.cat,"compra");
+  assert.equal(fila.monto,850);
+  assert.equal(fila.concepto,gasto.concepto);
+  assert.ok(!fila.concepto.startsWith("Plumones (1)"));
+});
