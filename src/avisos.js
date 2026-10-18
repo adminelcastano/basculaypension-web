@@ -10,7 +10,8 @@ export const MAX_COMENTARIO = 1000;
 // Idempotencia sin tablas nuevas: una operación con el mismo uid, autor y destino
 // genera la misma clave primaria. Las capturas antiguas sin uid siguen funcionando.
 export async function idOperacionCastagram(tipo, uid, autor, itemId = "") {
-  if (!/^[a-z0-9-]{8,40}$/i.test(String(uid || ""))) return crypto.randomUUID();
+  if (uid == null || uid === "") return crypto.randomUUID();
+  if (!/^[a-z0-9-]{8,40}$/i.test(String(uid))) throw new Error("Identificador de operación inválido.");
   const input = new TextEncoder().encode(["castagram", tipo, String(autor).toUpperCase(), itemId, uid].join(":"));
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
   const h = [...bytes.slice(0, 16)].map(x => x.toString(16).padStart(2, "0")).join("");
