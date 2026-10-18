@@ -45,12 +45,20 @@ async function clasificarAdmin(env, gastos) {
   for (let i = 0; i < ids.length; i += 90) {
     const l = ids.slice(i, i + 90), q = l.map(() => "?").join(",");
     for (const p of (await env.DB.prepare(`SELECT p.id, p.gasto_id, p.item_id, p.nota, p.comprobante, COALESCE(p.titulo, i.titulo) AS titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.gasto_id IN (${q})`).bind(...l).all()).results) pagos.set(p.gasto_id, p);
-    for (const c of (await env.DB.prepare(`SELECT id, gasto_id, titulo, cantidad FROM agenda_items WHERE tipo = 'compra' AND gasto_id IN (${q})`).bind(...l).all()).results) compras.set(c.gasto_id, c);
+    for (const c of (await env.DB.prepare(`SELECT id, gasto_id, titulo, cantidad FROM agenda_items WHERE tipo = 'compra' AND gasto_id IN (${q})`).bind(...l).all()).results) {
+      if (!compras.has(c.gasto_id)) compras.set(c.gasto_id, []);
+      compras.get(c.gasto_id).push(c);
+    }
   }
   return gastos.map(g => {
     const p = pagos.get(g.id), c = compras.get(g.id);
     const cat = p ? (p.item_id ? "programado" : "no_programado") : c ? "compra" : "otro";
-    const concepto = p ? p.titulo || g.concepto : c ? c.titulo + (c.cantidad ? ` (${c.cantidad})` : "") : g.concepto;
+    // Un egreso puede corresponder a VARIOS artículos comprados con un solo ticket.
+    // Mostrar un artículo aislado con el total completo es engañoso.
+    const concepto = p ? p.titulo || g.concepto : c
+      ? c.length === 1 ? c[0].titulo + (c[0].cantidad ? ` (${c[0].cantidad})` : "")
+        : (g.concepto || `Compra agrupada (${c.length} artículos)`)
+      : g.concepto;
     return { id: g.id, mes: g.mes, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cuenta: g.cuenta || null, cat, categoria: g.categoria || "Otros", nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
   });
 }
