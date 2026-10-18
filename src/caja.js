@@ -966,10 +966,30 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (!FORMAS_GASTO.includes(forma)) errores.forma = "Forma de pago inválida.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
-    const id = crypto.randomUUID();
+    const quien = usuario && usuario.email || null;
+    let id; try { id = await idFinanciero("gasto-turno-admin", c.uid, quien); }
+    catch (er) { return json({ok:false,error:er.message},422); }
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?)")
-      .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null, cat).run();
+    const repetido = async () => {
+      const g = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(id).first() : null;
+      if (!g) return null;
+      const igual = g.dia === dia && g.turno === turno && g.concepto === concepto
+        && centavosIguales(g.monto, monto) && g.forma === forma
+        && (g.categoria || null) === (cat || null) && g.origen === "caja";
+      return igual ? json({ok:true,id,repetido:true}) :
+        json({ok:false,error:"Este gasto ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
+    try {
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?)")
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), quien, cat),
+        stmtBitacora(env, { quien, accion:"crear", que:"Gasto de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,monto,forma,categoria:cat} })
+      ]);
+    } catch (er) {
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
 
@@ -1013,9 +1033,30 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!concepto) errores.concepto = "Elige el concepto.";
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
-    const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, new Date().toISOString(), usuario && usuario.email || null).run();
+    const quien = usuario && usuario.email || null;
+    let id; try { id = await idFinanciero("extra-turno-admin", c.uid, quien); }
+    catch (er) { return json({ok:false,error:er.message},422); }
+    const ingreso = cuentaComoIngreso(concepto) ? 1 : 0;
+    const repetido = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_extra WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.dia === dia && x.turno === turno && x.concepto === concepto
+        && (x.detalle || null) === (detalle || null) && centavosIguales(x.monto, monto)
+        && Number(x.ingreso) === ingreso;
+      return igual ? json({ok:true,id,repetido:true}) :
+        json({ok:false,error:"Este ingreso extra ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
+    try {
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, ingreso, new Date().toISOString(), quien),
+        stmtBitacora(env, { quien, accion:"crear", que:"Ingreso extra de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,detalle,monto,ingreso} })
+      ]);
+    } catch (er) {
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
   if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
