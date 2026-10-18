@@ -55,7 +55,9 @@
       {
         const D0 = v => dinero(v, 0);
         const cur = j.cortes.find(x => x.dia === ahora.dia && x.turno === ahora.turno);
-        const sinCorte = j.cortes.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
+        const historicos = new Set((j.historicos || []).map(h => h.dia + "|" + h.turno));
+        const sinCorte = j.cortes.filter(x => !x.conteo && !esAnteriorTablet(x.dia, x.turno) && !historicos.has(x.dia + "|" + x.turno) &&
+          (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
         EC.bloqueInfo("caja", "curso", { valor: cur ? D0((cur.efectivo || 0) + (cur.tarjeta || 0)) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
         EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
         EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
@@ -66,8 +68,10 @@
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
       for (const [f, id] of [[vistaCurso, "#c-curso"], [vistaMovs, "#c-movs"], [vistaEntregas, "#c-entregas"]]) try { f(j); } catch (er) { console.error(er); $(id).innerHTML = `<p class="note">No se pudo mostrar: ${esc(er.message)}</p>`; }
       if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
+      const mapaHist = new Map((j.historicos || []).map(x => [x.dia + "|" + x.turno, x]));
       const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
+        const hist = mapaHist.get(c.dia + "|" + c.turno);
         return `<button class="item citem" data-k="${esc(clave(c))}" ${st.actual === clave(c) ? 'aria-current="true"' : ""}>
           <svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg>
           <span class="svc ambos" aria-hidden="true" style="font-weight:700;font-size:var(--t-md)">${esc((TURNO_TXT[c.turno] || c.turno).slice(0, 1))}</span>
@@ -75,6 +79,7 @@
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
           ${c.conteo && c.conteo.admin ? `<span class="m"><span>Entrega de la administración</span><span>Sobre ${dinero(c.conteo.sobre || 0)}</span></span>` : c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
+          ${hist && !c.conteo ? `<span class="m"><span>Archivo histórico · ${esc({cuadra:"Cuadra",no_cuadra:"No cuadra",sin_datos:"Sin información",incompleto:"Incompleto",por_verificar:"Por verificar"}[hist.estado] || "Por verificar")}</span><span>No contable</span></span>` : ""}
           ${c.cambio_turno && Math.abs(c.cambio_turno.dif) >= 1 ? `<span class="m"><span>Cambio recibido</span>${difEtq(c.cambio_turno.dif)}</span>` : ""}
         </button>`;
       };
@@ -126,8 +131,10 @@
 
   // ---- Ficha de conciliación del corte: se lee de arriba abajo y cada paso dice si cuadra ----
   // cambio recibido → ventas e ingresos → gastos → debería haber → contado → reparto → cambio dejado
+  const esAnteriorTablet = (dia, turno) => dia < "2026-10-14" || (dia === "2026-10-14" && turno === "MAÑANA");
   function ficha(c, j, dia, turno) {
     const ahora = turnoActual(), enCurso = dia === ahora.dia && turno === ahora.turno;
+    const anteriorTablet = esAnteriorTablet(dia, turno);
     const k = c.conteo, ct = c.cambio_turno, cs = c.cambio_siguiente;
     const marca = (estado, txt) => `<span class="cf-m ${estado}">${estado === "ok" ? "✓" : estado === "mal" ? "!" : estado === "esp" ? "…" : "·"}<span class="sr"> ${esc(txt)}</span></span>`;
     const paso = (estado, titulo, valor, detalle = "", extra = "") => `<li class="cf-p ${estado}">${marca(estado, titulo)}<div class="cf-c"><div class="cf-l"><span>${titulo}</span><b>${valor}</b></div>${detalle ? `<p>${detalle}</p>` : ""}${extra}</div></li>`;
@@ -151,12 +158,30 @@
     // 5. Contado
     if (k && k.admin) pasos.push(paso("", "Entrega capturada por la administración", dinero(k.efectivo), "Turno sin corte en la tablet: el sobre, los retiros y el cambio los capturó la administración, sin conteo ciego."));
     else if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), Math.abs(k.dif_efectivo) < 1 ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
+    else if (j.historico) pasos.push(paso("", "Archivo de entrega histórica", "Documentado",
+      "Se conservó documentación anterior al uso de la tablet; no se modifica el corte contable."));
+    else if (anteriorTablet) pasos.push(paso("esp", "Registro histórico pendiente", "—",
+      "Este turno fue anterior al uso de la tablet. Revisa o archiva la información histórica; no se exige un corte de tablet."));
     else pasos.push(paso(enCurso ? "esp" : "mal", "Corte ciego", "—", enCurso ? "El turno sigue abierto: el encargado entrega el corte en la tablet al terminar." : "Nadie entregó el corte de este turno en la tablet."));
     // 6. Reparto
     if (k && k.sobre != null) {
       const rets = k.retiros || [], rep = (k.sobre || 0) + rets.reduce((a, r) => a + r.monto, 0) + (k.cambio_sig || 0), d = k.admin ? 0 : Math.round((k.efectivo - rep) * 100) / 100;
       pasos.push(paso(k.admin ? "" : Math.abs(d) < 0.01 ? "ok" : "mal", "Reparto", dinero(rep),
         `Sobre ${dinero(k.sobre || 0)}${rets.length ? " · retiros " + rets.map((r, i) => `${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") : ""} · cambio que dejó ${dinero(k.cambio_sig || 0)}${Math.abs(d) >= 0.01 ? ` · <b class="rojo">${d > 0 ? "faltan " + dinero(d) + " por repartir" : "sobran " + dinero(-d)}</b>` : ""}`));
+    }
+    // 7. Comparación documental histórica (sin asentarlo en Caja o Dinero).
+    if (j.historico) {
+      const h = j.historico;
+      const txt = {cuadra:"Cuadra",no_cuadra:"No cuadra",incompleto:"Datos incompletos",
+        sin_datos:"Sin información",por_verificar:"Por verificar"}[h.estado] || "Por verificar";
+      const val = v => v == null ? "—" : dinero(v);
+      const detalle = `Sobre ${val(h.sobre)} · taxi ${val(h.taxi)} · sueldo ${val(h.sueldo)} · cambio ${val(h.cambio)}`
+        + (h.contado == null ? " · Sin total contado independiente" : " · total contado " + dinero(h.contado))
+        + (h.dudoso ? " · Cifra con asterisco por verificar" : "")
+        + (h.diferencia == null ? "" : " · diferencia " + dinero(h.diferencia))
+        + ". No genera ingresos, egresos ni sobres.";
+      pasos.push(paso(h.estado === "cuadra" ? "ok" : h.estado === "no_cuadra" ? "mal" : "esp",
+        "Distribución histórica · " + txt, h.reparto == null ? "—" : dinero(h.reparto), detalle));
     }
     // 7. Cambio dejado al siguiente turno
     if (k && k.cambio_sig != null) pasos.push(paso(cs ? est(cs.dif) : k.admin ? "" : "esp", "Cambio para el siguiente turno", dinero(k.cambio_sig),
@@ -169,11 +194,20 @@
     if (k && Math.abs(k.dif_efectivo) >= 1) problemas.push("efectivo " + dif(k.dif_efectivo));
     if (k && k.dif_tarjeta != null && Math.abs(k.dif_tarjeta) >= 1) problemas.push("tarjeta " + dif(k.dif_tarjeta));
     if (cs && Math.abs(cs.dif) >= 1) problemas.push("cambio dejado " + dif(cs.dif));
-    if (!k && !enCurso) problemas.push("falta el corte");
-    const estado = problemas.length ? "mal" : !k ? "esp" : k.admin ? "" : "ok";
+    if (!k && !enCurso && !anteriorTablet && !j.historico) problemas.push("falta el corte");
+    const estado = problemas.length ? "mal" : !k ?
+      j.historico && j.historico.estado === "cuadra" ? "ok" :
+      j.historico && j.historico.estado === "no_cuadra" ? "mal" : "esp" :
+      k.admin ? "" : "ok";
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
-    return `<section class="card cficha ${estado}"><h3>Corte</h3>
-      <div class="cf-res ${estado}">${k && k.admin && !problemas.length ? "Entrega capturada por la administración" : estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") : "Revisar: " + esc(problemas.join(" · "))}</div>
+    return `<section class="card cficha ${estado}"><h3>${anteriorTablet && !k ? "Archivo histórico" : "Corte"}</h3>
+      <div class="cf-res ${estado}">${k && k.admin && !problemas.length ? "Entrega capturada por la administración" :
+        j.historico && !k ? (({ cuadra:"✓ Reparto histórico cuadrado", no_cuadra:"Reparto histórico con diferencia",
+          incompleto:"Archivo histórico incompleto", sin_datos:"Archivo histórico sin datos",
+          por_verificar:"Archivo histórico por verificar" })[j.historico.estado] || "Archivo histórico") :
+        anteriorTablet && !k ? "Antes de la tablet · " + (j.historico ? "Histórico" : "Pendiente de documentación") :
+        estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") :
+        "Revisar: " + esc(problemas.join(" · "))}</div>
       <ol class="cf">${pasos.join("")}</ol>
       <ol class="cf cf-aparte">${tj}</ol>
       ${c.fuera.n ? `<p class="note">No pasan por la caja: ${c.fuera.n} registros (${esc(fuera)}). Las transferencias cuentan como ingreso en Dinero.</p>` : ""}
@@ -366,8 +400,9 @@
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
     c.innerHTML = `<section class="card">
       <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
-      <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas de turnos sin tablet</summary>
+      <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas operativas (desde 14/oct tarde)</summary>
         <div class="cform" style="display:block;margin:0 0 14px">
+          <p class="note" style="margin:0 0 8px"><b>Atención: esta herramienta modifica los saldos de Dinero.</b> Para los 40 turnos anteriores al 14/oct tarde, utiliza «Cortes históricos» más abajo, que no afecta la contabilidad.</p>
           <p class="note" style="margin:0 0 8px">Pega una tabla con una línea por turno: <b>día, turno, sobre, taxi, sueldo y cambio que dejó</b> (separada por tabuladores, como al copiar de una hoja). «—» o vacío = sin dato. Primero se revisa; no se guarda nada hasta que confirmes. El sueldo o taxi que ya está como renglón en la hoja de ese turno no se cuenta dos veces, y los turnos que entregaron en la tablet no se cambian.</p>
           <textarea id="c-imp-t" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)" placeholder="01/oct&#9;Tarde&#9;$3,500&#9;$200&#9;—&#9;$130"></textarea>
           <div class="row" style="margin-top:8px"><button class="btn btn-primary" type="button" id="c-imp-rev">Revisar</button></div>
@@ -377,7 +412,71 @@
       ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
+    // Archivo histórico: nunca llama al guardado de entregas que alimenta Dinero.
+    const hs = j.historicos || [];
+    const etqH = { cuadra: "Cuadra", no_cuadra: "No cuadra", incompleto: "Incompleto",
+      sin_datos: "Sin datos", por_verificar: "Por verificar" };
+    c.innerHTML += `<section class="card">
+      <h3>Cortes históricos · 1 al 14 de octubre</h3>
+      <p class="note">Archivo documental anterior al uso de la tablet. No registra sobres, ingresos, retiros ni gastos contables.
+        El cero significa $0 conocido; el guion «—» significa dato no disponible. Para marcar «Cuadra» o «No cuadra»
+        se requiere el total contado independiente, que puedes agregar como séptima columna.</p>
+      <div class="ctot">
+        <div class="k"><span>Archivados</span><b>${hs.length} / 40</b></div>
+        <div class="k"><span>Cuadran</span><b>${hs.filter(h => h.estado === "cuadra").length}</b></div>
+        <div class="k"><span>No cuadran</span><b>${hs.filter(h => h.estado === "no_cuadra").length}</b></div>
+        <div class="k"><span>Por verificar</span><b>${hs.filter(h => h.estado !== "cuadra" && h.estado !== "no_cuadra").length}</b></div>
+      </div>
+      <details id="ch-importar"><summary class="btn btn-line" style="cursor:pointer;display:inline-flex">Revisar o archivar los cortes antiguos</summary>
+        <p class="note">Copia filas de Excel o del archivo de cortes:
+          <b>fecha · turno · sobre · taxi · sueldo · cambio · total contado (opcional) · nota (opcional)</b>.
+          La vista previa no guarda nada. Los turnos ya archivados conservan historial cuando se corrigen.</p>
+        <textarea id="ch-texto" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)"
+          placeholder="02-oct&#9;Tarde&#9;$185&#9;$15&#9;—&#9;$22&#9;—"></textarea>
+        <div class="row" style="margin-top:8px"><button type="button" class="btn btn-primary" id="ch-revisar">Revisar sin guardar</button></div>
+        <div id="ch-resultado"></div>
+      </details>
+      ${hs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Archivo de cortes históricos">
+        <table class="cmovs"><thead><tr><th>Corte</th><th>Estado documental</th><th class="n">Distribuido</th><th class="n">Diferencia</th></tr></thead>
+        <tbody>${hs.map(h => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(h.dia + "|" + h.turno)}">${esc(diaTxt(h.dia))} · ${esc(TURNO_TXT[h.turno] || h.turno)}</button></td>
+          <td>${esc(etqH[h.estado] || "Por verificar")}${h.dudoso ? " · * por confirmar" : ""}</td>
+          <td class="n">${h.reparto == null ? "—" : dinero(h.reparto)}</td>
+          <td class="n">${h.diferencia == null ? "—" : dinero(h.diferencia)}</td></tr>`).join("")}</tbody></table></div>` : '<p class="note">Todavía no hay cortes históricos archivados.</p>'}
+    </section>`;
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
+    const ejecutarHistorico = async aplicar => {
+      const area = $("#ch-resultado"), texto = $("#ch-texto").value;
+      if (!texto.trim()) { area.innerHTML = '<p class="err">Pega los renglones de octubre.</p>'; return; }
+      area.innerHTML = '<p class="note">Revisando…</p>';
+      let data;
+      try { data = await api("caja/historicos", { method: "POST", body: JSON.stringify({ texto, aplicar }) }); }
+      catch (e) { if (e.message !== "sesion") area.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+      if (aplicar) {
+        if (data.aplicado) { toast("Archivo histórico guardado sin afectar Caja ni Dinero"); await cargar(); }
+        return;
+      }
+      const r = data.resumen;
+      area.innerHTML = `<div class="ctot" style="margin:10px 0">
+        <div class="k"><span>Turnos</span><b>${data.filas.length}</b></div>
+        <div class="k"><span>Completos con total que cuadra</span><b>${r.cuadra}</b></div>
+        <div class="k"><span>Diferencias</span><b>${r.no_cuadra}</b></div>
+        <div class="k"><span>Sin prueba suficiente</span><b>${r.por_verificar + r.incompleto + r.sin_datos}</b></div>
+      </div>
+      ${data.errores.length ? `<p class="err">${data.errores.map(e => `Línea ${e.linea}: ${esc(e.error)}`).join(" · ")}</p>` : ""}
+      <div class="tabla-scroll" tabindex="0" role="region" aria-label="Vista previa histórica"><table class="cmovs">
+      <thead><tr><th>Turno</th><th>Resultado</th><th class="n">Reparto</th><th>Acción</th></tr></thead>
+      <tbody>${data.filas.map(h => `<tr><td>${esc(diaTxt(h.dia))} · ${esc(TURNO_TXT[h.turno] || h.turno)}</td>
+        <td>${esc(etqH[h.estado] || "Por verificar")}</td>
+        <td class="n">${h.reparto == null ? "—" : dinero(h.reparto)}</td><td>${esc(h.accion)}</td></tr>`).join("")}</tbody></table></div>
+      ${!data.errores.length && data.filas.length ? '<div class="row" style="margin-top:12px"><button type="button" class="btn btn-primary" id="ch-guardar">Guardar archivo histórico</button></div>' : ""}`;
+      const boton = $("#ch-guardar");
+      if (boton) boton.addEventListener("click", async () => {
+        if (!window.confirm("¿Guardar como documentación histórica? No cambiará el dinero ni los cierres operativos.")) return;
+        boton.disabled = true;
+        await ejecutarHistorico(true);
+      });
+    };
+    $("#ch-revisar").addEventListener("click", () => ejecutarHistorico(false));
     const EST = { nueva: ["Se agrega", "ok"], reemplaza: ["Reemplaza la captura anterior", "ok"], tablet: ["Ya entregó en la tablet", "no"], vacia: ["Sin datos", "no"], fuera: ["Fuera del mes", "no"], repetida: ["Repetida", "no"] };
     const enviar = async aplicar => {
       const r = $("#c-imp-r"), t = $("#c-imp-t").value;

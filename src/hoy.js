@@ -1,6 +1,7 @@
 // Hoy: el tablero del panel en una sola llamada (/panel/api/hoy).
 // Junta, del lado del servidor, lo que antes pedía el navegador en 8 llamadas, y arma la lista de lo que pide atención.
 import { avisosSinLeer } from "./agenda.js";
+import { esTurnoHistorico } from "./caja-historicos.js";
 
 const TZ = "America/Mexico_City";
 const r2 = v => Math.round(v * 100) / 100;
@@ -47,7 +48,7 @@ export function armarHoy(d, ahora = new Date()) {
   const hora = Number(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hour12: false }).format(ahora)) % 24;
   const enTurno = (hora - ({ "MAÑANA": 6, TARDE: 14, NOCHE: 22 })[t.turno] + 24) % 24;
   const ant = { "MAÑANA": [sumaDias(t.dia, -1), "NOCHE"], TARDE: [t.dia, "MAÑANA"], NOCHE: [t.dia, "TARDE"] }[t.turno];
-  const sinCorte = pasados.filter(c => !c.conteo && c.registros > 0 && c.dia >= sumaDias(t.dia, -2) && !(enTurno < 1 && c.dia === ant[0] && c.turno === ant[1]));
+  const sinCorte = pasados.filter(c => !esTurnoHistorico(c.dia, c.turno) && !c.conteo && c.registros > 0 && c.dia >= sumaDias(t.dia, -2) && !(enTurno < 1 && c.dia === ant[0] && c.turno === ant[1]));
   if (sinCorte.length === 1) { const c = sinCorte[0]; add("alta", "sin-corte", `Corte sin entregar: ${diaCorto(c.dia, t.fecha)}, turno de la ${TURNO_TXT[c.turno]}`, `Tuvo ${c.registros} ${c.registros === 1 ? "registro" : "registros"} en la hoja y nadie entregó el corte en la tablet.`, { mod: "caja", corte: c.dia + "|" + c.turno }); }
   else if (sinCorte.length) add("alta", "sin-corte", `${sinCorte.length} cortes sin entregar`, sinCorte.slice(0, 4).map(c => `${diaCorto(c.dia, t.fecha)} ${TURNO_TXT[c.turno]}`).join(" · ") + ". Tuvieron registros en la hoja y nadie entregó el corte en la tablet.", { mod: "caja", corte: sinCorte[0].dia + "|" + sinCorte[0].turno }, sinCorte.length);
   const difs = [];

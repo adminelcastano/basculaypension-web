@@ -2,6 +2,7 @@ import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { esTurnoHistorico, listarHistoricos, procesarHistoricos } from "./caja-historicos.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
@@ -671,6 +672,13 @@ export async function entregasAdmin(env, textoTabla, { aplicar = false, meses, h
     const k = f.dia + "|" + f.turno, x = { ...f, retiros: [], avisos: [] };
     if (vistas.has(k)) { x.estado = "repetida"; x.avisos.push("Este turno ya venía en otra línea; se toma la primera."); lista.push(x); continue; }
     vistas.add(k);
+    // No transformar cortes anteriores al inicio de la tablet en sobres o retiros contables.
+    if (esTurnoHistorico(f.dia, f.turno)) {
+      x.estado = "fuera";
+      x.avisos.push("Turno anterior a la tablet: usa Cortes históricos (sin impacto contable).");
+      lista.push(x);
+      continue;
+    }
     if (!meses.includes(f.dia.slice(0, 7)) || f.dia > hoy) { x.estado = "fuera"; x.avisos.push("El día no está en el mes abierto."); lista.push(x); continue; }
     const ya = cortes.get(k);
     if (ya && !ya.admin) { x.estado = "tablet"; x.avisos.push("Este turno ya entregó su corte en la tablet; no se cambia."); lista.push(x); continue; }
@@ -716,6 +724,22 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
   const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
+
+  // Capturas históricas: sólo guardan documentación administrativa, no importes contables.
+  if (partes[1] === "historicos" && request.method === "POST") {
+    const c = await request.json().catch(() => null);
+    if (!c || typeof c.texto !== "string" || c.texto.length > 20000)
+      return json({ ok: false, error: "Tabla inválida o demasiado larga." }, 422);
+    if (c.aplicar === true && !meses.includes("2026-10"))
+      return json({ ok: false, error: "Octubre de 2026 está cerrado; no se permite cambiar documentación del mes." }, 409);
+    const estado = await procesarHistoricos(env, c.texto, {
+      aplicar: c.aplicar === true, quien: usuario && usuario.email || null
+    });
+    return json({ ok: true, ...estado });
+  }
+  if (partes[1] === "historicos" && request.method === "GET") {
+    return json({ ok: true, historicos: await listarHistoricos(env) });
+  }
 
   if (partes[1] === "pendiente" && partes[2] && partes[3] === "resolver" && request.method === "POST") {
     const id = decodeURIComponent(partes[2]);
@@ -888,6 +912,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes,
         conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN) });
     }
+    const historicos = await listarHistoricos(env);
     const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
@@ -901,7 +926,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       else totales.transferencias += x.monto;
       totales[x.servicio] += x.monto;
     }
-    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, mes, meses, periodo, sync, pendientes, cobros, totales, cortes, movimientos, transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes, categorias, historicos, conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN), turnos: TURNOS, formas_gasto: FORMAS_GASTO, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "corte" && request.method === "GET") {
@@ -931,6 +956,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
     }
     const historial = historialFilas.map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
+    const historico = (await listarHistoricos(env)).find(x => x.dia === dia && x.turno === turno) || null;
     // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
     const folios = Object.fromEntries((await conFolios(env, movimientosCaja({ movs: movs.map(m => ({ ...m, mes: m.mes || dia.slice(0, 7) })), gastos, extras, conteos }))).map(x => [x.ref, x.folio]));
     const vistos = new Map();
@@ -938,7 +964,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     for (const g of gastos) g.folio_mc = folios["g:" + g.id] || null;
     for (const x of extras) x.folio_mc = folios["x:" + x.id] || null;
     const folRet = conteos[0] ? leerRetiros(conteos[0].retiros).map((r, i) => folios[`r:${dia}|${turno}|${i}`] || null) : [];
-    return json({ ok: true, corte, movs, pendientes, gastos, extras, historial, folios_retiros: folRet, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, corte, movs, pendientes, historico, gastos, extras, historial, folios_retiros: folRet, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
   }
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
