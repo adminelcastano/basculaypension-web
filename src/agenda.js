@@ -1,5 +1,5 @@
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
-import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
+import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, enterarComentario, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
@@ -754,7 +754,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (anterior) {
         if (anterior.item_id !== fila.id || anterior.autor !== "admin")
           return json({ ok:false, error:"Identificador de comentario reutilizado." },409);
-        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]});
+        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:true});
       }
     }
     let foto = null;
@@ -763,7 +763,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let r; try { r = await comentar(env, fila, "admin", { texto: c.texto, foto, etiquetas: c.etiquetas, confirmar_ampliacion: c.confirmar_ampliacion === true, uid: c.uid }, claves, ahora); }
     catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
     if (r.notificar.tablet) await notificar(env, "tablet", { titulo: "Nueva actividad en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "avisos", url: "/turno?sec=avisos", etiqueta: "aviso-" + fila.id });
-    return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas });
+    return json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas, post_enterado: true });
+  }
+  if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && partes[4] === "enterado" && request.method === "POST") {
+    try { return json({ ok:true, ...(await enterarComentario(env, fila, partes[3], "ADMIN", ahora)) }); }
+    catch (er) { return json({ ok:false, error:er.message },422); }
   }
   if (fila.tipo === "aviso" && partes[2] === "comentarios" && partes[3] && ["editar", "borrar"].includes(partes[4]) && request.method === "POST") {
     let c = {}; try { c = await request.json(); } catch {}
