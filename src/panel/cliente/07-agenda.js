@@ -1054,7 +1054,7 @@ window.interpretarAgenda = function (texto, hoy) {
   }
 
   // ---- Archivo de avisos: todo lo archivado, con búsqueda, conversación e historial ----
-  const ACC_TXT = { publicar: "publicó el aviso", comentar: "comentó", etiquetar: "etiquetó a", editar: "editó un comentario", borrar: "borró un comentario", archivar: "archivó el aviso", reactivar: "reactivó el aviso", "editar-aviso": "cambió el aviso" };
+  const ACC_TXT = { publicar: "publicó el aviso", comentar: "comentó", etiquetar: "etiquetó a", editar: "editó un comentario", borrar: "borró un comentario", archivar: "archivó el aviso", reactivar: "reactivó el aviso", "editar-aviso": "cambió el aviso", "like-comentario": "dio Me gusta a un comentario", "quitar-like-comentario": "retiró Me gusta de un comentario" };
   function historialHtml(l) {
     return `<ol class="hist">${l.map(h => {
       const d = h.detalle || {};
