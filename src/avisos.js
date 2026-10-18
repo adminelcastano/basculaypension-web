@@ -6,6 +6,17 @@
 import { asegurarEsquemaAgenda, normalizarPara, avisoParaEncargado } from "./agenda.js";
 
 export const MAX_COMENTARIO = 1000;
+ 
+// Idempotencia sin tablas nuevas: una operación con el mismo uid, autor y destino
+// genera la misma clave primaria. Las capturas antiguas sin uid siguen funcionando.
+export async function idOperacionCastagram(tipo, uid, autor, itemId = "") {
+  if (!/^[a-z0-9-]{8,40}$/i.test(String(uid || ""))) return crypto.randomUUID();
+  const input = new TextEncoder().encode(["castagram", tipo, String(autor).toUpperCase(), itemId, uid].join(":"));
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  const h = [...bytes.slice(0, 16)].map(x => x.toString(16).padStart(2, "0")).join("");
+  return h.slice(0, 8)+"-"+h.slice(8, 12)+"-"+h.slice(12, 16)+"-"+h.slice(16, 20)+"-"+h.slice(20, 32);
+}
+
 // Las fotografías de Castagram heredan el acceso y el estado de su publicación.
 export const fotoAvisoPermitida = (item, persona, turno, comentarioBorrado = false) =>
   !!item && item.estado === "activo" && !comentarioBorrado && avisoParaEncargado(item, persona, turno);
