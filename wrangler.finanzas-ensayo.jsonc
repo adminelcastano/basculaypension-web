@@ -3,7 +3,7 @@
   // Configuración exclusivamente de compilación del panel integral en ensayo.
   // NO DESPLEGAR: sustituir el database_id por una D1 NUEVA, VACÍA y autorizada.
   // Nunca vincular castano-facturas ni la D1 sintética del diagnóstico.
-  "name": "castano-finanzas-app-ensayo",
+  "name": "castano-finanzas-ensayo-20261018",
   "main": "src/worker.js",
   "compatibility_date": "2026-06-01",
   "workers_dev": false,
