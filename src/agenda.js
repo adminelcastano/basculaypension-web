@@ -747,7 +747,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (filas.length !== ids.length) return json({ ok: false, error: "Algún artículo ya no está pendiente. Actualiza la lista." }, 409);
     const cu = cuentasTicket(ids, c.total, c.precios || {});
     if (cu.error) return json({ ok: false, error: cu.error }, 422);
-    await normalizarMedio(env, c);
+    // La forma se normalizó una sola vez antes de verificar el retry.
+    // Normalizar dos veces perdería la cuenta de C:<id>.
     const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
     await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
     const dia = RE_DIA.test(String(c.fecha_compra || "")) ? String(c.fecha_compra) : hoyMx();
