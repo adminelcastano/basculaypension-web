@@ -55,6 +55,13 @@ export default {
     // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
     env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
+    if (env.ENSAYO_FINANZAS === "1" && [
+      env.INGRESOS_URL, env.INGRESOS_TOKEN, env.AVISO_URL, env.AVISO_TOKEN,
+      env.CF_API_TOKEN, env.SENDGRID_API_KEY, env.RESEND_API_KEY,
+      env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REFRESH_TOKEN
+    ].some(Boolean)) {
+      return json({ok:false,error:"Configuración insegura del ensayo: hay servicios externos activos."},503);
+    }
     // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
     // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
     // variable explícita del Worker aislado (ausente en producción).
@@ -425,6 +432,11 @@ async function panel(request, env, url) {
   }
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/panel";
+  if (env.ENSAYO_FINANZAS === "1" && ruta === "/panel/api/ensayo/estado" && request.method === "GET") {
+    const esquema = await env.DB.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").first();
+    const kv = await env.FILES.get("ensayo:finanzas:prueba-kv-20261018", {type:"json"});
+    return json({ok:true,entorno:"FINANZAS_INTEGRAL_ENSAYO",tablas:Number(esquema?.total||0),kv_aislada:kv?.entorno==="KV-FINANZAS-ENSAYO",servicios_productivos:false});
+  }
   if (ruta === "/panel" && request.method === "GET") {
     let documento = await paginaPanel();
     if (env.ENSAYO_FINANZAS === "1") {
