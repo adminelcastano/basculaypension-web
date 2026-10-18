@@ -59,6 +59,8 @@ export async function asegurarEsquemaAvisos(env) {
       creado TEXT NOT NULL, editado TEXT, borrado TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS aviso_com_item ON aviso_comentarios (item_id, creado)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS aviso_vistos (item_id TEXT NOT NULL, persona TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (item_id, persona))"),
+    // Cada pulgar confirma Enterado sobre un comentario, por identidad. Nunca es un contador local.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS aviso_com_enterados (comentario_id TEXT NOT NULL, persona TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (comentario_id, persona))"),
     // Historial de cada aviso: publicar, comentar, etiquetar, editar, borrar, archivar, reactivar
     env.DB.prepare("CREATE TABLE IF NOT EXISTS aviso_historial (id TEXT PRIMARY KEY, item_id TEXT NOT NULL, at TEXT NOT NULL, quien TEXT NOT NULL, accion TEXT NOT NULL, detalle TEXT)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS aviso_hist_item ON aviso_historial (item_id, at)")
@@ -126,6 +128,18 @@ export async function conversacion(env, item, persona, { historial = false } = {
   const admin = persona === "ADMIN";
   const coms = (await env.DB.prepare("SELECT id, autor, texto, foto, etiquetas, creado, editado, borrado FROM aviso_comentarios WHERE item_id = ? ORDER BY creado").bind(item.id).all()).results
     .map(c => ({ ...c, etiquetas: (() => { try { return JSON.parse(c.etiquetas || "[]"); } catch { return []; } })(), ...(c.borrado && !admin ? { texto: "", foto: null } : {}) }));
+  const ids = coms.filter(c => !c.borrado).map(c => c.id);
+  const recibos = ids.length ? await enLotes(env,
+    "SELECT comentario_id, persona FROM aviso_com_enterados WHERE comentario_id IN (?)", ids) : [];
+  const totales = new Map(), propios = new Set();
+  for (const r of recibos) {
+    totales.set(r.comentario_id, (totales.get(r.comentario_id) || 0) + 1);
+    if (r.persona === persona) propios.add(r.comentario_id);
+  }
+  for (const c of coms) {
+    c.enterados = c.borrado ? 0 : totales.get(c.id) || 0;
+    c.mi_enterado = !c.borrado && propios.has(c.id);
+  }
   const out = { comentarios: coms };
   if (historial && admin) out.historial = (await env.DB.prepare("SELECT at, quien, accion, detalle FROM aviso_historial WHERE item_id = ? ORDER BY at").bind(item.id).all()).results
     .map(h => ({ ...h, detalle: (() => { try { return JSON.parse(h.detalle || "null"); } catch { return null; } })() }));
@@ -136,6 +150,27 @@ export async function marcarVisto(env, itemId, persona, ahora = new Date().toISO
   await asegurarEsquemaAvisos(env);
   // Leído/Visto nunca confirma Enterado. La confirmación requiere un POST expreso.
   await env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(itemId, persona, ahora).run();
+}
+
+// El pulgar de comentario equivale a Enterado, no a un "like" reversible.
+export async function enterarComentario(env, item, comentarioId, persona, ahora = new Date().toISOString()) {
+  await asegurarEsquemaAvisos(env);
+  if (!item || item.tipo !== "aviso" || item.estado !== "activo") throw new Error("La publicación ya no está disponible.");
+  const com = await env.DB.prepare("SELECT id FROM aviso_comentarios WHERE id = ? AND item_id = ? AND borrado IS NULL")
+    .bind(comentarioId, item.id).first();
+  if (!com) throw new Error("El comentario no está disponible.");
+  await env.DB.batch([
+    env.DB.prepare("INSERT OR IGNORE INTO aviso_com_enterados (comentario_id, persona, at) VALUES (?, ?, ?)")
+      .bind(comentarioId, persona, ahora),
+    // Quien confirma un comentario también confirma expresamente el post que lo contiene.
+    env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)")
+      .bind(item.id, persona, ahora),
+    env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at")
+      .bind(item.id, persona, ahora)
+  ]);
+  const fila = await env.DB.prepare("SELECT COUNT(*) AS total FROM aviso_com_enterados WHERE comentario_id = ?")
+    .bind(comentarioId).first();
+  return { comentario_id: comentarioId, enterados: Number(fila?.total || 0), mi_enterado: true, post_enterado: true };
 }
 
 // ¿Puede esta persona ver (y comentar) el aviso? La administración, siempre.
@@ -166,7 +201,10 @@ export async function comentar(env, item, autor, { texto, foto = null, etiquetas
   const st = [
     env.DB.prepare("INSERT INTO aviso_comentarios (id, item_id, autor, texto, foto, etiquetas, creado) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, item.id, autor, t || "", foto, etqCom.length ? JSON.stringify(etqCom) : null, ahora),
     stmtHistorial(env, item.id, autor, "comentar", { id, texto: t, foto: foto ? 1 : 0 }, ahora),
-    env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(item.id, personaDe(autor), ahora)
+    env.DB.prepare("INSERT INTO aviso_vistos (item_id, persona, at) VALUES (?, ?, ?) ON CONFLICT (item_id, persona) DO UPDATE SET at = excluded.at").bind(item.id, personaDe(autor), ahora),
+    // Publicar un comentario es una acción inequívoca: confirma Enterado del post.
+    env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)")
+      .bind(item.id, personaDe(autor), ahora)
   ];
   let para = p;
   if (nuevas.length) {
@@ -241,6 +279,7 @@ export async function borrarConversaciones(env, ids, borrarArchivo) {
   for (let i = 0; i < ids.length; i += 90) {
     const l = ids.slice(i, i + 90), q = l.map(() => "?").join(",");
     await env.DB.batch([
+      env.DB.prepare(`DELETE FROM aviso_com_enterados WHERE comentario_id IN (SELECT id FROM aviso_comentarios WHERE item_id IN (${q}))`).bind(...l),
       env.DB.prepare(`DELETE FROM aviso_comentarios WHERE item_id IN (${q})`).bind(...l),
       env.DB.prepare(`DELETE FROM aviso_vistos WHERE item_id IN (${q})`).bind(...l),
       env.DB.prepare(`DELETE FROM aviso_historial WHERE item_id IN (${q})`).bind(...l)
