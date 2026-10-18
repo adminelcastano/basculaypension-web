@@ -905,6 +905,26 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   if (partes[2] === "pagar" && request.method === "POST" && fila.tipo === "pago") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
+    const quien = usuario && usuario.email || null;
+    let gid, pid;
+    try {
+      gid = await idFinanciero("gasto-pago-programado", c.uid, quien, fila.id);
+      pid = await idFinanciero("pago-programado", c.uid, quien, fila.id);
+    } catch (er) { return json({ok:false,error:er.message},422); }
+    // Tras un éxito con respuesta perdida, la fecha programada de la ficha ya
+    // pudo avanzar. Revisar la operación antes de validar el nuevo periodo.
+    const repetido = async () => {
+      const p = c.uid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
+      if (!p) return null;
+      const importeRetry = leerMonto(c.importe);
+      const igual = p.item_id === fila.id && p.fecha === c.fecha && p.forma === c.forma
+        && centavosIguales(p.importe, importeRetry) && p.gasto_id === gid
+        && (p.nota || null) === (texto(c.nota, 300) || null)
+        && (c.cuenta == null || (p.cuenta || null) === (c.cuenta || null));
+      return igual ? json({ok:true,id:pid,gasto_id:gid,repetido:true}) :
+        json({ok:false,error:"Este intento ya guardó un pago con otros datos. Revisa Pagos hechos antes de registrar otro."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
     const v = await validarPagoHecho(env, c, fila);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const { fecha, importe, forma } = v;
@@ -914,12 +934,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const dup = await env.DB.prepare("SELECT fecha, importe FROM agenda_pagos WHERE item_id = ? AND (substr(fecha, 1, 7) = ? OR substr(COALESCE(programado, ''), 1, 7) = ?) ORDER BY creado DESC LIMIT 1").bind(fila.id, fecha.slice(0, 7), mesP).first();
       if (dup) return json({ ok: false, duplicado: dup, error: `Ya registraste un pago de «${fila.titulo}» el ${dup.fecha} por $${Number(dup.importe).toFixed(2)}.` }, 409);
     }
-    const gid = crypto.randomUUID(), pid = crypto.randomUUID();
     const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
-    const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma), quien = usuario && usuario.email || null;
+    const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma);
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
-    await env.DB.batch([
+    try { await env.DB.batch([
       env.DB.prepare(GASTO_ADMIN).bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta),
       env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, quien, fila.titulo, v.nota, cat, cta),
@@ -927,7 +946,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       !meses_ ? env.DB.prepare("UPDATE agenda_items SET estado = 'pagado', cerrado = ?, actualizado = ? WHERE id = ?").bind(ahora, ahora, fila.id)
         : env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sumarMeses(fila.fecha || fecha, meses_), ahora, fila.id),
       stmtBitacora(env, { quien, accion: "crear", que: "Pago programado", ref: pid, mes: fecha.slice(0, 7), detalle: { concepto: fila.titulo, fecha, importe, forma, cuenta: cta, categoria: cat, vencimiento: fila.fecha } })
-    ]);
+    ]); }
+    catch (er) { const previo = await repetido(); if (previo) return previo; throw er; }
     return json({ ok: true, gasto_id: gid, id: pid });
   }
 
