@@ -1215,7 +1215,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   function teclaMencion(e) {
     const ta = e.target.closest("form.com-form textarea"), form = ta && ta.closest("form");
     const caja = form && form.querySelector("[data-mention-list]");
-    if (!caja || caja.hidden) return;
+    if (!caja || caja.hidden || e.isComposing || e.keyCode === 229) return;
     const opciones = [...caja.querySelectorAll("[data-mention-pick]")];
     if (e.key === "Escape") { e.preventDefault(); caja.hidden = true; ta.setAttribute("aria-expanded", "false"); return; }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -1417,6 +1417,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     sec().innerHTML = `<div class="casta-identidad" role="heading" aria-level="1"><img src="/img/castagram-texto.png" alt="Castagram" width="300" height="79"></div><p class="casta-subtitulo">Publicaciones de la administración y los encargados, solo para sus destinatarios.</p>${castaActividadVistaTurno()}` + `
       <section class="card muro-nuevo"><button type="button" class="muro-btn" data-accion="aviso">${avi(E.persona)}<span>¿Qué necesitas avisar?</span><span class="btn btn-primary btn-sm">Publicar</span></button></section>
       <div class="muro">${E.avisos.length ? E.avisos.map(postHtml).join("") : `<p class="vacio">No hay avisos para ti.</p>`}</div>
+      ${E.avisos_mas ? `<button type="button" class="btn btn-line casta-mas" data-casta-mas>Mostrar publicaciones anteriores</button>` : ""}
       <p class="note muro-nota">Las publicaciones de Castagram permanecen aquí hasta que la administración las archive. Comenta en la misma publicación para dar seguimiento.</p>`;
     castaRestaurar(sec());
   }
@@ -1947,6 +1948,18 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     if (controlFoto) { castaMover(controlFoto); return; }
     const fotoCasta = e.target.closest("[data-casta-foto-url]");
     if (fotoCasta) { castaFotoAbrir(fotoCasta); return; }
+    const mas = e.target.closest("[data-casta-mas]");
+    if(mas) {
+      mas.disabled=true;mas.textContent="Cargando publicaciones…";
+      try {
+        const j=await api("avisos/pagina?cursor="+encodeURIComponent(E.avisos_cursor||""));
+        const vistos=new Set(E.avisos.map(a=>a.id));
+        E.avisos.push(...j.avisos.filter(a=>!vistos.has(a.id)));
+        E.avisos_cursor=j.cursor;E.avisos_mas=j.mas;
+        const prev=window.scrollY;verAvisos();window.scrollTo({top:prev});
+      } catch(err) {toast(errores(err),true);mas.disabled=false;mas.textContent="Mostrar publicaciones anteriores";}
+      return;
+    }
     const actividad = e.target.closest("[data-casta-evento]");
     if (actividad) {
       const id = actividad.dataset.castaEvento;
