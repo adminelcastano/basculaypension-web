@@ -859,7 +859,7 @@ window.interpretarAgenda = function (texto, hoy) {
     return `<div class="com ${c.borrado ? "borrado" : ""}">${avP(c.autor === "admin" ? "admin" : c.autor)}<div class="com-b">
       <div class="com-burb"><b>${esc(nomDe(c.autor))}</b>${c.borrado ? `<p class="com-t">Comentario borrado${admin && c.texto ? `: <s>${parrafos(c.texto)}</s>` : ""}</p>` : `${c.texto ? `<p class="com-t">${parrafos(c.texto)}</p>` : ""}`}
         ${!c.borrado && c.foto ? `<button type="button" class="com-foto casta-foto-abrir" data-casta-foto-url="${esc(urlFoto(c.foto))}" aria-label="Ampliar foto del comentario de ${esc(nomDe(c.autor))}"><img src="${urlFoto(c.foto)}" alt="Foto del comentario de ${esc(nomDe(c.autor))}" loading="lazy" decoding="async"></button>` : ""}</div>
-      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
+      <div class="com-m"><span>${esc(cuando(c.creado))}</span>${!c.borrado ? `<button type="button" class="casta-com-enterado ${c.mi_enterado ? "is-enterado" : ""}" data-com-enterado="${esc(c.id)}" data-av="${esc(it.id)}" aria-label="${c.mi_enterado ? "Enterado confirmado" : "Confirmar Enterado de este comentario"}" aria-pressed="${!!c.mi_enterado}" ${c.mi_enterado || !editable ? "disabled" : ""}><img src="/img/castagram-pulgar.png" alt="" width="18" height="18"> Enterado <small>${Number(c.enterados)||0}</small></button>` : ""}${editable && !c.borrado && c.autor !== "admin" ? `<button type="button" class="lnk" data-responder="${esc(c.autor)}">Responder</button>` : ""}${c.editado && !c.borrado ? "<span>Editado</span>" : ""}${(c.etiquetas || []).length ? `<span>Etiquetó a ${c.etiquetas.map(k => conMenciones("@" + k)).join(", ")}</span>` : ""}
         ${editable && !c.borrado ? `<button type="button" class="lnk" data-com-editar="${esc(c.id)}" data-av="${esc(it.id)}">Editar</button><button type="button" class="lnk peligro" data-com-borrar="${esc(c.id)}" data-av="${esc(it.id)}">Borrar</button>` : ""}</div></div></div>`;
   }
 
@@ -1208,6 +1208,26 @@ window.interpretarAgenda = function (texto, hoy) {
         if (sheet && st.hilos[sheet.dataset.av]) { terminarReplyAdmin(st.hilos[sheet.dataset.av]); pintarAvisos(); }
       } else if (d.comEmoji) {
         insertarEmojiCastagram(t.closest("form.com-form"), d.comEmoji);
+      } else if (d.comEnterado) {
+        const h=st.hilos[d.av], c=h?.comentarios?.find(x=>x.id===d.comEnterado);
+        if(!c || c.borrado || c.mi_enterado)return;
+        t.disabled=true;
+        try {
+          const r=await post(`agenda/${d.av}/comentarios/${d.comEnterado}/enterado`, {});
+          c.mi_enterado=true; c.enterados=r.enterados;
+          const it=st.items.find(x=>x.id===d.av);
+          if(it && r.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN")){
+            it.lecturas=[...(it.lecturas||[]),{persona:"ADMIN",at:new Date().toISOString()}];
+            const card=el.querySelector('[data-post="'+CSS.escape(d.av)+'"]');
+            if(card)card.outerHTML=postHtml(it);
+          }
+          t.classList.add("is-enterado");
+          t.setAttribute("aria-pressed","true");
+          t.setAttribute("aria-label","Enterado confirmado");
+          t.querySelector("small").textContent=String(r.enterados);
+          toast("Enterado confirmado");
+          contadores();
+        } catch(er) { if(er.message!=="sesion")toast(er.message); t.disabled=false; }
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];
@@ -1275,7 +1295,12 @@ window.interpretarAgenda = function (texto, hoy) {
           if (eraRespuesta) terminarReplyAdmin(h);
           else { h.borrador = ""; h.foto = null; h.etq = []; }
           if (etq.length) { const it = st.items.find(x => x.id === id); if (it && it.para && !it.para.todos) it.para.personas = [...new Set([...(it.para.personas || []), ...etq])]; }
-          const it = st.items.find(x => x.id === id); if (it) it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + 1, nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
+          const it = st.items.find(x => x.id === id);
+          if (it) {
+            it.conv = { ...(it.conv || {}), n: ((it.conv && it.conv.n) || 0) + (respuesta.repetido ? 0 : 1), nuevos: 0, actividad: respuesta.comentario?.creado || new Date().toISOString(), ...(respuesta.comentario ? { ultimo: respuesta.comentario } : {}) };
+            if (respuesta.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN"))
+              it.lecturas=[...(it.lecturas||[]),{persona:"ADMIN",at:new Date().toISOString()}];
+          }
           await abrirHilo(id, true);
           const ta = $(`#com-${CSS.escape(id)}`); ta && ta.focus();
         } catch (er) { if (er.message !== "sesion") err.textContent = er.message; b.disabled = false; b.textContent = h.responderA ? "Responder" : "Comentar"; }

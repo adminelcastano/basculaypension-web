@@ -15,7 +15,7 @@ import AV5 from "./avatares/a5.webp";
 
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos, errorDestinatariosCastagram } from "./agenda.js";
-import { idOperacionCastagram, asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar } from "./avisos.js";
+import { idOperacionCastagram, asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar, enterarComentario } from "./avisos.js";
 // El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
@@ -516,6 +516,12 @@ export async function turnoRuta(request, env, url, h) {
       await env.DB.prepare("INSERT OR IGNORE INTO agenda_lecturas (item_id, persona, at) VALUES (?, ?, ?)").bind(a.id, s.persona, ahora).run();
       return json({ ok: true });
     }
+    if (partes[2] === "comentarios" && partes[3] && partes[4] === "enterado" && request.method === "POST") {
+      try {
+        const recibido = await enterarComentario(env, a, partes[3], s.persona, ahora);
+        return recordar(json({ok:true,...recibido}));
+      } catch (er) { return json({ok:false,error:er.message},422); }
+    }
     if (partes[2] === "comentar" && request.method === "POST") {
       if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de comentario inválido." },422);
       if (c.uid) {
@@ -523,7 +529,7 @@ export async function turnoRuta(request, env, url, h) {
         const previo = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
         if(previo){
           if(previo.item_id!==a.id||previo.autor!==s.persona) return json({ok:false,error:"Identificador reutilizado."},409);
-          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]}));
+          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:!!(await env.DB.prepare("SELECT 1 FROM agenda_lecturas WHERE item_id = ? AND persona = ?").bind(a.id,s.persona).first())}));
         }
       }
       let foto = null;
@@ -533,7 +539,7 @@ export async function turnoRuta(request, env, url, h) {
       catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
       if (r.notificar.admin) await notificar(env, "admin", { titulo: "Nuevo comentario en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
       // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
-      return recordar(json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas }));
+      return recordar(json({ ok: true, comentario: r.comentario, etiquetadas: r.etiquetadas, post_enterado:true }));
     }
   }
 
