@@ -576,6 +576,18 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 @media (prefers-reduced-motion: reduce) { #toast-acc { transition: none; } }
 .muro, .tar, .agl { grid-template-columns: minmax(0, 1fr); }
 .post, .post-ult { min-width: 0; max-width: 100%; }
+/* Enterado de comentario: pulgar operativo, no un "like" social reversible. */
+.com-m .casta-com-enterado {
+  display:inline-flex; align-items:center; justify-content:center; gap:5px;
+  min-height:44px; padding:5px 9px; border:1px solid var(--line-2,#424249);
+  border-radius:999px; background:transparent; color:inherit; cursor:pointer;
+  font:inherit; font-weight:600; line-height:1.15;
+}
+.com-m .casta-com-enterado img { width:18px; height:18px; object-fit:contain; }
+.com-m .casta-com-enterado small { font-size:inherit; font-variant-numeric:tabular-nums; }
+.com-m .casta-com-enterado.is-enterado { color:var(--fg,#fff); background:rgba(255,204,0,.12); border-color:rgba(255,204,0,.45); }
+.com-m .casta-com-enterado:disabled { cursor:default; opacity:1; }
+.com-m .casta-com-enterado:focus-visible { outline:3px solid #ffcc00; outline-offset:2px; }
 </style>
 </head>
 <body>
