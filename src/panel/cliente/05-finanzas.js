@@ -262,7 +262,7 @@
       fm.tipo.addEventListener("change", pintarMov); pintarMov();
       fm.addEventListener("submit", async ev => {
         ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); bt.disabled = true; fm.querySelector(".err").textContent = "";
-        try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value, uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID()) }); toast("Movimiento registrado"); await cargar(); delete fm.dataset.uid; }
+        try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value, uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID()) }); toast("Movimiento registrado"); await cargar(); }
         catch (e) { if (e.message !== "sesion") fm.querySelector(".err").textContent = e.message; bt.disabled = false; }
       });
     }
@@ -276,7 +276,7 @@
       ft.ticket_ref.addEventListener("change", () => { const o = ft.ticket_ref.selectedOptions[0]; if (!o || !o.value) return; ft.importe.value = o.dataset.imp; ft.fecha.value = o.dataset.f; if (!ft.cliente.value.trim() && o.dataset.cli) ft.cliente.value = o.dataset.cli; });
       ft.addEventListener("submit", async ev => {
         ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); b.disabled = true; ft.querySelector(".err").textContent = "";
-        try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value, uid: ft.dataset.uid || (ft.dataset.uid = crypto.randomUUID()) }); toast("Transferencia guardada"); await cargar(); delete ft.dataset.uid; }
+        try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value, uid: ft.dataset.uid || (ft.dataset.uid = crypto.randomUUID()) }); toast("Transferencia guardada"); await cargar(); }
         catch (e) { if (e.message !== "sesion") ft.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
       });
     }
