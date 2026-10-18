@@ -137,7 +137,7 @@ export const puedeVer = (item, persona, turno) => persona === "ADMIN" || avisoPa
 
 // Nuevo comentario. autor: "admin" o clave del encargado. foto: llave ya guardada (o null).
 // Devuelve { comentario, etiquetadas, notificar: { admin, tablet } }
-export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [], confirmar_ampliacion = false }, claves, ahora = new Date().toISOString()) {
+export async function comentar(env, item, autor, { texto, foto = null, etiquetas = [], confirmar_ampliacion = false, uid = null }, claves, ahora = new Date().toISOString()) {
   await asegurarEsquemaAvisos(env);
   if (item.tipo !== "aviso") throw new Error("Solo los avisos llevan comentarios.");
   if (item.estado !== "activo") throw new Error("Este aviso ya está archivado. Pide a la administración que lo reactive.");
@@ -149,7 +149,14 @@ export async function comentar(env, item, autor, { texto, foto = null, etiquetas
     throw new Error("Mencionar a un destinatario nuevo permite consultar toda la conversación anterior. Confirma expresamente la ampliación de audiencia.");
   const p = normalizarPara(item.para);
   const etqCom = [...new Set(pedidas.map(x => String(x).toUpperCase()).filter(k => (claves || []).map(c => String(c).toUpperCase()).includes(k)))];
-  const id = crypto.randomUUID();
+  const id = await idOperacionCastagram("comentar", uid, autor, item.id);
+  const previo = uid ? await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(id).first() : null;
+  if (previo) {
+    if (previo.item_id !== item.id || previo.autor !== autor)
+      throw new Error("El identificador del comentario ya fue utilizado.");
+    return { comentario: { ...previo, etiquetas: (()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})() },
+      etiquetadas: [], notificar: { admin: false, tablet: false }, repetido: true };
+  }
   const st = [
     env.DB.prepare("INSERT INTO aviso_comentarios (id, item_id, autor, texto, foto, etiquetas, creado) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, item.id, autor, t || "", foto, etqCom.length ? JSON.stringify(etqCom) : null, ahora),
     stmtHistorial(env, item.id, autor, "comentar", { id, texto: t, foto: foto ? 1 : 0 }, ahora),
