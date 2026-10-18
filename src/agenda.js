@@ -472,9 +472,6 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
 // Rutas: /panel/api/agenda...
 export async function agendaPanel(request, env, url, partes, usuario) {
   await asegurarEsquemaAgenda(env);
-  await asegurarEsquemaCaja(env);
-  await asegurarEsquemaCategorias(env);
-  await asegurarEsquemaCuentas(env);
   const ahora = new Date().toISOString();
 
 
@@ -500,6 +497,10 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const ultimo=items[items.length-1];
     return json({ok:true,items,mas:rows.length>25,cursor:ultimo?ultimo.creado+"|"+ultimo.id:""});
   }
+
+  await asegurarEsquemaCaja(env);
+  await asegurarEsquemaCategorias(env);
+  await asegurarEsquemaCuentas(env);
 
   if (partes.length === 1 && request.method === "GET") {
     const tipo = url.searchParams.get("tipo");
