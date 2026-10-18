@@ -495,7 +495,7 @@ export async function turnoRuta(request, env, url, h) {
       let foto = null;
       try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
       const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
-      let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas }, claves, ahora); }
+      let r; try { r = await comentar(env, a, s.persona, { texto: c.texto, foto, etiquetas: c.etiquetas, confirmar_ampliacion: c.confirmar_ampliacion === true }, claves, ahora); }
       catch (er) { if (foto) await borrarArchivo(env, foto).catch(() => {}); return json({ ok: false, error: er.message }, 422); }
       if (r.notificar.admin) await notificar(env, "admin", { titulo: "Nuevo comentario en Castagram", cuerpo: "Abre Castagram para consultar la conversación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + a.id });
       // Los demás encargados lo ven marcado como nuevo en la tablet (no se manda push a la misma tablet)
