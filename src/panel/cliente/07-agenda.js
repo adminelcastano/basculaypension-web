@@ -830,7 +830,7 @@ window.interpretarAgenda = function (texto, hoy) {
     dlg.dataset.av = id;
     dlg.setAttribute("aria-label", "Comentarios de " + it.titulo);
     dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" class="casta-sheet-x" data-sheet-cerrar aria-label="Cerrar comentarios">×</button></div>${hiloHtml(it)}`;
-    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); });
+    dlg.addEventListener("close", () => { st.abiertosAv.delete(id); st.editCom = null; el.querySelectorAll('[data-hilo]').forEach(x => { if (x.dataset.hilo === id) x.setAttribute("aria-expanded", "false"); }); const volver=el.querySelector(`[data-post="${CSS.escape(id)}"] [data-hilo]`); if(volver)volver.focus({preventScroll:true}); });
     dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
     el.append(dlg);
     dlg.showModal();
