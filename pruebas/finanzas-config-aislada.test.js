@@ -48,3 +48,16 @@ test("El Worker de ensayo deniega endpoints públicos, crons y escrituras ajenas
   assert.match(code,/Solo se permiten operaciones financieras sintéticas/);
   assert.doesNotMatch(readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8"),/ENSAYO_FINANZAS/);
 });
+
+test("La salud del Worker integral se consulta después de Access y exige enlaces sintéticos",()=>{
+  const code=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8");
+  assert.match(code,/ruta === "\/panel\/api\/ensayo\/estado"/);
+  assert.match(code,/entorno:"FINANZAS_INTEGRAL_ENSAYO"/);
+  assert.match(code,/kv_aislada:kv\?\.entorno==="KV-FINANZAS-ENSAYO"/);
+  assert.match(code,/servicios_productivos:false/);
+  assert.match(code,/Configuración insegura del ensayo/);
+  const inicioPanel=code.indexOf("async function panel(request, env, url)");
+  const verificar=code.indexOf("const usuario = await verificarAcceso(request, env);",inicioPanel);
+  const estado=code.indexOf('ruta === "/panel/api/ensayo/estado"',inicioPanel);
+  assert.ok(verificar>inicioPanel && estado>verificar,"Nadie consulta D1 o KV de ensayo sin validar JWT de Access");
+});
