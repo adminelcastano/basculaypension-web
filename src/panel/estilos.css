@@ -1604,3 +1604,22 @@ dialog.casta-sheet .com-form .com-etq { max-height:85px; overflow-y:auto; }
 .perfil-admin-error { color:var(--bad); min-height:1.3em; margin:0; font-size:var(--t-sm); }
 .perfil-admin-acciones { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 @media(max-width:680px) { .perfil-admin-abrir { padding:2px; } .perfil-admin-abrir span, header.bar #yo { display:none; } .perfil-admin-dialog form { padding:16px; } }
+
+
+/* CASTAGRAM: visor dentro de la aplicación, accesible a teclado y a pantallas estrechas. */
+.casta-foto-abrir { display:block; width:100%; border:0; padding:0; margin:0; background:transparent; color:inherit; cursor:zoom-in; text-align:left; }
+.casta-foto-abrir img { display:block; width:100%; height:auto; }
+.casta-foto-abrir:focus-visible { outline:3px solid #ffcc00; outline-offset:-3px; border-radius:10px; }
+.com-foto.casta-foto-abrir { width:fit-content; max-width:100%; }
+dialog.casta-visor { position:fixed; inset:0; margin:auto; width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; padding:0; border:0; background:#09090b; color:#fff; overflow:hidden; }
+dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
+.casta-visor-panel { display:flex; flex-direction:column; height:100%; min-width:0; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); box-sizing:border-box; }
+.casta-visor-panel header { display:flex; align-items:center; gap:12px; justify-content:space-between; padding:8px 16px; flex:none; min-height:52px; }
+.casta-visor-panel button { display:grid; place-items:center; flex:none; width:48px; height:48px; border:0; border-radius:12px; font:inherit; font-size:30px; cursor:pointer; color:#fff; background:rgba(255,255,255,.12); }
+.casta-visor-panel button:focus-visible { outline:3px solid #ffcc00; outline-offset:2px; }
+.casta-visor-panel button:disabled { opacity:.25; cursor:default; }
+.casta-visor-centro { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:clamp(2px,2vw,20px); padding:8px; }
+.casta-visor-centro img { display:block; min-width:0; max-width:calc(100vw - 120px); max-height:calc(100dvh - 104px); width:auto; height:auto; object-fit:contain; }
+.casta-visor-n { font-variant-numeric:tabular-nums; font-size:15px; }
+@media(max-width:420px){.casta-visor-panel button {width:44px;height:44px}.casta-visor-centro img{max-width:calc(100vw - 100px)}.casta-visor-centro{gap:2px;padding:3px}}
+@media(prefers-reduced-motion:reduce){dialog.casta-visor *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
