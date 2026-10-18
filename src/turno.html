@@ -2000,20 +2000,31 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     if(pulgarComentario){
       const id=pulgarComentario.closest("dialog.casta-sheet")?.dataset.av, sesion=E;
       const h=id&&hilos[id], c=h?.comentarios?.find(x=>x.id===pulgarComentario.dataset.comEnterado);
-      if(!sesion || !c || c.borrado || c.mi_enterado)return;
+      if(!sesion || !c || c.borrado || pulgarComentario.disabled)return;
+      const antes=!!c.mi_enterado, totalAntes=Number(c.enterados)||0, deseado=!antes;
+      const pintar=(activo,total)=>{
+        pulgarComentario.classList.toggle("is-enterado",activo);
+        pulgarComentario.setAttribute("aria-pressed",String(activo));
+        pulgarComentario.setAttribute("aria-label",activo?"Quitar Me gusta":"Me gusta");
+        pulgarComentario.title=activo?"Quitar Me gusta":"Me gusta";
+        const n=pulgarComentario.nextElementSibling;
+        if(n?.classList.contains("casta-like-cuenta")){n.textContent=String(total);n.hidden=!total;n.setAttribute("aria-label",total+" Me gusta");}
+      };
+      c.mi_enterado=deseado;c.enterados=Math.max(0,totalAntes+(deseado?1:-1));
+      pintar(c.mi_enterado,c.enterados);
       pulgarComentario.disabled=true;
       try{
-        const r=await api(`avisos/${id}/comentarios/${c.id}/enterado`,{}, {cola:false});
+        // No enviar a cola: una reacción offline no equivale a confirmación del servidor.
+        const res=await api(`avisos/${id}/comentarios/${c.id}/enterado`,{activo:deseado}, {cola:false});
         if(E!==sesion || hilos[id]!==h)return;
-        c.mi_enterado=true;c.enterados=r.enterados;
+        c.mi_enterado=!!res.mi_enterado;c.enterados=Math.max(0,Number(res.enterados)||0);
+        if(pulgarComentario.isConnected)pintar(c.mi_enterado,c.enterados);
         const a=E.avisos.find(x=>x.id===id);
-        if(a&&r.post_enterado){a.leido=true;const tarjeta=sec().querySelector('[data-post="'+CSS.escape(id)+'"]');if(tarjeta)tarjeta.outerHTML=postHtml(a);}
-        pulgarComentario.classList.add("is-enterado");
-        pulgarComentario.setAttribute("aria-pressed","true");
-        pulgarComentario.setAttribute("aria-label","Enterado confirmado");
-        pulgarComentario.querySelector("small").textContent=String(r.enterados);
-        castaRefrescarActividadTurno();pintarCabecera();toast("Enterado confirmado");
-      }catch(er){if(E===sesion){pulgarComentario.disabled=false;toast(errores(er),true);}}
+        if(a&&res.post_enterado){a.leido=true;const tarjeta=sec().querySelector('[data-post="'+CSS.escape(id)+'"]');if(tarjeta)tarjeta.outerHTML=postHtml(a);}
+        castaRefrescarActividadTurno();pintarCabecera();
+      }catch(er){
+        if(E===sesion&&hilos[id]===h){c.mi_enterado=antes;c.enterados=totalAntes;if(pulgarComentario.isConnected)pintar(antes,totalAntes);toast(errores(er),true);}
+      }finally{if(pulgarComentario.isConnected)pulgarComentario.disabled=false;}
       return;
     }
     const actividad = e.target.closest("[data-casta-evento]");
