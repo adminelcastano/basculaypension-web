@@ -450,6 +450,19 @@ async function rutasPanel(request, env, url, usuario) {
   await asegurarEsquema(env);
   const partes = ruta.split("/").slice(3); // tras /panel/api/
 
+  // En el ensayo: ningún formulario ajeno al flujo financiero puede escribir.
+  if (env.ENSAYO_FINANZAS === "1" && request.method !== "GET" && request.method !== "HEAD") {
+    const financiero = ["finanzas", "caja", "categorias"].includes(partes[0]);
+    const agendaDinero = partes[0] === "agenda" && (
+      partes[1] === "pagos" || partes[1] === "compras" ||
+      (partes.length === 3 && partes[2] === "pagar") ||
+      (partes.length === 3 && partes[2] === "lugar") ||
+      (partes.length === 3 && partes[2] === "posponer")
+    );
+    if (!financiero && !agendaDinero)
+      return json({ok:false,error:"Solo se permiten operaciones financieras sintéticas en el ensayo."},403);
+  }
+
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "perfil-admin") return await rutaPerfilAdmin(request, env, partes[1] || "");
   // Notificaciones push del celular del administrador
