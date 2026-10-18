@@ -488,10 +488,14 @@ export async function turnoRuta(request, env, url, h) {
   if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
     const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
     if (Object.keys(e).length) return json({ ok: false, error: "Escribe el aviso.", errores: e }, 422);
+    const id = await idOperacionCastagram("publicar", c.uid, s.persona);
+    if (c.uid) {
+      const previo = await env.DB.prepare("SELECT id, autor FROM agenda_items WHERE id = ? AND tipo = 'aviso'").bind(id).first();
+      if (previo) return previo.autor === s.persona ? recordar(json({ok:true,id,repetido:true})) : json({ok:false,error:"Identificador de publicación reutilizado."},409);
+    }
     // Foto opcional (llega ya comprimida desde la tablet)
     let foto = null;
     try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
-    const id = crypto.randomUUID();
     await insertarItem(env, id, "aviso", d, `tablet:${s.persona}`, ahora, { autor: s.persona, ...(foto ? { foto } : {}) });
     await notificar(env, "admin", { titulo: d.prioridad === "alta" ? "Publicación importante en Castagram" : "Nueva publicación en Castagram", cuerpo: "Abre Castagram para ver la publicación.", sec: "aviso", url: "/panel?abrir=aviso", etiqueta: "aviso-" + id, grave: d.prioridad === "alta" });
     return recordar(json({ ok: true, id }));
@@ -510,6 +514,14 @@ export async function turnoRuta(request, env, url, h) {
       return json({ ok: true });
     }
     if (partes[2] === "comentar" && request.method === "POST") {
+      if (c.uid) {
+        const uidId = await idOperacionCastagram("comentar", c.uid, s.persona, a.id);
+        const previo = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
+        if(previo){
+          if(previo.item_id!==a.id||previo.autor!==s.persona) return json({ok:false,error:"Identificador reutilizado."},409);
+          return recordar(json({ok:true,repetido:true,comentario:{...previo,etiquetas:(()=>{try{return JSON.parse(previo.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[]}));
+        }
+      }
       let foto = null;
       try { foto = await guardarFoto(env, c.foto, "aviso"); } catch { return errFoto(); }
       const claves = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1").all()).results.map(r => r.clave);
