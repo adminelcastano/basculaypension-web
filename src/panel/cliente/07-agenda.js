@@ -1210,24 +1210,36 @@ window.interpretarAgenda = function (texto, hoy) {
         insertarEmojiCastagram(t.closest("form.com-form"), d.comEmoji);
       } else if (d.comEnterado) {
         const h=st.hilos[d.av], c=h?.comentarios?.find(x=>x.id===d.comEnterado);
-        if(!c || c.borrado || c.mi_enterado)return;
+        if(!c || c.borrado || t.disabled)return;
+        const antes=!!c.mi_enterado, totalAntes=Number(c.enterados)||0, deseado=!antes;
+        const pintar=(activo,total)=>{
+          t.classList.toggle("is-enterado",activo);
+          t.setAttribute("aria-pressed",String(activo));
+          t.setAttribute("aria-label",activo?"Quitar Me gusta":"Me gusta");
+          t.title=activo?"Quitar Me gusta":"Me gusta";
+          const n=t.nextElementSibling;
+          if(n?.classList.contains("casta-like-cuenta")){n.textContent=String(total);n.hidden=!total;n.setAttribute("aria-label",total+" Me gusta");}
+        };
+        // Respuesta inmediata como Instagram. La API confirma el estado y corrige la cifra.
+        c.mi_enterado=deseado;c.enterados=Math.max(0,totalAntes+(deseado?1:-1));
+        pintar(c.mi_enterado,c.enterados);
         t.disabled=true;
         try {
-          const r=await post(`agenda/${d.av}/comentarios/${d.comEnterado}/enterado`, {});
-          c.mi_enterado=true; c.enterados=r.enterados;
+          const res=await post(`agenda/${d.av}/comentarios/${d.comEnterado}/enterado`, {activo:deseado});
+          if(st.hilos[d.av]!==h)return;
+          c.mi_enterado=!!res.mi_enterado;c.enterados=Math.max(0,Number(res.enterados)||0);
+          if(t.isConnected)pintar(c.mi_enterado,c.enterados);
           const it=st.items.find(x=>x.id===d.av);
-          if(it && r.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN")){
+          if(it && res.post_enterado && !(it.lecturas||[]).some(x=>x.persona==="ADMIN")){
             it.lecturas=[...(it.lecturas||[]),{persona:"ADMIN",at:new Date().toISOString()}];
             const card=el.querySelector('[data-post="'+CSS.escape(d.av)+'"]');
             if(card)card.outerHTML=postHtml(it);
           }
-          t.classList.add("is-enterado");
-          t.setAttribute("aria-pressed","true");
-          t.setAttribute("aria-label","Enterado confirmado");
-          t.querySelector("small").textContent=String(r.enterados);
-          toast("Enterado confirmado");
           contadores();
-        } catch(er) { if(er.message!=="sesion")toast(er.message); t.disabled=false; }
+        } catch(er) {
+          if(st.hilos[d.av]===h){c.mi_enterado=antes;c.enterados=totalAntes;if(t.isConnected)pintar(antes,totalAntes);}
+          if(er.message!=="sesion")toast(er.message);
+        } finally { if(t.isConnected)t.disabled=false; }
       } else if (d.hiloReintentar) abrirHilo(d.hiloReintentar, true);
       else if (d.etq) {
         const f = t.closest("form"), h = st.hilos[f.dataset.av]; h.etq = h.etq || [];
