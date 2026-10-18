@@ -486,6 +486,7 @@ export async function turnoRuta(request, env, url, h) {
 
   // ---- Avisos ----
   if (partes[0] === "avisos" && partes.length === 1 && request.method === "POST") {
+    if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de publicación inválido." },422);
     const { d, e } = validarItem("aviso", { titulo: c.titulo, detalle: c.detalle, prioridad: c.prioridad === "alta" ? "alta" : "normal", para: c.para });
     const errorAudiencia = await errorDestinatariosCastagram(env, c.para);
     if (errorAudiencia) e.para = errorAudiencia;
@@ -516,6 +517,7 @@ export async function turnoRuta(request, env, url, h) {
       return json({ ok: true });
     }
     if (partes[2] === "comentar" && request.method === "POST") {
+      if (Object.hasOwn(c, "uid") && c.uid != null && c.uid !== "" && !/^[a-z0-9-]{8,40}$/i.test(String(c.uid))) return json({ ok:false, error:"Identificador de comentario inválido." },422);
       if (c.uid) {
         const uidId = await idOperacionCastagram("comentar", c.uid, s.persona, a.id);
         const previo = await env.DB.prepare("SELECT * FROM aviso_comentarios WHERE id = ?").bind(uidId).first();
