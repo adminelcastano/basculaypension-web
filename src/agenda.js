@@ -81,6 +81,30 @@ export async function asegurarEsquemaAgenda(env) {
   listo = true;
 }
 
+// En nuevas publicaciones se comprueban personas reales; nunca se amplía
+// inadvertidamente a "Todos" por un destinatario inválido.
+// La función de lectura normalizarPara conserva su compatibilidad histórica.
+export async function errorDestinatariosCastagram(env, entrada) {
+  let p = entrada;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch { return "Destinatarios inválidos."; } }
+  if (!p || typeof p !== "object" || Array.isArray(p)) return "Selecciona al menos un destinatario.";
+  if ((p.turnos != null && !Array.isArray(p.turnos)) || (p.personas != null && !Array.isArray(p.personas)))
+    return "Formato de destinatarios inválido.";
+  const turnos = p.turnos || [], personas = p.personas || [];
+  if (turnos.some(t => !TURNOS.includes(String(t).toUpperCase()))) return "Hay un turno destinatario inválido.";
+  if (personas.length > 30 || personas.some(k => !/^[A-ZÑ0-9_]{2,12}$/.test(String(k).toUpperCase())))
+    return "Hay una persona destinataria inválida.";
+  const claves = [...new Set(personas.map(k => String(k).toUpperCase()))];
+  if (claves.length) {
+    const filas = (await env.DB.prepare("SELECT clave FROM turno_personas WHERE activo = 1 AND clave IN (" + claves.map(() => "?").join(",") + ")").bind(...claves).all()).results;
+    if (new Set(filas.map(x => x.clave)).size !== claves.length)
+      return "Hay encargados que ya no están activos o no existen. Revisa los destinatarios.";
+  }
+  if (p.todos !== true && p.admin !== true && !turnos.length && !claves.length)
+    return "Selecciona al menos un destinatario.";
+  return null;
+}
+
 // Destinatarios de un aviso: { todos, admin, turnos: [...], personas: [...] }. Sin nada marcado = todos.
 export function normalizarPara(p) {
   if (typeof p === "string") { try { p = JSON.parse(p); } catch { p = null; } }
@@ -618,6 +642,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const tipo = String(c.tipo || "");
     if (!TIPOS.includes(tipo)) return json({ ok: false, error: "Tipo inválido." }, 422);
     const { d, e } = validar(tipo, c);
+    if (tipo === "aviso") { const error = await errorDestinatariosCastagram(env, c.para); if (error) e.para = error; }
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const id = tipo === "aviso" ? await idOperacionCastagram("publicar", c.uid, usuario?.email || "admin") : crypto.randomUUID();
     if (tipo === "aviso" && c.uid) {
@@ -769,6 +794,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
     const { d, e } = validar(fila.tipo, c, fila);
+    if (fila.tipo === "aviso" && Object.hasOwn(c, "para")) { const error = await errorDestinatariosCastagram(env, c.para); if (error) e.para = error; }
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
