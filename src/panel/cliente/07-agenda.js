@@ -580,8 +580,9 @@ window.interpretarAgenda = function (texto, hoy) {
       ev.preventDefault(); err.textContent = "";
       const precios = {}; if (f.detallar.checked) pr.querySelectorAll("[data-precio]").forEach(i => { if (i.value.trim()) precios[i.dataset.precio] = i.value; });
       const b = f.querySelector("[type=submit]"); b.disabled = true; b.textContent = "Registrando…";
+      const uidCompra = f.dataset.uid || (f.dataset.uid = crypto.randomUUID());
       try {
-        const r = await post("agenda/compras/terminar", { ids: carro.map(x => x.id), total: f.total.value, precios, forma: f.forma.value, fecha_compra: f.fecha_compra.value });
+        const r = await post("agenda/compras/terminar", { ids: carro.map(x => x.id), total: f.total.value, precios, forma: f.forma.value, fecha_compra: f.fecha_compra.value, uid: uidCompra });
         d.close(); st.tienda = null; toast(`Compra registrada: ${MXN(r.total)} en Dinero`); await cargar();
       } catch (e) { if (e.message !== "sesion") err.textContent = e.message; b.disabled = false; b.textContent = "Registrar compra"; }
     });
