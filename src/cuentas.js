@@ -185,6 +185,31 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      // Una cuenta que ya tiene movimientos no puede cambiar de débito a crédito:
+      // invierte la fórmula de todo su historial, también el de meses cerrados.
+      if ("tipo" in c && tipo !== f.tipo) {
+        const actividad = await env.DB.prepare(`SELECT
+          EXISTS(SELECT 1 FROM fin_movs WHERE origen = ? OR destino = ?) +
+          EXISTS(SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM caja_gastos WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM agenda_pagos WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM caja_transf WHERE cuenta = ?) AS usado`)
+          .bind(f.id, f.id, f.id, f.id, f.id, f.id).first();
+        if (actividad && actividad.usado)
+          return json({ok:false,error:"Esta cuenta ya tiene movimientos o saldos. Cambiarla entre débito y crédito reinterpretaría meses anteriores. Conserva el tipo y crea una cuenta nueva si corresponde."},409);
+      }
+      // Los cobros antiguos se asignan según el rol actual de estas cuentas.
+      // Impedir un cambio silencioso mientras no exista un historial de asignaciones por fecha.
+      for (const rol of ["tarjeta", "def_transf"]) if (c[rol]) {
+        const previa = await env.DB.prepare(`SELECT id FROM fin_cuentas WHERE ${rol} = 1 LIMIT 1`).first();
+        if (previa?.id !== f.id) {
+          const forma = rol === "tarjeta" ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'";
+          const usados = await env.DB.prepare(`SELECT 1 FROM caja_mov WHERE tipo = 'ticket' AND ${forma} LIMIT 1`).first();
+          if (usados) return json({ok:false,error:rol==="tarjeta"
+            ? "Hay cobros históricos con tarjeta. Cambiar la cuenta receptora alteraría los saldos anteriores. Mantén la cuenta actual hasta que se incorpore asignación por fecha."
+            : "Hay transferencias históricas de tickets. Cambiar su cuenta por defecto alteraría saldos anteriores. Mantén la asignación hasta contar con vigencias por fecha."},409);
+        }
+      }
       if (f.tarjeta && ("comision_pct" in c || "comision_iva" in c))
         return json({ ok: false, error: "La comisión histórica de Mercado Pago es fija: 3.50 % + IVA." }, 409);
       let pct = f.comision_pct, iva = f.comision_iva;
