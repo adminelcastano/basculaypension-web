@@ -1871,7 +1871,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     elegirChip("#i-area", () => {}); elegirChip("#i-grav", () => {});
   }
   function hojaAviso(base = {}) {
-    let fotoAviso = null;
+    let fotoAviso = null, uidAviso = nuevoUid();
     const ops = [["admin", "@Administración"], ["todos", "@Todos los encargados"], ...E.turnos.map(t => ["t:" + t, "@Turno " + TURNO_TXT[t].toLowerCase()]), ...E.personas.filter(p => p.clave !== E.persona).map(p => ["p:" + p.clave, "@" + esc(p.clave)])];
     const sel = []; // No seleccionar destinatarios automáticamente al publicar.
     hoja(`<h2>Publicar en Castagram</h2><p class="muted" style="margin:0 0 14px">Etiqueta a quién va dirigido. Solo lo ven ellos y la administración, y todos pueden comentar en la misma publicación.</p>
@@ -1884,7 +1884,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         const v = marcados("a-para");
         if (!v.length) throw new Error("Elige para quién es el aviso.");
         const para = { admin: v.includes("admin"), todos: v.includes("todos"), turnos: v.filter(x => x.startsWith("t:")).map(x => x.slice(2)), personas: v.filter(x => x.startsWith("p:")).map(x => x.slice(2)) };
-        const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para, foto: fotoAviso });
+        const r = await api("avisos", { titulo: f.titulo.value, detalle: f.detalle.value, prioridad: f.alta.checked ? "alta" : "normal", para, foto: fotoAviso, uid: uidAviso });
         toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Publicado en Castagram."); await cargar(); ir("avisos");
       });
     // "Todos los encargados" incluye turnos y personas: se quitan al elegirlo
@@ -2094,9 +2094,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         "Las personas @"+nuevas.join(", @")+" podrán ver esta publicación y toda la conversación anterior. ¿Permitirlo?", "Confirmar acceso"))) {
         b.disabled=false;b.textContent=h.responderA?"Responder":"Comentar";return;
       }
-      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0 }, { cola: false });
+      const r = await api(`avisos/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0, uid: h.uid || (h.uid = nuevoUid()) }, { cola: false });
       const a = E.avisos.find(x => x.id === id);
       if (a) { a.conv = { ...(a.conv || {}), n: ((a.conv && a.conv.n) || 0) + 1, nuevos: 0, ...(r.comentario ? { ultimo: r.comentario, actividad: r.comentario.creado || new Date().toISOString() } : {}) }; if (r.etiquetadas && r.etiquetadas.length && a.para && !a.para.todos) a.para.personas = [...new Set([...(a.para.personas || []), ...r.etiquetadas])]; }
+      delete h.uid;
       const eraRespuesta = !!h.responderA;
       if (eraRespuesta) terminarReplyTurno(h);
       else { h.borrador = ""; h.foto = null; h.etq = []; }
