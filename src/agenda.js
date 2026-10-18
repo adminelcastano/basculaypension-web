@@ -492,7 +492,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Lecturas e informes solo de los registros que se listan (no de toda la historia)
     const deIds = async (sql, ids) => { const out = []; for (let i = 0; i < ids.length; i += 90) { const l = ids.slice(i, i + 90); out.push(...(await env.DB.prepare(sql.replace("(?)", "(" + l.map(() => "?").join(",") + ")")).bind(...l).all()).results); } return out; };
     const lect = await deIds("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id));
-    for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
+    const vistosAdmin = new Set((await deIds("SELECT item_id FROM aviso_vistos WHERE persona = 'ADMIN' AND item_id IN (?)", items.filter(it => it.tipo === "aviso").map(it => it.id))).map(v => v.item_id));
+    for (const it of items) if (it.tipo === "aviso") { it.lecturas = lect.filter(l => l.item_id === it.id); it.visto_admin = vistosAdmin.has(it.id); it.para = normalizarPara(it.para); it.autor = it.autor || "admin"; }
     // Conversación de cada aviso (comentarios, nuevos para la administración, último comentario)
     const conv = await resumenConversaciones(env, items.filter(it => it.tipo === "aviso"), "ADMIN");
     for (const it of items) if (it.tipo === "aviso") it.conv = conv[it.id];
