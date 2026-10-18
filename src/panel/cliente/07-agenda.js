@@ -378,9 +378,10 @@ window.interpretarAgenda = function (texto, hoy) {
     (f.titulo || f.importe).focus();
     d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
     let forzar = false;
+    const uidPago = crypto.randomUUID(); // mismo identificador tras error de red
     const enviar = async () => {
       const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
-      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}) };
+      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}), uid: uidPago };
       let id;
       try {
         if (modo === "editar") { await post(`agenda/pagos/${pago.id}/editar`, cuerpo); id = pago.id; }
