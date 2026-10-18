@@ -754,7 +754,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (anterior) {
         if (anterior.item_id !== fila.id || anterior.autor !== "admin")
           return json({ ok:false, error:"Identificador de comentario reutilizado." },409);
-        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:true});
+        return json({ok:true,repetido:true,comentario:{...anterior,etiquetas:(()=>{try{return JSON.parse(anterior.etiquetas||"[]");}catch{return [];}})()},etiquetadas:[],post_enterado:!!(await env.DB.prepare("SELECT 1 FROM agenda_lecturas WHERE item_id = ? AND persona = 'ADMIN'").bind(fila.id).first())});
       }
     }
     let foto = null;
