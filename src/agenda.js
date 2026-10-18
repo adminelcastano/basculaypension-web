@@ -766,11 +766,16 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     for (const f of orden) {
       const imp = cu.precios[f.id] ?? null;
       st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'comprado', cerrado = ?, actualizado = ?, importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(ahora, ahora, imp, gid, f.id));
-      st.push(stmtHistorialCompra(env, f, { importe: imp, fecha: dia, gasto_id: gid }));
+      st.push(stmtHistorialCompra(env, f, { importe: imp, fecha: dia, gasto_id: gid, exclusiva: true }));
     }
     st.push(stmtBitacora(env, { quien, accion: "crear", que: "Compra", ref: gid, mes: dia.slice(0, 7), detalle: { dia, concepto, importe: cu.total, forma, cuenta: cta, categoria: cat, articulos: orden.length } }));
     try { await env.DB.batch(st); }
-    catch (er) { const ya = await repetido(); if (ya) return ya; throw er; }
+    catch (er) {
+      const ya = await repetido(); if (ya) return ya;
+      if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
+        return json({ok:false,error:"Uno de los artículos ya fue comprado por otra sesión. Actualiza la lista antes de volver a registrar el ticket."},409);
+      throw er;
+    }
     const deTablet = orden.filter(f => f.reporto);
     if (deTablet.length) await notificar(env, "tablet", { titulo: deTablet.length === 1 ? "Ya se compró: " + deTablet[0].titulo : `Ya se compraron ${deTablet.length} cosas que pidieron`, cuerpo: deTablet.map(f => `${f.titulo} (pidió ${f.reporto})`).join(", ").slice(0, 200), sec: "inicio", url: "/turno", etiqueta: "compra-" + gid });
     return json({ ok: true, gasto_id: gid, total: cu.total });
@@ -877,7 +882,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const cta = await cuentaDe(env, c, null, forma);
       junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
         env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(importe, gid, id),
-        stmtHistorialCompra(env, { ...fila, titulo: d.titulo, cantidad: d.cantidad, categoria: catC }, { importe, fecha: dia, gasto_id: gid }),
+        stmtHistorialCompra(env, { ...fila, titulo: d.titulo, cantidad: d.cantidad, categoria: catC }, { importe, fecha: dia, gasto_id: gid, exclusiva: true }),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Compra", ref: id, mes: dia.slice(0, 7), detalle: { dia, concepto, importe, forma, cuenta: cta, categoria: catC } }));
     } else if (fila.tipo === "compra" && d.estado !== "comprado" && fila.gasto_id) {
       const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(fila.gasto_id).first();
@@ -896,7 +901,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         stmtQuitarHistorialCompra(env, id),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: fila.titulo } }));
     }
-    if (junto.length) await env.DB.batch(junto);
+    if (junto.length) {
+      try { await env.DB.batch(junto); }
+      catch (er) {
+        if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
+          return json({ok:false,error:"Esta compra ya fue registrada por otra sesión. Actualiza la lista antes de repetirla."},409);
+        throw er;
+      }
+    }
     await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para), repetir=? WHERE id=?`)
       .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, d.repetir, id).run();
     if (fila.tipo === "tarea" && d.estado === "hecho" && fila.estado !== "hecho") await repetirTarea(env, id, ahora);
