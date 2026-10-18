@@ -89,12 +89,22 @@
     const enCurso = j.mes === j.meses[0], abierto = (j.abiertos || []).includes(j.mes);
     const filas = l => l.map(([k, v, cl]) => `<div class="frow ${cl || ""}"><span>${k}</span><b>${D(v)}</b></div>`).join("");
     const mc = b.comision_cuenta;
+    const sync = j.sync || null;
+    const syncFallida = !!(sync?.error && (!sync.at || sync.error_at > sync.at));
+    const minutosSync = sync?.at ? Math.max(0, Math.round((Date.now() - Date.parse(sync.at)) / 60000)) : null;
+    const fuenteEstado = syncFallida
+      ? "Error al actualizar los ingresos de la hoja: " + sync.error
+      : minutosSync == null ? "Sin fecha verificada de sincronización de ingresos"
+      : minutosSync <= 1 ? "Ingresos de la hoja actualizados hace un momento"
+      : "Ingresos de la hoja actualizados hace " + minutosSync + " minutos";
+    const fuenteAlerta = syncFallida || minutosSync == null || minutosSync > 30;
     const hojaSinLigar = (j.transf_hoja || []).filter(h => !h.ligada);
     const ticketTxt = h => `${SVC[h.servicio] || h.servicio} ${h.folio}`;
     const posibles = Object.fromEntries((j.transf_posibles || []).map(x => [x.id, x.tickets]));
     const S = {
       resumen: () => `      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
         <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
+        <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)}${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
         <div class="fcols">
           <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta (Mercado Pago)", i.tarjeta], ["Tickets por transferencia (hoja)", i.transf_hoja], ...(i.transf_manual ? [["Transferencias capturadas sin ticket", i.transf_manual]] : []), ["Otros ingresos (rentas)", i.otros], ...(i.sobrantes ? [["Sobrantes de caja", i.sobrantes]] : []), ["Total", i.total, "tot"]])}</div>
           <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.retiros, g.retiros], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), [CAT.comision, g.comision], ...(g.faltantes ? [[CAT.faltantes, g.faltantes]] : []), ["Total", g.total, "tot"]])}</div>
@@ -130,7 +140,7 @@
       </section>`,
       cuentas: () => `      <section class="card" id="f-banco">
         <p class="note" style="margin:4px 0 10px">Débito: saldo = inicial + lo que entra − lo que sale. Crédito: deuda = inicial + lo que cargas − lo que le pagas. Lo que compras con tarjeta de crédito cuenta como gasto el día de la compra; pagar la tarjeta es un traspaso, no otro gasto. El saldo pasa solo al mes siguiente; escríbelo solo cuando veas el saldo real en el banco (así ves si cuadra).</p>
-        <div class="ctot" style="margin:0 0 12px"><div class="k"><span>Dinero en cuentas</span><b style="color:#7ee2a0">${b.dinero != null ? D(b.dinero) : "—"}</b></div><div class="k"><span>Deuda en tarjetas</span><b style="color:#ff8a80">${b.deuda != null ? D(b.deuda) : "—"}</b></div><div class="k"><span>Cobros con tarjeta${mc ? ` (a ${esc(mc.nombre)})` : ""}</span><b>${D(b.tarjeta)}</b><span class="note">comisión ${D(b.comision)} · neto ${D(b.tarjeta_neto)}</span></div><div class="k"><span>Transferencias de clientes</span><b>${D(b.transferencias)}</b></div></div>
+        <div class="ctot" style="margin:0 0 12px"><div class="k"><span>Dinero en cuentas</span><b style="color:#7ee2a0">${b.dinero != null ? D(b.dinero) : "—"}</b>${b.dinero_parcial ? `<small class="note">Total parcial: faltan saldos de algunas cuentas</small>` : ""}</div><div class="k"><span>Deuda en tarjetas</span><b style="color:#ff8a80">${b.deuda != null ? D(b.deuda) : "—"}</b>${b.deuda_parcial ? `<small class="note">Total parcial: faltan deudas de algunas tarjetas</small>` : ""}</div><div class="k"><span>Cobros con tarjeta${mc ? ` (a ${esc(mc.nombre)})` : ""}</span><b>${D(b.tarjeta)}</b><span class="note">comisión ${D(b.comision)} · neto ${D(b.tarjeta_neto)}</span></div><div class="k"><span>Transferencias de clientes</span><b>${D(b.transferencias)}</b></div></div>
         ${mc && !(mc.pct > 0) ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Falta la comisión de ${esc(mc.nombre)}: escríbela en Configuración (⚙️) → Cuentas.</p>` : ""}
         ${(b.faltan_saldo || []).length ? `<p class="note" style="margin:0 0 10px;color:var(--warn)">Sin saldo de partida: ${esc(b.faltan_saldo.join(", "))}. Escríbelo una vez y después se calcula solo; los totales de arriba no las incluyen. Si no usas alguna, ocúltala en Configuración (⚙️) → Cuentas.</p>` : ""}
         ${["debito", "credito"].map(tipo => { const l = (b.lista || []).filter(c => c.tipo === tipo && c.activa); return l.length ? `<h4 class="fsub">${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}</h4><div class="tabla-scroll" tabindex="0" role="region" aria-label="${tipo === "credito" ? "Tarjetas de crédito" : "Cuentas de débito"}"><table class="cmovs fcuentas-t"><thead><tr><th>${tipo === "credito" ? "Tarjeta" : "Cuenta"}</th><th class="n">${tipo === "credito" ? "Deuda inicial" : "Saldo inicial"}</th><th class="n">${tipo === "credito" ? "Cargos" : "Entró"}</th><th class="n">${tipo === "credito" ? "Pagos" : "Salió"}</th><th class="n">${tipo === "credito" ? "Deuda" : "Saldo"}</th></tr></thead><tbody>
@@ -199,7 +209,7 @@
     const D0 = v => EC.dinero(v, 0);
     EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
     EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : null, texto: "en sobres" });
-    EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.faltan_saldo || []).length ? "Falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "") });
+    EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "") });
     EC.bloqueInfo("finanzas", "transferencias", { texto: hojaSinLigar.length ? hojaSinLigar.length + " por ligar" : "Al corriente" });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();
