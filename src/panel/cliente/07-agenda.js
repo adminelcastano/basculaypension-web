@@ -819,6 +819,21 @@ window.interpretarAgenda = function (texto, hoy) {
     }
     contadores();
   }
+  // Actualiza solo el post y su diálogo: no tocar otras tarjetas ni sus scrolls.
+  function repintarPostAdmin(id){
+    if(st.archivo || castaVisor?.open){return;}
+    const root=$("#ab-aviso"),it=st.items.find(x=>x.id===id);
+    if(!root||!it)return;
+    const post=root.querySelector('[data-post="'+CSS.escape(id)+'"]');
+    if(post&&st.editando!==id)post.outerHTML=postHtml(it);
+    const dlg=root.querySelector('dialog.casta-sheet[open]');
+    if(dlg?.dataset.av===id){const hilo=dlg.querySelector(".hilo");if(hilo)hilo.outerHTML=hiloHtml(it);}
+    const anterior=root.querySelector("details.casta-actividad");
+    if(anterior){const abrir=anterior.open;anterior.outerHTML=castaActividadVistaAdmin();const nuevo=root.querySelector("details.casta-actividad");if(nuevo)nuevo.open=abrir;}
+    castaRestaurar(root);
+    contadores();
+  }
+
   // Una conversación visible a la vez, en una hoja modal. La lista de publicaciones no cambia.
   function mostrarSheetAdmin() {
     const el = $("#ab-aviso"), id = st.abiertosAv.values().next().value;
@@ -1103,7 +1118,7 @@ window.interpretarAgenda = function (texto, hoy) {
           st.avisosSinLeer = Math.max(0, (st.avisosSinLeer || 0) - 1);
       }
     } catch (e) { if (e.message !== "sesion") st.hilos[id] = { ...prev, error: "No se pudo cargar: " + e.message, comentarios: [] }; }
-    if (st.abiertosAv.has(id)) pintarAvisos();
+    if (st.abiertosAv.has(id)) repintarPostAdmin(id);
   }
 
   function comenzarReplyAdmin(h, nombre) {
