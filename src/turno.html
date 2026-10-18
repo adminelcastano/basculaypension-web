@@ -807,7 +807,12 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const svg = id => `<svg class="i" aria-hidden="true"><use href="#${id}"/></svg>`;
   const fotoLink = k => k ? `<a class="lnk" href="/turno/api/foto/${encodeURIComponent(k)}" target="_blank" rel="noopener">Ver foto</a>` : "";
   // Imagen de perfil de un encargado ("admin" = logo de la pensión). chico: para ir dentro de un texto
-  const avi = (clave, chico) => `<img class="avi${chico ? " ch" : ""}" src="/turno/avatar/c/${encodeURIComponent(clave || "admin")}" alt="" width="${chico ? 22 : 40}" height="${chico ? 22 : 40}" loading="lazy">`;
+  const avi = (clave, chico) => {
+    const perfil = E?.personas?.find(x => x.clave === clave);
+    // Imagen versionada de la sesión; cambiar el avatar no muestra una copia obsoleta.
+    const url = perfil?.avatar_url || "/turno/avatar/c/" + encodeURIComponent(clave || "admin");
+    return `<img class="avi${chico ? " ch" : ""}" src="${esc(url)}" alt="" width="${chico ? 22 : 40}" height="${chico ? 22 : 40}" loading="lazy" decoding="async">`;
+  };
   const nombreDe = clave => clave === "admin" ? (E?.admin_perfil?.nombre || "Administración") : ((E.personas.find(p => p.clave === clave) || {}).perfil || (E.personas.find(p => p.clave === clave) || {}).nombre || clave);
   const errores = er => er.datos && er.datos.errores ? Object.values(er.datos.errores).join(" ") : er.message;
   const sumar = l => l.reduce((s, x) => s + Number(x.monto || 0), 0);
