@@ -796,7 +796,11 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
     const { d, e } = validar(fila.tipo, c, fila);
-    if (fila.tipo === "aviso" && Object.hasOwn(c, "para")) { const error = await errorDestinatariosCastagram(env, c.para); if (error) e.para = error; }
+    if (fila.tipo === "aviso" && Object.hasOwn(c, "para") &&
+        JSON.stringify(normalizarPara(c.para)) !== JSON.stringify(normalizarPara(fila.para))) {
+      const error = await errorDestinatariosCastagram(env, c.para);
+      if (error) e.para = error;
+    }
     if (Object.keys(e).length) return json({ ok: false, error: "Revisa los datos.", errores: e }, 422);
     const cerradoAhora = ["hecho", "comprado", "resuelta", "archivado", "pagado"].includes(d.estado);
     // Si cambia la fecha, la hora o el aviso, el recordatorio se vuelve a programar
