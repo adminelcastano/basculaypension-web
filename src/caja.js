@@ -707,7 +707,7 @@ export async function validarTicketRef(env, valor, mes, excepto, importe = null)
   const t = (await env.DB.prepare("SELECT forma, importe FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
   const pagados = t.filter(x => esTransf(x.forma));
   if (!pagados.length) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
-  if (pagados.length !== 1) return { error: "Hay varios tickets con ese folio. Revisa la hoja antes de vincular la transferencia; no se puede elegir uno con seguridad." };
+  if (t.length !== 1 || pagados.length !== 1) return { error: "Hay varios tickets con ese folio. Revisa la hoja antes de vincular la transferencia; no se puede elegir uno con seguridad." };
   if (!(Number.isFinite(importe) && importe > 0))
     return { error: "Escribe un importe válido para comparar con el ticket." };
   if (Math.round(Number(pagados[0].importe) * 100) !== Math.round(importe * 100))
