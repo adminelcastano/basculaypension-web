@@ -576,18 +576,23 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 @media (prefers-reduced-motion: reduce) { #toast-acc { transition: none; } }
 .muro, .tar, .agl { grid-template-columns: minmax(0, 1fr); }
 .post, .post-ult { min-width: 0; max-width: 100%; }
-/* Enterado de comentario: pulgar operativo, no un "like" social reversible. */
+/* Me gusta de comentario: corazón ligero, reversible y táctil como en Instagram. */
 .com-m .casta-com-enterado {
-  display:inline-flex; align-items:center; justify-content:center; gap:5px;
-  min-height:44px; padding:5px 9px; border:1px solid var(--line-2,#424249);
-  border-radius:999px; background:transparent; color:inherit; cursor:pointer;
-  font:inherit; font-weight:600; line-height:1.15;
+  display:inline-grid;place-items:center;flex:none;width:44px;height:44px;
+  min-height:44px;padding:0;margin:-8px -8px -8px 0;border:0;border-radius:50%;
+  background:transparent;color:inherit;cursor:pointer;touch-action:manipulation;
 }
-.com-m .casta-com-enterado img { width:18px; height:18px; object-fit:contain; }
-.com-m .casta-com-enterado small { font-size:inherit; font-variant-numeric:tabular-nums; }
-.com-m .casta-com-enterado.is-enterado { color:var(--fg,#fff); background:rgba(255,204,0,.12); border-color:rgba(255,204,0,.45); }
-.com-m .casta-com-enterado:disabled { cursor:default; opacity:1; }
-.com-m .casta-com-enterado:focus-visible { outline:3px solid #ffcc00; outline-offset:2px; }
+.com-m .casta-com-enterado .casta-like-corazon {
+  width:22px;height:22px;transition:transform .16s ease,fill .16s ease;
+  fill:none;stroke:currentColor;
+}
+.com-m .casta-com-enterado.is-enterado { color:#ed4956; }
+.com-m .casta-com-enterado.is-enterado .casta-like-corazon { fill:currentColor;transform:scale(1.08); }
+.com-m .casta-com-enterado:disabled { opacity:.65;cursor:default; }
+.com-m .casta-com-enterado:focus-visible { outline:3px solid #ffcc00;outline-offset:-3px; }
+.com-m .casta-like-cuenta { font-size:inherit;font-weight:700;font-variant-numeric:tabular-nums; }
+.com-m .casta-like-cuenta[hidden] {display:none;}
+@media(prefers-reduced-motion:reduce){.com-m .casta-like-corazon{transition:none!important;}}
 </style>
 </head>
 <body>
