@@ -100,10 +100,15 @@ export async function resumenConversaciones(env, avisos, persona) {
     ? await enLotes(env, "SELECT item_id, persona, at FROM agenda_lecturas WHERE persona != 'ADMIN' AND item_id IN (?)", ids)
     : [];
   const autor = autorDe(persona);
+  // Una sola agrupación O(comentarios + confirmaciones) en lugar de filtrar
+  // todos los comentarios una y otra vez por publicación.
+  const porAviso = new Map(), porRecibos = new Map();
+  for(const c of coms){if(!porAviso.has(c.item_id))porAviso.set(c.item_id,[]);porAviso.get(c.item_id).push(c);}
+  for(const r of confirmaciones){if(!porRecibos.has(r.item_id))porRecibos.set(r.item_id,[]);porRecibos.get(r.item_id).push(r);}
   for (const a of avisos) {
-    const l = coms.filter(c => c.item_id === a.id), vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
+    const l = porAviso.get(a.id) || [], vivos = l.filter(c => !c.borrado), u = vivos[vivos.length - 1];
     const recibos = persona === "ADMIN" && (a.autor || "admin") === "admin"
-      ? confirmaciones.filter(c => c.item_id === a.id) : [];
+      ? porRecibos.get(a.id) || [] : [];
     const conf = resumenEnterados(recibos, vistos.get(a.id));
     const ultimoComentario = u && u.creado > a.creado ? u.creado : a.creado;
     out[a.id] = { n: vivos.length, nuevos: contarNuevos(l, autor, vistos.get(a.id)),
