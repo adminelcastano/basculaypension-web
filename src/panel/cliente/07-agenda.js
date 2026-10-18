@@ -1197,7 +1197,17 @@ window.interpretarAgenda = function (texto, hoy) {
         const id = f.dataset.av, h = st.hilos[id], b = f.querySelector("[type=submit]"), err = f.querySelector(".err");
         err.textContent = ""; b.disabled = true; b.textContent = "Enviando…";
         try {
-          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [] });
+          const postActual = st.items.find(x => x.id === id), audiencia = postActual?.para || {};
+          const mencionados = [...f.texto.value.matchAll(/@([A-Za-zÑñ0-9_]{2,12})/g)].map(m => m[1].toUpperCase());
+          const elegidos = [...new Set([...(h.responderA ? [] : h.etq || []),...mencionados])];
+          const nuevas = audiencia.todos ? [] : elegidos.filter(k =>
+            k !== postActual?.autor && !(audiencia.personas || []).includes(k) &&
+            (st.personas || []).some(p => p.clave === k && p.activo));
+          if(nuevas.length && !(await EC.confirmar("Ampliar destinatarios",
+            "Las personas @"+nuevas.join(", @")+" podrán consultar el aviso y toda su conversación anterior. ¿Permitir acceso?", "Confirmar acceso"))) {
+            b.disabled=false;b.textContent=h.responderA?"Responder":"Comentar";return;
+          }
+          const respuesta = await post(`agenda/${id}/comentar`, { texto: f.texto.value, foto: h.responderA ? null : h.foto || null, etiquetas: h.responderA ? [] : h.etq || [], confirmar_ampliacion: nuevas.length > 0 });
           const eraRespuesta = !!h.responderA, etq = eraRespuesta ? [] : h.etq || [];
           if (eraRespuesta) terminarReplyAdmin(h);
           else { h.borrador = ""; h.foto = null; h.etq = []; }
