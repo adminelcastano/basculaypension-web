@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { idFinanciero } from "../src/finanzas-idempotencia.js";
 import { validarTicketRef } from "../src/caja.js";
+import { stmtHistorialCompra, stmtQuitarHistorialCompra } from "../src/compras.js";
 
 const dbNueva = () => {
   const db = new DatabaseSync(":memory:");
@@ -104,5 +105,44 @@ test("SQLite real: no asociar ticket con otro importe ni folio ambiguo o ya liga
     assert.deepEqual(await validarTicketRef(env,"bascula:T100","2026-10","a",1000),{ref:"bascula:T100"});
     agregar("EFECTIVO",1000);
     assert.match((await validarTicketRef(env,"bascula:T100","2026-10","a",1000)).error,/varios tickets/);
+  }finally{db.close();}
+});
+
+test("SQLite: dos compradores del mismo artículo (UID diferentes) nunca generan dos egresos",async()=>{
+  const db=dbNueva();
+  try{
+    db.exec(`CREATE TABLE agenda_items(id TEXT PRIMARY KEY,estado TEXT,gasto_id TEXT);
+      CREATE TABLE compras_historial (
+        id TEXT PRIMARY KEY, norm TEXT NOT NULL,titulo TEXT NOT NULL,lugar TEXT,cantidad TEXT,
+        importe REAL,fecha TEXT NOT NULL,gasto_id TEXT,categoria TEXT,creado TEXT NOT NULL
+      );`);
+    db.prepare("INSERT INTO agenda_items(id,estado) VALUES('articulo-1','pendiente')").run();
+    const actor="admin@example.com",articulo={id:"articulo-1",titulo:"Papel",lugar:null,cantidad:"2",categoria:"Papelería"};
+    const env=d1Adaptador(db);
+    async function comprar(uid) {
+      const gid=await idFinanciero("compra-ticket",uid,actor);
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        db.prepare("INSERT INTO caja_gastos(id,mes,dia,concepto,monto,forma,origen) VALUES(?,?,?,?,?,?,?)")
+          .run(gid,"2026-10","2026-10-18","Compra: Papel",120,"EFECTIVO","admin");
+        db.prepare("UPDATE agenda_items SET estado='comprado',gasto_id=? WHERE id='articulo-1'").run(gid);
+        await stmtHistorialCompra(env,articulo,{importe:120,fecha:"2026-10-18",gasto_id:gid,exclusiva:true}).run();
+        db.exec("COMMIT");
+        return gid;
+      }catch(e){db.exec("ROLLBACK");throw e;}
+    }
+    const primero=await comprar("550e8400-e29b-41d4-a716-446655440001");
+    await assert.rejects(comprar("550e8400-e29b-41d4-a716-446655440002"),/UNIQUE constraint failed/);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
+    assert.equal(db.prepare("SELECT gasto_id FROM agenda_items WHERE id='articulo-1'").get().gasto_id,primero);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,1);
+    // Un regreso autorizado devuelve el artículo a pendiente y libera la clave.
+    db.exec("BEGIN IMMEDIATE");
+    db.prepare("DELETE FROM caja_gastos WHERE id=?").run(primero);
+    db.prepare("UPDATE agenda_items SET estado='pendiente',gasto_id=NULL WHERE id='articulo-1'").run();
+    await stmtQuitarHistorialCompra(env,"articulo-1").run();
+    db.exec("COMMIT");
+    await comprar("550e8400-e29b-41d4-a716-446655440002");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
   }finally{db.close();}
 });
