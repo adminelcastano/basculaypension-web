@@ -67,7 +67,7 @@ test("Fotografía, conversación y archivo tienen estados independientes de Atr�
 });
 
 test("La lectura no equivale a Enterado; ampliar audiencia requiere consentimiento",()=>{
-  const fuente=avisos.slice(avisos.indexOf("export async function marcarVisto"),avisos.indexOf("export const puedeVer"));
+  const fuente=avisos.slice(avisos.indexOf("export async function marcarVisto"),avisos.indexOf("export async function enterarComentario"));
   assert.match(fuente,/INSERT INTO aviso_vistos/);
   assert.doesNotMatch(fuente,/INSERT OR IGNORE INTO agenda_lecturas/);
   assert.match(avisos,/confirmar_ampliacion !== true/);
