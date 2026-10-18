@@ -24,6 +24,7 @@ test("El ensayo tiene únicamente KV propia y cero procesos o servicios producti
   assert.deepEqual(cfg.triggers.crons,[]);
   assert.equal(cfg.workers_dev,false);
   assert.equal(cfg.preview_urls,false);
+  assert.equal(cfg.vars.ENSAYO_FINANZAS,"1");
   assert.equal(cfg.vars.ADMIN_EMAILS,"administracion@basculaypension.com");
   assert.equal(cfg.vars.TURNO_EMAILS,"");
   assert.equal(cfg.vars.ACCESS_TEAM_DOMAIN,"odd-math-3ae5.cloudflareaccess.com");
@@ -33,4 +34,16 @@ test("El ensayo tiene únicamente KV propia y cero procesos o servicios producti
   assert.ok(!Object.hasOwn(cfg,"ai"));
   assert.equal(cfg.main,"src/worker.js");
   assert.ok(cfg.assets?.run_worker_first?.includes("/panel/*"));
+});
+
+test("El Worker de ensayo deniega endpoints públicos, crons y escrituras ajenas a Finanzas",()=>{
+  const code=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8");
+  assert.match(code,/env\.ENSAYO_FINANZAS === "1"/);
+  assert.match(code,/ruta\.startsWith\("\/api\/"\)/);
+  assert.match(code,/ruta\.startsWith\("\/expediente\/"\)/);
+  assert.match(code,/ruta === "\/turno"/);
+  assert.match(code,/if \(env\.ENSAYO_FINANZAS === "1"\) return;/);
+  assert.match(code,/ENTORNO DE ENSAYO FINANCIERO/);
+  assert.match(code,/Solo se permiten operaciones financieras sintéticas/);
+  assert.doesNotMatch(readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8"),/ENSAYO_FINANZAS/);
 });
