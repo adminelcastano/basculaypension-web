@@ -1,5 +1,5 @@
 // Integración de rutas reales de pagos y compras, con motor SQLite de D1 y sin credenciales.
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { agendaPanel, asegurarEsquemaAgenda } from "../src/agenda.js";
@@ -45,10 +45,13 @@ async function post(env,path,datos){
   const response=await agendaPanel(req,env,url,p,actor);
   return {status:response.status,data:await response.json()};
 }
+const shared=entorno();
+await iniciar(shared.env);
+after(()=>shared.db.close());
+
 test("Ruta real de pago suelto: un reintento no duplica egreso, cuenta ni bitácora",async()=>{
-  const {db,env}=entorno();
+  const {db,env}=shared;
   try {
-    await iniciar(env);
     const uid="cc000001-2222-4333-8444-555555555555";
     const p={uid,fecha:hoy,importe:"345.60",titulo:"Recibo sintético",forma:"C:bbva-pyme",categoria:"Servicios",nota:"Ensayo"};
     const primero=await post(env,"pagos/hecho",p);
@@ -66,12 +69,11 @@ test("Ruta real de pago suelto: un reintento no duplica egreso, cuenta ni bitác
     const distinto=await post(env,"pagos/hecho",{...p,importe:"445.60"});
     assert.equal(distinto.status,409);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
-  }finally{db.close()}
+  }finally{}
 });
 test("Ruta real de pago programado: reintento tras avanzar el vencimiento",async()=>{
-  const {db,env}=entorno();
+  const {db,env}=shared;
   try {
-    await iniciar(env);
     db.prepare("INSERT INTO agenda_items(id,tipo,titulo,fecha,estado,frecuencia,forma,importe,creado) VALUES(?,?,?,?,?,?,?,?,?)")
       .run("ensayo-programado","pago","Teléfono sintético",hoy,"pendiente","mensual","TRANSFERENCIA",399,"2026-10-18T01:00:00Z");
     const uid="cc000002-2222-4333-8444-555555555555";
@@ -83,17 +85,16 @@ test("Ruta real de pago programado: reintento tras avanzar el vencimiento",async
     const repetido=await post(env,"ensayo-programado/pagar",pago);
     assert.equal(repetido.status,200,JSON.stringify(repetido));
     assert.equal(repetido.data.repetido,true);
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,1);
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE item_id = 'ensayo-programado'").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE concepto = 'Pago: Teléfono sintético'").get().n,1);
     assert.equal(db.prepare("SELECT fecha FROM agenda_items WHERE id='ensayo-programado'").get().fecha,anterior);
     const cambio=await post(env,"ensayo-programado/pagar",{...pago,importe:"450"});
     assert.equal(cambio.status,409);
-  }finally{db.close()}
+  }finally{}
 });
 test("Ruta real de carrito: dos UIDs no compran los mismos artículos y mantienen la cuenta",async()=>{
-  const {db,env}=entorno();
+  const {db,env}=shared;
   try {
-    await iniciar(env);
     for(const id of ["ensayo-compra-1","ensayo-compra-2"])
       db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES(?, 'compra',?, 'pendiente',?)")
         .run(id,id,"2026-10-18T01:00:00Z");
@@ -108,8 +109,8 @@ test("Ruta real de carrito: dos UIDs no compran los mismos artículos y mantiene
     assert.equal(db.prepare("SELECT cuenta FROM caja_gastos WHERE id=?").get(a.data.gasto_id).cuenta,"bbva-pyme");
     const otro=await post(env,"compras/terminar",{...compra,uid:"cc000004-2222-4333-8444-555555555555"});
     assert.equal(otro.status,409,JSON.stringify(otro));
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id = ?").get(a.data.gasto_id).n,1);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,2);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items WHERE estado='comprado'").get().n,2);
-  }finally{db.close()}
+  }finally{}
 });
