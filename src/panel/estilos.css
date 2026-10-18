@@ -1623,3 +1623,7 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 .casta-visor-n { font-variant-numeric:tabular-nums; font-size:15px; }
 @media(max-width:420px){.casta-visor-panel button {width:44px;height:44px}.casta-visor-centro img{max-width:calc(100vw - 100px)}.casta-visor-centro{gap:2px;padding:3px}}
 @media(prefers-reduced-motion:reduce){dialog.casta-visor *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+.post-fotos.n3 button:first-child{grid-row:span 2}
+.casta-carrusel-slide .casta-foto-abrir{display:block;width:100%;background:#121214}
+.casta-carrusel-slide .casta-foto-abrir img{width:100%;height:auto;aspect-ratio:4/3;max-height:360px;object-fit:contain}
