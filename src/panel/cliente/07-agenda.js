@@ -915,7 +915,13 @@ window.interpretarAgenda = function (texto, hoy) {
     history.pushState({...history.state,casta_layer:"foto"},"",location.href);
   }
   function castaHojaCerrar(d){if(history.state?.casta_layer==="comentarios")history.back();else d?.close();}
-  function castaRegreso(){if(castaVisor?.open&&history.state?.casta_layer!=="foto"){castaFotoCerrar(true);return;}const d=document.querySelector("#ab-aviso dialog.casta-sheet[open]");if(d&&history.state?.casta_layer!=="comentarios"&&history.state?.casta_layer!=="foto")d.close();}
+  function castaRegreso(){
+    if(castaVisor?.open&&history.state?.casta_layer!=="foto"){castaFotoCerrar(true);return;}
+    const d=document.querySelector("#ab-aviso dialog.casta-sheet[open]");
+    if(d&&history.state?.casta_layer!=="comentarios"&&history.state?.casta_layer!=="foto"){d.close();return;}
+    if(st.archivo?.sel&&history.state?.casta_layer!=="archivo-detalle"){st.archivo.sel=null;st.archivo.det=null;pintarAvisos();return;}
+    if(st.archivo&&history.state?.casta_layer!=="archivo"){st.archivo=null;pintarAvisos();}
+  }
 
   function postHtml(it) {
     if (st.editando === it.id) return `<article class="post">${formEditar(it)}</article>`;
@@ -1158,14 +1164,14 @@ window.interpretarAgenda = function (texto, hoy) {
       else if (d.comBorrar) {
         if (!(await EC.confirmar("¿Borrar este comentario?", "Deja de verse en la conversación. Queda registrado en el historial del aviso.", "Borrar", true))) return;
         try { await post(`agenda/${d.av}/comentarios/${d.comBorrar}/borrar`, {}); toast("Comentario borrado"); await abrirHilo(d.av, true); } catch (er) { if (er.message !== "sesion") toast(er.message); }
-      } else if ("archivoAbrir" in d) { st.archivo = { pagina: 0 }; buscarArchivo(); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80 }); }
-      else if ("archivoVolver" in d) { if (st.archivo && st.archivo.sel) { st.archivo.sel = null; st.archivo.det = null; } else st.archivo = null; pintarAvisos(); }
+      } else if ("archivoAbrir" in d) { st.archivo = { pagina: 0 }; history.pushState({...history.state,casta_layer:"archivo"},"",location.href); buscarArchivo(); scrollTo({ top: el.getBoundingClientRect().top + scrollY - 80 }); }
+      else if ("archivoVolver" in d) { if(["archivo","archivo-detalle"].includes(history.state?.casta_layer))history.back();else {if(st.archivo?.sel){st.archivo.sel=null;st.archivo.det=null;}else st.archivo=null;pintarAvisos();} }
       else if (d.archivoPag) { st.archivo.pagina = Math.max(0, (st.archivo.pagina || 0) + Number(d.archivoPag)); buscarArchivo(); }
       else if (d.archivoVer) {
         const a = st.archivo;
         if (!a) return;
         const id = d.archivoVer;
-        a.sel = id; a.det = null; pintarAvisos();
+        a.sel = id; a.det = null; history.pushState({...history.state,casta_layer:"archivo-detalle"},"",location.href); pintarAvisos();
         try {
           const detalle = await api(`agenda/${id}/conversacion?historial=1`);
           if (st.archivo !== a || a.sel !== id) return;
