@@ -64,7 +64,7 @@
             const deb = (b.lista || []).filter(c => c.tipo !== "credito" && c.activa);
             const uso = (k, txt, ayuda) => `<label class="cuso"><span>${txt}<small>${ayuda}</small></span><select data-cuso="${k}" aria-label="${esc(txt)}">${(b.lista || []).some(c => c[k]) ? "" : `<option value="">Elige…</option>`}${deb.map(c => `<option value="${esc(c.id)}" ${c[k] ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>`;
             return `<div class="cusos">${uso("def_pago", "Pagos y compras", "cuenta que se propone al pagar con transferencia o débito")}${uso("def_transf", "Transferencias de clientes", "a dónde llegan por defecto")}${uso("tarjeta", "Cobros con tarjeta", "a dónde entran los cobros de la terminal")}</div>
-              <p class="note" style="margin:4px 0 0">Puedes elegir la misma cuenta en los tres. Al registrar cada movimiento puedes cambiar la cuenta.</p>`;
+              <p class="note" style="margin:4px 0 0">Puedes elegir la misma cuenta en los tres. Al registrar cada movimiento puedes cambiar la cuenta. Si una cuenta tiene cobros históricos, el servidor protegerá su asignación y explicará cómo corregirla.</p>`;
           })()}
           <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem cfila" style="opacity:${c.activa ? 1 : .55}"><form class="cnom" data-cnom="${esc(c.id)}"><input name="nombre" value="${esc(c.nombre)}" maxlength="40" aria-label="Nombre de la cuenta" autocomplete="off"><button class="btn btn-line" type="submit">Guardar</button></form><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select><button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span>
             <span class="mm">${[c.def_pago ? "Pagos y compras" : "", c.def_transf ? "Transferencias de clientes" : "", c.tarjeta ? "Cobros con tarjeta" : ""].filter(Boolean).map(t => `<span class="cat-chip">${t}</span>`).join("")}</span>
@@ -252,7 +252,7 @@
       fm.tipo.addEventListener("change", pintarMov); pintarMov();
       fm.addEventListener("submit", async ev => {
         ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); bt.disabled = true; fm.querySelector(".err").textContent = "";
-        try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value }); toast("Movimiento registrado"); await cargar(); }
+        try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value, uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID()) }); toast("Movimiento registrado"); await cargar(); delete fm.dataset.uid; }
         catch (e) { if (e.message !== "sesion") fm.querySelector(".err").textContent = e.message; bt.disabled = false; }
       });
     }
@@ -266,7 +266,7 @@
       ft.ticket_ref.addEventListener("change", () => { const o = ft.ticket_ref.selectedOptions[0]; if (!o || !o.value) return; ft.importe.value = o.dataset.imp; ft.fecha.value = o.dataset.f; if (!ft.cliente.value.trim() && o.dataset.cli) ft.cliente.value = o.dataset.cli; });
       ft.addEventListener("submit", async ev => {
         ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); b.disabled = true; ft.querySelector(".err").textContent = "";
-        try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value }); toast("Transferencia guardada"); await cargar(); }
+        try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value, uid: ft.dataset.uid || (ft.dataset.uid = crypto.randomUUID()) }); toast("Transferencia guardada"); await cargar(); delete ft.dataset.uid; }
         catch (e) { if (e.message !== "sesion") ft.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
       });
     }
