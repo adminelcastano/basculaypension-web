@@ -745,7 +745,9 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 
   // ======================= Entrada =======================
   let elegido = null, turnoElegido = null, pin = "";
+  let sesionGeneracion = 0;
   async function mostrarEntrada() {
+    sesionGeneracion++; // invalida cargas anteriores al cambio de PIN o salida
     guardarLS("turno:estado", null); // borra estado legado con datos privados
     if (castaVisor?.open) castaFotoCerrar(true);
     const hojaPrivada = sec().querySelector("dialog.casta-sheet[open]"); if (hojaPrivada) hojaPrivada.close();
@@ -839,8 +841,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     location.reload();
   }
   async function cargar() {
+    const generacion = sesionGeneracion;
     try {
       const nuevo = await api("estado");
+      if (generacion !== sesionGeneracion) throw new Error("La sesión cambió durante la carga.");
       if (E && (E.persona !== nuevo.persona || E.turno !== nuevo.turno || E.dia !== nuevo.dia)) {
         Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
       }
@@ -900,7 +904,9 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   }
   addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
+    const generacion = sesionGeneracion;
     await cargar();
+    if (generacion !== sesionGeneracion || !E) return;
     enviarCola();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/turno/sw.js", { scope: "/turno" }).then(() => { if (pushListo()) suscribirPush(false).catch(() => {}); }).catch(() => {});
     $("#entrada").hidden = true; $("#app").hidden = false;
@@ -1142,7 +1148,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     dlg.setAttribute("aria-label", "Comentarios de " + a.titulo);
     dlg.innerHTML = `<div class="casta-sheet-head"><span class="casta-sheet-grip" aria-hidden="true"></span><h3>Comentarios</h3><button type="button" data-sheet-cerrar aria-label="Cerrar comentarios" class="casta-sheet-x">×</button></div>${hiloHtml(a)}`;
     dlg.addEventListener("close", () => { hilosAb.delete(id); dlg.remove(); repintarPost(id); const volver=sec().querySelector(`[data-post="${CSS.escape(id)}"] [data-hilo]`); if(volver)volver.focus({preventScroll:true}); });
-    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener("click", e => { if (e.target === dlg) castaHojaCerrar(dlg); });
     sec().append(dlg);
     dlg.showModal();
     history.pushState({...history.state,casta_layer:"comentarios"},"",location.href);
