@@ -424,13 +424,19 @@ const GASTO_ADMIN = `INSERT INTO caja_gastos
       SELECT 1 FROM agenda_pagos
       WHERE item_id = ? AND (substr(fecha, 1, 7) = ?
         OR substr(COALESCE(programado, ''), 1, 7) = ?)
+    )) AND (? IS NULL OR NOT EXISTS (
+      SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ?
     )) THEN ? ELSE NULL END,
     ?, ?, ?, 'admin', ?, ?)`;
-const stmtGastoAdmin = (env, id, mes, dia, concepto, importe, forma, ahora, quien, categoria, cuenta, periodo = null) =>
+const stmtGastoAdmin = (env, id, mes, dia, concepto, importe, forma, ahora, quien, categoria, cuenta, periodo = null, operacion = null) =>
   env.DB.prepare(GASTO_ADMIN).bind(id, mes, dia, concepto,
     forma, cuenta, cuenta, forma,
     periodo ? 0 : 1, periodo?.item_id || "", periodo?.mesFecha || "", periodo?.mesProgramado || "",
+    operacion?.id || null, operacion?.id || "", operacion?.que || "",
     importe, forma, ahora, quien, categoria, cuenta);
+const pagoEliminado = async (env,id,que) => !!(await env.DB.prepare(
+  "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ? LIMIT 1"
+).bind(id,que).first());
 const errorBancoEnEscritura = er =>
   /NOT NULL constraint failed:\s*caja_gastos\.monto/i.test(String(er?.message || ""));
 const conflictoBanco = () => json({ok:false,error:"La cuenta bancaria cambió mientras guardabas. Actualiza la lista y confirma la cuenta antes de repetir."},409);
@@ -479,19 +485,24 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
         json({ok:false,error:"Esta operación ya registró otro pago o importe. Actualiza los pagos hechos y verifica antes de repetirla."},409);
     };
     const previo = await repetido(); if (previo) return previo;
+    if (await pagoEliminado(env,pid,"Pago no programado"))
+      return json({ok:false,error:"Este pago fue eliminado. Actualiza Pagos hechos antes de registrar otro."},409);
     const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
     if (errorCuenta) return json({ ok:false, error:errorCuenta },422);
     // Egreso y pago en una sola operación: o quedan los dos o ninguno.
     try {
       await env.DB.batch([
-        stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
+        stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta, null, {id:pid,que:"Pago no programado"}),
         env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
           .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
         stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
       ]);
     } catch (er) {
       const previo = await repetido(); if (previo) return previo;
-      if (errorBancoEnEscritura(er)) return conflictoBanco();
+      if (errorBancoEnEscritura(er))
+        return await pagoEliminado(env,pid,"Pago no programado")
+          ? json({ok:false,error:"Este pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409)
+          : conflictoBanco();
       throw er;
     }
     return json({ ok: true, id: pid });
@@ -1101,6 +1112,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         json({ok:false,error:"Este intento ya guardó un pago con otros datos. Revisa Pagos hechos antes de registrar otro."},409);
     };
     const previo = await repetido(); if (previo) return previo;
+    if (await pagoEliminado(env,pid,"Pago programado"))
+      return json({ok:false,error:"Este pago programado fue eliminado. Actualiza los vencimientos antes de repetir."},409);
     const v = await validarPagoHecho(env, c, fila);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const { fecha, importe, forma } = v;
@@ -1118,7 +1131,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
     try { await env.DB.batch([
       stmtGastoAdmin(env, gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta,
-        c.forzar ? null : { item_id:fila.id, mesFecha:fecha.slice(0,7), mesProgramado:(fila.fecha || fecha).slice(0,7) }),
+        c.forzar ? null : { item_id:fila.id, mesFecha:fecha.slice(0,7), mesProgramado:(fila.fecha || fecha).slice(0,7) },
+        {id:pid,que:"Pago programado"}),
       env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, quien, fila.titulo, v.nota, cat, cta),
       // Siguiente vencimiento a partir de la fecha programada (si se pagó tarde no se recorre el calendario)
@@ -1129,6 +1143,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     catch (er) {
       const previo = await repetido(); if (previo) return previo;
       if (errorBancoEnEscritura(er)) {
+        if (await pagoEliminado(env,pid,"Pago programado"))
+          return json({ok:false,error:"Este pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409);
         // El mismo fallo de la condición transaccional puede ser banco
         // desactivado o un pago del periodo guardado por otra sesión.
         if (!c.forzar) {
