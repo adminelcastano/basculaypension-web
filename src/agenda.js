@@ -741,20 +741,38 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   }
 
   // ---- Lista de compras: carrito y terminar la compra con un solo ticket ----
-  // Regresar a pendiente todos los artículos de un ticket (se borra su egreso)
+  // Regresar a pendiente todos los artículos de un ticket (se borra su egreso).
+  // Solo afecta a la compra exacta si aún tiene sus artículos comprados:
+  // una petición atrasada NO puede borrar el historial de una recompra posterior.
   if (partes[1] === "compras" && partes[2] === "regresar-ticket" && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
-    const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(String(c.gasto_id || "")).first();
-    const its = (await env.DB.prepare("SELECT id, titulo FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(String(c.gasto_id || "")).all()).results;
-    if (!its.length) return json({ ok: false, error: "Ese ticket ya no existe." }, 404);
-    if (g && !(await mesesAbiertos(env)).includes(g.mes)) return json({ ok: false, error: "Ese ticket es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
-    const st = [];
-    if (g) st.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(g.id));
-    for (const it of its) st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, importe = NULL, gasto_id = NULL, actualizado = ? WHERE id = ?").bind(ahora, it.id), stmtQuitarHistorialCompra(env, it.id));
-    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: c.gasto_id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: its.map(x => x.titulo).join(", ") } }));
-    await env.DB.batch(st);
-    return json({ ok: true, n: its.length });
+    const gid = String(c.gasto_id || "");
+    const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ? AND origen = 'admin'").bind(gid).first();
+    const its = (await env.DB.prepare("SELECT id, titulo, estado FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gid).all()).results;
+    if (!g || !its.length) return json({ ok: false, error: "Ese ticket ya no está disponible. Actualiza la lista antes de repetir." }, 409);
+    if (!(await mesesAbiertos(env)).includes(g.mes))
+      return json({ ok: false, error: "Ese ticket es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
+    if (its.some(it => it.estado !== "comprado"))
+      return json({ok:false,error:"El ticket cambió en otra sesión. Actualiza la lista."},409);
+    const resultado = await env.DB.batch([
+      // La compra debe seguir completa: impide que una sesión vieja retire
+      // artículos que fueron movidos a otro gasto por una sesión más reciente.
+      env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND mes = ? AND origen = 'admin'
+        AND (SELECT COUNT(*) FROM agenda_items WHERE tipo = 'compra' AND estado = 'comprado' AND gasto_id = ?) = ?`)
+        .bind(gid, g.mes, gid, its.length),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: gid, mes: g.mes,
+        detalle: { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } }),
+      // changes() en este paso pertenece a la bitácora insertada solo si DELETE ganó.
+      env.DB.prepare(`UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, importe = NULL,
+        gasto_id = NULL, actualizado = ? WHERE tipo = 'compra' AND estado = 'comprado'
+        AND gasto_id = ? AND changes() > 0`).bind(ahora, gid),
+      // Solo liberar las claves históricas de este ticket después de devolver sus artículos.
+      env.DB.prepare("DELETE FROM compras_historial WHERE gasto_id = ? AND changes() > 0").bind(gid)
+    ]);
+    if (!resultado[0]?.meta?.changes)
+      return json({ok:false,error:"Ese ticket ya fue devuelto o cambió en otra sesión. Actualiza la lista."},409);
+    return json({ ok: true, n: Number(resultado[2]?.meta?.changes || 0) });
   }
   if (partes[1] === "compras" && request.method === "POST" && ["carrito", "terminar"].includes(partes[2])) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
