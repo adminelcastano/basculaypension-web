@@ -644,10 +644,20 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   const subir=async etiqueta=>{
     const url=new URL("https://ensayo.invalid/panel/api/agenda/pagos/"+id+"/comprobante");
     const req=new Request(url,{method:"POST",headers:{"Content-Type":"image/png"},
-      body:new TextEncoder().encode("Contenido de imagen ficticia "+etiqueta)});
+      body:new Uint8Array([137,80,78,71,13,10,26,10,...new TextEncoder().encode(etiqueta)])});
     const res=await agendaPanel(req,env,url,["agenda","pagos",id,"comprobante"],actor);
     return {status:res.status,data:await res.json()};
   };
+  // El navegador puede mentir sobre Content-Type; no aceptar texto activo
+  // disfrazado de imagen ni dejar registros o archivos huérfanos.
+  const falsoUrl=new URL("https://ensayo.invalid/panel/api/agenda/pagos/"+id+"/comprobante");
+  const falsoReq=new Request(falsoUrl,{method:"POST",headers:{"Content-Type":"image/png"},
+    body:new TextEncoder().encode("<script>alert('falso archivo')</script>")});
+  const falsoResp=await agendaPanel(falsoReq,env,falsoUrl,
+    ["agenda","pagos",id,"comprobante"],actor);
+  assert.equal(falsoResp.status,415);
+  assert.equal(db.prepare("SELECT comprobante FROM agenda_pagos WHERE id=?").get(id).comprobante,null);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Comprobante de pago' AND ref=?").get(id).n,0);
   const antesAuditoria=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n;
   const primera=await subir("primera");
   assert.equal(primera.status,200,JSON.stringify(primera));
