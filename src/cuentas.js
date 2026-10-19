@@ -5,7 +5,7 @@
 // Los cobros con tarjeta de los turnos caen en la cuenta marcada con `tarjeta = 1` (MDO PAGO).
 import { mesesAbiertos } from "./caja.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
-import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
 export const CUENTAS_BASE = [
@@ -313,11 +313,11 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     const m = await env.DB.prepare("SELECT * FROM fin_movs WHERE id = ?").bind(partes[2]).first();
     if (!m) return json({ ok: true, borrados: 0 });
     if (!abiertos.includes(m.mes)) return json({ ok: false, error: "Ese movimiento es de un mes ya cerrado; ya no se puede borrar." }, 409);
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM fin_movs WHERE id = ?").bind(m.id),
-      stmtBitacora(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
+    const resultado = await env.DB.batch([
+      env.DB.prepare("DELETE FROM fin_movs WHERE id = ? AND mes = ?").bind(m.id, m.mes),
+      stmtBitacoraSiCambio(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
     ]);
-    return json({ ok: true, borrados: 1 });
+    return json({ ok: true, borrados: Number(resultado[0]?.meta?.changes || 0) });
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }
