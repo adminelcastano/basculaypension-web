@@ -28,7 +28,7 @@ test("A-06: audiencia booleana válida mantiene exclusividad individual", async 
   const post = { autor: "admin", para: JSON.stringify(p) };
   assert.equal(avisoParaEncargado(post, "AUDITA", "MAÑANA"), true);
   assert.equal(avisoParaEncargado(post, "AUDITB", "MAÑANA"), false);
-  assert.equal(await errorDestinatariosCastagram(env, { ...p, personas: ["DESCONOCIDO"] }) instanceof String, false);
+  assert.match(await errorDestinatariosCastagram(env, { ...p, personas: ["DESCONOCIDO"] }), /no existen/);
 });
 
 test("A-06: sin audiencia explícita se sigue rechazando", async () => {
