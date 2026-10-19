@@ -172,8 +172,7 @@ function hojaMensual(d) {
   const nombre = String(d.nombre || 'Reporte').slice(0, 150);
   const destino = CARPETAS_REPORTES[d.destino] ? String(d.destino) : '';
   const carpeta = destino ? carpetaArea(destino, String(d.anio || '')) : carpetaReportes(String(d.raiz || 'El Castaño · Reportes mensuales'), (d.carpeta || [])[0]);
-  const viejos = carpeta.getFilesByName(nombre);
-  while (viejos.hasNext()) viejos.next().setTrashed(true);
+  // Primero crear y completar el nuevo reporte. Si falla, conservar el anterior intacto.
   const ss = SpreadsheetApp.create(nombre);
   const hojas = d.hojas || [];
   hojas.forEach(function (h, i) {
@@ -189,6 +188,13 @@ function hojaMensual(d) {
   });
   const archivo = DriveApp.getFileById(ss.getId());
   archivo.moveTo(carpeta);
+  // Sólo después de guardar el nuevo reporte correctamente, archivar versiones anteriores.
+  // Google Drive puede devolver también el nuevo archivo en esta consulta: nunca eliminarlo.
+  const viejos = carpeta.getFilesByName(nombre);
+  while (viejos.hasNext()) {
+    const previo = viejos.next();
+    if (previo.getId() !== ss.getId()) previo.setTrashed(true);
+  }
   return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null };
 }
 
