@@ -30,3 +30,12 @@ test("A-11B: los fallos de Drive no imprimen claves de archivos", () => {
   assert.doesNotMatch(archivos, /console\.error\("archivos: Drive no disponible, se guarda en KV", llave/);
   assert.doesNotMatch(archivos, /console\.error\("archivos: no se pudo leer de Drive", llave/);
 });
+
+test("A-11B: log de mantenimiento no copia errores de Google", () => {
+  const cron = worker.split("await mantenerArchivos(env).then(")[1]?.split(";")[0] || "";
+  assert.ok(cron);
+  assert.doesNotMatch(cron, /JSON\.stringify\(r\)/);
+  assert.match(cron, /fallo: !!r\.error/);
+  assert.match(cron, /tipoErrorSeguro\(e\)/);
+  assert.doesNotMatch(worker, /limpieza: respaldo no confirmado, no se borra nada", e && e\.message/);
+});
