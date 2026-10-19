@@ -15,6 +15,9 @@ config="$HOME/.config/elcastano-d1/backup.env"
 # Crear este archivo personalmente en el equipo, con permiso 600.
 # shellcheck disable=SC1090
 source "$config"
+[ "${BACKUP_ACTIVE:-NO}" = "SI" ] || {
+  echo "Respaldo macOS sin activar. Falta aprobación y validación final." >&2; exit 2
+}
 : "${BACKUP_DEST:?Falta BACKUP_DEST}"
 : "${AGE_RECIPIENT:?Falta AGE_RECIPIENT público}"
 : "${BACKUP_DRIVE_REMOTE:?Falta el remote privado de Drive}"
