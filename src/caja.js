@@ -250,7 +250,10 @@ export async function asegurarEsquemaCaja(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)"),
     // Exclusión de cierre mensual: KV puede servir lecturas simultáneas antiguas.
     // Una sola ejecución por mes toma la llave transaccional de D1.
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cierre_lock (mes TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)")
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cierre_lock (mes TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)"),
+    // Serializar lecturas simultáneas de la hoja para impedir que datos
+    // anteriores reemplacen tickets ya conciliados.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_sync_lock (nombre TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)")
   ]);
   await asegurarEsquemaBitacora(env);
   esquemaListo = true;
@@ -342,7 +345,18 @@ export function diferenciasCaja(actuales, nuevas) {
 export async function sincronizarCaja(env) {
   await asegurarEsquemaCaja(env);
   const meses = await mesesAbiertos(env);
+  const token = crypto.randomUUID();
+  let lock = false;
   try {
+    const ahora = new Date();
+    const vencido = new Date(ahora.getTime() - 10 * 60 * 1000).toISOString();
+    const tomado = await env.DB.prepare(`INSERT INTO caja_sync_lock (nombre, token, tomado)
+      VALUES ('hoja', ?, ?) ON CONFLICT(nombre) DO UPDATE SET
+        token = excluded.token, tomado = excluded.tomado
+      WHERE caja_sync_lock.tomado < ?`)
+      .bind(token, ahora.toISOString(), vencido).run();
+    if (!tomado.meta?.changes) return { ocupado: true };
+    lock = true;
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
     const filas = [];
     for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
@@ -401,6 +415,9 @@ export async function sincronizarCaja(env) {
     const estado = { ...previo, error: String(e && e.message || e).slice(0, 200), error_at: new Date().toISOString() };
     await env.FILES.put("caja:sync", JSON.stringify(estado));
     return estado;
+  } finally {
+    if (lock) await env.DB.prepare("DELETE FROM caja_sync_lock WHERE nombre = 'hoja' AND token = ?")
+      .bind(token).run().catch(e => console.error("Sincronización: liberar bloqueo D1", e && e.message));
   }
 }
 
@@ -1084,6 +1101,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
     const estado = await sincronizarCaja(env);
+    if (estado.ocupado) return json({ok:false,error:"Otra sincronización de la hoja sigue en curso. Espera a que termine antes de repetir."},409);
     if (estado.error && estado.error_at && (!estado.at || estado.error_at > estado.at)) return json({ ok: false, error: estado.error }, 502);
     return json({ ok: true, sync: estado });
   }
