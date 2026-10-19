@@ -271,8 +271,9 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
   if (partes[1] === "saldo-cuenta") {
     const mes = String(c.mes || ""), cuenta = String(c.cuenta || "");
     if (!abiertos.includes(mes)) return json({ ok: false, error: "Solo se puede capturar el saldo inicial del mes abierto; los meses anteriores toman el saldo calculado." }, 409);
-    const f = await env.DB.prepare("SELECT nombre FROM fin_cuentas WHERE id = ?").bind(cuenta).first();
+    const f = await env.DB.prepare("SELECT nombre, activa FROM fin_cuentas WHERE id = ?").bind(cuenta).first();
     if (!f) return json({ ok: false, error: "Cuenta inválida." }, 422);
+    if (!f.activa) return json({ok:false,error:"La cuenta fue ocultada o desactivada. Actualiza Finanzas antes de capturar un saldo."},409);
     const antes = await env.DB.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta).first();
     // Evita sobrescribir un saldo desde una pestaña desactualizada. Un cliente
     // antiguo sin "esperado" sigue funcionando, pero el panel nuevo siempre
@@ -307,13 +308,16 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     // Compara con la versión leída: dos pestañas no se pisan al guardar.
     // La inserción por primera vez solo gana si nadie creó el saldo entretanto.
     const resultado = await env.DB.batch([
-      env.DB.prepare(`INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado) VALUES (?, ?, ?, ?)
+      env.DB.prepare(`INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado)
+        SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)
         ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado
-        WHERE fin_saldos_cuenta.saldo = ?`).bind(mes, cuenta, saldo, ahora, antes ? antes.saldo : null),
+        WHERE fin_saldos_cuenta.saldo = ?
+          AND EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)`)
+        .bind(mes, cuenta, saldo, ahora, cuenta, antes ? antes.saldo : null, cuenta),
       log(saldo)
     ]);
     if (!resultado[0]?.meta?.changes)
-      return json({ok:false,error:"El saldo fue modificado en otra sesión. Actualiza la lista para confirmar el valor correcto."},409);
+      return json({ok:false,error:"El saldo o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de confirmar."},409);
     return json({ok:true});
   }
   if (partes[1] === "mov" && partes.length === 2) {
