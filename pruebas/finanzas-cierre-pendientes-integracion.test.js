@@ -273,3 +273,41 @@ test("Dos sincronizaciones simultáneas no pisan la hoja; una llave antigua se r
     if(primera)await primera.catch(()=>{});
   }
 });
+
+test("Sincronización de Google no modifica el mes durante un cierre activo",async()=>{
+  const tomado=new Date().toISOString();
+  sqlite.prepare(`INSERT INTO caja_cierre_lock (mes,token,tomado) VALUES (?,?,?)
+    ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado`)
+    .run(MES,"cierre-activo-prueba",tomado);
+  const antes=sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n;
+  const original=globalThis.fetch;
+  let consultas=0;
+  globalThis.fetch=async()=>{consultas++;throw Error("No debe consultar Google")};
+  try{
+    const estado=await sincronizarCaja(env);
+    assert.equal(estado.ocupado,true,JSON.stringify(estado));
+    assert.equal(consultas,0);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n,antes);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_sync_lock").get().n,0);
+  }finally{
+    globalThis.fetch=original;
+    sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=? AND token=?").run(MES,"cierre-activo-prueba");
+  }
+});
+
+test("Cierre mensual espera una sincronización activa y no genera reportes",async()=>{
+  sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=?").run(MES);
+  sqlite.prepare(`INSERT INTO caja_sync_lock (nombre,token,tomado) VALUES ('hoja',?,?)
+    ON CONFLICT(nombre) DO UPDATE SET token=excluded.token,tomado=excluded.tomado`)
+    .run("sync-activa-prueba",CIERRE.toISOString());
+  await env.FILES.put("caja:mes",MES);
+  await env.FILES.delete("caja:cierre_intento");
+  let informes=0;
+  try{
+    const salida=await cierreMensualCaja(env,{reportes:async()=>{informes++}},CIERRE);
+    assert.equal(salida.esperando,true,JSON.stringify(salida));
+    assert.equal(informes,0);
+    assert.equal(await env.FILES.get("caja:mes"),MES);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_cierre_lock WHERE mes=?").get(MES).n,0);
+  }finally{sqlite.prepare("DELETE FROM caja_sync_lock WHERE nombre='hoja' AND token=?").run("sync-activa-prueba")}
+});
