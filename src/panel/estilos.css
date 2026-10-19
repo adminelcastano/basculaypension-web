@@ -1696,3 +1696,25 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
   outline: 2px solid var(--amber);
   outline-offset: 3px;
 }
+
+/* DINERO: en celular no ocultar instrucciones financieras ni saldos sin capturar. */
+.f-guia-saldos, .f-aviso-saldos { min-width: 0; }
+.f-guia-saldos { margin: 0 0 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+.f-guia-saldos > summary, .f-aviso-saldos summary {
+  cursor: pointer; padding: 10px 12px; min-height: 44px;
+  font-weight: 650; line-height: 1.4; overflow-wrap: anywhere;
+}
+.f-guia-saldos > summary { color: var(--fg-2); }
+.f-guia-saldos > p { margin: 0; padding: 0 12px 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.f-aviso-saldos { display: grid; gap: 6px; padding: 12px 14px; margin: 0 0 10px;
+  color: var(--fg-2); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: 14px; background: color-mix(in srgb, var(--warn) 6%, var(--bg-2)); }
+.f-aviso-saldos > strong { color: var(--warn); line-height: 1.4; }
+.f-aviso-saldos > span { line-height: 1.45; }
+.f-aviso-saldos details { min-width: 0; }
+.f-aviso-saldos summary { padding: 7px 0; color: var(--fg); }
+.f-aviso-saldos ul { margin: 2px 0 8px; padding-left: 24px; line-height: 1.6; overflow-wrap: anywhere; }
+.f-aviso-saldos p { margin: 6px 0 0; line-height: 1.45; }
+.f-guia-saldos summary:focus-visible, .f-aviso-saldos summary:focus-visible {
+  outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 7px;
+}
