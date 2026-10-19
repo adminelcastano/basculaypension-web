@@ -455,12 +455,30 @@ export function transferenciasMes(movs, transf) {
     const ref = refTicket(m), l = ligadas.get(ref);
     return { ref, servicio: m.servicio, folio: m.folio, fecha: String(m.fecha).slice(0, 10), dia: m.dia, turno: m.turno, cliente: m.cliente || "", matricula: m.matricula || "", importe: m.importe, ligada: l ? { id: l.id, cliente: l.cliente, cuenta: l.cuenta || null, factura: l.factura || null } : null };
   });
+  // Una conciliación válida al capturar puede quedar obsoleta si Google
+  // corrige después el importe, la forma de pago o elimina el ticket.
+  // Señalar el conflicto sin borrar la relación ni modificar importes.
+  const tickets = movs.filter(m => m.tipo === "ticket");
+  const alertas = [];
+  for (const x of transf.filter(t => t.ticket_ref)) {
+    const relacionados = tickets.filter(m => refTicket(m) === x.ticket_ref);
+    let motivo = null;
+    if (!relacionados.length) motivo = "ausente";
+    else if (relacionados.length !== 1) motivo = "ambiguo";
+    else if (!esTransf(relacionados[0].forma)) motivo = "forma";
+    else if (Math.round(Number(relacionados[0].importe) * 100) !== Math.round(Number(x.importe) * 100))
+      motivo = "importe";
+    if (motivo) alertas.push({
+      id: x.id, ref: x.ticket_ref, motivo, importe_capturado: x.importe,
+      importe_hoja: relacionados.length === 1 ? relacionados[0].importe : null
+    });
+  }
   const enHoja = new Set(hoja.map(h => h.ref));
   const contadas = transf.filter(x => !x.ticket_ref || !enHoja.has(x.ticket_ref));
   const sinLigar = hoja.filter(h => !h.ligada);
   const posibles = contadas.filter(x => !x.ticket_ref).map(x => ({ id: x.id, tickets: sinLigar.filter(h => Math.abs(h.importe - x.importe) < 0.01 && h.fecha >= sumDias(x.fecha, -3) && h.fecha <= sumDias(x.fecha, 3)).map(h => h.ref) })).filter(x => x.tickets.length);
   const r2 = v => Math.round(v * 100) / 100;
-  return { hoja, contadas, posibles, total_hoja: r2(hoja.reduce((a, h) => a + h.importe, 0)), total_manual: r2(contadas.reduce((a, x) => a + x.importe, 0)) };
+  return { hoja, contadas, posibles, alertas, total_hoja: r2(hoja.reduce((a, h) => a + h.importe, 0)), total_manual: r2(contadas.reduce((a, x) => a + x.importe, 0)) };
 }
 
 // ---- Cambio entre turnos: lo que dejó un turno para el siguiente contra lo que el siguiente dijo recibir ----
