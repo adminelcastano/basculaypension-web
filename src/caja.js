@@ -458,10 +458,15 @@ export function transferenciasMes(movs, transf) {
   // Una conciliación válida al capturar puede quedar obsoleta si Google
   // corrige después el importe, la forma de pago o elimina el ticket.
   // Señalar el conflicto sin borrar la relación ni modificar importes.
-  const tickets = movs.filter(m => m.tipo === "ticket");
+  const tickets = new Map();
+  for (const m of movs.filter(m => m.tipo === "ticket")) {
+    const ref = refTicket(m);
+    if (!tickets.has(ref)) tickets.set(ref, []);
+    tickets.get(ref).push(m);
+  }
   const alertas = [];
   for (const x of transf.filter(t => t.ticket_ref)) {
-    const relacionados = tickets.filter(m => refTicket(m) === x.ticket_ref);
+    const relacionados = tickets.get(x.ticket_ref) || [];
     let motivo = null;
     if (!relacionados.length) motivo = "ausente";
     else if (relacionados.length !== 1) motivo = "ambiguo";
