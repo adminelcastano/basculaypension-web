@@ -179,7 +179,7 @@
           <span class="err" style="grid-column:1/-1"></span>
           <div class="row" style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Registrar movimiento</button></div>
         </form>` : `<p class="note">Mes cerrado: los movimientos ya no se pueden cambiar.</p>`}
-        ${(b.movs || []).length ? `<div class="alist" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc">${abierto ? `<button class="del" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>` : ""}</span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
+        ${(b.movs || []).length ? `<div class="alist fmov-lista" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc">${abierto ? `<button class="del fmov-eliminar" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento ${esc(m.origen_txt)} hacia ${esc(m.destino_txt)}"><svg aria-hidden="true"><use href="#i-trash"/></svg><span>Eliminar</span></button>` : ""}</span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
 
       </section>`,
       transferencias: () => `      <section class="card">
@@ -232,7 +232,7 @@
     // No redondear el saldo real al peso en el resumen del celular.
     const D0 = v => EC.dinero(v, Math.round(Math.abs(Number(v) || 0) * 100) % 100 ? 2 : 0);
     EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
-    EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : null, texto: "en sobres" });
+    EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : "—", texto: e.saldo != null ? "en sobres" : "Sin saldo inicial capturado" });
     EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "")) + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
     EC.bloqueInfo("finanzas", "transferencias", { texto: hojaSinLigar.length ? hojaSinLigar.length + " por ligar" : "Al corriente" });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
