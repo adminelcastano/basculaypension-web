@@ -26,6 +26,7 @@
   "triggers": { "crons": [] },
   "vars": {
     "ENSAYO_FINANZAS": "1",
+    "ENSAYO_TABLET": "1",
     "ADMIN_EMAILS": "administracion@basculaypension.com",
     "TURNO_EMAILS": "",
     "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
