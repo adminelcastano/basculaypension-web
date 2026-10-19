@@ -334,5 +334,22 @@ test("Cuenta bancaria desactivada o de tipo incorrecto no registra pago ni compr
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,antes.g);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,antes.p);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,antes.b);
-  }finally{db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-personal'").run()}
+
+    // Un pago ya guardado con un UID sí debe recuperarse después de desactivar
+    // su banco; reintentar una respuesta perdida no crea otro gasto.
+    const guardado={fecha:hoy,importe:"99.25",titulo:"Pago UID tras desactivar",
+      forma:"C:bbva-pyme",uid:"50000000-0000-4000-8000-000000000099"};
+    const pago=await post(env,"pagos/hecho",guardado);
+    assert.equal(pago.status,200,JSON.stringify(pago));
+    db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='bbva-pyme'").run();
+    const reintento=await post(env,"pagos/hecho",guardado);
+    assert.equal(reintento.status,200,JSON.stringify(reintento));
+    assert.equal(reintento.data.repetido,true);
+    assert.equal(reintento.data.id,pago.data.id);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(pago.data.id).n,1);
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
+  }finally{
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-personal'").run();
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
+  }
 });
