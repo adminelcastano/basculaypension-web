@@ -3,7 +3,7 @@ import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConv
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
-import { stmtBitacora } from "./bitacora.js";
+import { stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras, cuentasTicket } from "./compras.js";
 import { notificar, enviarPush } from "./push.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
@@ -493,24 +493,46 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     return json({ ok: true });
   }
   if (accion === "eliminar") {
-    // Pago, su egreso y (si era el último de un pago programado) el regreso del vencimiento, en una sola operación
-    const st = [];
-    if (pago.gasto_id) st.push(env.DB.prepare("DELETE FROM caja_gastos WHERE id = ?").bind(pago.gasto_id));
-    st.push(env.DB.prepare("DELETE FROM agenda_pagos WHERE id = ?").bind(pago.id));
+    // Compare-and-delete: si otra sesión corrigió o eliminó el pago tras abrir
+    // el diálogo, no destruir su versión más reciente ni duplicar la bitácora.
+    const st = [
+      env.DB.prepare(`DELETE FROM agenda_pagos WHERE id = ? AND fecha = ? AND importe = ? AND forma = ?
+        AND COALESCE(cuenta, '') = ? AND COALESCE(nota, '') = ?
+        AND COALESCE(titulo, '') = ? AND COALESCE(categoria, '') = ?
+        AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id = agenda_pagos.gasto_id))`)
+        .bind(pago.id, pago.fecha, pago.importe, pago.forma, pago.cuenta || "", pago.nota || "",
+          pago.titulo || "", pago.categoria || ""),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar",
+        que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id,
+        mes: pago.fecha.slice(0, 7),
+        detalle: { concepto: pago.titulo, fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta } })
+    ];
+    // changes() es el de la bitácora anterior: si DELETE = 0, todo sigue intacto.
+    if (pago.gasto_id) st.push(
+      env.DB.prepare("DELETE FROM caja_gastos WHERE id = ? AND changes() > 0").bind(pago.gasto_id)
+    );
     let regreso = null;
     if (pago.item_id && pago.programado) {
       const it = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(pago.item_id).first();
       const otro = await env.DB.prepare("SELECT 1 FROM agenda_pagos WHERE item_id = ? AND creado > ? LIMIT 1").bind(pago.item_id, pago.creado).first();
       if (it && !otro) {
         const n = MESES_FREC[it.frecuencia || "mensual"];
-        if (!n && it.estado === "pagado") { st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id)); regreso = pago.programado; }
-        else if (n && it.fecha === sumarMeses(pago.programado, n)) { st.push(env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(pago.programado, ahora, it.id)); regreso = pago.programado; }
+        if (!n && it.estado === "pagado") {
+          st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ? AND changes() > 0")
+            .bind(pago.programado, ahora, it.id));
+          regreso = pago.programado;
+        } else if (n && it.fecha === sumarMeses(pago.programado, n)) {
+          st.push(env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ? AND changes() > 0")
+            .bind(pago.programado, ahora, it.id));
+          regreso = pago.programado;
+        }
       }
     }
-    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id, mes: pago.fecha.slice(0, 7), detalle: { concepto: pago.titulo, fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta } }));
-    await env.DB.batch(st);
+    const resultados = await env.DB.batch(st);
+    if (!resultados[0]?.meta?.changes)
+      return json({ ok:false, error:"Este pago ya cambió o fue eliminado en otra sesión. Actualiza la lista antes de intentar borrarlo." },409);
     if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
-    return json({ ok: true, regreso });
+    return json({ ok:true, regreso });
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }
