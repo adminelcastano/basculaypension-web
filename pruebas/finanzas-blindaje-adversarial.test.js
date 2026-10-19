@@ -158,3 +158,26 @@ test("Si otro administrador corrigió el saldo, el panel recupera el dato confir
   assert.match(cliente,/if \(inp\.disabled\) return/);
   assert.doesNotThrow(()=>new Function(cliente));
 });
+
+test("Interfaz móvil: controles de cuentas revierten valores rechazados y bloquean reenvíos",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  assert.match(ui,/x\.dataset\.confirmado = x\.value/);
+  assert.match(ui,/control\.value = control\.dataset\.confirmado/);
+  assert.match(ui,/if \(control\?\.disabled\) return false/);
+  assert.match(ui,/if \(bt\.disabled\) return; bt\.disabled = true; fm\.querySelector/);
+  assert.match(ui,/if \(b\.disabled\) return; b\.disabled = true; ft\.querySelector/);
+  assert.match(ui,/if \(bt\.disabled\) return;\s*bt\.disabled = true;\s*try \{\s*const res = await post/);
+  assert.match(ui,/res\.borrados \? "Movimiento eliminado" : "Movimiento ya eliminado"/);
+  assert.match(ui,/res\.sin_cambios \? "El ticket ya tenía ese vínculo"/);
+  assert.match(ui,/\/otra sesión\|cambió\/\.test\(e\.message\)/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
+test("Pago modal: evitar doble confirmación y recuperar el estado tras conflicto",()=>{
+  const ui=source("../src/panel/cliente/07-agenda.js");
+  assert.match(ui,/const b = f\.querySelector\("\[type=submit\]"\);\s*if \(b\.disabled\) return;\s*b\.disabled = true/);
+  assert.match(ui,/c\.querySelectorAll\("\[data-borrar-pago\]"\)/);
+  assert.match(ui,/if \(b\.disabled\) return;\s*const p = \(st\.pagosHechos/);
+  assert.match(ui,/if \(b\.isConnected\) b\.disabled = false/);
+  assert.match(ui,/\/otra sesión\|cambió\|ya no existe\/\.test\(e\.message\)/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
