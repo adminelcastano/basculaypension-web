@@ -166,7 +166,7 @@ test("Interfaz móvil: controles de cuentas revierten valores rechazados y bloqu
   assert.match(ui,/if \(control\?\.disabled\) return false/);
   assert.match(ui,/if \(bt\.disabled\) return; bt\.disabled = true; fm\.querySelector/);
   assert.match(ui,/if \(b\.disabled\) return; b\.disabled = true; ft\.querySelector/);
-  assert.match(ui,/if \(bt\.disabled\) return;\s*bt\.disabled = true;\s*try \{\s*const res = await post/);
+  assert.match(ui,/if \(bt\.disabled\) return;\s*bt\.disabled = true;\s*try \{\s*if \(!\(await EC\.confirmar/);
   assert.match(ui,/res\.borrados \? "Movimiento eliminado" : "Movimiento ya eliminado"/);
   assert.match(ui,/res\.sin_cambios \? "El ticket ya tenía ese vínculo"/);
   assert.match(ui,/\/otra sesión\|cambió\/\.test\(e\.message\)/);
@@ -189,5 +189,16 @@ test("El campo móvil conserva saldo original para rechazar formularios obsoleto
  assert.match(ui,/esperado: inp\.dataset\.original === "" \? null : inp\.dataset\.original/);
  assert.match(servidor,/Object\.hasOwn\(c, "esperado"\)/);
  assert.match(servidor,/El saldo cambió en otra sesión/);
+ assert.doesNotThrow(()=>new Function(ui));
+});
+
+test("Eliminar en móvil exige confirmación visible, no una doble pulsación invisible",()=>{
+ const ui=source("../src/panel/cliente/05-finanzas.js");
+ assert.match(ui,/EC\.confirmar\(\s*"¿Eliminar este movimiento\?"/);
+ assert.match(ui,/EC\.confirmar\(\s*"¿Eliminar transferencia\?"/);
+ assert.doesNotMatch(ui,/classList\.contains\("armed"\)/);
+ assert.doesNotMatch(ui,/Eliminar movimiento \(toca dos veces\)/);
+ assert.match(ui,/if \(bt\.disabled\) return/);
+ assert.match(ui,/if \(b\.disabled\) return/);
  assert.doesNotThrow(()=>new Function(ui));
 });
