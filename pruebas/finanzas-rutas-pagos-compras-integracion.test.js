@@ -553,3 +553,38 @@ test("Fechas imposibles y fechas explícitas inválidas no crean egresos",async(
     assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(id).estado,"pendiente");
   }
 });
+
+test("Compra individual: un fallo al actualizar su estado revierte el gasto y su historial",async()=>{
+  const {db,env}=shared;
+  const id="ensayo-compra-rollback-completo";
+  db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES(?,'compra','Compra con interrupción','pendiente',?)")
+    .run(id,new Date().toISOString());
+  const contar=()=>({
+    gastos:db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,
+    historial:db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,
+    bitacora:db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n
+  });
+  const antes=contar(), batch=env.DB.batch;
+  let interceptado=false;
+  env.DB.batch=async statements=>{
+    if(!interceptado && statements.some(x=>x.sql.includes("INSERT INTO caja_gastos"))){
+      interceptado=true;
+      assert.ok(statements.some(x=>x.sql.startsWith("UPDATE agenda_items SET titulo=")),
+        "El cambio definitivo del estado debe acompañar al gasto");
+      const fallida=env.DB.prepare("INSERT INTO tabla_inexistente_ensayo(id) VALUES (1)");
+      return batch([...statements,fallida]); // fallo SQL en el mismo lote
+    }
+    return batch(statements);
+  };
+  try{
+    await assert.rejects(()=>post(env,id,{
+      titulo:"Compra con interrupción",estado:"comprado",importe:"19.25",
+      forma:"C:bbva-pyme",fecha_compra:hoy
+    }),/no such table: tabla_inexistente_ensayo/);
+    assert.equal(interceptado,true);
+    assert.deepEqual(contar(),antes,"No quedan egresos ni auditorías sin compra terminada");
+    const it=db.prepare("SELECT estado,gasto_id FROM agenda_items WHERE id=?").get(id);
+    assert.equal(it.estado,"pendiente");
+    assert.equal(it.gasto_id,null);
+  } finally {env.DB.batch=batch}
+});
