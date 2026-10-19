@@ -10,7 +10,7 @@
  *   en el Drive de esta cuenta (tickets y constancias, expedientes, fotos de la tablet). No la renombres;
  *   puedes moverla de lugar dentro de tu Drive.
  *
- * TOKEN: cópialo igual en Cloudflare como secreto AVISO_TOKEN.
+ * TOKEN: conservar sólo en Propiedades de Apps Script (AVISO_TOKEN) y en el secreto homónimo de Cloudflare; nunca escribir valores en el repositorio.
  */
 // Mismo valor configurado en Cloudflare; nunca incluirlo en Git ni en logs.
 const TOKEN = () => PropertiesService.getScriptProperties().getProperty('AVISO_TOKEN');
