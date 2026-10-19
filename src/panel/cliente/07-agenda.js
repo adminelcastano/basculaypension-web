@@ -688,13 +688,15 @@ window.interpretarAgenda = function (texto, hoy) {
         <div class="k"><span>Por pagar este mes</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
         <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
         <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
-      </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Dinero.</p></section>`;
+      </div><details class="f-guia-saldos" style="margin-top:12px"><summary>¿De dónde salen estos pagos?</summary>
+      <p class="note" data-nl="1">Son pagos de la administración: desde los sobres o el banco. No afectan la caja de ningún turno y se registran como egresos en Dinero.</p></details></section>`;
     return resumen;
   }
   function vistaProgramados() { return resumenPagos() + vistaLista("pago"); }
   function vistaHechos() {
     return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
-        <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
+        <details class="f-guia-saldos" style="margin-top:12px"><summary>¿Qué pagos se registran aquí?</summary>
+          <p class="note" data-nl="1">Registra gastos ya realizados que no estaban programados: recibos, refacciones, gasolina o comidas. Puedes adjuntar foto o PDF como comprobante opcional.</p></details></section>
       <section class="card">${listaPagosHechos()}</section>`;
   }
   // Contadores de cada bloque (en su título y en el submenú)
