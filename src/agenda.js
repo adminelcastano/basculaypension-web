@@ -408,7 +408,23 @@ async function validarPagoHecho(env, c, fila) {
 }
 // Pagos, compras y otros gastos de la administración: salen de los sobres (efectivo) o del banco, no de la caja
 // de ningún turno, así que no llevan turno y no cuentan en los cortes (origen = 'admin').
-const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria, cuenta) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 'admin', ?, ?)";
+// Validación bancaria dentro de la misma transacción que modifica dinero.
+// Si la cuenta se inactiva entre la lectura y la escritura, el monto NULL
+// incumple NOT NULL y D1.batch revierte pago, gasto, historial y bitácora.
+const GASTO_ADMIN = `INSERT INTO caja_gastos
+  (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria, cuenta)
+  VALUES (?, ?, ?, '', ?,
+    CASE WHEN ? = 'EFECTIVO' OR ? IS NULL OR EXISTS (
+      SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1
+        AND tipo = CASE WHEN ? = 'TARJETA' THEN 'credito' ELSE 'debito' END
+    ) THEN ? ELSE NULL END,
+    ?, ?, ?, 'admin', ?, ?)`;
+const stmtGastoAdmin = (env, id, mes, dia, concepto, importe, forma, ahora, quien, categoria, cuenta) =>
+  env.DB.prepare(GASTO_ADMIN).bind(id, mes, dia, concepto,
+    forma, cuenta, cuenta, forma, importe, forma, ahora, quien, categoria, cuenta);
+const errorBancoEnEscritura = er =>
+  /NOT NULL constraint failed:\s*caja_gastos\.monto/i.test(String(er?.message || ""));
+const conflictoBanco = () => json({ok:false,error:"La cuenta bancaria cambió mientras guardabas. Actualiza la lista y confirma la cuenta antes de repetir."},409);
 // Cuenta del pago: la elegida; si no se eligió y no es en efectivo, la de antes o la cuenta por defecto para pagos
 // Con tarjeta sin elegir cuál, no se adivina: queda "sin cuenta" y Finanzas lo avisa (antes caía en la cuenta de débito por defecto)
 const cuentaDe = async (env, c, previo, forma) => forma === "EFECTIVO" ? null : ("cuenta" in c ? c.cuenta : null) || previo || (forma === "TARJETA" ? null : await cuentaDefecto(env, "pago"));
@@ -459,13 +475,14 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     // Egreso y pago en una sola operación: o quedan los dos o ninguno.
     try {
       await env.DB.batch([
-        env.DB.prepare(GASTO_ADMIN).bind(gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
+        stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta),
         env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
           .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
         stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
       ]);
     } catch (er) {
       const previo = await repetido(); if (previo) return previo;
+      if (errorBancoEnEscritura(er)) return conflictoBanco();
       throw er;
     }
     return json({ ok: true, id: pid });
@@ -524,10 +541,12 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
       env.DB.prepare(`UPDATE agenda_pagos SET fecha=?, importe=?, forma=?, nota=?, titulo=?, categoria=?, cuenta=?
         WHERE id=? AND fecha=? AND importe=? AND forma=?
         AND COALESCE(nota,'')=? AND COALESCE(titulo,'')=? AND COALESCE(categoria,'')=?
-        AND COALESCE(cuenta,'')=? AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id=agenda_pagos.gasto_id))`)
+        AND COALESCE(cuenta,'')=? AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id=agenda_pagos.gasto_id))
+        AND (? IS NULL OR EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1 AND tipo = ?))`)
         .bind(v.fecha,v.importe,v.forma,v.nota,titulo,cat,cta,
           pago.id,pago.fecha,pago.importe,pago.forma,
-          pago.nota||"",pago.titulo||"",pago.categoria||"",pago.cuenta||""),
+          pago.nota||"",pago.titulo||"",pago.categoria||"",pago.cuenta||"",
+          cta,cta,v.forma === "TARJETA" ? "credito" : "debito"),
       stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion:"editar",
         que: pago.item_id ? "Pago programado" : "Pago no programado",
         ref:pago.id,mes:v.fecha.slice(0,7),
@@ -855,7 +874,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
     const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
     if (errorCuenta) return json({ok:false,error:errorCuenta},422);
-    const st = [env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
+    const st = [stmtGastoAdmin(env, gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
     for (const f of orden) {
       const imp = cu.precios[f.id] ?? null;
       st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'comprado', cerrado = ?, actualizado = ?, importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(ahora, ahora, imp, gid, f.id));
@@ -865,6 +884,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     try { await env.DB.batch(st); }
     catch (er) {
       const ya = await repetido(); if (ya) return ya;
+      if (errorBancoEnEscritura(er)) return conflictoBanco();
       if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
         return json({ok:false,error:"Uno de los artículos ya fue comprado por otra sesión. Actualiza la lista antes de volver a registrar el ticket."},409);
       throw er;
@@ -975,7 +995,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const cta = await cuentaDe(env, c, null, forma);
       const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
       if (errorCuenta) return json({ok:false,error:errorCuenta},422);
-      junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
+      junto.push(stmtGastoAdmin(env, gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
         env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(importe, gid, id),
         stmtHistorialCompra(env, { ...fila, titulo: d.titulo, cantidad: d.cantidad, categoria: catC }, { importe, fecha: dia, gasto_id: gid, exclusiva: true }),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Compra", ref: id, mes: dia.slice(0, 7), detalle: { dia, concepto, importe, forma, cuenta: cta, categoria: catC } }));
@@ -999,6 +1019,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (junto.length) {
       try { await env.DB.batch(junto); }
       catch (er) {
+        if (errorBancoEnEscritura(er)) return conflictoBanco();
         if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
           return json({ok:false,error:"Esta compra ya fue registrada por otra sesión. Actualiza la lista antes de repetirla."},409);
         throw er;
@@ -1074,7 +1095,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
     try { await env.DB.batch([
-      env.DB.prepare(GASTO_ADMIN).bind(gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta),
+      stmtGastoAdmin(env, gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta),
       env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, quien, fila.titulo, v.nota, cat, cta),
       // Siguiente vencimiento a partir de la fecha programada (si se pagó tarde no se recorre el calendario)
@@ -1082,7 +1103,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         : env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sumarMeses(fila.fecha || fecha, meses_), ahora, fila.id),
       stmtBitacora(env, { quien, accion: "crear", que: "Pago programado", ref: pid, mes: fecha.slice(0, 7), detalle: { concepto: fila.titulo, fecha, importe, forma, cuenta: cta, categoria: cat, vencimiento: fila.fecha } })
     ]); }
-    catch (er) { const previo = await repetido(); if (previo) return previo; throw er; }
+    catch (er) { const previo = await repetido(); if (previo) return previo; if (errorBancoEnEscritura(er)) return conflictoBanco(); throw er; }
     return json({ ok: true, gasto_id: gid, id: pid });
   }
 
