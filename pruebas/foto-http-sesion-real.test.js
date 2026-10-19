@@ -51,7 +51,7 @@ function entorno() {
   let fotosEntregadas = 0;
   const fn = new Function("permisoFotoTurno", "webcrypto", "env", "notificarFoto", `
     const crypto = webcrypto;
-    const TURNOS = ["MAÑANA","TARDE","NOCHE"], SESION_HORAS = 14;
+    const TURNOS = ["MAÑANA","TARDE","NOCHE"], SESION_HORAS = 14, AVATARES = {};
     const enc = new TextEncoder();
     const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("");
     const b64u = s => btoa(s).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,"");
