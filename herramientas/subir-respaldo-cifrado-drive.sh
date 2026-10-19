@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Envía ÚNICAMENTE un archivo cifrado age a la carpeta privada de Drive.
 # BACKUP_DRIVE_REMOTE debe ser un remote de rclone cuyo root_folder_id
-# esté configurado con root_folder_id de «El Castaño · Respaldos D1 cifrados».\n# root_folder_id acota rutas de rclone, NO limita los permisos OAuth otorgados.
-# No crea credenciales ni guarda claves; no borra respaldos.\n# Usa --immutable para rechazar cambios sobre una copia remota ya existente.
+# esté configurado con root_folder_id de «El Castaño · Respaldos D1 cifrados».
+# root_folder_id acota rutas de rclone, NO limita los permisos OAuth otorgados.
+# No crea credenciales ni guarda claves; no borra respaldos.
+# Usa --immutable para rechazar cambios sobre una copia remota ya existente.
 set -euo pipefail
 umask 077
 : "${BACKUP_DRIVE_REMOTE:?Define BACKUP_DRIVE_REMOTE como nombre de remote rclone terminado en :}"
@@ -11,9 +13,11 @@ umask 077
   echo "El remote debe apuntar directamente a la carpeta privada, sin subrutas" >&2
   exit 2
 }
-for cmd in rclone sha256sum md5sum basename dirname; do
+for cmd in rclone basename dirname; do
   command -v "$cmd" >/dev/null || { echo "Falta herramienta: $cmd" >&2; exit 2; }
 done
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$root/herramientas/respaldo-portable.sh"
 archivo="$1"
 base="$(basename "$archivo")"
 [[ "$base" =~ ^d1-[0-9]{8}T[0-9]{6}Z\.sql\.age$ ]] || {
@@ -23,7 +27,7 @@ base="$(basename "$archivo")"
 [ -s "$archivo" ] && [ -s "$archivo.sha256" ] || {
   echo "Falta archivo cifrado o manifiesto" >&2; exit 2
 }
-( cd "$(dirname "$archivo")" && sha256sum -c "$base.sha256" >/dev/null ) || {
+backup_verificar_sha256 "$archivo" || {
   echo "El respaldo cifrado no coincide con su SHA-256" >&2; exit 1
 }
 
@@ -36,7 +40,7 @@ for origen in "$archivo" "$archivo.sha256"; do
     exit 1
   fi
   rclone copyto --immutable --checksum "$origen" "$destino"
-  esperado="$(md5sum "$origen" | cut -d' ' -f1)"
+  esperado="$(backup_md5 "$origen")"
   recibido="$(rclone md5sum "$destino" | awk 'NR==1 {print $1}')"
   if [ -z "$recibido" ] || [ "$recibido" != "$esperado" ]; then
     echo "No se confirmó la integridad de la copia en Drive: $nombre" >&2
