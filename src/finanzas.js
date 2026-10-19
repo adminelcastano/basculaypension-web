@@ -239,6 +239,7 @@ export async function datosFinanzas(env, mes) {
     // Totales de las cuentas que ya tienen saldo (las que no, se listan en faltan_saldo)
     dinero: deb.some(c => c.saldo != null) ? r2(deb.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
     dinero_parcial: deb.some(c => c.saldo == null),
+    conciliaciones_pendientes: tr.alertas.length,
     deuda: cred.some(c => c.saldo != null) ? r2(cred.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
     deuda_parcial: cred.some(c => c.saldo == null),
     faltan_saldo: [...deb, ...cred].filter(c => c.saldo == null).map(c => c.nombre)
