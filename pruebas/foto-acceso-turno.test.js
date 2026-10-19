@@ -25,7 +25,7 @@ function simularDB({ publicacion = activo, comentarioBorrado = false, incidencia
                   return null;
                 }
                 if (sql.includes("FROM aviso_comentarios WHERE"))
-                  return llave === fotoComentario ? { borrado: comentarioBorrado ? "2026-10-19T00:00:00Z" : null } : null;
+                  return valores[1] === fotoComentario ? { borrado: comentarioBorrado ? "2026-10-19T00:00:00Z" : null } : null;
                 if (sql.includes("tipo = 'incidencia'"))
                   return llave === fotoIncidencia && incidencia ? { 1: 1 } : null;
                 throw new Error("Consulta no prevista en prueba de permiso");
