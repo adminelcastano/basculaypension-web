@@ -1213,6 +1213,12 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         json({ ok: false, error: "Esta transferencia ya se registró con otros datos. Actualiza la lista para revisarla." }, 409);
     };
     const ya = await repetida(); if (ya) return ya;
+    // Una respuesta de red tardía no debe recrear transferencias eliminadas.
+    const fueEliminada = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Transferencia de cliente' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminada())
+      return json({ok:false,error:"Esta transferencia fue eliminada. Actualiza Finanzas antes de capturar otra."},409);
     // Un reintento del MISMO UID se reconoce antes de validar la cuenta activa:
     // si fue desactivada después de guardar, el reintento no debe duplicar ni fallar.
     if (cuentaElegida) {
@@ -1233,6 +1239,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const condiciones = [];
       if (cta) condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1)");
       if (ref) condiciones.push("NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)");
+      condiciones.push("NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Transferencia de cliente')");
       const sql = condiciones.length
         ? `INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref)
             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`
@@ -1240,6 +1247,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const parametros = [id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null];
       if (cta) parametros.push(cta);
       if (ref) parametros.push(mes, ref.ref);
+      parametros.push(id);
       const detalle = { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null };
       const resultados = await env.DB.batch([
         env.DB.prepare(sql).bind(...parametros),
@@ -1247,7 +1255,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
           : stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
       ]);
       if (!resultados[0]?.meta?.changes)
-        return json({ok:false,error:"El ticket ya fue vinculado o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de repetir."},409);
+        return json({ok:false,error:await fueEliminada()
+          ? "Esta transferencia fue eliminada en otra sesión. Actualiza Finanzas."
+          : "El ticket ya fue vinculado o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de repetir."},409);
     } catch (er) {
       const ya = await repetida(); if (ya) return ya;
       throw er;
