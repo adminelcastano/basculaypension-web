@@ -302,3 +302,36 @@ test("Dos sesiones devuelven el mismo ticket: una sola baja y no afecta recompra
   assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(nuevoGid).n,2);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items WHERE gasto_id=? AND estado='comprado'").get(nuevoGid).n,2);
 });
+
+
+test("Cuenta bancaria desactivada o de tipo incorrecto no registra pago ni compra",async()=>{
+  const {db,env}=entorno();
+  try{
+    await iniciar(env);
+    db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='bbva-personal'").run();
+    const antes={g:db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,
+      p:db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,
+      b:db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n};
+    const base={fecha:hoy,importe:"101.25",titulo:"Pago de prueba",categoria:"Servicios"};
+    for(const [forma,motivo] of [
+      ["C:bbva-personal","inactiva"],
+      ["C:banco-que-no-existe","inexistente"],
+      ["TRANSFERENCIA","tipo equivocado con cuenta explícita"]
+    ]){
+      const datos={...base,uid:crypto.randomUUID(),forma};
+      if(forma==="TRANSFERENCIA")datos.cuenta="banorte-credito";
+      const res=await post(env,"pagos/hecho",datos);
+      assert.equal(res.status,422,motivo+": "+JSON.stringify(res));
+    }
+    db.prepare("INSERT INTO agenda_items (id,tipo,titulo,estado,creado) VALUES ('compra-no-cuenta','compra','Ensayo compras','pendiente',?)").run(new Date().toISOString());
+    for(const forma of ["C:bbva-personal","C:banco-que-no-existe"]){
+      const res=await post(env,"compras/terminar",{ids:["compra-no-cuenta"],
+        total:"70.50",forma,fecha_compra:hoy,uid:crypto.randomUUID()});
+      assert.equal(res.status,422,JSON.stringify(res));
+      assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id='compra-no-cuenta'").get().estado,"pendiente");
+    }
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,antes.g);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,antes.p);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,antes.b);
+  }finally{db.close()}
+});
