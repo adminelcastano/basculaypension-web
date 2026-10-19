@@ -166,7 +166,14 @@ export async function reporteArea(env, tipo, mes, h) {
   // No ocultar duplicados históricos si Drive no permitió archivarlos.
   const info = { tipo, mes, url: r.url, id: r.id, at: new Date().toISOString(),
     hojas: hojas.length, pendientes_archivar: Math.max(0, Number(r.pendientes_archivar) || 0) };
-  await env.FILES.put(`rep:${tipo}:${mes}`, JSON.stringify(info));
+  try {
+    await env.FILES.put(`rep:${tipo}:${mes}`, JSON.stringify(info));
+  } catch {
+    // El Google Sheet ya existe y está confirmado. No informar "falló crear"
+    // porque reintentar podría sustituir un reporte generado correctamente.
+    info.indice_pendiente = true;
+    console.error("reportes: generado en Sheets, índice KV no confirmado");
+  }
   return info;
 }
 // Los tres reportes del mes (al cerrarlo): si alguno falla, se avisa con el error
