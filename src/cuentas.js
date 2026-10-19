@@ -253,9 +253,12 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
       }
       // Los cobros antiguos se asignan según el rol actual de estas cuentas.
       // Impedir un cambio silencioso mientras no exista un historial de asignaciones por fecha.
-      for (const rol of ["tarjeta", "def_transf"]) if (c[rol]) {
+      const rolesSolicitados = ["def_transf","def_pago","tarjeta"].filter(rol => !!c[rol]);
+      const titulares = {};
+      for (const rol of rolesSolicitados) {
         const previa = await env.DB.prepare(`SELECT id FROM fin_cuentas WHERE ${rol} = 1 LIMIT 1`).first();
-        if (previa?.id !== f.id) {
+        titulares[rol] = previa?.id || null;
+        if (["tarjeta","def_transf"].includes(rol) && previa?.id !== f.id) {
           const forma = rol === "tarjeta" ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'";
           const usados = await env.DB.prepare(`SELECT 1 FROM caja_mov WHERE tipo = 'ticket' AND ${forma} LIMIT 1`).first();
           if (usados) return json({ok:false,error:rol==="tarjeta"
@@ -275,10 +278,35 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
       if ("comision_iva" in c) iva = c.comision_iva ? 1 : 0;
       if ("nombre" in c && nombre.length < 2) return json({ ok: false, error: "Escribe el nombre de la cuenta." }, 422);
       if (nombre && nombre !== f.nombre && await env.DB.prepare("SELECT 1 FROM fin_cuentas WHERE id != ? AND upper(nombre) = ?").bind(c.id, nombre).first()) return json({ ok: false, error: "Ya hay otra cuenta con ese nombre." }, 409);
-      const st = [env.DB.prepare("UPDATE fin_cuentas SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ? WHERE id = ?").bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo, "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id)];
-      for (const k of ["def_transf", "def_pago", "tarjeta"]) if (c[k]) st.push(env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 0`), env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 1 WHERE id = ?`).bind(c.id));
-      st.push(stmtBitacora(env, { quien, accion: "editar", que: "Cuenta", ref: f.id, detalle: { cuenta: f.nombre, cambios: Object.fromEntries(Object.entries(c).filter(([k]) => k !== "id")) } }));
-      await env.DB.batch(st);
+      // Los cobros pueden llegar desde Google mientras se cambia el banco
+      // receptor. Verificar historial y titular del rol DENTRO de D1.batch.
+      // Dos administradores que eligen cuentas diferentes no se pisan.
+      const condiciones = [], args = [];
+      for (const rol of rolesSolicitados) {
+        if (titulares[rol]) {
+          condiciones.push(`EXISTS (SELECT 1 FROM fin_cuentas WHERE ${rol} = 1 AND id = ?)`);
+          args.push(titulares[rol]);
+        } else condiciones.push(`NOT EXISTS (SELECT 1 FROM fin_cuentas WHERE ${rol} = 1)`);
+        if (titulares[rol] !== f.id && ["tarjeta","def_transf"].includes(rol)) {
+          condiciones.push(`NOT EXISTS (SELECT 1 FROM caja_mov WHERE tipo='ticket' AND ${rol === "tarjeta" ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'"} )`);
+        }
+      }
+      const condicion = condiciones.length ? " AND " + condiciones.join(" AND ") : "";
+      const st = [env.DB.prepare(`UPDATE fin_cuentas
+        SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ?
+        WHERE id = ? AND nombre = ? AND tipo = ? AND activa = ?${condicion}`)
+        .bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo,
+          "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id,
+          f.nombre, f.tipo, f.activa, ...args)];
+      for (const k of rolesSolicitados) st.push(
+        env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 0 WHERE changes() > 0`),
+        env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 1 WHERE id = ? AND changes() > 0`).bind(c.id)
+      );
+      st.push(stmtBitacoraSiCambio(env, { quien, accion: "editar", que: "Cuenta", ref: f.id,
+        detalle: { cuenta: f.nombre, cambios: Object.fromEntries(Object.entries(c).filter(([k]) => k !== "id")) } }));
+      const resultado = await env.DB.batch(st);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"La cuenta o su asignación cambió mientras guardabas, o aparecieron cobros nuevos. Actualiza las cuentas y verifica antes de repetir."},409);
       return json({ ok: true });
     }
     if (nombre.length < 2) return json({ ok: false, error: "Escribe el nombre de la cuenta." }, 422);
