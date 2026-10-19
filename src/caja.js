@@ -9,6 +9,9 @@ import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./b
 // los reportes en Google Sheets (Turnos, Finanzas y Facturación) y se borra lo de hace más de 13 meses.
 
 const TZ = "America/Mexico_City";
+const fechaCalendarioCaja = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) &&
+  Number.isFinite(Date.parse(d + "T12:00:00Z")) &&
+  new Date(d + "T12:00:00Z").toISOString().slice(0, 10) === d;
 export const TURNOS = ["MAÑANA", "TARDE", "NOCHE"];
 // Horario de cada turno (horas desde el inicio del día del corte)
 const VENTANA = { "MAÑANA": [6, 14], "TARDE": [14, 22], "NOCHE": [22, 30] };
@@ -721,7 +724,7 @@ export function leerTablaEntregas(textoTabla, anio) {
     else if ((m = /^(\d{1,2})\s*[\/\- ]\s*([a-záéíóú]{3,4})\.?$/i.exec(c[0])) && MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")])
       dia = `${anio}-${String(MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     const turno = normTurno(c[1]);
-    if (!dia || !turno) { if (i === 0 || /d[ií]a|turno/i.test(linea)) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
+    if (!fechaCalendarioCaja(dia) || !turno) { if (i === 0 || /d[ií]a|turno/i.test(linea)) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
     const [sobre, taxi, sueldo, cambio] = [c[2], c[3], c[4], c[5]].map(celdaMonto);
     if ([sobre, taxi, sueldo, cambio].some(v => Number.isNaN(v))) { errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "Hay un monto que no es número." }); return; }
     filas.push({ linea: i + 1, dia, turno, sobre, taxi, sueldo, cambio });
@@ -796,7 +799,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCategorias(env);
   const meses = await mesesAbiertos(env), mes = meses[meses.length - 1];
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
-  const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
+  const diaValido = d => fechaCalendarioCaja(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
 
   if (partes[1] === "pendiente" && partes[2] && partes[3] === "resolver" && request.method === "POST") {
