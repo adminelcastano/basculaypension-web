@@ -35,7 +35,13 @@ comprobacion="$(sqlite3 -readonly "$temporal/ensayo.sqlite" 'PRAGMA quick_check;
 
 age -r "$AGE_RECIPIENT" -o "$salida" "$temporal/export.sql"
 test -s "$salida" || { echo "Falló el cifrado" >&2; exit 1; }
-sha256sum "$salida" > "$salida.sha256"
+( cd "$dest" && sha256sum "$(basename "$salida")" ) > "$salida.sha256"
 chmod 600 "$salida" "$salida.sha256"
 printf 'Respaldo cifrado y restauración local verificada: %s\n' "$salida"
+# Transferir únicamente el cifrado y su manifiesto; ningún .sql descifrado sale de /tmp.
+# Esta operación requiere una configuración externa de rclone limitada a la carpeta privada.
+if [ -n "${BACKUP_DRIVE_REMOTE:-}" ]; then
+  command -v rclone >/dev/null || { echo "Falta rclone; copia local cifrada conservada" >&2; exit 2; }
+  bash "$root/herramientas/subir-respaldo-cifrado-drive.sh" "$salida"
+fi
 printf 'Conservar la clave privada age FUERA del repositorio y probar su descifrado por separado.\n'
