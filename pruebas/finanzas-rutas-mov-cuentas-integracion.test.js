@@ -410,4 +410,71 @@ test("Cambiar débito/crédito durante un movimiento no reinterpreta actividad n
   assert.equal(mixto.status,422,"Un cambio de tipo no combina otros ajustes en una operación");
 });
 
+
+test("Dos administradores no reasignan el mismo rol bancario desde pantallas viejas",async()=>{
+  const uno=await request("cuenta",{nombre:"CUENTA PARA ROL A ENSAYO",tipo:"debito"});
+  const dos=await request("cuenta",{nombre:"CUENTA PARA ROL B ENSAYO",tipo:"debito"});
+  assert.equal(uno.status,200);assert.equal(dos.status,200);
+  const antes=db.prepare("SELECT id FROM fin_cuentas WHERE def_pago=1").get();
+  const prev=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND accion='editar'").get().n;
+  const original=env.DB.batch;
+  let llegadas=0,soltar;
+  const barrera=new Promise(done=>soltar=done);
+  env.DB.batch=async queries=>{
+    if(queries[0]?.sql.includes("UPDATE fin_cuentas") &&
+       queries[0]?.sql.includes("AND nombre = ?") &&
+       queries.some(q=>q.sql.includes("SET def_pago = 0"))){
+      if(++llegadas===2)soltar();
+      await barrera;
+    }
+    return original(queries);
+  };
+  let respuestas;
+  try{
+    respuestas=await Promise.all([
+      request("cuenta",{id:uno.data.id,def_pago:1}),
+      request("cuenta",{id:dos.data.id,def_pago:1})
+    ]);
+  }finally{env.DB.batch=original}
+  assert.equal(llegadas,2);
+  assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
+  const resultado=db.prepare("SELECT id FROM fin_cuentas WHERE def_pago=1").all();
+  assert.equal(resultado.length,1);
+  assert.ok([uno.data.id,dos.data.id].includes(resultado[0].id));
+  assert.notEqual(resultado[0].id,antes.id);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND accion='editar'").get().n,prev+1);
+});
+
+test("Sincronizar un ticket justo al reasignar el banco receptor no reinterpreta cobros",async()=>{
+  const nuevo=await request("cuenta",{nombre:"CUENTA SIN TICKETS PREVIOS",tipo:"debito"});
+  assert.equal(nuevo.status,200);
+  // Aislar exclusivamente los tickets sintéticos de otros tests de este archivo.
+  const historicos=db.prepare("SELECT * FROM caja_mov WHERE tipo='ticket'").all();
+  db.prepare("DELETE FROM caja_mov WHERE tipo='ticket'").run();
+  const original=env.DB.batch;
+  const titularAntes=db.prepare("SELECT id FROM fin_cuentas WHERE tarjeta=1").get().id;
+  const cambiosAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND accion='editar' AND ref=?").get(nuevo.data.id).n;
+  let insertado=null;
+  env.DB.batch=async queries=>{
+    if(!insertado && queries[0]?.sql.includes("UPDATE fin_cuentas") &&
+      queries[0]?.sql.includes("AND nombre = ?")){
+      insertado=Number(db.prepare("INSERT INTO caja_mov(servicio,fecha,dia,turno,folio,importe,forma,mes,tipo) VALUES ('bascula',?,?,'MAÑANA','BANCO-RACE',100,'TARJETA',?,'ticket')")
+        .run(hoy+"T10:00:00",hoy,mes).lastInsertRowid);
+    }
+    return original(queries);
+  };
+  try{
+    const cambio=await request("cuenta",{id:nuevo.data.id,tarjeta:1});
+    assert.ok(insertado);
+    assert.equal(cambio.status,409,JSON.stringify(cambio));
+    assert.equal(db.prepare("SELECT id FROM fin_cuentas WHERE tarjeta=1").get().id,titularAntes);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND accion='editar' AND ref=?").get(nuevo.data.id).n,cambiosAntes);
+  }finally{
+    env.DB.batch=original;
+    if(insertado)db.prepare("DELETE FROM caja_mov WHERE id=?").run(insertado);
+    const st=db.prepare("INSERT INTO caja_mov(id,servicio,fecha,dia,turno,folio,matricula,cliente,importe,forma,mes,tipo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+    for(const t of historicos)st.run(t.id,t.servicio,t.fecha,t.dia,t.turno,t.folio,t.matricula,t.cliente,t.importe,t.forma,t.mes,t.tipo);
+  }
+});
+
 test.after(()=>db.close());
