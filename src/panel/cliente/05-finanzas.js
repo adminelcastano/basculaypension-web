@@ -248,7 +248,20 @@
     // Cuentas: saldo inicial (se guarda al salir del campo), movimientos y administración
     const j = st.datos, todas = j.banco.lista || [], activas = todas.filter(c => c.activa);
     c.querySelectorAll(".fsaldo-c[data-cuenta]").forEach(inp => inp.addEventListener("change", async () => {
-      try { await post("finanzas/saldo-cuenta", { mes: st.mes, cuenta: inp.dataset.cuenta, saldo: inp.value }); toast(inp.value.trim() ? "Saldo inicial guardado" : "Saldo inicial quitado: se usa el calculado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      if (inp.disabled) return;
+      const valor = inp.value, mes = st.mes, cuenta = inp.dataset.cuenta;
+      inp.disabled = true;
+      try {
+        const res = await post("finanzas/saldo-cuenta", { mes, cuenta, saldo: valor });
+        toast(res.sin_cambios ? "Saldo sin cambios" : valor.trim() ? "Saldo inicial guardado" : "Saldo inicial quitado: se usa el calculado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          // Si otra pestaña cambió el saldo, presentar el dato confirmado del servidor.
+          if (/otra sesión/.test(e.message)) await cargar();
+        }
+      } finally { if (inp.isConnected) inp.disabled = false; }
     }));
     const fm = $("#f-mov");
     const opc = (l, sel) => l.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.nombre)}</option>`).join("");
