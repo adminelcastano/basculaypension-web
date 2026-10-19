@@ -1077,7 +1077,11 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const fecha = String(c.fecha || ""), cliente = texto(c.cliente, 120), importe = montoUsuario(c.importe), factura = texto(c.factura, 60);
     const errores = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha.slice(0, 7) !== mes) errores.fecha = "Elige una fecha del mes actual.";
+    const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
+      Number.isFinite(Date.parse(fecha + "T12:00:00Z")) &&
+      new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
+    if (!fechaReal || fecha.slice(0, 7) !== mes || fecha > hoy)
+      errores.fecha = "Elige una fecha válida del mes actual, no futura.";
     if (cliente.length < 2) errores.cliente = "Escribe el nombre del cliente.";
     if (!(importe > 0) || importe > 10000000) errores.importe = "Escribe un importe válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos de la transferencia.", errores }, 422);
@@ -1085,9 +1089,22 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     let id;
     try { id = await idFinanciero("transferencia-cliente", c.uid, quien); }
     catch (er) { return json({ ok: false, error: er.message }, 422); }
-    // Cuenta a la que llegó (por defecto, la marcada para transferencias de clientes)
+    // Cuenta a la que llegó. Nunca sustituir silenciosamente una cuenta
+    // seleccionada pero inválida o desactivada por otra cuenta: movería el
+    // ingreso al banco equivocado sin que el administrador lo advirtiera.
     await asegurarEsquemaCuentas(env);
-    const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
+    let cta = null;
+    if (c.cuenta != null && String(c.cuenta).trim()) {
+      const elegida = await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1")
+        .bind(String(c.cuenta).trim()).first();
+      if (!elegida) return json({
+        ok:false,error:"La cuenta elegida no está disponible. Actualiza Finanzas y selecciona una cuenta de débito activa.",
+        errores:{cuenta:"Elige una cuenta de débito activa."}
+      },422);
+      cta = elegida.id;
+    } else {
+      cta = await cuentaDefecto(env, "transf");
+    }
     const solicitada = String(c.ticket_ref || "").trim() || null;
     const repetida = async () => {
       const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ?").bind(id).first() : null;
