@@ -82,7 +82,7 @@ test("Dos sesiones anulan una vez; la entrada tardía recalcula importe y estado
     assert.equal(prim.estado,"parcial");
     const hist = db.prepare("SELECT anterior,nuevo FROM caja_pendientes_hist WHERE pendiente_id='p-concurrente'").all();
     assert.equal(hist.length,1,"No hay dos anotaciones de una única anulación");
-    assert.deepEqual(hist[0],{anterior:"pagado",nuevo:"parcial"});
+    assert.deepEqual({...hist[0]},{anterior:"pagado",nuevo:"parcial"});
 
     // El nuevo abono llega DESPUÉS de que el servidor leyó el saldo previo,
     // pero ANTES de ejecutar el lote que anula el pago antiguo.
