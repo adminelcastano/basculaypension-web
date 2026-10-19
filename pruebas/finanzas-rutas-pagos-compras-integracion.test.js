@@ -588,3 +588,41 @@ test("Compra individual: un fallo al actualizar su estado revierte el gasto y su
     assert.equal(it.gasto_id,null);
   } finally {env.DB.batch=batch}
 });
+
+
+test("Pago eliminado no reaparece tras un reintento tardío del mismo UID",async()=>{
+  const {db,env}=shared;
+  const pagado={uid:"a0bc0000-0000-4000-8000-000000000099",fecha:hoy,importe:"15.35",
+    titulo:"Recibo eliminado ficticio",forma:"C:bbva-pyme"};
+  const a=await post(env,"pagos/hecho",pagado);
+  assert.equal(a.status,200,JSON.stringify(a));
+  const pago=db.prepare("SELECT gasto_id FROM agenda_pagos WHERE id=?").get(a.data.id);
+  assert.ok(pago?.gasto_id);
+  const baja=await post(env,"pagos/"+a.data.id+"/eliminar",{});
+  assert.equal(baja.status,200,JSON.stringify(baja));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(pago.gasto_id).n,0);
+  const antes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(a.data.id).n;
+  const reintento=await post(env,"pagos/hecho",pagado);
+  assert.equal(reintento.status,409,JSON.stringify(reintento));
+  assert.match(reintento.data.error,/eliminado/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(a.data.id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(a.data.id).n,antes);
+
+  const id="programado-eliminado-retry";
+  db.prepare("INSERT INTO agenda_items(id,tipo,titulo,fecha,estado,frecuencia,forma,importe,creado) VALUES(?,'pago','Pago programado borrado',?,'pendiente','mensual','TRANSFERENCIA',15.35,?)")
+    .run(id,hoy,new Date().toISOString());
+  const data={uid:"a0bc0000-0000-4000-8000-000000000100",fecha:hoy,importe:"15.35",forma:"C:bbva-pyme"};
+  const sched=await post(env,id+"/pagar",data);
+  assert.equal(sched.status,200,JSON.stringify(sched));
+  const gastoProgramado=db.prepare("SELECT gasto_id FROM agenda_pagos WHERE id=?").get(sched.data.id);
+  const bajar=await post(env,"pagos/"+sched.data.id+"/eliminar",{});
+  assert.equal(bajar.status,200,JSON.stringify(bajar));
+  const tiempo=db.prepare("SELECT fecha FROM agenda_items WHERE id=?").get(id).fecha;
+  assert.equal(tiempo,hoy);
+  const registrado=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(sched.data.id).n;
+  const tardio=await post(env,id+"/pagar",data);
+  assert.equal(tardio.status,409,JSON.stringify(tardio));
+  assert.match(tardio.data.error,/eliminado/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(gastoProgramado.gasto_id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(sched.data.id).n,registrado);
+});
