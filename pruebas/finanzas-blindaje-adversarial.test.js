@@ -378,8 +378,8 @@ test("Dinero: diferencias, sueldos y reportes mantienen ayudas completas en móv
     "¿Qué incluyen los sueldos del mes?",
     "¿Qué contienen los reportes mensuales?"
   ]) assert.ok(ui.includes("<summary>"+titulo+"</summary>"),titulo);
-  assert.match(ui,/data-nl="1">Aquí puedes consultar quién registró/);
-  assert.match(ui,/data-nl="1".*?Una cuenta puede cumplir los tres usos/);
+  assert.match(ui,/data-nl="1"[^>]*>Aquí puedes consultar quién registró/);
+  assert.match(ui,/data-nl="1"[^>]*>Una cuenta puede cumplir los tres usos/);
   assert.match(css,/\.f-guia-saldos > summary/);
   assert.doesNotThrow(()=>new Function(ui));
 });
