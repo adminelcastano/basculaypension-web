@@ -383,3 +383,14 @@ test("Dinero: diferencias, sueldos y reportes mantienen ayudas completas en móv
   assert.match(css,/\.f-guia-saldos > summary/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Notas de cuentas: mensaje inequívoco si ya se guardaron y conflicto visible por pestaña",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const api=source("../src/finanzas.js");
+  assert.match(ui,/esperado:\s*cu\.dataset\.original/);
+  assert.match(ui,/res\.sin_cambios \? "Estas notas ya estaban guardadas" : "Notas guardadas"/);
+  assert.match(ui,/cu\.querySelector\("\.err"\)\.textContent = e\.message/);
+  assert.match(api,/if \(esperado !== actual\)/);
+  assert.match(api,/Las notas de las cuentas cambiaron en otra sesión/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
