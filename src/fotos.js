@@ -81,7 +81,7 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
       if (anterior && anterior.drive_id !== r.id) await mandarAPapelera(env, anterior.drive_id);
       await env.FILES.delete(llave).catch(() => {});
       return { drive: true };
-    } catch (e) { console.error("archivos: Drive no disponible, se guarda en KV", llave, e && e.message); }
+    } catch (e) { console.error("archivos: Drive no disponible, se guarda en KV"); }
   }
   // Respaldo: KV como antes (la tarea programada lo sube a Drive cuando el script responda)
   if (anterior) { await mandarAPapelera(env, anterior.drive_id); await env.DB.prepare("DELETE FROM archivos WHERE llave = ?").bind(llave).run(); }
@@ -109,7 +109,7 @@ export async function leerArchivo(env, llave) {
         const value = deBase64(r.base64);
         if (cache) { try { await cache.put(clave, new Response(value.slice(0), { headers: { "Content-Type": fila.tipo || "application/octet-stream", "Cache-Control": "max-age=604800" } })); } catch {} }
         return { value, metadata: { tipo: fila.tipo || r.tipo, nombre: fila.nombre } };
-      } catch (e) { console.error("archivos: no se pudo leer de Drive", llave, e && e.message); }
+      } catch (e) { console.error("archivos: no se pudo leer de Drive"); }
     }
   }
   return { value: null, metadata: null };
