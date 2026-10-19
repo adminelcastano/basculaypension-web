@@ -11,6 +11,9 @@ const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => 
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
   if (!c || typeof c.forma !== "string") return;
+  // Conservar la selección explícita aunque sea inválida; nunca sustituirla
+  // silenciosamente por un banco por defecto.
+  if (c.forma.startsWith("C:")) c._cuentaSolicitada = c.forma.slice(2);
   const m = await leerMedio(env, c.forma, null);
   if (m) { c.forma = m.forma; c.cuenta = m.cuenta; }
 }
@@ -403,6 +406,20 @@ const GASTO_ADMIN = "INSERT INTO caja_gastos (id, mes, dia, turno, concepto, mon
 // Cuenta del pago: la elegida; si no se eligió y no es en efectivo, la de antes o la cuenta por defecto para pagos
 // Con tarjeta sin elegir cuál, no se adivina: queda "sin cuenta" y Finanzas lo avisa (antes caía en la cuenta de débito por defecto)
 const cuentaDe = async (env, c, previo, forma) => forma === "EFECTIVO" ? null : ("cuenta" in c ? c.cuenta : null) || previo || (forma === "TARJETA" ? null : await cuentaDefecto(env, "pago"));
+async function errorCuentaEgreso(env, c, forma, cuenta) {
+  if (c._cuentaSolicitada && c._cuentaSolicitada !== cuenta)
+    return "La cuenta elegida no existe o ya no está disponible. Actualiza la lista y selecciona una cuenta activa.";
+  if (forma === "EFECTIVO" || !cuenta) return null; // Capturas antiguas sin cuenta quedan identificadas como parciales.
+  const elegida = (await listaCuentas(env, true)).find(x => x.id === cuenta);
+  if (!elegida || !elegida.activa)
+    return "La cuenta elegida ya no está activa. Actualiza la lista antes de registrar el pago.";
+  if (forma === "TARJETA" && elegida.tipo !== "credito")
+    return "Para pagar con tarjeta selecciona una cuenta de crédito.";
+  if (forma === "TRANSFERENCIA" && elegida.tipo !== "debito")
+    return "Las transferencias y pagos bancarios deben salir de una cuenta de débito.";
+  return null;
+}
+
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
@@ -431,6 +448,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
         json({ok:false,error:"Esta operación ya registró otro pago o importe. Actualiza los pagos hechos y verifica antes de repetirla."},409);
     };
     const previo = await repetido(); if (previo) return previo;
+    const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
+    if (errorCuenta) return json({ ok:false, error:errorCuenta },422);
     // Egreso y pago en una sola operación: o quedan los dos o ninguno.
     try {
       await env.DB.batch([
@@ -485,6 +504,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const titulo = pago.item_id ? pago.titulo : v.titulo;
     const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
     const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
+    const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
+    if (errorCuenta) return json({ok:false,error:errorCuenta},422);
     const mismo = pago.fecha === v.fecha && centavosIguales(pago.importe, v.importe)
       && pago.forma === v.forma && (pago.nota || null) === (v.nota || null)
       && (pago.titulo || "") === (titulo || "") && (pago.categoria || null) === (cat || null)
@@ -826,6 +847,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }
     const cat = (await resolverCategoria(env, c.categoria)) || Object.entries(cats).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
     const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
+    const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
+    if (errorCuenta) return json({ok:false,error:errorCuenta},422);
     const st = [env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
     for (const f of orden) {
       const imp = cu.precios[f.id] ?? null;
@@ -944,6 +967,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
       const cta = await cuentaDe(env, c, null, forma);
+      const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
+      if (errorCuenta) return json({ok:false,error:errorCuenta},422);
       junto.push(env.DB.prepare(GASTO_ADMIN).bind(gid, dia.slice(0, 7), dia, concepto, importe, forma, ahora, usuario && usuario.email || null, catC, cta),
         env.DB.prepare("UPDATE agenda_items SET importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(importe, gid, id),
         stmtHistorialCompra(env, { ...fila, titulo: d.titulo, cantidad: d.cantidad, categoria: catC }, { importe, fecha: dia, gasto_id: gid, exclusiva: true }),
@@ -1038,6 +1063,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     }
     const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
     const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma);
+    const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
+    if (errorCuenta) return json({ok:false,error:errorCuenta},422);
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
     try { await env.DB.batch([
