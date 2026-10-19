@@ -640,8 +640,22 @@ export async function turnoRuta(request, env, url, h) {
     const id = crypto.randomUUID();
     await asegurarEsquemaCategorias(env);
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona, categoria) VALUES (?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?, ?)")
-      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, monto, ahora, `tablet:${s.persona}`, foto, s.persona, cat).run();
+    let guardado;
+    try {
+      guardado = await env.DB.prepare(`INSERT INTO caja_gastos
+        (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, foto, persona, categoria)
+        SELECT ?, ?, ?, ?, ?, ?, 'EFECTIVO', ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)`)
+        .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, monto, ahora,
+          `tablet:${s.persona}`, foto, s.persona, cat, s.dia, s.turno).run();
+    } catch (e) {
+      if (foto) await borrarArchivo(env, foto).catch(() => {});
+      throw e;
+    }
+    if (!guardado.meta?.changes) {
+      if (foto) await borrarArchivo(env, foto).catch(() => {});
+      return json({ok:false,error:"El corte ya fue entregado. No se registró el gasto; pide una corrección a la administración."},409);
+    }
     return recordar(json({ ok: true, id }));
   }
   // ---- Ingreso extra (renta, aumento de cambio, otro) ----
@@ -655,8 +669,23 @@ export async function turnoRuta(request, env, url, h) {
     let foto = null;
     try { foto = await guardarFoto(env, c.foto, "extra"); } catch { return errFoto(); }
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, foto, s.persona, ahora, `tablet:${s.persona}`).run();
+    let guardado;
+    try {
+      guardado = await env.DB.prepare(`INSERT INTO caja_extra
+        (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
+        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)`)
+        .bind(id, s.dia.slice(0, 7), s.dia, s.turno, concepto, detalle || null,
+          monto, cuentaComoIngreso(concepto) ? 1 : 0, foto, s.persona, ahora,
+          `tablet:${s.persona}`, s.dia, s.turno).run();
+    } catch (e) {
+      if (foto) await borrarArchivo(env, foto).catch(() => {});
+      throw e;
+    }
+    if (!guardado.meta?.changes) {
+      if (foto) await borrarArchivo(env, foto).catch(() => {});
+      return json({ok:false,error:"El corte ya fue entregado. No se registró el ingreso; pide una corrección a la administración."},409);
+    }
     return recordar(json({ ok: true, id }));
   }
   // Borrar un gasto o ingreso propio mientras el turno sigue abierto (antes del corte)
@@ -667,7 +696,12 @@ export async function turnoRuta(request, env, url, h) {
     if (!g) return json({ ok: false, error: "Solo puedes borrar lo que tú capturaste en este turno." }, 404);
     if (tabla === "caja_extra" && g.id === idAumentoInicio(s.dia, s.turno))
       return json({ ok: false, error: "Corrige este aporte desde Corte → Corregir cambio inicial." }, 409);
-    await env.DB.prepare(`DELETE FROM ${tabla} WHERE id = ?`).bind(g.id).run();
+    const borrado = await env.DB.prepare(`DELETE FROM ${tabla}
+      WHERE id = ? AND persona = ? AND dia = ? AND turno = ?
+      AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)`)
+      .bind(g.id, s.persona, s.dia, s.turno, s.dia, s.turno).run();
+    if (!borrado.meta?.changes)
+      return json({ok:false,error:"El corte fue entregado o este movimiento ya cambió. No se borró nada."},409);
     if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true });
   }
