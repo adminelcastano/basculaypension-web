@@ -44,20 +44,22 @@ export async function guardarCambioInicio(env, { dia, turno, persona, recibido, 
   const cambio = !anterior || Number(anterior.cambio) !== recibido || anterior.persona !== persona
     || Number(extra && extra.monto || 0) !== aumento;
   const sentencias = [
-    // Comparar la versión leída antes de confirmar recibo y aporte.
-    // Si otra tablet corrigió el fondo durante la espera, ninguna escritura
-    // ni entrada de bitácora de esta petición puede aplicar.
+    // Comparar ambos valores: fondo recibido y aporte desde sobres.
+    // Una tableta que cambia solo el aporte tampoco puede pisar la otra.
     env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado)
       SELECT ?, ?, ?, ?, ?, ?, ?
       WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)
+        AND COALESCE((SELECT monto FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0), 0) = ?
       ON CONFLICT (dia, turno) DO UPDATE SET
         persona = excluded.persona, cambio = excluded.cambio,
         actualizado = excluded.actualizado
       WHERE turno_inicio.cambio = ? AND turno_inicio.persona = ?
-        AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)`)
+        AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)
+        AND COALESCE((SELECT monto FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0), 0) = ?`)
       .bind(dia, turno, mes, persona, recibido, ahora, ahora,
-        dia, turno, anterior ? anterior.cambio : -1, anterior ? anterior.persona : "",
-        dia, turno)
+        dia, turno, id, Number(extra?.monto || 0),
+        anterior ? anterior.cambio : -1, anterior ? anterior.persona : "",
+        dia, turno, id, Number(extra?.monto || 0))
   ];
   if (cambio) sentencias.push(stmtBitacoraSiCambio(env, {
     quien: "tablet:" + persona, accion: anterior ? "editar" : "crear",
