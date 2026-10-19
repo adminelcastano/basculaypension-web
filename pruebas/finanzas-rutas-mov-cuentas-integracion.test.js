@@ -590,4 +590,39 @@ test("Cierre en otra sesión antes del batch: ningún saldo ni traspaso tardío 
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE mes=?").get(mes).n,movimientos);
 });
 
+test("Cierre concurrente al borrar un traspaso: no afirma que fue eliminado",async()=>{
+  const cuentas=db.prepare("SELECT id FROM fin_cuentas WHERE tipo='debito' AND activa=1 ORDER BY orden,id LIMIT 2").all();
+  assert.equal(cuentas.length,2);
+  const registro=await request("mov",{
+    uid:"cafe0000-0000-4000-8000-000000000292",fecha:hoy,tipo:"traspaso",
+    origen:cuentas[0].id,destino:cuentas[1].id,importe:"25.19",nota:"Retirada sintética concurrente"
+  });
+  assert.equal(registro.status,200,JSON.stringify(registro));
+  const id=registro.data.id;
+  const original=env.DB.batch, antes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(id).n;
+  let cerrado=false;
+  env.DB.batch=async statements=>{
+    if(!cerrado && statements.some(x=>x.sql.includes("DELETE FROM fin_movs WHERE id = ?"))){
+      db.prepare("INSERT INTO caja_cierre_lock (mes,token,tomado) VALUES (?,?,?) ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado")
+        .run(mes,"cerrado:antes-de-borrar",new Date().toISOString());
+      cerrado=true;
+    }
+    return original(statements);
+  };
+  let res;
+  try{res=await request("mov/"+id+"/eliminar",{})}
+  finally{
+    env.DB.batch=original;
+    db.prepare("DELETE FROM caja_cierre_lock WHERE mes=? AND token=?").run(mes,"cerrado:antes-de-borrar");
+  }
+  assert.equal(cerrado,true);
+  assert.equal(res.status,409,JSON.stringify(res));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE id=?").get(id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(id).n,antes);
+  const borrar=await request("mov/"+id+"/eliminar",{});
+  assert.equal(borrar.status,200,JSON.stringify(borrar));
+  assert.equal(borrar.data.borrados,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE id=?").get(id).n,0);
+});
+
 test.after(()=>db.close());
