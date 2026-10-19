@@ -327,16 +327,20 @@
       });
     }
     c.querySelectorAll("[data-mdel]").forEach(bt => bt.addEventListener("click", async () => {
-      if (!bt.classList.contains("armed")) { bt.classList.add("armed"); bt.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => bt.classList.remove("armed"), 3000); return; }
       if (bt.disabled) return;
       bt.disabled = true;
       try {
+        if (!(await EC.confirmar(
+          "¿Eliminar este movimiento?",
+          "Dejará de contar en los saldos bancarios y quedará una constancia en la bitácora.",
+          "Eliminar", true
+        ))) return;
         const res = await post(`finanzas/mov/${encodeURIComponent(bt.dataset.mdel)}/eliminar`);
         toast(res.borrados ? "Movimiento eliminado" : "Movimiento ya eliminado");
         await cargar();
       } catch (e) {
         if (e.message !== "sesion") toast(e.message);
-      } finally { if (bt.isConnected) { bt.disabled = false; bt.classList.remove("armed"); } }
+      } finally { if (bt.isConnected) bt.disabled = false; }
     }));
     const ft = $("#f-ftransf");
     if (ft) {
@@ -349,10 +353,15 @@
       });
     }
     c.querySelectorAll("[data-tdel]").forEach(b => b.addEventListener("click", async () => {
-      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
       if (b.disabled) return;
       b.disabled = true;
       try {
+        const nombre = b.closest(".aitem")?.querySelector(".tt")?.textContent || "esta transferencia";
+        if (!(await EC.confirmar(
+          "¿Eliminar transferencia?",
+          "Se eliminará el registro de " + nombre + " de los ingresos. El cambio quedará en la bitácora.",
+          "Eliminar", true
+        ))) return;
         await post(`caja/transferencias/${encodeURIComponent(b.dataset.tdel)}/eliminar`);
         toast("Transferencia eliminada");
         await cargar();
@@ -361,7 +370,7 @@
           toast(e.message);
           if (/otra sesión|cambió/.test(e.message)) await cargar();
         }
-      } finally { if (b.isConnected) { b.disabled = false; b.classList.remove("armed"); } }
+      } finally { if (b.isConnected) b.disabled = false; }
     }));
     c.querySelectorAll("[data-tligar]").forEach(b => b.addEventListener("click", async () => {
       b.disabled = true;
