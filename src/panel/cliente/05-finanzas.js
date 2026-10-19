@@ -135,7 +135,7 @@
       </section>`,
       efectivo: () => `      <section class="card" id="f-efectivo">
         <p class="note" style="margin:4px 0 10px">Entra lo que los turnos entregan en sobre y lo que retiras del banco; sale lo que pagas o compras en efectivo, lo que depositas y el cambio que pones en la caja. El saldo pasa solo de un mes al siguiente: captúralo solo cuando cuentes los sobres, y verás si cuadra con lo calculado.</p>
-        ${abierto ? `<form class="fsaldo" id="f-saldo" novalidate><label>Efectivo contado al empezar ${esc(nomMes(j.mes).toLowerCase())}<input name="efectivo" inputmode="decimal" placeholder="${e.calculado != null ? esc(e.calculado.toFixed(2)) + " (calculado)" : "Ej. 12500.00"}" value="${e.capturado ? esc(e.inicial) : ""}" autocomplete="off"></label><button class="btn btn-primary" type="submit">Guardar</button>${e.capturado && e.inicial_actualizado ? `<span class="note">Guardado ${esc(cuando(e.inicial_actualizado))}</span>` : ""}${e.inicial == null ? `<span class="note" style="color:var(--warn)">Falta un saldo de partida: cuenta los sobres y escríbelo una vez; después se calcula solo.</span>` : ""}<span class="err"></span></form>` : ""}
+        ${abierto ? `<form class="fsaldo" id="f-saldo" data-original="${e.capturado ? esc(e.inicial) : ""}" novalidate><label>Efectivo contado al empezar ${esc(nomMes(j.mes).toLowerCase())}<input name="efectivo" inputmode="decimal" placeholder="${e.calculado != null ? esc(e.calculado.toFixed(2)) + " (calculado)" : "Ej. 12500.00"}" value="${e.capturado ? esc(e.inicial) : ""}" autocomplete="off"></label><button class="btn btn-primary" type="submit">Guardar</button>${e.capturado && e.inicial_actualizado ? `<span class="note">Guardado ${esc(cuando(e.inicial_actualizado))}</span>` : ""}${e.inicial == null ? `<span class="note" style="color:var(--warn)">Falta un saldo de partida: cuenta los sobres y escríbelo una vez; después se calcula solo.</span>` : ""}<span class="err"></span></form>` : ""}
         <div class="ctot" style="margin:12px 0"><div class="k"><span>Saldo inicial</span><b>${e.inicial != null ? D(e.inicial) : "—"}</b>${origenSaldo(e)}</div><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(e.recibido)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(e.gastado)}</b></div><div class="k dest"><span>Debería quedar</span><b>${e.saldo != null ? D(e.saldo) : "—"}</b></div></div>
         ${e.movimientos.length ? `<details ${e.movimientos.length <= 12 ? "open" : ""}><summary class="note" style="cursor:pointer;font-weight:600">Movimientos del efectivo (${e.movimientos.length})</summary><div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos del efectivo"><table class="cmovs"><thead><tr><th>Día</th><th>Movimiento</th><th>Concepto</th><th class="n">Entró</th><th class="n">Salió</th><th class="n">Saldo</th></tr></thead><tbody>
           ${e.movimientos.map(m => `<tr><td>${esc(diaTxt(m.dia))}</td><td>${esc(CAT1[m.tipo] || m.tipo)}</td><td>${m.persona ? avP(m.persona) : ""}${esc(m.concepto)}</td><td class="n">${m.entrada ? D(m.entrada) : ""}</td><td class="n">${m.salida ? D(m.salida) : ""}</td><td class="n">${m.saldo != null ? D(m.saldo) : "—"}</td></tr>`).join("")}
@@ -290,9 +290,22 @@
     const c = { querySelectorAll: q => misBloques().flatMap(b => [...b.querySelectorAll(q)]), querySelector: q => misBloques().map(b => b.querySelector(q)).find(Boolean) || null };
     const sal = $("#f-saldo");
     if (sal) sal.addEventListener("submit", async ev => {
-      ev.preventDefault(); const b = sal.querySelector("button"); b.disabled = true; sal.querySelector(".err").textContent = "";
-      try { await post("finanzas/saldo", { mes: st.mes, efectivo: sal.efectivo.value.replace(/[$,\s]/g, "") }); toast("Saldo inicial guardado"); await cargar(); }
-      catch (e) { if (e.message !== "sesion") sal.querySelector(".err").textContent = e.message; b.disabled = false; }
+      ev.preventDefault(); const b = sal.querySelector("button");
+      if (b.disabled) return;
+      b.disabled = true; sal.querySelector(".err").textContent = "";
+      try {
+        const res = await post("finanzas/saldo", {
+          mes: st.mes, efectivo: sal.efectivo.value.replace(/[$,\s]/g, ""),
+          esperado: sal.dataset.original === "" ? null : sal.dataset.original
+        });
+        toast(res.sin_cambios ? "Saldo sin cambios" : sal.efectivo.value.trim() ? "Saldo inicial guardado" : "Saldo inicial quitado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          sal.querySelector(".err").textContent = e.message;
+          if (/otra sesión/.test(e.message)) await cargar();
+        }
+      } finally { if (b.isConnected) b.disabled = false; }
     });
     // Cuentas: saldo inicial (se guarda al salir del campo), movimientos y administración
     const j = st.datos, todas = j.banco.lista || [], activas = todas.filter(c => c.activa);
