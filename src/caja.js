@@ -348,13 +348,13 @@ export async function sincronizarCaja(env) {
   const token = crypto.randomUUID();
   let lock = false;
   try {
-    const ahora = new Date();
-    const vencido = new Date(ahora.getTime() - 10 * 60 * 1000).toISOString();
+    const instanteLock = new Date();
+    const vencido = new Date(instanteLock.getTime() - 10 * 60 * 1000).toISOString();
     const tomado = await env.DB.prepare(`INSERT INTO caja_sync_lock (nombre, token, tomado)
       VALUES ('hoja', ?, ?) ON CONFLICT(nombre) DO UPDATE SET
         token = excluded.token, tomado = excluded.tomado
       WHERE caja_sync_lock.tomado < ?`)
-      .bind(token, ahora.toISOString(), vencido).run();
+      .bind(token, instanteLock.toISOString(), vencido).run();
     if (!tomado.meta?.changes) return { ocupado: true };
     lock = true;
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
