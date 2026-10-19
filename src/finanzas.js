@@ -327,7 +327,9 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     if (c.efectivo === "" || c.efectivo === null) {
       if (!antes) return json({ ok:true, sin_cambios:true });
       const resultado = await env.DB.batch([
-        env.DB.prepare("DELETE FROM fin_saldos WHERE mes = ? AND efectivo = ?").bind(mes, antes.efectivo),
+        env.DB.prepare(`DELETE FROM fin_saldos WHERE mes = ? AND efectivo = ?
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')`)
+          .bind(mes, antes.efectivo, mes),
         log(null)
       ]);
       if (!resultado[0]?.meta?.changes)
@@ -340,10 +342,15 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     if (antes && centavosIguales(antes.efectivo, v))
       return json({ ok:true, sin_cambios:true });
     const resultado = await env.DB.batch([
-      env.DB.prepare(`INSERT INTO fin_saldos (mes, efectivo, actualizado, por) VALUES (?, ?, ?, ?)
+      env.DB.prepare(`INSERT INTO fin_saldos (mes, efectivo, actualizado, por)
+        SELECT ?, ?, ?, ? WHERE NOT EXISTS (
+          SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%'
+        )
         ON CONFLICT(mes) DO UPDATE SET efectivo = excluded.efectivo,
           actualizado = excluded.actualizado, por = excluded.por
-        WHERE fin_saldos.efectivo = ?`).bind(mes, v, ahora, quien, antes ? antes.efectivo : null),
+        WHERE fin_saldos.efectivo = ? AND NOT EXISTS (
+          SELECT 1 FROM caja_cierre_lock WHERE mes = excluded.mes AND token LIKE 'cerrado:%'
+        )`).bind(mes, v, ahora, quien, mes, antes ? antes.efectivo : null),
       log(v)
     ]);
     if (!resultado[0]?.meta?.changes)
