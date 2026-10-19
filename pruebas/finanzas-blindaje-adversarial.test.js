@@ -268,3 +268,26 @@ test("Movimiento bancario en celular exige cuentas seleccionadas y confirma orig
   assert.match(ui,/if \(bt\.isConnected\) bt\.disabled = false/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Capturas de celular: pagos sin redondear y papelera de movimientos con texto",()=>{
+  const agenda=source("../src/panel/cliente/07-agenda.js");
+  const fin=source("../src/panel/cliente/05-finanzas.js");
+  const css=source("../src/panel/estilos.css");
+  assert.match(agenda,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "hechos", \{ valor: D0\(hechos\.reduce/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "programados".+D0\(porPagar\)/);
+  const decimales=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
+  assert.equal(decimales(285.50),2,"Un pago de 285.50 no puede mostrarse como 286");
+  assert.equal(decimales(850),0);
+  assert.equal(decimales(0.01),2);
+  assert.equal(decimales(564.50),2);
+  assert.match(fin,/bloqueInfo\("finanzas", "efectivo", \{ valor: e\.saldo != null \? D0\(e\.saldo\) : "—"/);
+  assert.match(fin,/Sin saldo inicial capturado/);
+  assert.match(fin,/class="alist fmov-lista"/);
+  assert.match(fin,/class="del fmov-eliminar"[^\n]*data-mdel/);
+  assert.match(fin,/<span>Eliminar<\/span><\/button>/);
+  assert.match(css,/\.fmov-lista \.fmov-eliminar/);
+  assert.match(css,/min-height: 44px/);
+  assert.doesNotThrow(()=>new Function(agenda));
+  assert.doesNotThrow(()=>new Function(fin));
+});
