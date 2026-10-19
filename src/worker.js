@@ -904,7 +904,7 @@ async function revisarTicket(env, bytes, tipo, servicioElegido) {
     if (conDatos) clase = clase || servicio;
     else if (!fallo) clase = "otro";
   }
-  console.log("revision ticket", JSON.stringify({ clase, fallo, lectura: !!(lectura && !lectura.error) }));
+  console.log("revision ticket", JSON.stringify({ clasificado: !!clase, fallo, lectura: !!(lectura && !lectura.error) }));
   const res = { clase, lectura: lectura && !lectura.error ? lectura : null };
   if (clase) await env.FILES.put(llave, JSON.stringify(res), { expirationTtl: 7200 });
   return res;
