@@ -507,3 +507,39 @@ test("Dos UIDs pagan simultáneamente el mismo vencimiento: un gasto, un pago, u
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,bitAntes+1);
   assert.notEqual(db.prepare("SELECT fecha FROM agenda_items WHERE id=?").get(id).fecha,hoy);
 });
+
+test("Fechas imposibles y fechas explícitas inválidas no crean egresos",async()=>{
+  const {db,env}=shared;
+  const mes=hoy.slice(0,7);
+  const conteos=()=>({
+    gastos:db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,
+    pagos:db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,
+    historial:db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,
+    bitacora:db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n
+  });
+  const antes=conteos();
+  for(const fecha of [mes+"-00",mes+"-32","no-es-fecha"]){
+    const pago=await post(env,"pagos/hecho",{
+      uid:crypto.randomUUID(),fecha,importe:"17.25",titulo:"Fecha inválida de ensayo",forma:"EFECTIVO"
+    });
+    assert.equal(pago.status,422,fecha+": "+JSON.stringify(pago));
+    assert.deepEqual(conteos(),antes,"Una fecha inválida nunca crea un pago");
+  }
+  const id="ensayo-fecha-inexistente-compra";
+  db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES(?,'compra','Material sintético','pendiente',?)")
+    .run(id,new Date().toISOString());
+  for(const fecha_compra of [mes+"-00",mes+"-32","no-es-fecha"]){
+    const compra=await post(env,"compras/terminar",{
+      uid:crypto.randomUUID(),ids:[id],total:"17.25",forma:"EFECTIVO",fecha_compra
+    });
+    assert.equal(compra.status,422,JSON.stringify(compra));
+    assert.deepEqual(conteos(),antes,"No genera asientos, pagos ni bitácora");
+    assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(id).estado,"pendiente");
+    const individual=await post(env,id,{
+      titulo:"Material sintético",estado:"comprado",importe:"17.25",forma:"EFECTIVO",fecha_compra
+    });
+    assert.equal(individual.status,422,JSON.stringify(individual));
+    assert.deepEqual(conteos(),antes,"No registra compra individual con fecha inválida");
+    assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(id).estado,"pendiente");
+  }
+});
