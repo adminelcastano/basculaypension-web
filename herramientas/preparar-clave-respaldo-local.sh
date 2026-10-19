@@ -5,12 +5,12 @@ set -euo pipefail
 umask 077
 : "${AGE_KEY_DIR:?Define AGE_KEY_DIR a una ubicación privada FUERA del repositorio y de Drive}"
 command -v age-keygen >/dev/null || { echo "Instala age/age-keygen localmente" >&2; exit 2; }
-command -v realpath >/dev/null || { echo "Falta realpath" >&2; exit 2; }
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$root/herramientas/respaldo-portable.sh"
 
-root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 mkdir -p "$AGE_KEY_DIR"
-dest="$(realpath "$AGE_KEY_DIR")"
-repo="$(realpath "$root")"
+dest="$(backup_directorio_real "$AGE_KEY_DIR")"
+repo="$(backup_directorio_real "$root")"
 case "$dest/" in "$repo/"*) echo "La clave privada NO puede estar dentro del repositorio" >&2; exit 2;; esac
 chmod 700 "$dest"
 secreto="$dest/d1-elcastano-age-key.txt"
