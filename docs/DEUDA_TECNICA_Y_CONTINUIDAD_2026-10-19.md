@@ -22,6 +22,24 @@
 - **Pendiente de infraestructura:** configurar la autorización OAuth de rclone en el equipo administrativo (sin compartir tokens), custodios de clave privada `age`, política de retención y programador de ejecuciones. Propuesta inicial para aprobación: respaldo diario, 35 diarios y 12 mensuales, auditoría semanal de legibilidad, recuperación completa trimestral. No configurar ni borrar backups sin resolver custodios.
 - **Prueba final:** descargar el archivo SQL real exportado de una D1 de ensayo, restaurarlo en **una segunda D1 aislada** y comparar esquema, conteos y datos sintéticos. El éxito de un `quick_check` local no sustituye esta prueba.
 
+### 2.1 Carpeta privada de respaldos y custodia externa (preparado, sin ejecutar)
+
+La carpeta `El Castaño · Respaldos D1 cifrados` ya fue creada en el Drive administrativo y verificada sin elementos, sin enlaces públicos y sólo con permiso del propietario. Su identificador es privado: **no copiarlo a este repositorio**.
+
+En **un equipo administrativo confiable**, fuera de carpetas sincronizadas con Drive y fuera de GitHub:
+
+1. Instalar `age`, `rclone`, `wrangler` (se invoca fijado a `4.151.2`), `sqlite3` y utilidades POSIX. Estos scripts están pensados para Linux o WSL.
+2. Elegir un directorio **local exclusivo** para la clave, guardado con el sistema de custodia administrativa; fijar `AGE_KEY_DIR` fuera del repositorio y de Google Drive. Ejecutar `bash herramientas/preparar-clave-respaldo-local.sh` **una única vez**. Conservar una copia segura independiente de la clave privada y ensayar su recuperación antes de programar ningún trabajo.
+3. Configurar un remote de rclone `castano-d1-backups:` utilizando el acceso Google de la cuenta administrativa. En la opción avanzada `root_folder_id`, usar el ID de la carpeta privada que figura en su URL. Mantener `rclone.conf` y el token OAuth **fuera de GitHub y del chat**.
+4. Configurar `BACKUP_DEST` a una carpeta privada local, `AGE_RECIPIENT` a la clave **pública** que imprime age-keygen, `BACKUP_DRIVE_REMOTE=castano-d1-backups:` y `CLOUDFLARE_API_TOKEN` a una credencial Cloudflare de permisos mínimos. No escribir tokens en el repositorio ni compartirlos.
+5. Después de las pruebas finales y de confirmar la identidad de la D1 de producción, ejecutar `bash herramientas/respaldo-d1-cifrado.sh`. Exporta SQL a directorio temporal, lo importa en SQLite **local**, comprueba `quick_check`, cifra el SQL, guarda un SHA-256 y opcionalmente sube **sólo** los dos artefactos cifrados a Drive mediante `herramientas/subir-respaldo-cifrado-drive.sh`. La subida usa `--immutable` para rechazar sobreescrituras y compara MD5 local/remoto. El respaldo local se conserva si la subida falla.
+6. Recuperación de comprobación sin conexión a producción: descargar el par `.sql.age`/`.sha256` a una carpeta privada local, configurar `AGE_KEY_FILE` desde la custodia externa y ejecutar `bash herramientas/verificar-restauracion-d1-local.sh ruta/al/respaldo.sql.age`. El ensayo descifra a un directorio temporal y restaura SQLite **local**, sin escribir Cloudflare.
+7. Sólo después, programar la ejecución diaria desde un equipo seguro con credenciales supervisadas y con alertas. No se incluye ninguna eliminación automática por retención hasta validar respaldos y autorizar custodios.
+
+**Límite actual:** no es posible completar el alta OAuth ni crear y custodiar la clave **privada** desde el conector del chat sin asumir indebidamente el control de secretos. El equipo administrativo debe ejecutar esos pasos. Los scripts y la carpeta están preparados pero **no existe todavía ningún respaldo automatizado en Drive**.
+
+Documentación de referencia: [Cloudflare D1 export](https://developers.cloudflare.com/workers/wrangler/commands/d1/), [rclone Drive root_folder_id](https://rclone.org/drive/) y [rclone copyto](https://rclone.org/commands/rclone_copyto/).
+
 ## Fase 3. Google Apps Script y privacidad operativa
 
 - `herramientas/aviso-correo.gs`: token sólo en Propiedades del script, sin copiar secretos.
