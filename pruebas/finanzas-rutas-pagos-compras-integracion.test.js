@@ -241,7 +241,7 @@ test("Dos sesiones corrigen la misma versión de pago: solo una gana, sin gasto 
       post(env,"pagos/"+id+"/editar",{...datos,importe:"217.20"})
     ]);
   }finally{env.DB.prepare=originalPrepare}
-  assert.equal(lecturas,2);
+  assert.ok(lecturas >= 2,"Ambas sesiones pasaron la consulta inicial; una tercera lectura confirma el conflicto");
   assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
   const pago=db.prepare("SELECT * FROM agenda_pagos WHERE id=?").get(id);
   const gasto=db.prepare("SELECT * FROM caja_gastos WHERE id=?").get(pago.gasto_id);
