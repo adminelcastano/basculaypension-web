@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin, leerHoja, sincronizarCaja, mesActual, sumarMesesCaja } from "../src/caja.js";
+import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin, leerHoja, sincronizarCaja, mesActual, sumarMesesCaja, mesesAbiertos } from "../src/caja.js";
 
 const MES="2026-10", SIG="2026-11";
 const CIERRE=new Date("2026-11-01T17:00:00Z"); // 11:00 en Tapachula
@@ -322,6 +322,8 @@ test("Mes cerrado no congela sincronización nueva aunque KV conserve marcador v
   sqlite.prepare("INSERT INTO caja_cierre_lock (mes,token,tomado) VALUES (?,?,?) ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado")
     .run(anterior,"cerrado:ejemplo",new Date().toISOString());
   await env.FILES.put("caja:mes",anterior);
+  assert.deepEqual(await mesesAbiertos(env),[actual],
+    "Un mes cerrado de D1 no se reabre aunque KV siga atrasado");
   const consultados=[],previo=globalThis.fetch;
   globalThis.fetch=async url=>{
     const mes=new URL(url).searchParams.get("mes");
