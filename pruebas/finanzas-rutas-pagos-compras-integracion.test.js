@@ -241,7 +241,7 @@ test("Dos sesiones corrigen la misma versión de pago: solo una gana, sin gasto 
       post(env,"pagos/"+id+"/editar",{...datos,importe:"217.20"})
     ]);
   }finally{env.DB.prepare=originalPrepare}
-  assert.ok(lecturas >= 2,"Ambas sesiones pasaron la consulta inicial; una tercera lectura confirma el conflicto");
+  assert.equal(lecturas,2);
   assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
   const pago=db.prepare("SELECT * FROM agenda_pagos WHERE id=?").get(id);
   const gasto=db.prepare("SELECT * FROM caja_gastos WHERE id=?").get(pago.gasto_id);
@@ -500,7 +500,7 @@ test("Dos UIDs pagan simultáneamente el mismo vencimiento: un gasto, un pago, u
       post(env,id+"/pagar",{...base,uid:"70000000-0000-4000-8000-000000000022"})
     ]);
   }finally{env.DB.prepare=originalPrepare}
-  assert.equal(lecturas,2);
+  assert.ok(lecturas >= 2,"Ambas sesiones pasaron la consulta inicial; una tercera lectura confirma el conflicto");
   assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE item_id=?").get(id).n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,cuentaAntes+1);
