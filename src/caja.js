@@ -44,31 +44,46 @@ export async function guardarCambioInicio(env, { dia, turno, persona, recibido, 
   const cambio = !anterior || Number(anterior.cambio) !== recibido || anterior.persona !== persona
     || Number(extra && extra.monto || 0) !== aumento;
   const sentencias = [
+    // Comparar la versión leída antes de confirmar recibo y aporte.
+    // Si otra tablet corrigió el fondo durante la espera, ninguna escritura
+    // ni entrada de bitácora de esta petición puede aplicar.
     env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona,
-        cambio = excluded.cambio, actualizado = excluded.actualizado`)
-      .bind(dia, turno, mes, persona, recibido, ahora, ahora)
+      SELECT ?, ?, ?, ?, ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)
+      ON CONFLICT (dia, turno) DO UPDATE SET
+        persona = excluded.persona, cambio = excluded.cambio,
+        actualizado = excluded.actualizado
+      WHERE turno_inicio.cambio = ? AND turno_inicio.persona = ?
+        AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)`)
+      .bind(dia, turno, mes, persona, recibido, ahora, ahora,
+        dia, turno, anterior ? anterior.cambio : -1, anterior ? anterior.persona : "",
+        dia, turno)
   ];
-  if (aumento > 0) {
-    sentencias.push(env.DB.prepare(`INSERT INTO caja_extra
-      (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
-      VALUES (?, ?, ?, ?, 'Aumento de cambio', 'Aporte al iniciar turno', ?, 0, NULL, ?, ?, ?)
-      ON CONFLICT (id) DO UPDATE SET monto = excluded.monto, persona = excluded.persona`)
-      .bind(id, mes, dia, turno, aumento, persona, ahora, "tablet:" + persona));
-  } else if (extra) {
-    // Exclusivamente el registro automático propio; los aumentos manuales se conservan.
-    sentencias.push(env.DB.prepare("DELETE FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0")
-      .bind(id));
-  }
-  if (cambio) sentencias.push(stmtBitacora(env, {
+  if (cambio) sentencias.push(stmtBitacoraSiCambio(env, {
     quien: "tablet:" + persona, accion: anterior ? "editar" : "crear",
     que: "Cambio al inicio de turno", ref: dia + "|" + turno, mes,
     detalle: { antes: anterior ? { recibido: anterior.cambio, aumento: Number(extra && extra.monto || 0) } : null,
       recibido, aumento, total: totalCambioInicio(recibido, aumento) }
   }));
-  // D1.batch es transaccional: no puede guardarse el recibido sin el aporte ni viceversa.
-  await env.DB.batch(sentencias);
+  if (aumento > 0) {
+    sentencias.push(env.DB.prepare(`INSERT INTO caja_extra
+      (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
+      SELECT ?, ?, ?, ?, 'Aumento de cambio', 'Aporte al iniciar turno', ?, 0, NULL, ?, ?, ?
+      WHERE changes() > 0
+      ON CONFLICT (id) DO UPDATE SET monto = excluded.monto, persona = excluded.persona`)
+      .bind(id, mes, dia, turno, aumento, persona, ahora, "tablet:" + persona));
+  } else if (extra) {
+    // Nunca retirar un aumento hecho por otra sesión o un aporte manual.
+    sentencias.push(env.DB.prepare(
+      "DELETE FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0 AND changes() > 0"
+    ).bind(id));
+  }
+  const resultados = await env.DB.batch(sentencias);
+  if (!resultados[0]?.meta?.changes) {
+    const error = new Error("El fondo de cambio fue corregido o el corte fue entregado en otra sesión. Actualiza el turno antes de repetir.");
+    error.code = "INICIO_OBSOLETO";
+    throw error;
+  }
   return { cambio: recibido, aumento, total: totalCambioInicio(recibido, aumento), persona, actualizado: ahora };
 }
 
