@@ -323,6 +323,9 @@ export async function turnoRuta(request, env, url, h) {
   if (acceso.error) return new Response(h.paginaBloqueada(acceso.error), { status: acceso.status, headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/turno";
+  const modoEnsayo = env.ENSAYO_FINANZAS === "1";
+  if (modoEnsayo && env.ENSAYO_TABLET !== "1")
+    return json({ok:false,error:"Tableta no habilitada en este ensayo."},403);
   if (ruta === "/turno" && request.method === "GET") return new Response(htmlConVersion(h.html), { headers: { "Content-Type": "text/html; charset=utf-8", ...h.cabeceras() } });
   if (ruta === "/turno/manifest.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-store" } });
   // Service worker: abre la tablet aunque no haya internet (la página y el logo quedan guardados)
@@ -343,7 +346,7 @@ export async function turnoRuta(request, env, url, h) {
   const partes = ruta.split("/").slice(3);
 
   if (partes[0] === "personas" && request.method === "GET") {
-    const filas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, pin_hash IS NOT NULL AS tiene_pin FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results;
+    const filas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, pin_hash IS NOT NULL AS tiene_pin FROM turno_personas WHERE activo = 1" + (modoEnsayo ? " AND clave = 'ENSAYO'" : "") + " ORDER BY clave").all()).results;
     let ab = await env.DB.prepare("SELECT persona, dia, turno FROM turno_abierto WHERE id = 1").first();
     if (ab && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first()) ab = null;
     return json({ ok: true, personas: filas.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p), tiene_pin: !!p.tiene_pin })), turnos: TURNOS, sugerido: ab ? ab.turno : turnoSugerido(), abierto: ab || null });
@@ -352,6 +355,8 @@ export async function turnoRuta(request, env, url, h) {
   if (partes[0] === "entrar" && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const clave = String(c.clave || ""), pin = String(c.pin || ""), turno = String(c.turno || "");
+    if (modoEnsayo && clave !== "ENSAYO")
+      return json({ok:false,error:"En este ensayo solo entra el encargado ficticio ENSAYO."},403);
     if (!TURNOS.includes(turno)) return json({ ok: false, error: "Elige tu turno." }, 422);
     const p = await env.DB.prepare("SELECT * FROM turno_personas WHERE clave = ? AND activo = 1").bind(clave).first();
     if (!p) return json({ ok: false, error: "Elige tu nombre." }, 422);
@@ -406,6 +411,8 @@ export async function turnoRuta(request, env, url, h) {
 
   const s = await sesionActual(request, env);
   if (!s) return json({ ok: false, error: "Tu sesión terminó. Vuelve a entrar con tu PIN.", sesion: false }, 401, { "Set-Cookie": cookie("", 0) });
+  if (modoEnsayo && s.persona !== "ENSAYO")
+    return json({ok:false,error:"Esta sesión no pertenece al encargado ficticio del ensayo."},403);
 
   if (partes[0] === "estado" && request.method === "GET") return json({ ok: true, ver: versionDe(h.html), ...(await estado(env, s)) });
   if (partes[0] === "avisos" && partes[1] === "pagina" && request.method === "GET")
