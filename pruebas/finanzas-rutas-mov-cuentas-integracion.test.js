@@ -245,4 +245,55 @@ test("Saldo de sobres: dos envíos simultáneos con la misma versión dejan un g
   assert.equal(limpiar.status,200);
 });
 
+
+test("Movimiento con cuenta desactivada se rechaza y su reintento legítimo sigue disponible",async()=>{
+  const data={uid:"fd550000-5500-4500-8500-000000000091",fecha:hoy,
+    tipo:"traspaso",origen:"klar-manu",destino:"mdo-pago",importe:"89.25",nota:"Movimientos con bancos activos"};
+  const prev=()=>({
+    movs:db.prepare("SELECT COUNT(*) n FROM fin_movs").get().n,
+    bit:db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n
+  });
+  const antes=prev();
+  db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='klar-manu'").run();
+  const invalido=await request("mov",data);
+  assert.equal(invalido.status,422,JSON.stringify(invalido));
+  assert.deepEqual(prev(),antes);
+  db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='klar-manu'").run();
+  const bien=await request("mov",data);
+  assert.equal(bien.status,200,JSON.stringify(bien));
+  db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='mdo-pago'").run();
+  try{
+    const reintento=await request("mov",data);
+    assert.equal(reintento.status,200,JSON.stringify(reintento));
+    assert.equal(reintento.data.repetido,true);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE id=?").get(bien.data.id).n,1);
+  }finally{ db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='mdo-pago'").run(); }
+});
+
+test("Desactivar cuenta justo al escribir movimiento no crea asiento ni auditoría",async()=>{
+  const data={uid:"fd550000-5500-4500-8500-000000000092",fecha:hoy,
+    tipo:"traspaso",origen:"klar-manu",destino:"bbva-pyme",importe:"33.15",nota:"Carrera financiera"};
+  const antesMov=db.prepare("SELECT COUNT(*) n FROM fin_movs").get().n;
+  const antesBit=db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n;
+  const batch=env.DB.batch;
+  let inyectado=false;
+  env.DB.batch=async statements=>{
+    if(!inyectado && statements[0]?.sql.includes("INSERT INTO fin_movs")){
+      inyectado=true;
+      db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='klar-manu'").run();
+    }
+    return batch(statements);
+  };
+  try{
+    const resultado=await request("mov",data);
+    assert.equal(inyectado,true);
+    assert.equal(resultado.status,409,JSON.stringify(resultado));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs").get().n,antesMov);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,antesBit);
+  }finally{
+    env.DB.batch=batch;
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='klar-manu'").run();
+  }
+});
+
 test.after(()=>db.close());
