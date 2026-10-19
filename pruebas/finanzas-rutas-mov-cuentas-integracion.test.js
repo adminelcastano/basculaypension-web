@@ -125,6 +125,26 @@ test("Eliminar el mismo movimiento simultáneamente registra una sola baja real"
     "Un borrado repetido no deja dos eventos de bitácora");
 });
 
+test("Un movimiento eliminado no revive si el teléfono reintenta el mismo UID",async()=>{
+  const original = {
+    uid:"fd550000-5500-4500-8500-000000000099",fecha:hoy,
+    tipo:"traspaso",origen:"bbva-pyme",destino:"mdo-pago",importe:"1.23",nota:"Borrado idempotente"
+  };
+  const alta=await request("mov",original);
+  assert.equal(alta.status,200,JSON.stringify(alta));
+  const primeraBaja=await request("mov/"+alta.data.id+"/eliminar",{});
+  assert.equal(primeraBaja.status,200,JSON.stringify(primeraBaja));
+  assert.equal(primeraBaja.data.borrados,1);
+  const antes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(alta.data.id).n;
+  assert.equal(antes,2);
+  const retry=await request("mov",original);
+  assert.equal(retry.status,409,JSON.stringify(retry));
+  assert.match(retry.data.error,/eliminado/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE id=?").get(alta.data.id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(alta.data.id).n,antes,
+    "Reintentar no crea saldo ni bitácora adicional");
+});
+
 test("Saldo inicial: crear, repetir y corregir no produce bitácora duplicada",async()=>{
   const payload={mes,cuenta:"bbva-personal",saldo:"1234.56"};
   const primera=await request("saldo-cuenta",payload);
