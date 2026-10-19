@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import {
   calcularCortes, unirConteos, totalesMes, cambiosEntreTurnos, claseHoja, esCambio, movimientosCaja,
-  guardarCambioInicio, idAumentoInicio, totalCambioInicio
+  guardarCambioInicio, idAumentoInicio, totalCambioInicio, asegurarEsquemaCaja
 } from "../src/caja.js";
 import { flujosMes } from "../src/cuentas.js";
 import { diferenciasCaja } from "../src/finanzas.js";
@@ -95,7 +96,7 @@ function dbSimulada() {
           bitacora.push(s.args);
         } else throw Error("Escritura inesperada: " + s.sql);
       }
-      return [];
+      return sentencias.map(() => ({meta:{changes:1}}));
     }
   };
   return { env: { DB }, inicio, extras, bitacora };
