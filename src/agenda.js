@@ -485,11 +485,35 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const titulo = pago.item_id ? pago.titulo : v.titulo;
     const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
     const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
-    const st = [env.DB.prepare("UPDATE agenda_pagos SET fecha = ?, importe = ?, forma = ?, nota = ?, titulo = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha, v.importe, v.forma, v.nota, titulo, cat, cta, pago.id)];
-    if (pago.gasto_id) st.push(env.DB.prepare("UPDATE caja_gastos SET mes = ?, dia = ?, monto = ?, forma = ?, concepto = ?, categoria = ?, cuenta = ? WHERE id = ?").bind(v.fecha.slice(0, 7), v.fecha, v.importe, v.forma, ("Pago: " + titulo).slice(0, 120), cat, cta, pago.gasto_id));
-    st.push(stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id, mes: v.fecha.slice(0, 7),
-      detalle: { concepto: titulo, antes: { fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta, categoria: pago.categoria }, ahora: { fecha: v.fecha, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } } }));
-    await env.DB.batch(st);
+    const mismo = pago.fecha === v.fecha && centavosIguales(pago.importe, v.importe)
+      && pago.forma === v.forma && (pago.nota || null) === (v.nota || null)
+      && (pago.titulo || "") === (titulo || "") && (pago.categoria || null) === (cat || null)
+      && (pago.cuenta || null) === (cta || null);
+    if (mismo) return json({ok:true,sin_cambios:true});
+    // Dos sesiones pueden abrir el mismo recibo: solo una modifica la versión
+    // que ambas vieron. El cambio del gasto comparte D1.batch y depende del
+    // UPDATE condicional, evitando gastos huérfanos o auditorías falsas.
+    const st = [
+      env.DB.prepare(`UPDATE agenda_pagos SET fecha=?, importe=?, forma=?, nota=?, titulo=?, categoria=?, cuenta=?
+        WHERE id=? AND fecha=? AND importe=? AND forma=?
+        AND COALESCE(nota,'')=? AND COALESCE(titulo,'')=? AND COALESCE(categoria,'')=?
+        AND COALESCE(cuenta,'')=? AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id=agenda_pagos.gasto_id))`)
+        .bind(v.fecha,v.importe,v.forma,v.nota,titulo,cat,cta,
+          pago.id,pago.fecha,pago.importe,pago.forma,
+          pago.nota||"",pago.titulo||"",pago.categoria||"",pago.cuenta||""),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion:"editar",
+        que: pago.item_id ? "Pago programado" : "Pago no programado",
+        ref:pago.id,mes:v.fecha.slice(0,7),
+        detalle:{concepto:titulo,antes:{fecha:pago.fecha,importe:pago.importe,forma:pago.forma,cuenta:pago.cuenta,categoria:pago.categoria},
+          ahora:{fecha:v.fecha,importe:v.importe,forma:v.forma,cuenta:cta,categoria:cat}}})
+    ];
+    if (pago.gasto_id) st.push(
+      env.DB.prepare("UPDATE caja_gastos SET mes=?, dia=?, monto=?, forma=?, concepto=?, categoria=?, cuenta=? WHERE id=? AND changes()>0")
+        .bind(v.fecha.slice(0,7),v.fecha,v.importe,v.forma,("Pago: "+titulo).slice(0,120),cat,cta,pago.gasto_id)
+    );
+    const resultado = await env.DB.batch(st);
+    if (!resultado[0]?.meta?.changes)
+      return json({ok:false,error:"Este pago cambió o fue eliminado en otra sesión. Actualiza la lista antes de corregirlo."},409);
     return json({ ok: true });
   }
   if (accion === "eliminar") {
