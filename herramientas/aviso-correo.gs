@@ -98,7 +98,14 @@ function drive(d) {
     const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'documento'));
     // Conservar el documento anterior si falla la carga o la actualización del índice.
     const archivo = carpeta.createFile(blob);
-    props.setProperty(llaveArchivo, archivo.getId());
+    try {
+      props.setProperty(llaveArchivo, archivo.getId());
+    } catch (err) {
+      // Si falla el índice, conservar la referencia antigua y retirar sólo
+      // el archivo recién creado; nunca tocar el documento anterior.
+      try { archivo.setTrashed(true); } catch (limpiezaErr) {}
+      throw err;
+    }
     if (anterior && anterior !== archivo.getId()) {
       // La copia nueva ya quedó registrada: si falla la papelera, conservar ambas copias.
       try { DriveApp.getFileById(anterior).setTrashed(true); } catch (err) {}
@@ -198,16 +205,23 @@ function hojaMensual(d) {
     sh.setFrozenRows(1);
     if (datos.length < 2000) sh.autoResizeColumns(1, ancho);
   });
+  // Confirmar escritura de todas las celdas antes de sustituir el índice del mes.
+  SpreadsheetApp.flush();
   const archivo = DriveApp.getFileById(ss.getId());
   archivo.moveTo(carpeta);
   // Sólo después de guardar el nuevo reporte correctamente, archivar versiones anteriores.
-  // Google Drive puede devolver también el nuevo archivo en esta consulta: nunca eliminarlo.
+  // Una falla al archivar un informe antiguo NO convierte una creación exitosa
+  // en error (evita reintentos destructivos o duplicaciones innecesarias).
   const viejos = carpeta.getFilesByName(nombre);
+  let pendientesArchivar = 0;
   while (viejos.hasNext()) {
     const previo = viejos.next();
-    if (previo.getId() !== ss.getId()) previo.setTrashed(true);
+    if (previo.getId() !== ss.getId()) {
+      try { previo.setTrashed(true); } catch (err) { pendientesArchivar++; }
+    }
   }
-  return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null };
+  return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null,
+    pendientes_archivar: pendientesArchivar };
 }
 
 function dentroDeRaiz(archivo) {
