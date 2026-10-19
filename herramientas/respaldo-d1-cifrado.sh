@@ -25,7 +25,7 @@ salida="$dest/d1-$(date -u +%Y%m%dT%H%M%SZ).sql.age"
 if [ -e "$salida" ]; then echo "Ya existe un archivo con ese nombre; no sobrescribir" >&2; exit 2; fi
 
 # Clave/credencial nunca se imprime. Wrangler sólo exporta; jamás ejecutar d1 execute --remote aquí.
-npx --yes wrangler@4.151.2 d1 export castano-facturas --remote --config wrangler.jsonc --output "$temporal/export.sql"
+npx --yes wrangler@4.151.2 d1 export castano-facturas --remote --skip-confirmation --config wrangler.jsonc --output "$temporal/export.sql"
 test -s "$temporal/export.sql" || { echo "Exportación vacía" >&2; exit 1; }
 
 # Restauración LOCAL real de la exportación para validar legibilidad antes del cifrado.
