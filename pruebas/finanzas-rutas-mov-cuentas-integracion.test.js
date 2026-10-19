@@ -342,4 +342,38 @@ test("Si entra un saldo durante el ocultamiento la cuenta queda visible y no se 
   }
 });
 
+
+test("Saldo de cuenta oculta no se crea ni siquiera si se ocultó durante el guardado",async()=>{
+  const inicial=await request("cuenta",{nombre:"ENSAYO CUENTA SIN SALDO INVISIBLE",tipo:"debito"});
+  assert.equal(inicial.status,200,JSON.stringify(inicial));
+  const cuenta=inicial.data.id, saldo={mes,cuenta,saldo:"800.25",esperado:null};
+  const ocultar=await request("cuenta",{id:cuenta,activa:false});
+  assert.equal(ocultar.status,200);
+  const viejo=await request("saldo-cuenta",saldo);
+  assert.equal(viejo.status,409,JSON.stringify(viejo));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_saldos_cuenta WHERE cuenta=?").get(cuenta).n,0);
+  const activar=await request("cuenta",{id:cuenta,activa:true});
+  assert.equal(activar.status,200);
+  const before=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref=?").get(cuenta).n;
+  const batch=env.DB.batch;
+  let intercalado=false;
+  env.DB.batch=async statements=>{
+    if(!intercalado && statements[0]?.sql.includes("INSERT INTO fin_saldos_cuenta")){
+      intercalado=true;
+      db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id=?").run(cuenta);
+    }
+    return batch(statements);
+  };
+  try{
+    const x=await request("saldo-cuenta",saldo);
+    assert.equal(intercalado,true);
+    assert.equal(x.status,409,JSON.stringify(x));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_saldos_cuenta WHERE cuenta=?").get(cuenta).n,0);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref=?").get(cuenta).n,before);
+  }finally{
+    env.DB.batch=batch;
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id=?").run(cuenta);
+  }
+});
+
 test.after(()=>db.close());
