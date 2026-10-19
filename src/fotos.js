@@ -114,12 +114,9 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
     metadata: { tipo, ...(op.metadata || {}), ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}) },
     ...(op.ttlDias ? { expirationTtl: op.ttlDias * 86400 } : {})
   });
-  if (anterior) {
-    // La clave KV contiene la versión nueva. Si D1 falla, ambas copias permanecen
-    // y la tarea de sincronización puede reconciliarlas en el siguiente ciclo.
-    await env.DB.prepare("DELETE FROM archivos WHERE llave = ? AND drive_id = ?").bind(llave, anterior.drive_id).run();
-    await mandarAPapelera(env, anterior.drive_id).catch(() => {});
-  }
+  // Conservar también la referencia y el documento Drive anterior mientras KV
+  // se propaga. La tarea programada reemplazará el índice D1 y sólo entonces
+  // archivará Drive. De esta manera un lector en otra región no queda sin copia.
   return { drive: false };
 }
 
