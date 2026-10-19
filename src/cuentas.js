@@ -3,7 +3,7 @@
 // - Crédito: llevan deuda (inicial del mes + cargos − pagos a la tarjeta). Lo que se compra con la tarjeta cuenta como
 //   gasto el día de la compra; pagar la tarjeta es un traspaso (no es un gasto nuevo, así no se cuenta dos veces).
 // Los cobros con tarjeta de los turnos caen en la cuenta marcada con `tarjeta = 1` (MDO PAGO).
-import { mesesAbiertos } from "./caja.js";
+import { mesesAbiertos, montoUsuario } from "./caja.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
