@@ -613,17 +613,17 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
 // Cambio de mes: el mes anterior se deja en la base tal como quedó en la hoja y se crean sus reportes
 // en Google Sheets (Turnos, Finanzas y Facturación, cada uno en su carpeta de Drive). Si los reportes no
 // se crean, no se borra nada y se reintenta cada hora.
-export async function cierreMensualCaja(env, h) {
+export async function cierreMensualCaja(env, h, ahora = new Date()) {
   await asegurarEsquemaCaja(env);
-  const actual = mesActual();
+  const actual = mesActual(ahora);
   const guardado = await env.FILES.get("caja:mes");
   if (!guardado) { await env.FILES.put("caja:mes", actual); return { nada: true }; }
   if (guardado >= actual) return { nada: true };
   // Se espera a que termine el turno de noche del último día del mes (7:00 del día 1, hora de Tapachula)
-  if (mesActual(new Date(Date.now() - 7 * 3600e3)) !== actual) return { esperando: true };
+  if (mesActual(new Date(ahora.getTime() - 7 * 3600e3)) !== actual) return { esperando: true };
   const intento = await env.FILES.get("caja:cierre_intento");
-  if (intento && Date.now() - Date.parse(intento) < 3600e3) return { esperando: true };
-  await env.FILES.put("caja:cierre_intento", new Date().toISOString(), { expirationTtl: 7200 });
+  if (intento && ahora.getTime() - Date.parse(intento) < 3600e3) return { esperando: true };
+  await env.FILES.put("caja:cierre_intento", ahora.toISOString(), { expirationTtl: 7200 });
   const mes = guardado;
   let movs;
   try {
@@ -633,7 +633,33 @@ export async function cierreMensualCaja(env, h) {
   } catch (e) { console.error("cierre caja: hoja", e.message); return { error: e.message }; }
   // Lo del mes que se cierra queda en el panel tal como quedó en la hoja (por si hubo cambios después de la última lectura)
   const filasMes = movs.map(f => ({ ...f, mes }));
-  const POR = 9, st = [env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes)];
+  // La lectura final de la hoja debe conciliar los cobros pendientes igual que
+  // la sincronización ordinaria. De lo contrario, el mes puede cerrarse con
+  // un ticket ya pagado Y un abono administrativo que sigue sumando dos veces.
+  const pendientes = new Map();
+  for (const f of filasMes.filter(x => x.pendiente)) {
+    const id = [f.servicio, f.fecha, f.folio].join("|");
+    if (pendientes.has(id)) return { error: "La hoja tiene dos pendientes con la misma identificación: no se cerró el mes." };
+    if (!Number.isFinite(f.monto_pendiente) || f.monto_pendiente < 0 || f.monto_pendiente > 100000000)
+      return { error: "La hoja tiene un importe pendiente inválido: no se cerró el mes." };
+    pendientes.set(id, { ...f, id });
+  }
+  const cubiertosPorHoja = new Set(filasMes.filter(x => !x.pendiente && x.tipo === "ticket" && x.importe > 0)
+    .map(x => [x.mes, x.servicio, x.folio].join("|")));
+  const POR = 9, st = [
+    env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes),
+    env.DB.prepare("UPDATE caja_pendientes SET origen_activo = 0 WHERE mes = ?").bind(mes)
+  ];
+  for (const p of pendientes.values()) st.push(env.DB.prepare(`INSERT INTO caja_pendientes
+    (id, servicio, fecha, dia, turno, folio, matricula, cliente, forma, monto, mes, estado, origen_activo, actualizado)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET dia=excluded.dia, turno=excluded.turno,
+      matricula=excluded.matricula, cliente=excluded.cliente, forma=excluded.forma,
+      monto=excluded.monto, origen_activo=excluded.origen_activo, actualizado=excluded.actualizado`)
+    .bind(p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.matricula, p.cliente,
+      p.forma, p.monto_pendiente, p.mes,
+      cubiertosPorHoja.has([p.mes, p.servicio, p.folio].join("|")) ? 0 : 1, ahora.toISOString())
+  );
   for (let i = 0; i < filasMes.length; i += POR) {
     const lote = filasMes.slice(i, i + POR);
     st.push(env.DB.prepare(`INSERT INTO caja_mov (${COLS_MOV.join(", ")}) VALUES ${lote.map(() => "(" + COLS_MOV.map(() => "?").join(",") + ")").join(",")}`).bind(...lote.flatMap(f => COLS_MOV.map(c => f[c] ?? null))));
