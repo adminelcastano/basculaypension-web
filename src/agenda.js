@@ -414,14 +414,20 @@ async function validarPagoHecho(env, c, fila) {
 const GASTO_ADMIN = `INSERT INTO caja_gastos
   (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria, cuenta)
   VALUES (?, ?, ?, '', ?,
-    CASE WHEN ? = 'EFECTIVO' OR ? IS NULL OR EXISTS (
+    CASE WHEN (? = 'EFECTIVO' OR ? IS NULL OR EXISTS (
       SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1
         AND tipo = CASE WHEN ? = 'TARJETA' THEN 'credito' ELSE 'debito' END
-    ) THEN ? ELSE NULL END,
+    )) AND (? = 1 OR NOT EXISTS (
+      SELECT 1 FROM agenda_pagos
+      WHERE item_id = ? AND (substr(fecha, 1, 7) = ?
+        OR substr(COALESCE(programado, ''), 1, 7) = ?)
+    )) THEN ? ELSE NULL END,
     ?, ?, ?, 'admin', ?, ?)`;
-const stmtGastoAdmin = (env, id, mes, dia, concepto, importe, forma, ahora, quien, categoria, cuenta) =>
+const stmtGastoAdmin = (env, id, mes, dia, concepto, importe, forma, ahora, quien, categoria, cuenta, periodo = null) =>
   env.DB.prepare(GASTO_ADMIN).bind(id, mes, dia, concepto,
-    forma, cuenta, cuenta, forma, importe, forma, ahora, quien, categoria, cuenta);
+    forma, cuenta, cuenta, forma,
+    periodo ? 0 : 1, periodo?.item_id || "", periodo?.mesFecha || "", periodo?.mesProgramado || "",
+    importe, forma, ahora, quien, categoria, cuenta);
 const errorBancoEnEscritura = er =>
   /NOT NULL constraint failed:\s*caja_gastos\.monto/i.test(String(er?.message || ""));
 const conflictoBanco = () => json({ok:false,error:"La cuenta bancaria cambió mientras guardabas. Actualiza la lista y confirma la cuenta antes de repetir."},409);
@@ -1095,7 +1101,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const meses_ = MESES_FREC[fila.frecuencia || "mensual"];
     // Egreso, pago y siguiente vencimiento en una sola operación (o se guarda todo o nada)
     try { await env.DB.batch([
-      stmtGastoAdmin(env, gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta),
+      stmtGastoAdmin(env, gid, fecha.slice(0, 7), fecha, ("Pago: " + fila.titulo).slice(0, 120), importe, forma, ahora, quien, cat, cta,
+        c.forzar ? null : { item_id:fila.id, mesFecha:fecha.slice(0,7), mesProgramado:(fila.fecha || fecha).slice(0,7) }),
       env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(pid, fila.id, fecha, fila.fecha, importe, forma, gid, ahora, quien, fila.titulo, v.nota, cat, cta),
       // Siguiente vencimiento a partir de la fecha programada (si se pagó tarde no se recorre el calendario)
@@ -1103,7 +1110,21 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         : env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ?").bind(sumarMeses(fila.fecha || fecha, meses_), ahora, fila.id),
       stmtBitacora(env, { quien, accion: "crear", que: "Pago programado", ref: pid, mes: fecha.slice(0, 7), detalle: { concepto: fila.titulo, fecha, importe, forma, cuenta: cta, categoria: cat, vencimiento: fila.fecha } })
     ]); }
-    catch (er) { const previo = await repetido(); if (previo) return previo; if (errorBancoEnEscritura(er)) return conflictoBanco(); throw er; }
+    catch (er) {
+      const previo = await repetido(); if (previo) return previo;
+      if (errorBancoEnEscritura(er)) {
+        // El mismo fallo de la condición transaccional puede ser banco
+        // desactivado o un pago del periodo guardado por otra sesión.
+        if (!c.forzar) {
+          const mesP = (fila.fecha || fecha).slice(0,7);
+          const dup = await env.DB.prepare("SELECT fecha, importe FROM agenda_pagos WHERE item_id = ? AND (substr(fecha,1,7)=? OR substr(COALESCE(programado,''),1,7)=?) LIMIT 1")
+            .bind(fila.id, fecha.slice(0,7), mesP).first();
+          if (dup) return json({ok:false,duplicado:dup,error:"Otra sesión ya registró un pago de este periodo. Actualiza Pagos hechos."},409);
+        }
+        return conflictoBanco();
+      }
+      throw er;
+    }
     return json({ ok: true, gasto_id: gid, id: pid });
   }
 
