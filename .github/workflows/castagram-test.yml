@@ -30,7 +30,7 @@ jobs:
             base="$(git rev-parse HEAD^)"
           fi
           changed="$(git diff --name-only --diff-filter=ACMRT "$base" HEAD)"
-          forbidden="$(printf '%s\n' "$changed" | grep -E '^(\.wrangler/|\.dev\.vars|\.env($|\.))' | grep -vxF '.env.example' || true)"
+          forbidden="$(printf '%s\\n' "$changed" | grep -E '^(\\.wrangler/|\\.dev\\.vars|\\.env($|\\.)|respaldos/|backups/)|\\.(sqlite3?|db(-wal|-shm)?|sql\\.(age|gz|enc))$' | grep -vxF '.env.example' || true)"
           if [ -n "$forbidden" ]; then
             echo "::error::No incorporar ni modificar archivos locales de Wrangler o credenciales."
             printf '%s\n' "$forbidden"
