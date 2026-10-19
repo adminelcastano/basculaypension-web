@@ -115,6 +115,12 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf WHERE id=?").get(libre.data.id).n,0);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE accion='borrar' AND ref=?").get(libre.data.id).n-prev,1,
       "La transferencia se borra y audita una sola vez");
+    const histEliminado=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(libre.data.id).n;
+    const reintentoEliminado=await post(env,"transferencias",transferencia(TOKEN[2]));
+    assert.equal(reintentoEliminado.status,409,JSON.stringify(reintentoEliminado));
+    assert.match(reintentoEliminado.data.error,/eliminada/);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf WHERE id=?").get(libre.data.id).n,0);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(libre.data.id).n,histEliminado);
 
     const nueva=await post(env,"transferencias",transferencia("bba00000-1111-4111-8111-000000000005"));
     assert.equal(nueva.status,200);
