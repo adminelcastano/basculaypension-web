@@ -151,5 +151,37 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
       assert.equal(futura.status,422,JSON.stringify(futura));
       assert.ok(futura.data.errores.fecha);
     }
+
+    // El mismo UID ya guardado debe seguir siendo repetible incluso si
+    // la cuenta utilizada se desactivó después: no crear otro asiento.
+    db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='bbva-pyme'").run();
+    const retryConCuentaInactiva=await post(env,"transferencias",transferencia(TOKEN[0],"bascula:F101"));
+    assert.equal(retryConCuentaInactiva.status,200,JSON.stringify(retryConCuentaInactiva));
+    assert.equal(retryConCuentaInactiva.data.repetido,true);
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
+
+    // Escenario TOCTOU: otra pestaña desactiva la cuenta después de la
+    // validación y antes de INSERT. El INSERT condicional debe perder.
+    const preBatch=env.DB.batch;
+    let interceptada=false;
+    env.DB.batch=async statements=>{
+      if(!interceptada && statements[0]?.sql.includes("INSERT INTO caja_transf")) {
+        interceptada=true;
+        db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='bbva-pyme'").run();
+      }
+      return preBatch(statements);
+    };
+    try {
+      const antes=db.prepare("SELECT COUNT(*) n FROM caja_transf").get().n;
+      const bitAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Transferencia de cliente'").get().n;
+      const rival=await post(env,"transferencias",transferencia("bba00000-1111-4111-8111-000000000010"));
+      assert.equal(interceptada,true);
+      assert.equal(rival.status,409,JSON.stringify(rival));
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf").get().n,antes);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Transferencia de cliente'").get().n,bitAntes);
+    } finally {
+      env.DB.batch=preBatch;
+      db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
+    }
   } finally {db.close()}
 });
