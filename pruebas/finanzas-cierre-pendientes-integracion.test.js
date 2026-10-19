@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin, leerHoja, sincronizarCaja } from "../src/caja.js";
+import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin, leerHoja, sincronizarCaja, mesActual, sumarMesesCaja } from "../src/caja.js";
 
 const MES="2026-10", SIG="2026-11";
 const CIERRE=new Date("2026-11-01T17:00:00Z"); // 11:00 en Tapachula
@@ -85,6 +85,7 @@ test("Cierre final: abono cubierto por hoja no duplica, pendiente parcial y noch
       assert.equal(sqlite.prepare("SELECT origen_activo FROM caja_pendientes WHERE id=?").get(parcial).origen_activo,1);
     }},CIERRE);
     assert.deepEqual(x,{cerrado:MES});
+    assert.match(sqlite.prepare("SELECT token FROM caja_cierre_lock WHERE mes=?").get(MES).token,/^cerrado:/);
     assert.equal(await env.FILES.get("caja:mes"),SIG);
     assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n,3);
     assert.equal(sqlite.prepare("SELECT monto FROM caja_pendientes WHERE id=?").get(parcial).monto,250);
