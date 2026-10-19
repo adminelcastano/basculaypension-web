@@ -545,4 +545,49 @@ test("Dos administradores que guardan notas bancarias simultáneamente no se pis
   assert.ok(["Administración A: cuenta 1","Administración B: cuenta 2"].includes(guardado));
 });
 
+test("Cierre en otra sesión antes del batch: ningún saldo ni traspaso tardío se registra",async()=>{
+  const debito=db.prepare("SELECT id FROM fin_cuentas WHERE activa=1 AND tipo='debito' ORDER BY orden,id LIMIT 2").all();
+  assert.equal(debito.length,2);
+  const cuenta=debito[0].id;
+  const cuenta2=debito[1].id;
+  const antesCuenta=db.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,cuenta);
+  const antesSobre=db.prepare("SELECT efectivo FROM fin_saldos WHERE mes=?").get(mes);
+  const movimientos=db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE mes=?").get(mes).n;
+  async function cuandoCierra(ruta,cuerpo,fragmento){
+    const batchOriginal=env.DB.batch;
+    let seCerro=false;
+    const audAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n;
+    env.DB.batch=async statements=>{
+      if(!seCerro && statements.some(s=>s.sql.includes(fragmento))){
+        db.prepare("INSERT INTO caja_cierre_lock (mes,token,tomado) VALUES (?,?,?) ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado")
+          .run(mes,"cerrado:en-otra-sesion",new Date().toISOString());
+        seCerro=true;
+      }
+      return batchOriginal(statements);
+    };
+    let respuesta;
+    try{respuesta=await request(ruta,cuerpo)}
+    finally{
+      env.DB.batch=batchOriginal;
+      db.prepare("DELETE FROM caja_cierre_lock WHERE mes=? AND token=?").run(mes,"cerrado:en-otra-sesion");
+    }
+    assert.equal(seCerro,true,"Debe simular cierre después de validar, antes de escribir");
+    assert.equal(respuesta.status,409,JSON.stringify(respuesta));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,audAntes,"Sin bitácora falsa");
+  }
+  await cuandoCierra("saldo-cuenta",{
+    mes,cuenta,saldo:"8199.45",esperado:antesCuenta?.saldo??null
+  },"INSERT INTO fin_saldos_cuenta");
+  assert.deepEqual(db.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,cuenta),antesCuenta);
+  await cuandoCierra("saldo",{
+    mes,efectivo:"8199.45",esperado:antesSobre?.efectivo??null
+  },"INSERT INTO fin_saldos (");
+  assert.deepEqual(db.prepare("SELECT efectivo FROM fin_saldos WHERE mes=?").get(mes),antesSobre);
+  await cuandoCierra("mov",{
+    uid:"cafe0000-0000-4000-8000-000000000291",fecha:hoy,
+    tipo:"traspaso",origen:cuenta,destino:cuenta2,importe:"25.79",nota:"No guardar después de cerrar"
+  },"INSERT INTO fin_movs (");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs WHERE mes=?").get(mes).n,movimientos);
+});
+
 test.after(()=>db.close());
