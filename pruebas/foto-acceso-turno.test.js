@@ -63,6 +63,6 @@ test("A-05: la ruta sigue exigiendo PIN, retorna 404 y deshabilita cache de Cast
   const foto = src.indexOf('if (partes[0] === "foto" && request.method === "GET")');
   const permiso = src.indexOf("await permisoFotoTurno(env, llave, s);");
   assert.ok(sesion > 0 && foto > sesion && permiso > foto);
-  assert.match(src.slice(foto, foto + 1000), /!decision\.permitido\) return new Response\("No encontrado", \{ status: 404 \}\)/);
+  assert.match(src.slice(foto, foto + 1000), /!decision\.permitido\) return new Response\("No encontrado", \{ status: 404, headers: \{ "Cache-Control": "private, no-store" \} \}\)/);
   assert.match(src.slice(foto, foto + 1000), /if \(esFotoCastagram\) respuesta\.headers\.set\("Cache-Control", "private, no-store"\)/);
 });
