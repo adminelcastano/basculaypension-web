@@ -128,7 +128,10 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
   // Fallback conservador: escribir KV y confirmar el éxito ANTES de modificar D1
   // o de enviar el documento anterior a papelera. Si KV falla, el anterior sigue vivo.
   await env.FILES.put(llave, bytes, {
-    metadata: { tipo, ...(op.metadata || {}), ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}) },
+    metadata: { tipo, ...(op.metadata || {}),
+      ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}),
+      ...(Array.isArray(op.carpeta) ? { carpeta: op.carpeta } : {}),
+      ...(op.carpetaPersona ? { carpetaPersona: String(op.carpetaPersona).slice(0, 120) } : {}) },
     ...(op.ttlDias ? { expirationTtl: op.ttlDias * 86400 } : {})
   });
   // Conservar también la referencia y el documento Drive anterior mientras KV
@@ -205,7 +208,10 @@ export async function mantenerArchivos(env, max = 20) {
         persona = f ? `${String(f.num || 0).padStart(3, "0")} ${f.nombre}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 100) : null;
       }
       const tipo = (r.metadata && r.metadata.tipo) || "application/octet-stream";
-      const carpeta = carpetaPorLlave(k.name, persona);
+      // Conservar la misma carpeta elegida por la carga original para que un
+      // reintento idéntico encuentre su marca y no cree un duplicado en otra ruta.
+      const carpeta = Array.isArray(r.metadata?.carpeta)
+        ? r.metadata.carpeta : carpetaPorLlave(k.name, r.metadata?.carpetaPersona || persona);
       const nombre = String((r.metadata && r.metadata.nombre) || k.name.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
       let id;
       try { id = (await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
