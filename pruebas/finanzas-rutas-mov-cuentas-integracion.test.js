@@ -73,4 +73,20 @@ test("Cuenta receptora de tarjeta o transferencia histórica no se reasigna sile
   assert.equal(db.prepare("SELECT id FROM fin_cuentas WHERE def_transf=1").get().id,"bbva-pyme");
 });
 
+test("No asignar cuentas de crédito como receptoras de cobros o pagos",async()=>{
+  for(const rol of ["tarjeta","def_transf","def_pago"]){
+    const res=await request("cuenta",{id:"banorte-credito",[rol]:1});
+    assert.equal(res.status,422,rol+" no debe aceptar crédito");
+    assert.match(res.data.error,/de débito/);
+    assert.equal(db.prepare("SELECT "+rol+" AS activo FROM fin_cuentas WHERE id='banorte-credito'").get().activo,0);
+  }
+  const nueva=await request("cuenta",{nombre:"ENSAYO BANCO NUEVO",tipo:"debito"});
+  assert.equal(nueva.status,200,JSON.stringify(nueva));
+  const uso=await request("cuenta",{id:nueva.data.id,def_pago:1});
+  assert.equal(uso.status,200,JSON.stringify(uso));
+  const cambio=await request("cuenta",{id:nueva.data.id,tipo:"credito"});
+  assert.equal(cambio.status,422,"Una cuenta de débito con rol receptor no puede cambiar a crédito sin reasignación previa");
+  assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id=?").get(nueva.data.id).tipo,"debito");
+});
+
 test.after(()=>db.close());
