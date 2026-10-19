@@ -109,7 +109,7 @@ export default {
       ctx.waitUntil((async () => {
         await recordatoriosAgenda(env, llamarScript).catch(e => console.error("recordatorios agenda", e && e.message));
         // Fotos y PDFs: de KV a la carpeta dedicada de Google Drive
-        await mantenerArchivos(env).then(r => (r.subidos || r.vencidos || r.error) && console.log("archivos", JSON.stringify(r))).catch(e => console.error("archivos", e && e.message));
+        await mantenerArchivos(env).then(r => (r.subidos || r.vencidos || r.error) && console.log("archivos", JSON.stringify({ subidos: r.subidos || 0, vencidos: r.vencidos || 0, fallo: !!r.error }))).catch(e => console.error("archivos", tipoErrorSeguro(e)));
         const enPuntoDeHora = new Date(event.scheduledTime).getUTCMinutes() < 10;
         // Cada hora: revisar el consumo del mes (avisos y modo ahorro)
         if (enPuntoDeHora) await revisarConsumo(env, llamarScript).catch(e => console.error("consumo", e && e.message));
@@ -314,7 +314,7 @@ async function crearSolicitud(request, env, ctx) {
   }
   if (LEER_TICKET_IA && ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
     // Si la lectura falló o tardó, se reintenta en segundo plano
-    ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", e && e.message)));
+    ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", tipoErrorSeguro(e))));
   }
 
   return json({ ok: true, folio });
@@ -825,7 +825,7 @@ async function limpiarArchivos(env) {
     const r = await scriptArchivos(env, { op: "hoja", destino: "facturacion", anio: hoy.slice(0, 4), nombre: `Respaldo de facturas borradas ${hoy} · El Castaño`, hojas: [{ nombre: "Facturas", filas: filasExcel(results).map(f => f.map(celda)) }] }, 120000);
     if (!r || r.destino !== "facturacion") throw new Error("el script de Google no tiene la versión con carpetas por área");
   } catch (e) {
-    console.error("limpieza: respaldo no confirmado, no se borra nada", e && e.message);
+    console.error("limpieza: respaldo no confirmado, no se borra nada", tipoErrorSeguro(e));
     return { borradas: 0, error: "respaldo no confirmado" };
   }
   for (const r of results) {
