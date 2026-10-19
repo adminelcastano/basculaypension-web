@@ -467,3 +467,43 @@ test("Cuenta desactivada durante la edición y compra individual no altera asien
     db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='mdo-pago'").run();
   }
 });
+
+test("Dos UIDs pagan simultáneamente el mismo vencimiento: un gasto, un pago, una bitácora",async()=>{
+  const {db,env}=shared;
+  const id="pago-programado-dos-sesiones";
+  db.prepare("INSERT INTO agenda_items(id,tipo,titulo,fecha,estado,frecuencia,forma,importe,creado) VALUES (?, 'pago', ?, ?, 'pendiente', 'mensual', 'TRANSFERENCIA', 95.75, ?)")
+    .run(id,"Servicio simultáneo ficticio",hoy,new Date().toISOString());
+  const cuentaAntes=db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n;
+  const bitAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n;
+  const originalPrepare=env.DB.prepare;
+  let lecturas=0,soltar;
+  const barrier=new Promise(resolve=>soltar=resolve);
+  env.DB.prepare=sql=>{
+    const stmt=originalPrepare(sql);
+    if(!sql.startsWith("SELECT fecha, importe FROM agenda_pagos WHERE item_id = ?"))return stmt;
+    return {bind(...args){
+      const ligado=stmt.bind(...args);
+      if(args[0]!==id)return ligado;
+      return {...ligado,async first(){
+        const r=await ligado.first();
+        if(++lecturas===2)soltar();
+        await barrier;
+        return r;
+      }};
+    }};
+  };
+  let respuestas;
+  try{
+    const base={fecha:hoy,importe:"95.75",forma:"C:bbva-pyme",nota:"prueba dos sesiones"};
+    respuestas=await Promise.all([
+      post(env,id+"/pagar",{...base,uid:"70000000-0000-4000-8000-000000000021"}),
+      post(env,id+"/pagar",{...base,uid:"70000000-0000-4000-8000-000000000022"})
+    ]);
+  }finally{env.DB.prepare=originalPrepare}
+  assert.equal(lecturas,2);
+  assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE item_id=?").get(id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,cuentaAntes+1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,bitAntes+1);
+  assert.notEqual(db.prepare("SELECT fecha FROM agenda_items WHERE id=?").get(id).fecha,hoy);
+});
