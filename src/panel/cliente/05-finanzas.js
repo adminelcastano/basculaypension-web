@@ -342,22 +342,55 @@
       } finally { if (inp.isConnected) inp.disabled = false; }
     }));
     const fm = $("#f-mov");
-    const opc = (l, sel) => l.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.nombre)}</option>`).join("");
+    const opc = l => `<option value="">Selecciona una cuenta</option>` + l.map(x => `<option value="${esc(x.id)}">${esc(x.nombre)}</option>`).join("");
     const SOBRES = { id: "sobres", nombre: "Efectivo (sobres)" };
     if (fm) {
       const pintarMov = () => {
         const t = fm.tipo.value, deb = activas.filter(x => x.tipo !== "credito"), cred = activas.filter(x => x.tipo === "credito");
-        const mp = (activas.find(x => x.tarjeta) || {}).id, pyme = (activas.find(x => x.def_pago) || {}).id;
         fm.querySelector(".m-or").hidden = t === "deposito"; fm.querySelector(".m-de").hidden = t === "retiro";
         // Traspaso: entre cuentas · Pago de tarjeta: de débito o de los sobres a una de crédito · Depósito: a débito · Retiro: de débito
-        fm.origen.innerHTML = opc(t === "pago_tarjeta" ? [...deb, SOBRES] : t === "retiro" ? deb : activas, t === "traspaso" ? mp : pyme);
-        fm.destino.innerHTML = opc(t === "pago_tarjeta" ? cred : t === "deposito" ? deb : activas, t === "traspaso" ? pyme : t === "deposito" ? pyme : (cred[0] || {}).id);
+        fm.origen.innerHTML = opc(t === "pago_tarjeta" ? [...deb, SOBRES] : t === "retiro" ? deb : activas);
+        fm.destino.innerHTML = opc(t === "pago_tarjeta" ? cred : t === "deposito" ? deb : activas);
       };
       fm.tipo.addEventListener("change", pintarMov); pintarMov();
       fm.addEventListener("submit", async ev => {
-        ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); if (bt.disabled) return; bt.disabled = true; fm.querySelector(".err").textContent = "";
-        try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value, uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID()) }); toast("Movimiento registrado"); await cargar(); }
-        catch (e) { if (e.message !== "sesion") fm.querySelector(".err").textContent = e.message; bt.disabled = false; }
+        ev.preventDefault();
+        const bt = fm.querySelector("[type=submit]");
+        if (bt.disabled) return;
+        bt.disabled = true;
+        const err = fm.querySelector(".err");
+        err.textContent = "";
+        try {
+          const tipo = fm.tipo.value;
+          const origen = tipo === "deposito" ? "sobres" : fm.origen.value;
+          const destino = tipo === "retiro" ? "sobres" : fm.destino.value;
+          const importe = fm.importe.value.replace(/[$,\s]/g, "");
+          if (!origen || !destino || origen === destino) {
+            err.textContent = "Elige de qué cuenta sale y a cuál llega. Deben ser distintas.";
+            return;
+          }
+          if (!/^\d{1,9}(\.\d{1,2})?$/.test(importe) || !(Number(importe) > 0)) {
+            err.textContent = "Escribe un importe positivo, con máximo dos decimales.";
+            return;
+          }
+          if (!fm.fecha.value) {
+            err.textContent = "Elige la fecha del movimiento.";
+            return;
+          }
+          const nombre = id => id === "sobres" ? "Efectivo (sobres)" :
+            (activas.find(c => c.id === id) || { nombre: id }).nombre;
+          const clase = fm.tipo.selectedOptions[0]?.textContent || "Movimiento";
+          const detalle = `${D(Number(importe))} · ${nombre(origen)} → ${nombre(destino)} · ${diaTxt(fm.fecha.value)}. Esta operación modificará los saldos. ¿Son correctos los datos?`;
+          if (!(await EC.confirmar("¿Registrar " + clase.toLowerCase() + "?", detalle, "Registrar"))) return;
+          await post("finanzas/mov", {
+            tipo, origen, destino, importe, fecha: fm.fecha.value, nota: fm.nota.value,
+            uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID())
+          });
+          toast("Movimiento registrado");
+          await cargar();
+        } catch (e) {
+          if (e.message !== "sesion") err.textContent = e.message;
+        } finally { if (bt.isConnected) bt.disabled = false; }
       });
     }
     c.querySelectorAll("[data-mdel]").forEach(bt => bt.addEventListener("click", async () => {
