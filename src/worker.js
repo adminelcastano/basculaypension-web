@@ -106,7 +106,8 @@ export default {
   async scheduled(event, env, ctx) {
     // Nunca procesar tareas ni sincronizaciones si se disparara accidentalmente
     // una ejecución programada del Worker de ensayo.
-    if (env.ENSAYO_FINANZAS === "1" || env.ENSAYO_AUDITORIA === "1") return;
+    if (env.ENSAYO_FINANZAS === "1") return;
+    if (env.ENSAYO_AUDITORIA === "1") return;
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") {
