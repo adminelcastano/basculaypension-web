@@ -185,6 +185,29 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      // Ocultar una cuenta usada haría desaparecer su saldo del total visible.
+      // Una cuenta sin actividad puede ocultarse, pero el comprobante se ejecuta
+      // en la MISMA escritura para evitar carreras con pagos y traspasos.
+      if ("activa" in c && !c.activa) {
+        if (Object.keys(c).some(k => !["id", "activa"].includes(k)))
+          return json({ok:false,error:"Oculta la cuenta por separado, sin combinarlo con otros ajustes."},422);
+        if (!f.activa) return json({ok:true,sin_cambios:true});
+        const resultado = await env.DB.batch([
+          env.DB.prepare(`UPDATE fin_cuentas SET activa = 0 WHERE id = ? AND activa = 1
+            AND tarjeta = 0 AND def_transf = 0 AND def_pago = 0
+            AND NOT EXISTS (SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM fin_movs WHERE origen = fin_cuentas.id OR destino = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_gastos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_pagos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_items WHERE tipo = 'pago' AND cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE cuenta = fin_cuentas.id)`).bind(f.id),
+          stmtBitacoraSiCambio(env, { quien, accion:"editar", que:"Cuenta", ref:f.id,
+            detalle:{cuenta:f.nombre,cambios:{activa:false}} })
+        ]);
+        if (!resultado[0]?.meta?.changes)
+          return json({ok:false,error:"Esta cuenta tiene saldos, pagos o movimientos, o cumple una función financiera. No se puede ocultar sin alterar los totales. Conserva la cuenta visible."},409);
+        return json({ok:true});
+      }
       const tipoFinal = "tipo" in c ? tipo : f.tipo;
       const rolesRecepcion = ["tarjeta", "def_transf", "def_pago"];
       if (tipoFinal === "credito" && (
