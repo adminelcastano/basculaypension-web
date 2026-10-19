@@ -2,6 +2,10 @@
 
 Página web de basculaypension.com. Sitio estático en `public/`, sin compilación. Se publica en Cloudflare Workers (archivos estáticos) con la configuración de `wrangler.jsonc`.
 
+## Verificación antes de proponer cambios
+
+La fuente de código es la rama/commit exacto de GitHub; no asumir que un PR en borrador está publicado. La suite sin credenciales ni datos productivos se ejecuta con `node --test pruebas/*.test.js` (Node 22). Para validar la compilación **sin desplegar** se usan `npx --yes wrangler@4.151.2 deploy --dry-run` y `npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run`, como en GitHub Actions (versión comprobada en CI del 19 de octubre de 2026). No hay todavía lockfile de dependencias transitivas: estas compilaciones fijan la versión directa de Wrangler, pero no garantizan reproducción byte a byte. La publicación automática configurada externamente usa `npx wrangler deploy` y debe verificarse aparte; el dry-run no publica.
+
 ## Cambiar datos del negocio
 
 Al final de `public/index.html` está el bloque `NEGOCIO` con WhatsApp, teléfono, correo, dirección, enlace de Google Maps y horarios. Al cambiar un valor ahí, la página se actualiza en todos los lugares donde aparece. Los campos vacíos (tarifas, capacidad, plazo de factura) no se muestran.
@@ -10,7 +14,7 @@ Al final de `public/index.html` está el bloque `NEGOCIO` con WhatsApp, teléfon
 
 Cloudflare publica automáticamente cada cambio en la rama `main` (comando de despliegue: `npx wrangler deploy`).
 
-Plan: **Workers Paid** (5 USD al mes, desde el 14 oct 2026). `wrangler.jsonc` fija `limits.cpu_ms` en 30 000; si el plan se cancela, el despliegue falla en lugar de publicar algo que no cabe en el plan gratuito.
+Plan indicado en el historial del proyecto: **Workers Paid** (desde el 14 oct 2026). La configuración versionada de producción (`wrangler.jsonc`) y ensayo (`wrangler.finanzas-ensayo.jsonc`) fija `limits.cpu_ms` en **5 000**. El estado de facturación y los límites reales de la cuenta se comprueban directamente en Cloudflare; no se infieren de este README.
 
 **Sin cobros sorpresa.** Cloudflare no tiene tope de gasto, así que:
 - `limits.cpu_ms` en 5 000 (5 s de CPU por petición como máximo; lo normal es menos de 50 ms).

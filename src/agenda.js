@@ -101,6 +101,9 @@ export async function errorDestinatariosCastagram(env, entrada) {
   let p = entrada;
   if (typeof p === "string") { try { p = JSON.parse(p); } catch { return "Destinatarios inválidos."; } }
   if (!p || typeof p !== "object" || Array.isArray(p)) return "Selecciona al menos un destinatario.";
+  // Rechazar valores como "false": normalizarPara los convertiría en true y ampliaría la audiencia.
+  if ((p.todos != null && typeof p.todos !== "boolean") || (p.admin != null && typeof p.admin !== "boolean"))
+    return "Los destinatarios deben indicar valores verdaderos o falsos.";
   if ((p.turnos != null && !Array.isArray(p.turnos)) || (p.personas != null && !Array.isArray(p.personas)))
     return "Formato de destinatarios inválido.";
   const turnos = p.turnos || [], personas = p.personas || [];
