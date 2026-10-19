@@ -231,3 +231,27 @@ test("Transferencias móvil: ayuda accesible expandible y eliminación con etiqu
  assert.match(css,/\.ftransf-ayuda summary:focus-visible/);
  assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Saldos del celular: advertencias legibles y sin botón flotante sobre importes",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const nav=source("../src/panel/cliente/08-navegacion.js");
+  const css=source("../src/panel/estilos.css");
+  const sub=source("../src/panel/cliente/12-submenu.js");
+  assert.match(ui,/<details class="f-guia-saldos">/);
+  assert.match(ui,/<summary>Cómo se calculan los saldos y las deudas<\/summary>/);
+  assert.match(ui,/<p class="note" data-nl="1">Débito/);
+  assert.match(ui,/class="f-aviso-saldos" role="status"/);
+  assert.match(ui,/Faltan saldos iniciales de/);
+  assert.match(ui,/<summary>Ver cuáles faltan/);
+  assert.match(ui,/b\.faltan_saldo\.map\(nombre => `<li>\$\{esc\(nombre\)\}<\/li>`\)/);
+  assert.doesNotMatch(ui,/Sin saldo de partida: \$\{esc\(b\.faltan_saldo\.join/);
+  assert.match(sub,/p\.note:not\(\[data-nl\]\)/);
+  assert.match(nav,/const finanzasPequeno = matchMedia\("\(max-width: 820px\)"\)\.matches/);
+  assert.match(nav,/!document\.getElementById\("mod-finanzas"\)\?\.hidden/);
+  assert.match(nav,/!finanzasPequeno && !!fuente/);
+  assert.match(css,/\.f-guia-saldos > summary/);
+  assert.match(css,/\.f-aviso-saldos summary/);
+  assert.match(css,/min-height: 44px/);
+  assert.doesNotThrow(()=>new Function(ui));
+  assert.doesNotThrow(()=>new Function(nav));
+});
