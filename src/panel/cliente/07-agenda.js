@@ -380,7 +380,10 @@ window.interpretarAgenda = function (texto, hoy) {
     let forzar = false;
     const uidPago = crypto.randomUUID(); // mismo identificador tras error de red
     const enviar = async () => {
-      const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
+      const b = f.querySelector("[type=submit]");
+      if (b.disabled) return;
+      b.disabled = true;
+      f.querySelector(".err").textContent = "";
       const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}), uid: uidPago };
       let id;
       try {
@@ -1652,9 +1655,23 @@ window.interpretarAgenda = function (texto, hoy) {
     c.querySelectorAll("[data-nuevo-pago]").forEach(b => b.addEventListener("click", () => b.dataset.nuevoPago === "hecho" ? ventanaPago("hecho") : ventanaProgramar()));
     c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
     c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
-      const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
-      if (!(await EC.confirmar(`¿Eliminar el pago de «${p.titulo || "Pago"}»?`, `Del ${diaTxt(p.fecha)} por ${MXN(p.importe)}. También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`, "Eliminar", true))) return;
-      try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      if (b.disabled) return;
+      const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago);
+      if (!p) return;
+      b.disabled = true;
+      try {
+        if (!(await EC.confirmar(`¿Eliminar el pago de «${p.titulo || "Pago"}»?`,
+          `Del ${diaTxt(p.fecha)} por ${MXN(p.importe)}. También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`,
+          "Eliminar", true))) return;
+        const res = await post(`agenda/pagos/${p.id}/eliminar`);
+        toast(res.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(res.regreso)}` : "Pago eliminado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          if (/otra sesión|cambió|ya no existe/.test(e.message)) await cargar();
+        }
+      } finally { if (b.isConnected) b.disabled = false; }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
