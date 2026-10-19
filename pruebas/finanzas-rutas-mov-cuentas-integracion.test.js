@@ -376,4 +376,38 @@ test("Saldo de cuenta oculta no se crea ni siquiera si se ocultó durante el gua
   }
 });
 
+
+test("Cambiar débito/crédito durante un movimiento no reinterpreta actividad nueva",async()=>{
+  const nueva=await request("cuenta",{nombre:"CUENTA TIPO CARRERA ENSAYO",tipo:"debito"});
+  assert.equal(nueva.status,200,JSON.stringify(nueva));
+  const id=nueva.data.id;
+  const prevTipo=db.prepare("SELECT tipo FROM fin_cuentas WHERE id=?").get(id).tipo;
+  const prevBit=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=?").get(id).n;
+  const batch=env.DB.batch;
+  let intercalado=false;
+  env.DB.batch=async stmts=>{
+    if(!intercalado && stmts[0]?.sql.includes("UPDATE fin_cuentas SET tipo = ?")){
+      intercalado=true;
+      db.prepare("INSERT INTO fin_movs (id,mes,fecha,tipo,origen,destino,importe,creado,creado_por) VALUES(?,?,?,?,?,?,?,?,?)")
+        .run("mov-tipo-race",mes,hoy,"traspaso",id,"bbva-pyme",17.25,new Date().toISOString(),actor.email);
+    }
+    return batch(stmts);
+  };
+  try {
+    const respuesta=await request("cuenta",{id,tipo:"credito"});
+    assert.equal(intercalado,true);
+    assert.equal(respuesta.status,409,JSON.stringify(respuesta));
+    assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id=?").get(id).tipo,prevTipo);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=?").get(id).n,prevBit);
+  }finally{env.DB.batch=batch}
+  const otro=await request("cuenta",{nombre:"CUENTA TIPO LIBRE ENSAYO",tipo:"debito"});
+  assert.equal(otro.status,200);
+  const cambiar=await request("cuenta",{id:otro.data.id,tipo:"credito"});
+  assert.equal(cambiar.status,200,JSON.stringify(cambiar));
+  assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id=?").get(otro.data.id).tipo,"credito");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=? AND accion='editar'").get(otro.data.id).n,1);
+  const mixto=await request("cuenta",{id:otro.data.id,tipo:"debito",nombre:"NUEVO NOMBRE"});
+  assert.equal(mixto.status,422,"Un cambio de tipo no combina otros ajustes en una operación");
+});
+
 test.after(()=>db.close());
