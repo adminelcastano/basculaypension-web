@@ -115,7 +115,11 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
     }
   }
   if (driveConfirmado) {
-    await env.FILES.delete(llave).catch(() => {});
+    // No borrar una sustitución que otra solicitud pudiera haber dejado en KV.
+    try {
+      const pendiente = await env.FILES.get(llave, { type: "arrayBuffer" });
+      if (pendiente && mismosBytes(pendiente, bytes)) await env.FILES.delete(llave);
+    } catch {}
     if (anterior && anterior.drive_id !== driveNuevo) {
       await mandarAPapelera(env, anterior.drive_id).catch(() => {});
     }
