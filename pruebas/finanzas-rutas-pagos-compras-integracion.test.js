@@ -412,3 +412,58 @@ test("Cuenta desactivada entre validación y D1.batch revierte pagos y compras",
     db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
   }
 });
+
+test("Cuenta desactivada durante la edición y compra individual no altera asientos",async()=>{
+  const {db,env}=shared;
+  const original=env.DB.batch;
+  const bloquearEnBatch=async (ruta,datos,inicia)=>{
+    let intercalado=false;
+    env.DB.batch=async stmts=>{
+      if(!intercalado && stmts.some(x=>x.sql.includes(inicia))){
+        intercalado=true;
+        db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='mdo-pago'").run();
+      }
+      return original(stmts);
+    };
+    try{
+      const res=await post(env,ruta,datos);
+      assert.equal(intercalado,true,JSON.stringify(res));
+      assert.equal(res.status,409,JSON.stringify(res));
+    }finally{
+      env.DB.batch=original;
+      db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='mdo-pago'").run();
+    }
+  };
+  try{
+    const creado=await post(env,"pagos/hecho",{
+      uid:"70000000-0000-4000-8000-000000000011",
+      fecha:hoy,importe:"100.20",titulo:"Pago protegido al editar",forma:"C:bbva-pyme"
+    });
+    assert.equal(creado.status,200,JSON.stringify(creado));
+    const originalPago=db.prepare("SELECT * FROM agenda_pagos WHERE id=?").get(creado.data.id);
+    const antesBit=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(creado.data.id).n;
+    await bloquearEnBatch("pagos/"+creado.data.id+"/editar",{
+      fecha:hoy,importe:"102.50",titulo:"Pago protegido al editar",
+      forma:"C:mdo-pago"
+    },"UPDATE agenda_pagos SET fecha=");
+    assert.equal(db.prepare("SELECT importe FROM agenda_pagos WHERE id=?").get(creado.data.id).importe,100.20);
+    assert.equal(db.prepare("SELECT monto FROM caja_gastos WHERE id=?").get(originalPago.gasto_id).monto,100.20);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(creado.data.id).n,antesBit);
+
+    const individual="compra-individual-cuenta-race";
+    db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES (?, 'compra', 'Pieza ensayo', 'pendiente', ?)")
+      .run(individual,new Date().toISOString());
+    const gAntes=db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n;
+    const hAntes=db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n;
+    await bloquearEnBatch(individual,{
+      titulo:"Pieza ensayo",estado:"comprado",importe:"70.25",
+      forma:"C:mdo-pago",fecha_compra:hoy
+    },"INSERT INTO caja_gastos");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,gAntes);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,hAntes);
+    assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(individual).estado,"pendiente");
+  } finally {
+    env.DB.batch=original;
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='mdo-pago'").run();
+  }
+});
