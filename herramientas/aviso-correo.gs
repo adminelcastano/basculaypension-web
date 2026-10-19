@@ -148,8 +148,31 @@ function archivos(d) {
   if (d.op === 'probar') { const r = raizArchivos(String(d.raiz || 'El Castaño · Archivos del panel')); return { ok: true, url: r.getUrl() }; }
   if (d.op === 'guardar') {
     const carpeta = subcarpeta(raizArchivos(String(d.raiz || 'El Castaño · Archivos del panel')), d.carpeta);
-    const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'archivo'));
-    return { ok: true, id: carpeta.createFile(blob).getId() };
+    const nombre = String(d.nombre || 'archivo');
+    const operacion = String(d.operacion || '');
+    if (operacion && !/^[0-9a-f]{64}$/.test(operacion)) return { ok: false, error: 'operación inválida' };
+    const marca = operacion ? 'castano-operacion-v1:' + operacion : '';
+    if (marca) {
+      // Tras un timeout de red, devolver el mismo Drive ID, no crear otra copia.
+      const encontrados = carpeta.getFilesByName(nombre);
+      while (encontrados.hasNext()) {
+        const previo = encontrados.next();
+        if (!previo.isTrashed() && previo.getDescription() === marca) {
+          return { ok: true, id: previo.getId(), repetido: true };
+        }
+      }
+    }
+    const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', nombre);
+    const creado = carpeta.createFile(blob);
+    if (marca) {
+      try { creado.setDescription(marca); }
+      catch (err) {
+        // No dejar archivos nuevos sin marca que luego no puedan reconciliarse.
+        try { creado.setTrashed(true); } catch (limpiezaErr) {}
+        throw err;
+      }
+    }
+    return { ok: true, id: creado.getId() };
   }
   if (d.op === 'hoja') return hojaMensual(d);
   if (!d.id || !/^[A-Za-z0-9_-]{10,}$/.test(String(d.id))) return { ok: false, error: 'id inválido' };
