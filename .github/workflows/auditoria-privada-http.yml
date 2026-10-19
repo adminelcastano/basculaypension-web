@@ -1,0 +1,31 @@
+name: Verificacion anonima de auditoria privada
+on:
+  push:
+    branches:
+      - seguridad/consolidado-adversarial-20261019
+permissions:
+  contents: read
+jobs:
+  access-anonimo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: El Worker privado no debe responder a visitantes anónimos
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="castano-auditoria-privada-20261019.administracion-ff1.workers.dev"
+          for ruta in /turno /panel /api/solicitud /; do
+            cabeceras="$(mktemp)"
+            codigo="$(curl --silent --show-error --max-time 20 --dump-header "$cabeceras" --output /dev/null --write-out '%{http_code}' "https://${host}${ruta}")"
+            echo "Ruta ${ruta}: HTTP ${codigo}"
+            if [ "$codigo" != "302" ] && [ "$codigo" != "401" ] && [ "$codigo" != "403" ]; then
+              echo "::error::Una ruta privada ha respondido con un código inesperado"
+              exit 1
+            fi
+            if [ "$codigo" = "302" ] && ! grep -Eiq '^location: .*cloudflareaccess\.com|^location: .*/cdn-cgi/access/' "$cabeceras"; then
+              echo "::error::El redireccionamiento no parece ser de Cloudflare Access"
+              exit 1
+            fi
+            rm -f "$cabeceras"
+          done
