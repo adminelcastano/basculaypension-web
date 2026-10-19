@@ -463,7 +463,10 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         .bind(m.id, m.mes),
       stmtBitacoraSiCambio(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
     ]);
-    return json({ ok: true, borrados: Number(resultado[0]?.meta?.changes || 0) });
+    const borrados = Number(resultado[0]?.meta?.changes || 0);
+    if (!borrados && await env.DB.prepare("SELECT 1 FROM fin_movs WHERE id = ?").bind(m.id).first())
+      return json({ok:false,error:"El mes se cerró mientras intentabas eliminar este movimiento. No se modificaron los saldos; actualiza Finanzas."},409);
+    return json({ ok: true, borrados });
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }
