@@ -56,6 +56,9 @@ const GRAVEDADES = ["leve", "media", "grave"];
 const TURNOS = ["MAÑANA", "TARDE", "NOCHE"];
 const texto = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const RE_DIA = /^\d{4}-\d{2}-\d{2}$/, RE_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Validar también el calendario: la expresión regular sola acepta días 00 o 31 de febrero.
+const diaFinancieroValido = dia => RE_DIA.test(dia) && Number.isFinite(Date.parse(dia + "T12:00:00Z")) &&
+  new Date(dia + "T12:00:00Z").toISOString().slice(0, 10) === dia;
 const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
 let listo = false;
@@ -398,7 +401,7 @@ async function validarPagoHecho(env, c, fila) {
   const errores = {};
   await asegurarEsquemaCaja(env);
   const meses = await mesesAbiertos(env);
-  if (!RE_DIA.test(fecha) || fecha > hoyMx()) errores.fecha = "Escribe la fecha en que se pagó (no futura).";
+  if (!diaFinancieroValido(fecha) || fecha > hoyMx()) errores.fecha = "Escribe una fecha real de pago (no futura).";
   else if (!meses.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró; usa una fecha del mes abierto.";
   if (!(importe > 0) || importe > 1000000) errores.importe = "Escribe el importe pagado.";
   const titulo = texto(c.titulo, 140);
@@ -841,7 +844,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (total.error) return json({ok:false,error:total.error},422);
       await normalizarMedio(env, c);
       const forma = ["EFECTIVO","TARJETA","TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
-      const dia = RE_DIA.test(String(c.fecha_compra||"")) ? String(c.fecha_compra) : hoyMx();
+      const dia = c.fecha_compra == null || c.fecha_compra === "" ? hoyMx() : String(c.fecha_compra);
+      if (!diaFinancieroValido(dia)) return json({ok:false,error:"La fecha de compra no existe. Revisa el calendario."},422);
       repetido = async () => {
         const gasto = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(gidOperacion).first() : null;
         if (!gasto) return null;
@@ -867,8 +871,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Normalizar dos veces perdería la cuenta de C:<id>.
     const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
     await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
-    const dia = RE_DIA.test(String(c.fecha_compra || "")) ? String(c.fecha_compra) : hoyMx();
-    if (dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7))) return json({ ok: false, error: "La fecha de la compra tiene que ser del mes abierto y no futura." }, 422);
+    const dia = c.fecha_compra == null || c.fecha_compra === "" ? hoyMx() : String(c.fecha_compra);
+    if (!diaFinancieroValido(dia) || dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7)))
+      return json({ ok: false, error: "La fecha de la compra debe existir, ser de un mes abierto y no futura." }, 422);
     const lugares = await listaLugares(env), lugarIds = [...new Set(filas.map(f => f.lugar).filter(Boolean))];
     const lugarN = lugarIds.length === 1 ? (lugares.find(l => l.id === lugarIds[0]) || {}).nombre : null;
     const orden = ids.map(id => filas.find(f => f.id === id));
@@ -993,8 +998,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       if (!(importe > 0)) return json({ ok: false, error: "Escribe el importe de la compra.", errores: { importe: "Importe inválido." } }, 422);
       await asegurarEsquemaCaja(env);
       // Día en que se compró (por defecto hoy); tiene que ser de un mes abierto y no futuro
-      const dia = RE_DIA.test(String(c.fecha_compra || "")) ? String(c.fecha_compra) : hoyMx();
-      if (dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7))) return json({ ok: false, error: "La fecha de la compra tiene que ser del mes abierto y no futura.", errores: { fecha_compra: "Fecha inválida." } }, 422);
+      const dia = c.fecha_compra == null || c.fecha_compra === "" ? hoyMx() : String(c.fecha_compra);
+      if (!diaFinancieroValido(dia) || dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7)))
+        return json({ ok: false, error: "La fecha de la compra debe existir, ser de un mes abierto y no futura.", errores: { fecha_compra: "Fecha inválida." } }, 422);
       const gid = crypto.randomUUID();
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
       const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
