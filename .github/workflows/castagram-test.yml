@@ -39,7 +39,7 @@ jobs:
       - name: Pruebas del proyecto (sin datos productivos)
         run: node --test pruebas/*.test.js
       - name: Validar compilación de Workers sin publicar
-        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/bascula-worker-validado
+        run: npx --yes wrangler@4.151.2 deploy --dry-run --outdir /tmp/bascula-worker-validado
 
       - name: Validar compilación de Finanzas ensayo sin publicar
-        run: npx --yes wrangler@4 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run --outdir /tmp/finanzas-ensayo-validado
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run --outdir /tmp/finanzas-ensayo-validado
