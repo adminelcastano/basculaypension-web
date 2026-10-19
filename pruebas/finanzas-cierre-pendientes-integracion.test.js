@@ -98,6 +98,8 @@ test("Cierre final: abono cubierto por hoja no duplica, pendiente parcial y noch
 });
 
 test("Reporte fallido no cierra el periodo, y los cobros ya conciliados siguen consistentes",async()=>{
+  // Este ensayo simula un cierre independiente tras el cierre exitoso anterior.
+  sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=?").run(MES);
   await env.FILES.put("caja:mes",MES);
   await env.FILES.delete("caja:cierre_intento");
   const quitar=instalarHoja({[MES]:{bascula:[ingreso("2026-10-18T10:00:00","17097",160)]},[SIG]:{}});
@@ -112,6 +114,7 @@ test("Reporte fallido no cierra el periodo, y los cobros ya conciliados siguen c
 });
 
 test("Hoja duplicada impide reemplazar tickets durante el cierre",async()=>{
+  sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=?").run(MES);
   await env.FILES.delete("caja:cierre_intento");
   const n=sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n;
   const quitar=instalarHoja({[MES]:{pension:[
@@ -124,4 +127,54 @@ test("Hoja duplicada impide reemplazar tickets durante el cierre",async()=>{
     assert.equal(await env.FILES.get("caja:mes"),MES);
     assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n,n);
   }finally{quitar()}
+});
+
+
+test("Dos ejecuciones simultáneas no cierran dos veces ni generan reportes dobles",async()=>{
+  sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=?").run(MES);
+  await env.FILES.put("caja:mes",MES);
+  await env.FILES.delete("caja:cierre_intento");
+  const retirar=instalarHoja({[MES]:{bascula:[ingreso("2026-10-18T10:00:00","17097",160)]},[SIG]:{}});
+  const getOriginal=env.FILES.get;
+  let lecturas=0,soltar;
+  const barrera=new Promise(done=>{soltar=done});
+  env.FILES.get=async (key,opt)=>{
+    const valor=await getOriginal(key,opt);
+    if(key==="caja:cierre_intento" && ++lecturas<=2){
+      if(lecturas===2)soltar();
+      await barrera;
+      return null; // ambas sesiones ven KV aparentemente libre
+    }
+    return valor;
+  };
+  let reportes=0;
+  try{
+    const resultados=await Promise.all([
+      cierreMensualCaja(env,{reportes:async()=>{reportes++}},CIERRE),
+      cierreMensualCaja(env,{reportes:async()=>{reportes++}},CIERRE)
+    ]);
+    assert.equal(lecturas,2);
+    assert.deepEqual(resultados.map(x=>x.cerrado?"cerrado":x.esperando?"esperando":"otro").sort(),
+      ["cerrado","esperando"],JSON.stringify(resultados));
+    assert.equal(reportes,1,"Solo un Worker puede generar los reportes");
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_cierre_lock WHERE mes=?").get(MES).n,1);
+    assert.equal(await getOriginal("caja:mes"),SIG);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=?").get(MES).n,1);
+  }finally{env.FILES.get=getOriginal;retirar()}
+});
+
+test("Llave vieja se recupera; reporte fallido libera el bloqueo D1 para reintento",async()=>{
+  const ahoraViejo="2026-10-31T22:00:00Z";
+  sqlite.prepare("INSERT INTO caja_cierre_lock(mes,token,tomado) VALUES (?, ?, ?) ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado")
+    .run(MES,"lease-abandonado",ahoraViejo);
+  await env.FILES.put("caja:mes",MES);
+  await env.FILES.delete("caja:cierre_intento");
+  const retirar=instalarHoja({[MES]:{bascula:[ingreso("2026-10-18T10:00:00","17097",160)]},[SIG]:{}});
+  try{
+    const salida=await cierreMensualCaja(env,{reportes:async()=>{throw Error("Google rechazó informe de ensayo")}},CIERRE);
+    assert.match(salida.error,/reportes/);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_cierre_lock WHERE mes=?").get(MES).n,0,
+      "La llave tras un fallo no retiene un cierre que puede reintentarse");
+    assert.equal(await env.FILES.get("caja:mes"),MES);
+  }finally{retirar()}
 });
