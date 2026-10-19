@@ -52,11 +52,15 @@ test("Finanzas/mov: reintento idéntico y cambio de monto con igual UID",async()
   assert.equal(db.prepare("SELECT SUM(importe) total FROM fin_movs").get().total,1234.5);
 });
 
-test("Cuenta usada: no reinterpretar su tipo en periodos históricos",async()=>{
-  const change=await request("cuenta",{id:"bbva-pyme",tipo:"credito"});
+test("Cuenta usada sin roles de recepción: no reinterpretar su tipo histórico",async()=>{
+  // BBVA PYME ya tiene rol receptor y se bloquea antes por esa razón.
+  // Usar cuenta sin roles permite verificar de manera independiente la protección histórica.
+  db.prepare("INSERT INTO fin_movs(id,mes,fecha,tipo,origen,destino,importe,creado,creado_por) VALUES(?,?,?,?,?,?,?,?,?)")
+    .run("ensayo-historico-cuenta-sin-rol",mes,hoy,"traspaso","bbva-personal","bbva-pyme",15,"2026-10-18T00:00:00Z",actor.email);
+  const change=await request("cuenta",{id:"bbva-personal",tipo:"credito"});
   assert.equal(change.status,409,JSON.stringify(change));
   assert.match(change.data.error,/reinterpretaría meses anteriores/);
-  assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id='bbva-pyme'").get().tipo,"debito");
+  assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id='bbva-personal'").get().tipo,"debito");
 });
 
 test("Cuenta receptora de tarjeta o transferencia histórica no se reasigna silenciosamente",async()=>{
