@@ -65,7 +65,7 @@ Se ejecutó `PRAGMA quick_check` en la D1 productiva y en la D1 privada de audit
 
 ## 5. Pendientes de auditoría externa
 
-- Corroborar existencia y permisos de las carpetas y hojas reales desde **la misma cuenta Google que utiliza Apps Script**. **Se comprobó que la conexión Drive de este chat es una cuenta personal Gmail distinta de `administracion@basculaypension.com`**; por ello los resultados de búsqueda de esa conexión no sirven para acreditar ni descartar la carpeta `El Castaño · Archivos del panel`. Se necesita autorización y conexión directa de la cuenta administrativa para verificar metadatos y permisos (sin descargar documentos fiscales).
+- **Cumplido:** se utilizó la conexión Drive de la cuenta administrativa `administracion@basculaypension.com` para corroborar carpetas y permisos, sin descargar documentos fiscales (véanse §6 y §6.1).
 - Ensayar exportación SQL **descargada y restaurada** en D1 aislada, con comprobaciones de integridad.
 - Verificar un ciclo real y aislado de Google Sheets/Drive: éxito, falla de conexión, reconciliación y recuperación; no enviar transacciones sintéticas a servicios productivos.
 - Probar sesiones simultáneas y conectividad offline real en dispositivos, sin dar por cerrada la auditoría integral a partir de CI.
@@ -90,7 +90,14 @@ Verificación administrativa adicional posterior a la conexión de Correo Panel:
 - **Dos archivos adicionales sin referencia D1**: uno en Tablet de turno y otro en Expedientes del personal. Los dos aparecen como privados y comparten tamaño con otro archivo de su área, lo cual sugiere posible duplicación pero **no la demuestra**. No se inspeccionaron bytes, no se borraron y no se propone eliminarlos automáticamente.
 - Cuatro prefijos operativos de KV (`f:`, `tf:`, `x:`, `xa:`): sin entradas pendientes al consultar metadatos. Los identificadores y nombres personales no se trasladaron al repositorio.
 - `PRAGMA quick_check` de D1 productiva y D1 de ensayo: `ok`. La API Cloudflare → Correo Panel, consulta `accion=drive, op=probar`, también se validó desde el panel administrativo en producción sin envío de correo.
-- **Riesgo pendiente:** `hojaMensual` de Apps Script mueve a la papelera una hoja antigua con el mismo nombre *antes* de confirmar la creación y llenado de la nueva. No invocar pruebas `op=hoja` sobre nombres de reportes reales: se debe preparar sustitución segura en un cambio específico y probarla con reportes ficticios.
+- **Riesgo mitigado (19 de octubre):** `hojaMensual` crea, llena y mueve el nuevo reporte antes de archivar la versión anterior (PR #31, Apps Script actualizado y diagnóstico autenticado confirmado). PR #34 incorporó un ensayo automático adicional: si falla `moveTo`, el reporte anterior permanece intacto. **No se ha hecho una sustitución real de hojas**; conservar esta salvedad.
+
+### 6.2 Continuidad posterior a la corrección de documentos y reportes
+
+- PR #33, ya incorporado a `main`, retrasa el envío a papelera del documento de personal anterior hasta después de crear el reemplazo y actualizar su referencia. Apps Script actualizado manualmente y conexión verificada en el panel; no se ejecutó una sustitución real.
+- PR #34, incorporado a `main` como commit `8f088fa`, prueba el fallo sintético al mover el reporte nuevo. **342/342 pruebas automatizadas aprobadas** y Cloudflare Builds confirmó `outcome: success`.
+- D1 productiva mantiene **87** referencias a Drive y cero entradas en `archivos_borrar`, así como cero candidatas de limpieza según consulta de solo lectura posterior al despliegue. No implica auditoría de contenido ni verificación de un archivo por hash.
+- Se mantiene prohibido borrar automáticamente los dos archivos de Drive adicionales sin referencia D1; pueden ser copias conservadas.
 
 ## 7. Criterio de publicación
 
