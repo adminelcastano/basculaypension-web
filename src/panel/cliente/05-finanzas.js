@@ -89,22 +89,25 @@
     const enCurso = j.mes === j.meses[0], abierto = (j.abiertos || []).includes(j.mes);
     const filas = l => l.map(([k, v, cl]) => `<div class="frow ${cl || ""}"><span>${k}</span><b>${D(v)}</b></div>`).join("");
     const mc = b.comision_cuenta;
+    const modoEnsayo = j.ensayo_finanzas === true;
     const sync = j.sync || null;
     const syncFallida = !!(sync?.error && (!sync.at || sync.error_at > sync.at));
     const minutosSync = sync?.at ? Math.max(0, Math.round((Date.now() - Date.parse(sync.at)) / 60000)) : null;
-    const fuenteEstado = syncFallida
+    const fuenteEstado = modoEnsayo
+      ? "ENSAYO: solo datos ficticios. La hoja de ingresos está desconectada intencionalmente."
+      : syncFallida
       ? "Error al actualizar los ingresos de la hoja: " + sync.error
       : minutosSync == null ? "Sin fecha verificada de sincronización de ingresos"
       : minutosSync <= 1 ? "Última actualización registrada de ingresos: hace un momento"
       : "Última actualización registrada de ingresos: hace " + minutosSync + " minutos";
-    const fuenteAlerta = syncFallida || minutosSync == null || minutosSync > 90;
+    const fuenteAlerta = !modoEnsayo && (syncFallida || minutosSync == null || minutosSync > 90);
     const hojaSinLigar = (j.transf_hoja || []).filter(h => !h.ligada);
     const ticketTxt = h => `${SVC[h.servicio] || h.servicio} ${h.folio}`;
     const posibles = Object.fromEntries((j.transf_posibles || []).map(x => [x.id, x.tickets]));
     const S = {
       resumen: () => `      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
         <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
-        <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)} · Puede haber consultas de la hoja sin cambios entre registros.${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
+        <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)}${modoEnsayo ? "" : " · Puede haber consultas de la hoja sin cambios entre registros."}${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
         <div class="fcols">
           <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta (Mercado Pago)", i.tarjeta], ["Tickets por transferencia (hoja)", i.transf_hoja], ...(i.transf_manual ? [["Transferencias capturadas sin ticket", i.transf_manual]] : []), ["Otros ingresos (rentas)", i.otros], ...(i.sobrantes ? [["Sobrantes de caja", i.sobrantes]] : []), ["Total", i.total, "tot"]])}</div>
           <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.retiros, g.retiros], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), [CAT.comision, g.comision], ...(g.faltantes ? [[CAT.faltantes, g.faltantes]] : []), ["Total", g.total, "tot"]])}</div>
