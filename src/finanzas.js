@@ -273,7 +273,8 @@ export async function datosFinanzas(env, mes) {
   return {
     mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, retiros,
     diferencias: dif, cobros_admin: cobrosAdmin, sueldos: resumenSueldos(gastosCaja, retiros, admin), renglones_hoja: hoja,
-    gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles, por_dia: porDia, cortes
+    gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles,
+    conciliacion_alertas: tr.alertas, por_dia: porDia, cortes
   };
 }
 
