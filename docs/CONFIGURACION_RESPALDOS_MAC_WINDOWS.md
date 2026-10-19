@@ -67,7 +67,19 @@ Editar `backup.env` directamente dentro de WSL: `AGE_RECIPIENT` debe contener ex
 
 Con `rclone config`, crear **en WSL** el remote `castano-d1-backups`, cuenta administrativa `administracion@basculaypension.com` y `root_folder_id` de la carpeta exclusiva de respaldos. El remote y su token OAuth se guardan **sólo en WSL**, con permisos restrictivos; no compartirlos ni importarlos a GitHub.
 
-El token Cloudflare **no se guarda en WSL**. En Windows PowerShell 5.1, desde la misma cuenta Windows con que se ejecutará la tarea, preparar una credencial mínima de **exportación D1**:
+El token Cloudflare **no se guarda en WSL**. Para ejecutar los archivos `.ps1` de forma estable desde Windows, tener también **Git para Windows** y una copia del código sin datos en una carpeta local de Windows (la copia Linux de WSL se conserva por separado). En PowerShell del usuario que programará la tarea:
+
+```powershell
+New-Item -ItemType Directory -Path "$env:LOCALAPPDATA\ElCastano" -Force | Out-Null
+git clone https://github.com/adminelcastano/basculaypension-web.git "$env:LOCALAPPDATA\ElCastano\Codigo"
+Set-Location "$env:LOCALAPPDATA\ElCastano\Codigo"
+git fetch origin deuda-tecnica/fases-1-4-20261019
+git switch --track origin/deuda-tecnica/fases-1-4-20261019
+```
+
+Esta segunda copia contiene únicamente código público; **no almacena SQL, tokens, claves privadas ni respaldos**. Si ya existe, verificar rama y commit antes de actualizar, no sobrescribirla automáticamente.
+
+En Windows PowerShell 5.1, desde la misma cuenta Windows con que se ejecutará la tarea, preparar una credencial mínima de **exportación D1**:
 
 ```powershell
 .\herramientas\preparar-credencial-d1-windows.ps1
