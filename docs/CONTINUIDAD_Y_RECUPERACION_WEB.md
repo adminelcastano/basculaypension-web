@@ -72,6 +72,15 @@ Se ejecutó `PRAGMA quick_check` en la D1 productiva y en la D1 privada de audit
 - Establecer calendario de respaldos, responsables, retención, cifrado y periodicidad de pruebas de restauración.
 - **Fijación de herramientas en despliegue:** GitHub Actions valida Wrangler `4.151.2`, pero Cloudflare Builds de producción ejecuta `npx wrangler deploy` sin versión fija; cualquier modificación de ese comando requiere autorización administrativa y nueva comprobación de despliegue. No se modificó su configuración.
 
-## 6. Criterio de publicación
+## 6. Permisos y acceso a respaldos de Google (19 de octubre de 2026)
+
+- **Cuenta verificada:** `administracion@basculaypension.com` mediante Google Drive conectado, sin descargar documentos.
+- **Carpeta `El Castaño · Archivos del panel`:** localizada con cuatro subcarpetas operativas (facturas, personal, tablet y comprobantes). En las subcarpetas mensuales inspeccionadas se localizaron 31 archivos y Google los clasificó como no compartidos; no se leyó su contenido.
+- **Permisos corregidos por administración y verificados después:** `FINANZAS 2026`, `ADMIN FINANZAS 2026`, `TURNOS 2026`, `FACTURACION 2026`, `COLABORADORES`, `EXTERNOS`, hojas `Finanzas 2026-10` y `Turnos 2026-10`. Google devuelve dueño presente y ninguna concesión tipo `anyone` para esos ocho recursos.
+- **Exclusión explícita:** `BASCULA Y PENSION 2026` conserva sus permisos actuales a solicitud del administrador; no modificar.
+- **Compatibilidad verificada de solo lectura:** la cuenta administrativa puede abrir metadatos de las hojas de Finanzas (8 pestañas), Turnos (16 pestañas) y Reporte mensual (19 pestañas) tras la restricción. `herramientas/aviso-correo.gs` utiliza `DriveApp`/`SpreadsheetApp` para guardar y leer con su cuenta ejecutora y no contiene `setSharing`; la configuración desplegada del proyecto Apps Script no se comprobó directamente.
+- **Límite importante:** no se envió ningún archivo ni se regeneraron reportes para evitar borrar o sustituir hojas existentes. La capacidad de escritura del Apps Script productivo, sus disparadores y la conciliación D1→Drive requieren validación no destructiva posterior.
+
+## 7. Criterio de publicación
 
 Las acciones productivas (merge a `main`, despliegue, restore, limpieza de registros, modificación de Cloudflare Access o historial Git) requieren autorización particular. Las pruebas sintéticas aquí documentadas no conceden autorización para restaurar producción.
