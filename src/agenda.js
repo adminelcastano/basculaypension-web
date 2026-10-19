@@ -458,6 +458,24 @@ async function errorCuentaEgreso(env, c, forma, cuenta) {
 }
 
 const TIPOS_COMP = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+// La cabecera MIME viene del teléfono y no prueba el formato del archivo.
+// Rechazar HTML, JavaScript o documentos disfrazados de foto o PDF.
+function cabeceraComprobanteValida(bytes, tipo) {
+  const b = new Uint8Array(bytes);
+  const texto = (desde, hasta) => String.fromCharCode(...b.slice(desde, hasta));
+  if (tipo === "image/jpeg")
+    return b.length >= 4 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (tipo === "image/png")
+    return b.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => b[i] === v);
+  if (tipo === "image/webp")
+    return b.length >= 12 && texto(0, 4) === "RIFF" && texto(8, 12) === "WEBP";
+  if (tipo === "image/heic" || tipo === "image/heif")
+    return b.length >= 12 && texto(4, 8) === "ftyp" &&
+      ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1", "heif"].includes(texto(8, 12));
+  if (tipo === "application/pdf")
+    return b.length >= 8 && texto(0, 5) === "%PDF-";
+  return false;
+}
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
   // Pago hecho sin programar
@@ -528,6 +546,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     if (!TIPOS_COMP.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG, HEIC) o un PDF." }, 415);
     const bytes = await request.arrayBuffer();
     if (!bytes.byteLength || bytes.byteLength > 10 * 1024 * 1024) return json({ ok: false, error: "El archivo está vacío o pesa más de 10 MB." }, 413);
+    if (!cabeceraComprobanteValida(bytes, tipo))
+      return json({ok:false,error:"El archivo no coincide con el formato de foto o PDF indicado. Elige el archivo original."},415);
     // Llave única por versión: dos sesiones no sobrescriben el mismo archivo
     // antes de ganar la actualización condicional del recibo.
     const llave = "pc:" + pago.id + ":" + crypto.randomUUID();
