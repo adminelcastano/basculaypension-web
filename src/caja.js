@@ -1093,18 +1093,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     // seleccionada pero inválida o desactivada por otra cuenta: movería el
     // ingreso al banco equivocado sin que el administrador lo advirtiera.
     await asegurarEsquemaCuentas(env);
-    let cta = null;
-    if (c.cuenta != null && String(c.cuenta).trim()) {
-      const elegida = await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1")
-        .bind(String(c.cuenta).trim()).first();
-      if (!elegida) return json({
-        ok:false,error:"La cuenta elegida no está disponible. Actualiza Finanzas y selecciona una cuenta de débito activa.",
-        errores:{cuenta:"Elige una cuenta de débito activa."}
-      },422);
-      cta = elegida.id;
-    } else {
-      cta = await cuentaDefecto(env, "transf");
-    }
+    const cuentaElegida = c.cuenta == null ? "" : String(c.cuenta).trim();
+    const cta = cuentaElegida || await cuentaDefecto(env, "transf");
     const solicitada = String(c.ticket_ref || "").trim() || null;
     const repetida = async () => {
       const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ?").bind(id).first() : null;
@@ -1116,25 +1106,41 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         json({ ok: false, error: "Esta transferencia ya se registró con otros datos. Actualiza la lista para revisarla." }, 409);
     };
     const ya = await repetida(); if (ya) return ya;
+    // Un reintento del MISMO UID se reconoce antes de validar la cuenta activa:
+    // si fue desactivada después de guardar, el reintento no debe duplicar ni fallar.
+    if (cuentaElegida) {
+      const elegida = await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1")
+        .bind(cuentaElegida).first();
+      if (!elegida) return json({
+        ok:false,error:"La cuenta elegida no está disponible. Actualiza Finanzas y selecciona una cuenta de débito activa.",
+        errores:{cuenta:"Elige una cuenta de débito activa."}
+      },422);
+    }
     // Ticket de la hoja pagado por transferencia al que corresponde (opcional)
     const ref = await validarTicketRef(env, c.ticket_ref, mes, null, importe);
     if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
     try {
-      const sql = ref
+      // Comprobaciones definitivas dentro del mismo INSERT: si otra sesión
+      // desactiva la cuenta o liga el ticket entre validación y escritura,
+      // ninguna transferencia ni bitácora queda contabilizada.
+      const condiciones = [];
+      if (cta) condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1)");
+      if (ref) condiciones.push("NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)");
+      const sql = condiciones.length
         ? `INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            WHERE NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)`
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`
         : "INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
       const parametros = [id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null];
+      if (cta) parametros.push(cta);
       if (ref) parametros.push(mes, ref.ref);
       const detalle = { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null };
       const resultados = await env.DB.batch([
         env.DB.prepare(sql).bind(...parametros),
-        ref ? stmtBitacoraSiCambio(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
+        condiciones.length ? stmtBitacoraSiCambio(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
           : stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
       ]);
       if (!resultados[0]?.meta?.changes)
-        return json({ ok: false, error: "Otra transferencia acaba de vincular ese ticket. Actualiza la lista antes de repetirlo." }, 409);
+        return json({ok:false,error:"El ticket ya fue vinculado o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de repetir."},409);
     } catch (er) {
       const ya = await repetida(); if (ya) return ya;
       throw er;
