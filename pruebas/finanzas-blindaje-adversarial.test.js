@@ -181,3 +181,13 @@ test("Pago modal: evitar doble confirmación y recuperar el estado tras conflict
   assert.match(ui,/\/otra sesión\|cambió\|ya no existe\/\.test\(e\.message\)/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("El campo móvil conserva saldo original para rechazar formularios obsoletos",()=>{
+ const ui=source("../src/panel/cliente/05-finanzas.js");
+ const servidor=source("../src/cuentas.js");
+ assert.match(ui,/data-original="\$\{c\.capturado \? esc\(c\.inicial\)/);
+ assert.match(ui,/esperado: inp\.dataset\.original === "" \? null : inp\.dataset\.original/);
+ assert.match(servidor,/Object\.hasOwn\(c, "esperado"\)/);
+ assert.match(servidor,/El saldo cambió en otra sesión/);
+ assert.doesNotThrow(()=>new Function(ui));
+});
