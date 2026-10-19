@@ -344,19 +344,27 @@ export function diferenciasCaja(actuales, nuevas) {
 }
 export async function sincronizarCaja(env) {
   await asegurarEsquemaCaja(env);
-  const meses = await mesesAbiertos(env);
   const token = crypto.randomUUID();
   let lock = false;
   try {
     const instanteLock = new Date();
-    const vencido = new Date(instanteLock.getTime() - 10 * 60 * 1000).toISOString();
+    const venceSync = new Date(instanteLock.getTime() - 10 * 60 * 1000).toISOString();
+    const venceCierre = new Date(instanteLock.getTime() - 2 * 3600 * 1000).toISOString();
+    // Sincronización y cierre comparten exclusión en D1: ninguno puede
+    // reescribir tickets del mes mientras el otro está conciliándolos.
     const tomado = await env.DB.prepare(`INSERT INTO caja_sync_lock (nombre, token, tomado)
-      VALUES ('hoja', ?, ?) ON CONFLICT(nombre) DO UPDATE SET
+      SELECT 'hoja', ?, ? WHERE NOT EXISTS (
+        SELECT 1 FROM caja_cierre_lock WHERE tomado >= ?
+      ) ON CONFLICT(nombre) DO UPDATE SET
         token = excluded.token, tomado = excluded.tomado
-      WHERE caja_sync_lock.tomado < ?`)
-      .bind(token, instanteLock.toISOString(), vencido).run();
+      WHERE caja_sync_lock.tomado < ? AND NOT EXISTS (
+        SELECT 1 FROM caja_cierre_lock WHERE tomado >= ?
+      )`)
+      .bind(token, instanteLock.toISOString(), venceCierre, venceSync, venceCierre).run();
     if (!tomado.meta?.changes) return { ocupado: true };
     lock = true;
+    // Los meses se eligen DESPUÉS del bloqueo, nunca de una lista antigua.
+    const meses = await mesesAbiertos(env);
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
     const filas = [];
     for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
@@ -674,11 +682,16 @@ export async function cierreMensualCaja(env, h, ahora = new Date()) {
   // El INSERT / UPDATE condicional se serializa en D1. Un segundo Worker
   // no puede obtener el mismo mes a la vez aunque ambos leyeran KV vacío.
   // La llave vence para permitir recuperación si un Worker desaparece.
+  const venceSync = new Date(ahora.getTime() - 10 * 60 * 1000).toISOString();
   const toma = await env.DB.prepare(`INSERT INTO caja_cierre_lock (mes, token, tomado)
-    VALUES (?, ?, ?) ON CONFLICT(mes) DO UPDATE SET
+    SELECT ?, ?, ? WHERE NOT EXISTS (
+      SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
+    ) ON CONFLICT(mes) DO UPDATE SET
       token = excluded.token, tomado = excluded.tomado
-    WHERE caja_cierre_lock.tomado < ?`)
-    .bind(mes, token, ahora.toISOString(), vencido).run();
+    WHERE caja_cierre_lock.tomado < ? AND NOT EXISTS (
+      SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
+    )`)
+    .bind(mes, token, ahora.toISOString(), venceSync, vencido, venceSync).run();
   if (!toma.meta?.changes) return { esperando: true };
   let completado = false;
   try {
