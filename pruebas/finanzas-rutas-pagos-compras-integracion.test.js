@@ -648,30 +648,28 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
     const res=await agendaPanel(req,env,url,["agenda","pagos",id,"comprobante"],actor);
     return {status:res.status,data:await res.json()};
   };
+  const antesAuditoria=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n;
   const primera=await subir("primera");
   assert.equal(primera.status,200,JSON.stringify(primera));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+1);
   const anterior=leer().comprobante;
   assert.match(anterior,/^pc:/);
   assert.equal(leer().comp_tipo,"image/png");
   assert.ok(await env.FILES.get(anterior),"La foto original debe existir");
 
   // Error de D1: el archivo anterior sigue vinculado y disponible.
-  const originalPrepare=env.DB.prepare;
-  let fallar=true;
-  env.DB.prepare=sql=>{
-    const st=originalPrepare(sql);
-    if(!fallar||!sql.includes("UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?"))
-      return st;
-    return {bind(...args){
-      const m=st.bind(...args);
-      return {...m,async run(){throw Error("Fallo sintético de D1 al enlazar");}};
-    }};
+  const originalBatch=env.DB.batch;
+  env.DB.batch=async statements=>{
+    if(statements.some(x=>x.sql.includes("UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?")))
+      throw Error("Fallo sintético de D1 al enlazar");
+    return originalBatch(statements);
   };
   try{
     await assert.rejects(()=>subir("d1-falla"),/Fallo sintético de D1/);
     assert.equal(leer().comprobante,anterior);
     assert.ok(await env.FILES.get(anterior),"No borrar la versión válida antes de que D1 confirme");
-  }finally{fallar=false;env.DB.prepare=originalPrepare}
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+1);
+  }finally{env.DB.batch=originalBatch}
 
   // Dos pestañas suben una versión nueva a la vez; una gana y la otra
   // borra únicamente su propia versión huérfana.
@@ -682,21 +680,19 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   assert.ok(await env.FILES.get(vigente),"Mantener archivo del ganador");
   assert.equal(await env.FILES.get(anterior),null,"Eliminar archivo viejo tras confirmación");
   const fotosAntes=leer();
-
-  // Fallo en la eliminación: no cambiar base ni tocar bytes.
-  env.DB.prepare=sql=>{
-    const st=originalPrepare(sql);
-    if(!sql.includes("UPDATE agenda_pagos SET comprobante = NULL"))return st;
-    return {bind(...args){
-      const m=st.bind(...args);
-      return {...m,async run(){throw Error("D1 no pudo desvincular");}};
-    }};
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+2);
+  // Fallo en la eliminación: no cambiar base ni tocar bytes ni bitácora.
+  env.DB.batch=async statements=>{
+    if(statements.some(x=>x.sql.includes("UPDATE agenda_pagos SET comprobante = NULL")))
+      throw Error("D1 no pudo desvincular");
+    return originalBatch(statements);
   };
   try{
     await assert.rejects(()=>post(env,"pagos/"+id+"/quitar-comprobante",{}),/D1 no pudo desvincular/);
     assert.deepEqual({...leer()},{...fotosAntes});
     assert.ok(await env.FILES.get(vigente));
-  }finally{env.DB.prepare=originalPrepare}
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+2);
+  }finally{env.DB.batch=originalBatch}
 
   const quitar=await post(env,"pagos/"+id+"/quitar-comprobante",{});
   assert.equal(quitar.status,200,JSON.stringify(quitar));
@@ -705,4 +701,6 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   const repetir=await post(env,"pagos/"+id+"/quitar-comprobante",{});
   assert.equal(repetir.status,200);
   assert.equal(repetir.data.sin_cambios,true);
+  const acciones=db.prepare("SELECT accion FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ? ORDER BY id").all(id).map(x=>x.accion);
+  assert.deepEqual(acciones,["crear","editar","borrar"],"Todas las acciones de archivos tienen historial sin duplicados");
 });
