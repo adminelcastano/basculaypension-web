@@ -164,7 +164,7 @@ test("Interfaz móvil: controles de cuentas revierten valores rechazados y bloqu
   assert.match(ui,/x\.dataset\.confirmado = x\.value/);
   assert.match(ui,/control\.value = control\.dataset\.confirmado/);
   assert.match(ui,/if \(control\?\.disabled\) return false/);
-  assert.match(ui,/if \(bt\.disabled\) return; bt\.disabled = true; fm\.querySelector/);
+  assert.match(ui,/const bt = fm\.querySelector\("\[type=submit\]"\);\s*if \(bt\.disabled\) return;\s*bt\.disabled = true/);
   assert.match(ui,/if \(b\.disabled\) return; b\.disabled = true; ft\.querySelector/);
   assert.match(ui,/if \(bt\.disabled\) return;\s*bt\.disabled = true;\s*try \{\s*if \(!\(await EC\.confirmar/);
   assert.match(ui,/res\.borrados \? "Movimiento eliminado" : "Movimiento ya eliminado"/);
