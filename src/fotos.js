@@ -27,6 +27,18 @@ async function esquema(env) {
 }
 
 const conScript = env => !!(env.AVISO_URL && env.AVISO_TOKEN);
+// Identificador estable para reintentos de la misma clave y exactamente los mismos bytes.
+// No incluye nombres, llaves de usuario ni datos privados en el valor enviado a Google.
+async function idCarga(llave, bytes) {
+  const cuerpo = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const prefijo = new TextEncoder().encode(llave + ":");
+  const combinado = new Uint8Array(prefijo.length + cuerpo.byteLength);
+  combinado.set(prefijo);
+  combinado.set(cuerpo, prefijo.length);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", combinado));
+  return [...digest].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 function aBase64(bytes) {
   const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let bin = "";
@@ -88,7 +100,8 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
     try {
       const carpeta = op.carpeta || carpetaPorLlave(llave, op.carpetaPersona);
       const nombre = String(op.nombre || llave.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
-      const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo, base64: aBase64(bytes) });
+      const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
+        operacion: await idCarga(llave, bytes), base64: aBase64(bytes) });
       if (!r.id || typeof r.id !== "string") throw new Error("Drive no devolvió un identificador");
       driveNuevo = r.id;
       await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -191,7 +204,8 @@ export async function mantenerArchivos(env, max = 20) {
       const carpeta = carpetaPorLlave(k.name, persona);
       const nombre = String((r.metadata && r.metadata.nombre) || k.name.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
       let id;
-      try { id = (await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo, base64: aBase64(r.value) })).id; }
+      try { id = (await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
+        operacion: await idCarga(k.name, r.value), base64: aBase64(r.value) })).id; }
       catch (e) { return { subidos, vencidos, error: e.message }; }
       // Si lo borraron mientras subía, se manda a la papelera y no se registra
       const sigue = await env.FILES.get(k.name, { type: "arrayBuffer" });
