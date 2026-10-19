@@ -65,11 +65,12 @@ Se ejecutó `PRAGMA quick_check` en la D1 productiva y en la D1 privada de audit
 
 ## 5. Pendientes de auditoría externa
 
-- Corroborar existencia y permisos de las carpetas y hojas reales desde **la misma cuenta Google que utiliza Apps Script**. La conexión de Drive disponible no encontró la carpeta `El Castaño · Archivos del panel`; sin comprobar coincidencia de cuentas no se infiere ausencia de respaldos.
+- Corroborar existencia y permisos de las carpetas y hojas reales desde **la misma cuenta Google que utiliza Apps Script**. **Se comprobó que la conexión Drive de este chat es una cuenta personal Gmail distinta de `administracion@basculaypension.com`**; por ello los resultados de búsqueda de esa conexión no sirven para acreditar ni descartar la carpeta `El Castaño · Archivos del panel`. Se necesita autorización y conexión directa de la cuenta administrativa para verificar metadatos y permisos (sin descargar documentos fiscales).
 - Ensayar exportación SQL **descargada y restaurada** en D1 aislada, con comprobaciones de integridad.
 - Verificar un ciclo real y aislado de Google Sheets/Drive: éxito, falla de conexión, reconciliación y recuperación; no enviar transacciones sintéticas a servicios productivos.
 - Probar sesiones simultáneas y conectividad offline real en dispositivos, sin dar por cerrada la auditoría integral a partir de CI.
 - Establecer calendario de respaldos, responsables, retención, cifrado y periodicidad de pruebas de restauración.
+- **Fijación de herramientas en despliegue:** GitHub Actions valida Wrangler `4.151.2`, pero Cloudflare Builds de producción ejecuta `npx wrangler deploy` sin versión fija; cualquier modificación de ese comando requiere autorización administrativa y nueva comprobación de despliegue. No se modificó su configuración.
 
 ## 6. Criterio de publicación
 
