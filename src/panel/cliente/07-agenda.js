@@ -711,7 +711,8 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueN("finanzas", "hechos", hechos.length);
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
-    const D0 = v => EC.dinero(v, 0);
+    // Cantidades enteras compactas; los importes con centavos NUNCA se redondean.
+    const D0 = v => EC.dinero(v, Math.round(Math.abs(Number(v) || 0) * 100) % 100 ? 2 : 0);
     const evHoy = st.items.filter(x => x.tipo === "evento" && x.fecha === st.hoy).length;
     const venc = tareas.filter(x => x.fecha && x.fecha < st.hoy).length;
     const graves = inc.filter(x => x.gravedad === "grave").length;
