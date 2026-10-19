@@ -229,6 +229,28 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         if ((actividad && actividad.usado) || origenes)
           return json({ok:false,error:"Esta cuenta ya tiene movimientos, cobros o saldos. Cambiarla entre débito y crédito reinterpretaría meses anteriores. Conserva el tipo y crea una cuenta nueva si corresponde."},409);
       }
+      if ("tipo" in c && tipo !== f.tipo) {
+        // En el móvil el tipo se cambia por separado. No combinarlo con
+        // otros ajustes: la condición de historial debe ser atómica.
+        if (Object.keys(c).some(k => !["id","tipo"].includes(k)))
+          return json({ok:false,error:"Cambia el tipo de cuenta por separado de los demás ajustes."},422);
+        const resultado = await env.DB.batch([
+          env.DB.prepare(`UPDATE fin_cuentas SET tipo = ? WHERE id = ? AND tipo = ?
+            AND tarjeta = 0 AND def_transf = 0 AND def_pago = 0
+            AND NOT EXISTS (SELECT 1 FROM fin_movs WHERE origen = fin_cuentas.id OR destino = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_gastos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_pagos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_items WHERE tipo = 'pago' AND cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE cuenta = fin_cuentas.id)`)
+            .bind(tipo, f.id, f.tipo),
+          stmtBitacoraSiCambio(env, {quien,accion:"editar",que:"Cuenta",ref:f.id,
+            detalle:{cuenta:f.nombre,cambios:{tipo}}})
+        ]);
+        if (!resultado[0]?.meta?.changes)
+          return json({ok:false,error:"La cuenta recibió actividad o cambió en otra sesión. No se modificó su tipo; actualiza Finanzas."},409);
+        return json({ok:true});
+      }
       // Los cobros antiguos se asignan según el rol actual de estas cuentas.
       // Impedir un cambio silencioso mientras no exista un historial de asignaciones por fecha.
       for (const rol of ["tarjeta", "def_transf"]) if (c[rol]) {
