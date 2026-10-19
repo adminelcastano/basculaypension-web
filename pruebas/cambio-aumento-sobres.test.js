@@ -196,6 +196,28 @@ test("Dos tabletas con fondos distintos: gana una sin mezclar sobres ni auditor�
     await guardarCambioInicio(env,{...opciones,recibido:elegido.cambio,aumento:elegido.aumento});
     assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,1);
 
+    // Dos tabletas mantienen el MISMO recibido, pero corrigen solo el aporte.
+    // Una versión anterior podía sobrescribir la otra sin detectar el conflicto.
+    let enBatch=0, soltarAportes;
+    const puertaAportes=new Promise(resolve=>soltarAportes=resolve);
+    env.DB.batch=async statements=>{
+      if(++enBatch===2)soltarAportes();
+      await puertaAportes;
+      return ejecutar(statements);
+    };
+    const cambios=await Promise.allSettled([
+      guardarCambioInicio(env,{...opciones,recibido:elegido.cambio,aumento:45}),
+      guardarCambioInicio(env,{...opciones,recibido:elegido.cambio,aumento:65})
+    ]);
+    assert.equal(enBatch,2);
+    assert.deepEqual(cambios.map(x=>x.status).sort(),["fulfilled","rejected"]);
+    assert.equal(cambios.find(x=>x.status==="rejected").reason.code,"INICIO_OBSOLETO");
+    const aporteFinal=cambios.find(x=>x.status==="fulfilled").value.aumento;
+    assert.equal(sqlite.prepare("SELECT cambio FROM turno_inicio WHERE dia=? AND turno=?").get(dia,turno).cambio,elegido.cambio);
+    assert.equal(sqlite.prepare("SELECT monto FROM caja_extra WHERE id=?").get(idAumentoInicio(dia,turno)).monto,aporteFinal);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,2);
+    env.DB.batch=ejecutar;
+
     // El corte ya se entregó: ni siquiera una edición directa atrasada aplica.
     const now=new Date().toISOString();
     sqlite.prepare("INSERT INTO turno_cortes(dia,turno,mes,persona,efectivo,creado,actualizado) VALUES(?,?,?,?,?,?,?)")
@@ -205,7 +227,7 @@ test("Dos tabletas con fondos distintos: gana una sin mezclar sobres ni auditor�
       e=>e.code==="INICIO_OBSOLETO"
     );
     assert.equal(sqlite.prepare("SELECT cambio FROM turno_inicio WHERE dia=? AND turno=?").get(dia,turno).cambio,elegido.cambio);
-    assert.equal(sqlite.prepare("SELECT monto FROM caja_extra WHERE id=?").get(idAumentoInicio(dia,turno)).monto,elegido.aumento);
-    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,1);
+    assert.equal(sqlite.prepare("SELECT monto FROM caja_extra WHERE id=?").get(idAumentoInicio(dia,turno)).monto,aporteFinal);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,2);
   }finally{sqlite.close()}
 });
