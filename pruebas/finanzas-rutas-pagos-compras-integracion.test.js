@@ -135,14 +135,26 @@ test("Corrección de pago ya hecho modifica el recibo y su egreso juntos, sin do
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(viejo.id).n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(viejo.gasto_id).n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='editar'").get(viejo.id).n,1);
+  const same=await post(env,"pagos/"+viejo.id+"/editar",{
+    fecha:hoy,importe:"410.25",titulo:"Recibo sintético revisado",
+    forma:"C:mdo-pago",nota:"Corrección de prueba",categoria:"Servicios"
+  });
+  assert.equal(same.status,200,JSON.stringify(same));
+  assert.equal(same.data.sin_cambios,true,"No asentar corrección duplicada sin cambios");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='editar'").get(viejo.id).n,1);
 });
 
 test("Eliminación de pago hecho retira un único recibo y su gasto, conservando bitácora",async()=>{
   const {db,env}=shared;
   const p=db.prepare("SELECT * FROM agenda_pagos WHERE item_id='' AND titulo='Recibo sintético revisado'").get();
   assert.ok(p);
-  const resp=await post(env,"pagos/"+p.id+"/eliminar",{});
-  assert.equal(resp.status,200,JSON.stringify(resp));
+  const [primera,segunda]=await Promise.all([
+    post(env,"pagos/"+p.id+"/eliminar",{}),
+    post(env,"pagos/"+p.id+"/eliminar",{})
+  ]);
+  const estados=[primera.status,segunda.status].sort((a,b)=>a-b);
+  assert.equal(estados[0],200,JSON.stringify([primera,segunda]));
+  assert.ok([404,409].includes(estados[1]),JSON.stringify([primera,segunda]));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(p.id).n,0);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(p.gasto_id).n,0);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(p.id).n,1);
@@ -192,4 +204,48 @@ test("Regresar un ticket comprado devuelve artículos a pendiente y retira su ga
   assert.notEqual(nuevo.data.gasto_id,gastoId);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(nuevo.data.gasto_id).n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(nuevo.data.gasto_id).n,2);
+});
+
+test("Dos sesiones corrigen la misma versión de pago: solo una gana, sin gasto incoherente",async()=>{
+  const {db,env}=shared;
+  const creado=await post(env,"pagos/hecho",{
+    uid:"cc000007-2222-4333-8444-555555555555",
+    fecha:hoy,importe:"215",titulo:"ENSAYO ediciones simultáneas",
+    forma:"C:bbva-pyme",nota:"registro nuevo",categoria:"Servicios"
+  });
+  assert.equal(creado.status,200,JSON.stringify(creado));
+  const id=creado.data.id;
+  const originalPrepare=env.DB.prepare;
+  let lecturas=0, liberar;
+  const ambosLeidos=new Promise(ok=>{liberar=ok});
+  env.DB.prepare = sql=>{
+    const prepared=originalPrepare(sql);
+    if(sql!=="SELECT * FROM agenda_pagos WHERE id = ?")return prepared;
+    return {
+      bind(...args){
+        const st=prepared.bind(...args);
+        if(args[0]!==id)return st;
+        return {...st,async first(){
+          const pago=await st.first();
+          if(pago){lecturas++;if(lecturas===2)liberar();await ambosLeidos;}
+          return pago;
+        }};
+      }
+    };
+  };
+  let respuestas;
+  try{
+    const datos={fecha:hoy,forma:"C:bbva-pyme",titulo:"ENSAYO ediciones simultáneas",nota:"registro nuevo",categoria:"Servicios"};
+    respuestas=await Promise.all([
+      post(env,"pagos/"+id+"/editar",{...datos,importe:"216.10"}),
+      post(env,"pagos/"+id+"/editar",{...datos,importe:"217.20"})
+    ]);
+  }finally{env.DB.prepare=originalPrepare}
+  assert.equal(lecturas,2);
+  assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
+  const pago=db.prepare("SELECT * FROM agenda_pagos WHERE id=?").get(id);
+  const gasto=db.prepare("SELECT * FROM caja_gastos WHERE id=?").get(pago.gasto_id);
+  assert.ok([216.10,217.20].includes(pago.importe));
+  assert.equal(gasto.monto,pago.importe,"Recibo y gasto deben quedar en la misma versión");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='editar'").get(id).n,1);
 });
