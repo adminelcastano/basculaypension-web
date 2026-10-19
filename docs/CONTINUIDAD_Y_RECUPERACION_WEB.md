@@ -81,6 +81,17 @@ Se ejecutó `PRAGMA quick_check` en la D1 productiva y en la D1 privada de audit
 - **Compatibilidad verificada de solo lectura:** la cuenta administrativa puede abrir metadatos de las hojas de Finanzas (8 pestañas), Turnos (16 pestañas) y Reporte mensual (19 pestañas) tras la restricción. `herramientas/aviso-correo.gs` utiliza `DriveApp`/`SpreadsheetApp` para guardar y leer con su cuenta ejecutora y no contiene `setSharing`; la configuración desplegada del proyecto Apps Script no se comprobó directamente.
 - **Límite importante:** no se envió ningún archivo ni se regeneraron reportes para evitar borrar o sustituir hojas existentes. La capacidad de escritura del Apps Script productivo, sus disparadores y la conciliación D1→Drive requieren validación no destructiva posterior.
 
+### 6.1 Conciliación real D1 ↔ Google Drive (sin leer contenidos)
+
+Verificación administrativa adicional posterior a la conexión de Correo Panel:
+
+- `archivos` en D1 productiva: **87** referencias vigentes; cero entradas en `archivos_borrar`.
+- Google Drive, carpetas operativas de octubre y personal: **89** archivos privados. **87/87 referencias D1 encontradas físicamente** por identificador, cero ausencias.
+- **Dos archivos adicionales sin referencia D1**: uno en Tablet de turno y otro en Expedientes del personal. Los dos aparecen como privados y comparten tamaño con otro archivo de su área, lo cual sugiere posible duplicación pero **no la demuestra**. No se inspeccionaron bytes, no se borraron y no se propone eliminarlos automáticamente.
+- Cuatro prefijos operativos de KV (`f:`, `tf:`, `x:`, `xa:`): sin entradas pendientes al consultar metadatos. Los identificadores y nombres personales no se trasladaron al repositorio.
+- `PRAGMA quick_check` de D1 productiva y D1 de ensayo: `ok`. La API Cloudflare → Correo Panel, consulta `accion=drive, op=probar`, también se validó desde el panel administrativo en producción sin envío de correo.
+- **Riesgo pendiente:** `hojaMensual` de Apps Script mueve a la papelera una hoja antigua con el mismo nombre *antes* de confirmar la creación y llenado de la nueva. No invocar pruebas `op=hoja` sobre nombres de reportes reales: se debe preparar sustitución segura en un cambio específico y probarla con reportes ficticios.
+
 ## 7. Criterio de publicación
 
 Las acciones productivas (merge a `main`, despliegue, restore, limpieza de registros, modificación de Cloudflare Access o historial Git) requieren autorización particular. Las pruebas sintéticas aquí documentadas no conceden autorización para restaurar producción.
