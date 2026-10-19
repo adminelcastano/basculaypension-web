@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { cajaPanel, asegurarEsquemaCaja } from "../src/caja.js";
+import { cajaPanel, asegurarEsquemaCaja, leerTablaEntregas } from "../src/caja.js";
 import { asegurarEsquemaCuentas } from "../src/cuentas.js";
 
 const hoy = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
@@ -226,5 +226,24 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Entrega de turno (captura de administración)' AND accion='borrar' AND ref=?")
       .get(hoy+"|NOCHE").n,1);
 
+    // Días inexistentes no generan ingresos ni gastos, aunque tengan formato.
+    const prevG=db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n;
+    const prevE=db.prepare("SELECT COUNT(*) n FROM caja_extra").get().n;
+    for(const dia of [mes+"-00",mes+"-32","fecha-invalida"]){
+      const gasto=await post(env,"gastos",{dia,turno:"MAÑANA",concepto:"Gasto ficticio",monto:"10.25",uid:crypto.randomUUID()});
+      const extra=await post(env,"extras",{dia,turno:"MAÑANA",concepto:"Renta",monto:"20.15",uid:crypto.randomUUID()});
+      assert.equal(gasto.status,422,JSON.stringify(gasto));
+      assert.equal(extra.status,422,JSON.stringify(extra));
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,prevG);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_extra").get().n,prevE);
+    }
+
   } finally {db.close()}
+});
+
+test("Entregas manuales no interpretan días inexistentes como movimientos válidos",()=>{
+  const tabla=leerTablaEntregas("2026-10-00|MAÑANA|10.25\n2026-10-31|TARDE|20.50",2026);
+  assert.equal(tabla.errores.length,1);
+  assert.equal(tabla.filas.length,1);
+  assert.equal(tabla.filas[0].dia,"2026-10-31");
 });
