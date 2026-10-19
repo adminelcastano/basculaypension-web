@@ -78,7 +78,7 @@ cp herramientas/respaldo-macos.env.example "$HOME/.config/elcastano-d1/backup.en
 chmod 600 "$HOME/.config/elcastano-d1/backup.env"
 ```
 
-Editar personalmente `backup.env`, reemplazando `AGE_RECIPIENT` por la clave pública `age1...` y eligiendo `BACKUP_DEST` (carpeta local privada fuera del repositorio) y `BACKUP_DRIVE_REMOTE=castano-d1-backups:`. **Nunca** introducir la clave privada ni un token en ese archivo.
+Editar personalmente `backup.env`, reemplazando `AGE_RECIPIENT` por la clave pública `age1...` y eligiendo `BACKUP_DEST` (carpeta local privada fuera del repositorio) y `BACKUP_DRIVE_REMOTE=castano-d1-backups:`. Mantener `BACKUP_ACTIVE="NO"` hasta haber terminado la prueba final conjunta; sólo entonces cambiarlo a `BACKUP_ACTIVE="SI"`. **Nunca** introducir la clave privada ni un token en ese archivo.
 
 En la Terminal del Mac, configurar un **token Cloudflare de permisos mínimos suficientes para exportar D1** en el Llavero (se solicita de forma interactiva, **no se imprime ni se pega en el chat**):
 
