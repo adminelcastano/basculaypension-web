@@ -77,6 +77,15 @@ export function cuentasTicket(ids, total, precios = {}) {
     t = Math.round(Object.values(p).reduce((a, x) => a + x, 0) * 100) / 100;
     if (!(t > 0)) return { error: "Escribe el total del ticket." };
   }
+  // El total pagado y el detalle deben reconciliarse al centavo.
+  // Se permiten precios parciales, pero nunca pueden superar el total;
+  // si se desglosaron todos, la suma debe coincidir exactamente.
+  const desglosadoCentavos = Object.values(p).reduce((a, v) => a + Math.round(v * 100), 0);
+  const totalCentavos = Math.round(t * 100);
+  if (desglosadoCentavos > totalCentavos)
+    return { error: "Los precios de los artículos superan el total del ticket." };
+  if (Object.keys(p).length === ids.length && desglosadoCentavos !== totalCentavos)
+    return { error: "El total del ticket no coincide con la suma de los artículos." };
   // Un solo artículo sin precio propio: su precio es el total
   if (ids.length === 1 && p[ids[0]] == null) p[ids[0]] = t;
   return { total: t, precios: p };
