@@ -2,7 +2,7 @@
 # Envía ÚNICAMENTE un archivo cifrado age a la carpeta privada de Drive.
 # BACKUP_DRIVE_REMOTE debe ser un remote de rclone cuyo root_folder_id
 # ya esté limitado a «El Castaño · Respaldos D1 cifrados».
-# No crea credenciales ni guarda claves; no borra ni sobrescribe respaldos.
+# No crea credenciales ni guarda claves; no borra respaldos.\n# Usa --immutable para rechazar cambios sobre una copia remota ya existente.
 set -euo pipefail
 umask 077
 : "${BACKUP_DRIVE_REMOTE:?Define BACKUP_DRIVE_REMOTE como nombre de remote rclone terminado en :}"
@@ -35,7 +35,7 @@ for origen in "$archivo" "$archivo.sha256"; do
     echo "Ya existe en Drive: $nombre; no se sobrescribe" >&2
     exit 1
   fi
-  rclone copyto --checksum "$origen" "$destino"
+  rclone copyto --immutable --checksum "$origen" "$destino"
   esperado="$(md5sum "$origen" | cut -d' ' -f1)"
   recibido="$(rclone md5sum "$destino" | awk 'NR==1 {print $1}')"
   if [ -z "$recibido" ] || [ "$recibido" != "$esperado" ]; then
