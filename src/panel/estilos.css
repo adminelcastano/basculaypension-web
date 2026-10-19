@@ -1647,3 +1647,52 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 .post-fotos.n3 button:first-child{grid-row:span 2}
 .casta-carrusel-slide .casta-foto-abrir{display:block;width:100%;background:#121214}
 .casta-carrusel-slide .casta-foto-abrir img{width:100%;height:auto;aspect-ratio:4/3;max-height:360px;object-fit:contain}
+
+/* Finanzas: ayuda legible y acciones táctiles en transferencias (ensayo UX). */
+.ftransf-ayuda {
+  margin: 4px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 14px;
+  background: var(--surface-2);
+}
+.ftransf-ayuda summary {
+  display: list-item;
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  color: var(--fg);
+  font-weight: 600;
+  line-height: 1.4;
+  touch-action: manipulation;
+}
+.ftransf-ayuda-texto {
+  color: var(--muted);
+  margin: 0 0 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.ftransf-lista .ftransf-eliminar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  color: var(--bad);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  touch-action: manipulation;
+}
+.ftransf-lista .ftransf-eliminar svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.ftransf-lista .ftransf-eliminar:focus-visible,
+.ftransf-ayuda summary:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
