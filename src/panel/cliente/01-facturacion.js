@@ -630,7 +630,7 @@
         const j = await api("reportes" + (tipos.length === 1 ? "?tipo=" + tipos[0] : ""));
         const rs = j.reportes.filter(r => tipos.includes(r.tipo) || (tipos.length > 1 && r.tipo === "anterior"));
         const meses = [...new Set(rs.map(r => r.mes))];
-        lista.innerHTML = rs.length ? `<div class="rl">${meses.map(m => `<div class="rl-mes"><b>${esc(nom(m))}</b>${rs.filter(r => r.mes === m).map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(NOM[r.tipo] || r.tipo)} ↗</a>`).join("")}</div>`).join("")}</div>` : `<p class="note" style="margin:10px 0 0">Todavía no hay reportes generados.</p>`;
+        lista.innerHTML = rs.length ? `<div class="rl">${meses.map(m => `<div class="rl-mes"><b>${esc(nom(m))}</b>${rs.filter(r => r.mes === m).map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(NOM[r.tipo] || r.tipo)} ↗</a>${Number(r.pendientes_archivar) > 0 ? `<small class="note"> · ${Number(r.pendientes_archivar)} copia(s) anteriores sin archivar</small>` : ""}`).join("")}</div>`).join("")}</div>` : `<p class="note" style="margin:10px 0 0">Todavía no hay reportes generados.</p>`;
         if (!j.script) est.textContent = "Falta conectar el script de Google.";
       } catch {}
     }
@@ -638,7 +638,7 @@
       btn.disabled = true; est.textContent = "Generando… puede tardar un minuto por reporte.";
       const hechos = [], errores = [];
       for (const t of tipos) {
-        try { const r = await api("reportes", { method: "POST", body: JSON.stringify({ tipo: t, mes: sel.value }) }); hechos.push(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">${esc(NOM[t])} ↗</a>`); }
+        try { const r = await api("reportes", { method: "POST", body: JSON.stringify({ tipo: t, mes: sel.value }) }); hechos.push(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">${esc(NOM[t])} ↗</a>${Number(r.pendientes_archivar) > 0 ? ` · ${Number(r.pendientes_archivar)} copia(s) por revisar` : ""}`); }
         catch (er) { if (er.message === "sesion") break; errores.push(`${NOM[t]}: ${er.message}`); }
       }
       est.innerHTML = (hechos.length ? "Listo: " + hechos.join(" · ") : "") + (errores.length ? `<span style="color:var(--bad);display:block">${esc(errores.join(" · "))}</span>` : "");
