@@ -52,6 +52,24 @@ test("Finanzas/mov: reintento idéntico y cambio de monto con igual UID",async()
   assert.equal(db.prepare("SELECT SUM(importe) total FROM fin_movs").get().total,1234.5);
 });
 
+test("Movimiento bancario rechaza días imposibles y cantidades sin centavos exactos",async()=>{
+  const base={fecha:hoy,tipo:"traspaso",origen:"bbva-pyme",destino:"mdo-pago",
+    importe:"10.00",nota:"Validación adversarial"};
+  const antes=db.prepare("SELECT COUNT(*) n FROM fin_movs").get().n;
+  const bitAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n;
+  for(const [cambio,razon] of [
+    [{fecha:mes+"-00"},"día cero"],
+    [{importe:"0.001"},"fracción de centavo"],
+    [{importe:"1e3"},"notación científica"],
+    [{importe:"12.345"},"más de dos decimales"]
+  ]){
+    const r=await request("mov",{...base,...cambio,uid:crypto.randomUUID()});
+    assert.equal(r.status,422,razon+": "+JSON.stringify(r));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_movs").get().n,antes,razon);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,bitAntes,razon);
+  }
+});
+
 test("Cuenta usada sin roles de recepción: no reinterpretar su tipo histórico",async()=>{
   // BBVA PYME ya tiene rol receptor y se bloquea antes por esa razón.
   // Usar cuenta sin roles permite verificar de manera independiente la protección histórica.
