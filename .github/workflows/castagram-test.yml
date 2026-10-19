@@ -2,6 +2,7 @@ name: Pruebas de Castagram
 on:
   push:
     branches:
+      - main
       - castagram/cierre-seguridad-20261017
   pull_request:
     branches: [main]
@@ -13,9 +14,28 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Evitar nuevos archivos de estado local o credenciales
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$BASE_SHA"
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          changed="$(git diff --name-only --diff-filter=AM "$base" HEAD)"
+          forbidden="$(printf '%s\n' "$changed" | grep -E '^(\.wrangler/|\.dev\.vars($|\.)|\.env($|\.))' | grep -vxF '.env.example' || true)"
+          if [ -n "$forbidden" ]; then
+            echo "::error::No incorporar ni modificar archivos locales de Wrangler o credenciales."
+            printf '%s\n' "$forbidden"
+            exit 1
+          fi
       - name: Pruebas del proyecto (sin datos productivos)
         run: node --test pruebas/*.test.js
       - name: Validar compilación de Workers sin publicar
