@@ -105,5 +105,21 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
     const final=db.prepare("SELECT ticket_ref FROM caja_transf WHERE id = ?").get(suelta.data.id);
     assert.ok(["bascula:F103","bascula:F104"].includes(final.ticket_ref));
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Transferencia de cliente'").get().n,5);
+
+    const prev=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE accion='borrar' AND ref=?").get(libre.data.id).n;
+    const [d1,d2]=await Promise.all([
+      post(env,"transferencias/"+libre.data.id+"/eliminar",{}),
+      post(env,"transferencias/"+libre.data.id+"/eliminar",{})
+    ]);
+    assert.deepEqual([d1.status,d2.status].sort(),[200,409],JSON.stringify([d1,d2]));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf WHERE id=?").get(libre.data.id).n,0);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE accion='borrar' AND ref=?").get(libre.data.id).n-prev,1,
+      "La transferencia se borra y audita una sola vez");
+
+    const nueva=await post(env,"transferencias",transferencia("bba00000-1111-4111-8111-000000000005"));
+    assert.equal(nueva.status,200);
+    const success=await post(env,"transferencias/"+nueva.data.id+"/eliminar",{});
+    assert.equal(success.status,200);
+    assert.equal(success.data.borrados,1);
   } finally {db.close()}
 });
