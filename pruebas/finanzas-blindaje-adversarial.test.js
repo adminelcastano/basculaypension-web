@@ -255,3 +255,16 @@ test("Saldos del celular: advertencias legibles y sin botón flotante sobre impo
   assert.doesNotThrow(()=>new Function(ui));
   assert.doesNotThrow(()=>new Function(nav));
 });
+
+test("Movimiento bancario en celular exige cuentas seleccionadas y confirma origen, destino e importe",()=>{
+  const ui = source("../src/panel/cliente/05-finanzas.js");
+  assert.match(ui,/<option value="">Selecciona una cuenta<\/option>/);
+  assert.doesNotMatch(ui,/fm\.origen\.innerHTML = opc\([^\n]+, t === "traspaso" \? mp/);
+  assert.doesNotMatch(ui,/fm\.destino\.innerHTML = opc\([^\n]+, t === "traspaso" \? pyme/);
+  assert.match(ui,/if \(!origen \|\| !destino \|\| origen === destino\)/);
+  assert.match(ui,/máximo dos decimales/);
+  assert.match(ui,/const detalle = `\$\{D\(Number\(importe\)\)\} · \$\{nombre\(origen\)\} → \$\{nombre\(destino\)\}/);
+  assert.match(ui,/await EC\.confirmar\("¿Registrar " \+ clase\.toLowerCase\(\) \+ "\?", detalle, "Registrar"\)/);
+  assert.match(ui,/if \(bt\.isConnected\) bt\.disabled = false/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
