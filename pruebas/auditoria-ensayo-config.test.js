@@ -27,7 +27,7 @@ test("Ensayo adversarial: se rechazan servicios externos y las rutas públicas",
   assert.match(worker, /env\.ENSAYO_AUDITORIA === "1"\) && \[/);
   assert.match(worker, /ruta\.startsWith\("\/api\/"\) \|\| ruta\.startsWith\("\/expediente\/"\)/);
   assert.match(worker, /!ruta\.startsWith\("\/panel\/api\/"\) && !ruta\.startsWith\("\/turno\/api\/"\)/);
-  assert.match(worker, /env\.ENSAYO_FINANZAS === "1" \|\| env\.ENSAYO_AUDITORIA === "1"\) return/);
+  assert.match(worker, /if \(env\.ENSAYO_AUDITORIA === "1"\) return;/);
   assert.match(push, /env\.ENSAYO_AUDITORIA === "1"\) return 0/);
 });
 
