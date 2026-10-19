@@ -438,6 +438,8 @@
       ft.ticket_ref.addEventListener("change", () => {
         const o = ft.ticket_ref.selectedOptions[0];
         const anteriorCliente = ft.dataset.ticketCliente || "";
+        const anteriorImporte = ft.dataset.ticketImporte || "";
+        const anteriorFecha = ft.dataset.ticketFecha || "";
         if (!o || !o.value) {
           // Volver a «Sin ticket»: quitar solo lo autocompletado.
           if (anteriorCliente && ft.cliente.value.trim() === anteriorCliente) ft.cliente.value = "";
@@ -446,6 +448,7 @@
           delete ft.dataset.ticketCliente;
           delete ft.dataset.ticketImporte;
           delete ft.dataset.ticketFecha;
+          delete ft.dataset.ticketSeleccionado;
           return;
         }
         const cliente = (o.dataset.cli || "").trim();
@@ -455,10 +458,20 @@
           if (cliente) ft.dataset.ticketCliente = cliente;
           else delete ft.dataset.ticketCliente;
         } else delete ft.dataset.ticketCliente;
-        ft.importe.value = o.dataset.imp || "";
-        ft.fecha.value = o.dataset.f || "";
-        ft.dataset.ticketImporte = ft.importe.value;
-        ft.dataset.ticketFecha = ft.fecha.value;
+        // No sobrescribir importe o fecha que la administración ya corrigió.
+        // El servidor seguirá verificando el monto exacto antes de ligar el ticket.
+        if (!ft.importe.value.trim() || (anteriorImporte && ft.importe.value === anteriorImporte)) {
+          ft.importe.value = o.dataset.imp || "";
+          if (ft.importe.value) ft.dataset.ticketImporte = ft.importe.value;
+          else delete ft.dataset.ticketImporte;
+        } else delete ft.dataset.ticketImporte;
+        if (!ft.fecha.value || (anteriorFecha && ft.fecha.value === anteriorFecha) ||
+            (!ft.dataset.ticketSeleccionado && ft.fecha.value === hoyMx())) {
+          ft.fecha.value = o.dataset.f || "";
+          if (ft.fecha.value) ft.dataset.ticketFecha = ft.fecha.value;
+          else delete ft.dataset.ticketFecha;
+        } else delete ft.dataset.ticketFecha;
+        ft.dataset.ticketSeleccionado = o.value;
       });
       ft.addEventListener("submit", async ev => {
         ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); if (b.disabled) return; b.disabled = true; ft.querySelector(".err").textContent = "";
