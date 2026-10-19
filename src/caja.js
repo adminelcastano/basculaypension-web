@@ -132,7 +132,14 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, 
 // turno no se parte en dos meses: todo se guarda con el mes del DÍA DEL CORTE, no de la hora de captura.
 export async function mesesAbiertos(env) {
   const actual = mesActual(), g = await env.FILES.get("caja:mes");
-  return g && g < actual ? [g, actual] : [actual];
+  if (!g || g >= actual) return [actual];
+  // KV puede seguir mostrando el mes anterior tras completar el cierre.
+  // La lápida de D1 manda: jamás permitir nuevas escrituras en ese mes.
+  await asegurarEsquemaCaja(env);
+  const cerrado = await env.DB.prepare(
+    "SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%'"
+  ).bind(g).first();
+  return cerrado ? [actual] : [g, actual];
 }
 export function mesActual(ahora = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(ahora).slice(0, 7);
@@ -379,15 +386,7 @@ export async function sincronizarCaja(env) {
     if (!tomado.meta?.changes) return { ocupado: true };
     lock = true;
     // Los meses se eligen DESPUÉS del bloqueo, nunca de una lista antigua.
-    const mesesAbiertosAhora = await mesesAbiertos(env);
-    // Un cierre terminado es definitivo aunque KV devuelva temporalmente
-    // el marcador del mes anterior: no reescribir un mes ya cerrado.
-    const cerrados = (await env.DB.prepare(
-      "SELECT mes FROM caja_cierre_lock WHERE token LIKE 'cerrado:%'"
-    ).all()).results;
-    const cerrado = new Set(cerrados.map(x => x.mes));
-    const meses = mesesAbiertosAhora.filter(m => !cerrado.has(m));
-    if (!meses.length) return { sin_cambios: true };
+    const meses = await mesesAbiertos(env);
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
     const filas = [];
     for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
