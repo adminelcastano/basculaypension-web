@@ -33,6 +33,16 @@ function aBase64(bytes) {
   for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
   return btoa(bin);
 }
+// Comprobación de versión antes de migrar una clave KV. No depende del nombre
+// del archivo, que puede repetirse cuando dos peticiones coinciden.
+function mismosBytes(a, b) {
+  if (!a || !b || a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a.buffer || a, a.byteOffset || 0, a.byteLength);
+  const y = new Uint8Array(b.buffer || b, b.byteOffset || 0, b.byteLength);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+
 function deBase64(b64) {
   const bin = atob(b64), u = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -187,16 +197,23 @@ export async function mantenerArchivos(env, max = 20) {
       try { id = (await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo, base64: aBase64(r.value) })).id; }
       catch (e) { return { subidos, vencidos, error: e.message }; }
       // Si lo borraron mientras subía, se manda a la papelera y no se registra
-      const sigue = await env.FILES.get(k.name, { type: "stream" });
-      if (!sigue) { await mandarAPapelera(env, id); continue; }
-      try { await sigue.cancel(); } catch {}
+      const sigue = await env.FILES.get(k.name, { type: "arrayBuffer" });
+      if (!sigue || !mismosBytes(r.value, sigue)) {
+        // El archivo se borró o se reemplazó durante la subida: nunca
+        // vincular una versión antigua ni borrar la sustitución más reciente.
+        await mandarAPapelera(env, id);
+        continue;
+      }
       const vence = k.expiration && !k.name.startsWith("tf:") ? new Date(k.expiration * 1000).toISOString() : null;
       const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(k.name).first();
       await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (llave) DO UPDATE SET drive_id = excluded.drive_id, tipo = excluded.tipo, nombre = excluded.nombre, tam = excluded.tam, carpeta = excluded.carpeta, creado = excluded.creado, vence = excluded.vence`)
         .bind(k.name, id, tipo, nombre, r.value.byteLength, carpeta.join("/"), new Date().toISOString(), vence).run();
       if (anterior && anterior.drive_id !== id) await mandarAPapelera(env, anterior.drive_id);
-      await env.FILES.delete(k.name);
+      // KV no ofrece compare-and-delete atómico. Comprobación conservadora
+      // de versión: no retirar un reemplazo con contenido diferente.
+      const actual = await env.FILES.get(k.name, { type: "arrayBuffer" });
+      if (actual && mismosBytes(r.value, actual)) await env.FILES.delete(k.name);
       subidos++;
     }
   }
