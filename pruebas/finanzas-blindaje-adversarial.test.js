@@ -202,3 +202,32 @@ test("Eliminar en móvil exige confirmación visible, no una doble pulsación in
  assert.match(ui,/if \(b\.disabled\) return/);
  assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Finanzas móvil: cifras monetarias sin redondear al peso en tarjetas de resumen",()=>{
+ const ui=source("../src/panel/cliente/05-finanzas.js");
+ assert.match(ui,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
+ assert.match(ui,/EC\.bloqueInfo\("finanzas", "resumen", \{ valor: D0/);
+ assert.match(ui,/EC\.bloqueInfo\("finanzas", "cuentas", \{ valor: b\.dinero != null \? D0/);
+ const n=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
+ assert.equal(n(8064.50),2);
+ assert.equal(n(564.50),2);
+ assert.equal(n(850),0);
+ assert.equal(n(-275.25),2);
+ assert.doesNotThrow(()=>new Function(ui));
+});
+
+test("Transferencias móvil: ayuda accesible expandible y eliminación con etiqueta visible",()=>{
+ const ui=source("../src/panel/cliente/05-finanzas.js");
+ const css=source("../src/panel/estilos.css");
+ assert.match(ui,/<details class="ftransf-ayuda">/);
+ assert.match(ui,/<summary>¿Cuándo vincular un ticket\?<\/summary>/);
+ assert.match(ui,/class="ftransf-ayuda-texto"/);
+ assert.doesNotMatch(ui,/<p class="note" style="margin:4px 0 10px">Los tickets que en la hoja/);
+ assert.match(ui,/class="alist ftransf-lista"/);
+ assert.match(ui,/class="del ftransf-eliminar"[^\n]*data-tdel/);
+ assert.match(ui,/<span>Eliminar<\/span><\/button>/);
+ assert.match(css,/\.ftransf-lista \.ftransf-eliminar/);
+ assert.match(css,/min-height: 44px/);
+ assert.match(css,/\.ftransf-ayuda summary:focus-visible/);
+ assert.doesNotThrow(()=>new Function(ui));
+});
