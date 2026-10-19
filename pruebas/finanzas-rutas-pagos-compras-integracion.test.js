@@ -106,6 +106,16 @@ test("Ruta real de carrito: dos UIDs no compran los mismos artículos y mantiene
     const retry=await post(env,"compras/terminar",{...compra,uid:"cc000003-2222-4333-8444-555555555555"});
     assert.equal(retry.status,200,JSON.stringify(retry));
     assert.equal(retry.data.repetido,true);
+    // Mismo UID y mismo total, pero otro reparto de precios: es otra compra.
+    const historicoOriginal=db.prepare("SELECT id,importe FROM compras_historial WHERE gasto_id=? ORDER BY id").all(a.data.gasto_id);
+    const cambiado=await post(env,"compras/terminar",{...compra,
+      precios:{"ensayo-compra-1":"120","ensayo-compra-2":"55"},
+      uid:"cc000003-2222-4333-8444-555555555555"});
+    assert.equal(cambiado.status,409,JSON.stringify(cambiado));
+    const sinDetalle=await post(env,"compras/terminar",{...compra,precios:{},
+      uid:"cc000003-2222-4333-8444-555555555555"});
+    assert.equal(sinDetalle.status,409,JSON.stringify(sinDetalle));
+    assert.deepEqual(db.prepare("SELECT id,importe FROM compras_historial WHERE gasto_id=? ORDER BY id").all(a.data.gasto_id).map(x=>({...x})),historicoOriginal.map(x=>({...x})));
     assert.equal(db.prepare("SELECT cuenta FROM caja_gastos WHERE id=?").get(a.data.gasto_id).cuenta,"bbva-pyme");
     const otro=await post(env,"compras/terminar",{...compra,uid:"cc000004-2222-4333-8444-555555555555"});
     assert.equal(otro.status,409,JSON.stringify(otro));
