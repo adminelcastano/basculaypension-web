@@ -121,5 +121,35 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
     const success=await post(env,"transferencias/"+nueva.data.id+"/eliminar",{});
     assert.equal(success.status,200);
     assert.equal(success.data.borrados,1);
+
+    // Un banco explícito inválido JAMÁS debe convertirse silenciosamente en BBVA PYME.
+    for(const [cuenta,razon] of [
+      ["inexistente","cuenta inexistente"],
+      ["banorte-credito","tarjeta de crédito"]
+    ]) {
+      const antes=db.prepare("SELECT COUNT(*) n FROM caja_transf").get().n;
+      const rechazo=await post(env,"transferencias",{...transferencia("bba00000-1111-4111-8111-000000000006"),cuenta});
+      assert.equal(rechazo.status,422,razon+": "+JSON.stringify(rechazo));
+      assert.match(rechazo.data.error,/cuenta.*no está disponible/);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf").get().n,antes);
+    }
+
+    db.prepare("UPDATE fin_cuentas SET activa = 0 WHERE id='bbva-personal'").run();
+    const apagada=await post(env,"transferencias",{...transferencia("bba00000-1111-4111-8111-000000000007"),cuenta:"bbva-personal"});
+    assert.equal(apagada.status,422,JSON.stringify(apagada));
+    assert.ok(apagada.data.errores.cuenta);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_transf WHERE cuenta='bbva-personal'").get().n,0);
+
+    // Rechazar fechas imposibles o posteriores a hoy aunque tengan el mes válido.
+    const fechaImposible=mes+"-99";
+    const fechaInvalida=await post(env,"transferencias",{...transferencia("bba00000-1111-4111-8111-000000000008"),fecha:fechaImposible});
+    assert.equal(fechaInvalida.status,422,JSON.stringify(fechaInvalida));
+    assert.ok(fechaInvalida.data.errores.fecha);
+    const ultimaFecha=mes+"-"+new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0)).getUTCDate();
+    if(ultimaFecha>hoy){
+      const futura=await post(env,"transferencias",{...transferencia("bba00000-1111-4111-8111-000000000009"),fecha:ultimaFecha});
+      assert.equal(futura.status,422,JSON.stringify(futura));
+      assert.ok(futura.data.errores.fecha);
+    }
   } finally {db.close()}
 });
