@@ -352,8 +352,19 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
   }
   if (partes[1] === "cuentas") {
     const texto = String(c.texto ?? "").replace(/\r/g, "").slice(0, 4000);
-    await env.DB.prepare("INSERT INTO fin_config (clave, valor, actualizado) VALUES ('cuentas', ?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor, actualizado = excluded.actualizado").bind(texto, ahora).run();
-    return json({ ok: true });
+    const anterior = await env.DB.prepare("SELECT valor FROM fin_config WHERE clave = 'cuentas'").first();
+    const actual = anterior?.valor || "";
+    const esperado = Object.hasOwn(c,"esperado") ? String(c.esperado ?? "").replace(/\r/g, "").slice(0,4000) : actual;
+    if (esperado !== actual)
+      return json({ok:false,error:"Las notas de las cuentas cambiaron en otra sesión. Copia tu texto antes de actualizar Finanzas."},409);
+    if (texto === actual) return json({ok:true,sin_cambios:true});
+    const res = await env.DB.prepare(`INSERT INTO fin_config (clave, valor, actualizado)
+      VALUES ('cuentas', ?, ?)
+      ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado=excluded.actualizado
+      WHERE COALESCE(fin_config.valor,'') = ?`).bind(texto, ahora, esperado).run();
+    if (!res.meta?.changes)
+      return json({ok:false,error:"Las notas cambiaron mientras guardabas. Conserva tu texto y actualiza Finanzas antes de repetir."},409);
+    return json({ok:true});
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }
