@@ -357,3 +357,15 @@ test("Efectivo en sobres muestra ayuda desplegable, nunca una nota truncada",()=
   assert.match(css,/\.f-guia-saldos > summary/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Dinero: ayudas de pagos hechas desplegables sin frases recortadas en móvil",()=>{
+  const ui=source("../src/panel/cliente/07-agenda.js");
+  const css=source("../src/panel/estilos.css");
+  assert.match(ui,/<summary>¿Qué pagos se registran aquí\?<\/summary>/);
+  assert.match(ui,/<summary>¿De dónde salen estos pagos\?<\/summary>/);
+  assert.match(ui,/<p class="note" data-nl="1">Registra gastos ya realizados/);
+  assert.match(ui,/<p class="note" data-nl="1">Son pagos de la administración/);
+  assert.doesNotMatch(ui,/<p class="note" style="margin:10px 0 0">Para lo que ya pagaste/);
+  assert.match(css,/\.f-guia-saldos > summary/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
