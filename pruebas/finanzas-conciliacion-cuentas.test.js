@@ -88,3 +88,18 @@ test("La pantalla financiera presenta las discrepancias sin botones automáticos
   assert.match(codigo,/Conciliaciones que necesitan revisión/);
   assert.match(codigo,/No se borró ningún dato/);
 });
+
+
+test("Las tarjetas bancarias y el reporte distinguen saldo parcial de conciliación pendiente",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const panel=readFileSync(new URL("../src/panel/cliente/05-finanzas.js",import.meta.url),"utf8");
+  const fin=readFileSync(new URL("../src/finanzas.js",import.meta.url),"utf8");
+  const reporte=readFileSync(new URL("../src/reporte.js",import.meta.url),"utf8");
+  assert.match(fin,/conciliaciones_pendientes: tr\.alertas\.length/);
+  assert.match(panel,/revisar conciliación/);
+  assert.match(panel,/conciliaciones_pendientes/);
+  assert.match(reporte,/Conciliaciones de transferencias por revisar/);
+  assert.match(reporte,/Total bancario parcial/);
+  assert.match(reporte,/Deuda parcial/);
+  assert.doesNotThrow(()=>new Function(panel));
+});
