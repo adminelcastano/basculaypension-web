@@ -689,8 +689,14 @@ export async function turnoRuta(request, env, url, h) {
     if (c.aumento === undefined && await env.DB.prepare("SELECT 1 FROM caja_extra WHERE id = ?")
       .bind(idAumentoInicio(s.dia, s.turno)).first())
       return json({ ok: false, error: "Actualiza la tablet para corregir el cambio inicial con sus dos importes." }, 409);
-    const inicio = await guardarCambioInicio(env,
-      { dia: s.dia, turno: s.turno, persona: s.persona, recibido: cambio, aumento }, ahora);
+    let inicio;
+    try {
+      inicio = await guardarCambioInicio(env,
+        { dia: s.dia, turno: s.turno, persona: s.persona, recibido: cambio, aumento }, ahora);
+    } catch (e) {
+      if (e?.code === "INICIO_OBSOLETO") return json({ok:false,error:e.message},409);
+      throw e;
+    }
     return recordar(json({ ok: true, inicio }));
   }
 
