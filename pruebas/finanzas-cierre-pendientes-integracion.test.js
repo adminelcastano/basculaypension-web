@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin } from "../src/caja.js";
+import { asegurarEsquemaCaja, cierreMensualCaja, leerCobrosAdmin, leerHoja, sincronizarCaja } from "../src/caja.js";
 
 const MES="2026-10", SIG="2026-11";
 const CIERRE=new Date("2026-11-01T17:00:00Z"); // 11:00 en Tapachula
@@ -177,4 +177,43 @@ test("Llave vieja se recupera; reporte fallido libera el bloqueo D1 para reinten
       "La llave tras un fallo no retiene un cierre que puede reintentarse");
     assert.equal(await env.FILES.get("caja:mes"),MES);
   }finally{retirar()}
+});
+
+test("Google con importe inválido nunca reemplaza tickets ni los convierte en cero",async()=>{
+  await env.FILES.put("caja:mes",MES);
+  const guardados=sqlite.prepare("SELECT id,importe FROM caja_mov WHERE mes=? ORDER BY id").all(MES).map(x=>({...x}));
+  const casos=["importe no numérico","1e5","99.999",null];
+  for(const importe of casos){
+    const quitar=instalarHoja({[MES]:{bascula:[
+      ingreso("2026-10-18T10:00:00","17097",importe)
+    ]},[SIG]:{}});
+    try{
+      await assert.rejects(()=>leerHoja(env,MES),/importe no válido/);
+      const estado=await sincronizarCaja(env);
+      assert.match(estado.error,/importe no válido/,String(importe));
+      assert.deepEqual(sqlite.prepare("SELECT id,importe FROM caja_mov WHERE mes=? ORDER BY id").all(MES).map(x=>({...x})),
+        guardados,"No reemplazar ni borrar la última foto válida de la hoja");
+    }finally{quitar()}
+  }
+  const quitar=instalarHoja({[MES]:{pension:[
+    ingreso("2026-10-18T10:00:00","17097",0,true,"monto inventado")
+  ]},[SIG]:{}});
+  try{
+    await assert.rejects(()=>leerHoja(env,MES),/pendiente con importe no válido/);
+  }finally{quitar()}
+});
+
+test("Google con cantidades válidas preserva ceros, centavos y devoluciones negativas",async()=>{
+  const quitar=instalarHoja({[MES]:{bascula:[
+    ingreso("2026-10-18T10:00:00","17097","$1,250.25"),
+    ingreso("2026-10-18T11:00:00","17098","MENOS 55"),
+    ingreso("2026-10-18T12:00:00","17099",0),
+    ingreso("2026-10-18T13:00:00","17100",0,true,"65.75")
+  ]},[SIG]:{}});
+  try{
+    const filas=await leerHoja(env,MES);
+    assert.deepEqual(filas.map(x=>x.importe),[1250.25,-55,0,0]);
+    assert.equal(filas[3].pendiente,true);
+    assert.equal(filas[3].monto_pendiente,65.75);
+  }finally{quitar()}
 });
