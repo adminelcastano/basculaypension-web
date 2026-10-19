@@ -638,7 +638,7 @@
       btn.disabled = true; est.textContent = "Generando… puede tardar un minuto por reporte.";
       const hechos = [], errores = [];
       for (const t of tipos) {
-        try { const r = await api("reportes", { method: "POST", body: JSON.stringify({ tipo: t, mes: sel.value }) }); hechos.push(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">${esc(NOM[t])} ↗</a>${Number(r.pendientes_archivar) > 0 ? ` · ${Number(r.pendientes_archivar)} copia(s) por revisar` : ""}`); }
+        try { const r = await api("reportes", { method: "POST", body: JSON.stringify({ tipo: t, mes: sel.value }) }); hechos.push(`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#64d2ff">${esc(NOM[t])} ↗</a>${Number(r.pendientes_archivar) > 0 ? ` · ${Number(r.pendientes_archivar)} copia(s) por revisar` : ""}${r.indice_pendiente ? " · Índice pendiente: conserva este enlace" : ""}`); }
         catch (er) { if (er.message === "sesion") break; errores.push(`${NOM[t]}: ${er.message}`); }
       }
       est.innerHTML = (hechos.length ? "Listo: " + hechos.join(" · ") : "") + (errores.length ? `<span style="color:var(--bad);display:block">${esc(errores.join(" · "))}</span>` : "");
