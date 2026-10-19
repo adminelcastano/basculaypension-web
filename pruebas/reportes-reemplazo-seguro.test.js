@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const fuente = readFileSync(new URL("../herramientas/aviso-correo.gs", import.meta.url), "utf8");
-const codigo = fuente.split("function hojaMensual(d) {")[1]?.split("\nfunction dentroDeRaiz(")[0];
+const codigo = fuente.split("function hojaMensual(d) {")[1]?.split("\nfunction dentroDeRaiz(")[0]?.replace(/\n}\s*$/, "");
 assert.ok(codigo, "Falta hojaMensual");
 
 function ensayo(fallarAlLlenar = false) {
