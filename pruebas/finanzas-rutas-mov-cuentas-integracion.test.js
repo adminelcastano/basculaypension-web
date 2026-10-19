@@ -107,4 +107,59 @@ test("Eliminar el mismo movimiento simultáneamente registra una sola baja real"
     "Un borrado repetido no deja dos eventos de bitácora");
 });
 
+test("Saldo inicial: crear, repetir y corregir no produce bitácora duplicada",async()=>{
+  const payload={mes,cuenta:"bbva-personal",saldo:"1234.56"};
+  const primera=await request("saldo-cuenta",payload);
+  assert.equal(primera.status,200,JSON.stringify(primera));
+  const otra=await request("saldo-cuenta",payload);
+  assert.equal(otra.status,200);
+  assert.equal(otra.data.sin_cambios,true);
+  const cambio=await request("saldo-cuenta",{...payload,saldo:"1300.25"});
+  assert.equal(cambio.status,200,JSON.stringify(cambio));
+  assert.equal(db.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,payload.cuenta).saldo,1300.25);
+  const acciones=db.prepare("SELECT accion,COUNT(*) AS n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref=? GROUP BY accion").all(payload.cuenta);
+  assert.deepEqual(acciones.map(x=>[x.accion,x.n]).sort(),[["crear",1],["editar",1]]);
+});
+
+test("Dos pestañas con el saldo antiguo: solo una corrección gana",async()=>{
+  const originalPrepare=env.DB.prepare;
+  let lecturas=0,resolver;
+  const ambas=new Promise(done=>resolver=done);
+  env.DB.prepare=sql=>{
+    const q=originalPrepare(sql);
+    if(sql!=="SELECT saldo FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?")return q;
+    return {bind(...args){
+      const st=q.bind(...args);
+      if(args[0]!==mes||args[1]!=="bbva-personal")return st;
+      return {...st,async first(){
+        const prev=await st.first();
+        if(prev){lecturas++;if(lecturas===2)resolver();await ambas;}
+        return prev;
+      }};
+    }};
+  };
+  let respuestas;
+  try{
+    respuestas=await Promise.all([
+      request("saldo-cuenta",{mes,cuenta:"bbva-personal",saldo:"1350.25"}),
+      request("saldo-cuenta",{mes,cuenta:"bbva-personal",saldo:"1450.25"})
+    ]);
+  }finally{env.DB.prepare=originalPrepare}
+  assert.equal(lecturas,2);
+  assert.deepEqual(respuestas.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(respuestas));
+  const saldo=db.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,"bbva-personal").saldo;
+  assert.ok([1350.25,1450.25].includes(saldo));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref='bbva-personal' AND accion='editar'").get().n,2);
+});
+
+test("Borrar saldo ya vacío no inventa una baja; borrar valor existente se audita una vez",async()=>{
+  const salida=await request("saldo-cuenta",{mes,cuenta:"bbva-personal",saldo:""});
+  assert.equal(salida.status,200,JSON.stringify(salida));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,"bbva-personal").n,0);
+  const repetido=await request("saldo-cuenta",{mes,cuenta:"bbva-personal",saldo:""});
+  assert.equal(repetido.status,200);
+  assert.equal(repetido.data.sin_cambios,true);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref='bbva-personal' AND accion='borrar'").get().n,1);
+});
+
 test.after(()=>db.close());
