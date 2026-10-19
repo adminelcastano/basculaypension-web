@@ -19,6 +19,13 @@ source "$config"
 case "$AGE_RECIPIENT" in
   age1_REEMPLAZAR*|"") echo "Reemplaza la clave pública de ejemplo" >&2; exit 2;;
 esac
+# Task Scheduler abre WSL sin shell interactiva; activar Node instalado con nvm si aplica.
+if ! command -v npx >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1090
+  source "$HOME/.nvm/nvm.sh"
+fi
+command -v npx >/dev/null 2>&1 || { echo "Falta Node.js/npx en WSL" >&2; exit 2; }
+command -v rclone >/dev/null 2>&1 || { echo "Falta rclone en WSL" >&2; exit 2; }
 export BACKUP_DEST AGE_RECIPIENT BACKUP_DRIVE_REMOTE
 cd "$root"
 exec bash "$root/herramientas/respaldo-d1-cifrado.sh"
