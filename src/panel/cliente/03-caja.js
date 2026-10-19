@@ -7,8 +7,12 @@
   const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
   const hora = f => (f || "").slice(11, 16);
   const fechaHora = iso => iso ? "Entregado " + new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) : "";
+  // Las diferencias de corte y de cambio se evalúan AL CENTAVO,
+  // en consonancia con los totales financieros del servidor.
+  const descuadre = v => v != null && Number.isFinite(Number(v)) &&
+    Math.round(Math.abs(Number(v)) * 100) >= 1;
   // Diferencia del corte ciego: contado − sistema (con ícono y texto, no solo color)
-  const difEtq = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${dinero(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${dinero(v)}</span>`;
+  const difEtq = v => v == null ? "" : !descuadre(v) ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${dinero(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${dinero(v)}</span>`;
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
   const toast = EC.toast;
   const api = EC.api;
@@ -75,7 +79,7 @@
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
           ${c.conteo && c.conteo.admin ? `<span class="m"><span>Entrega de la administración</span><span>Sobre ${dinero(c.conteo.sobre || 0)}</span></span>` : c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
-          ${c.cambio_turno && Math.abs(c.cambio_turno.dif) >= 1 ? `<span class="m"><span>Cambio recibido</span>${difEtq(c.cambio_turno.dif)}</span>` : ""}
+          ${c.cambio_turno && descuadre(c.cambio_turno.dif) ? `<span class="m"><span>Cambio recibido</span>${difEtq(c.cambio_turno.dif)}</span>` : ""}
         </button>`;
       };
       // Un grupo por día, con el total de ingresos del día en el encabezado
@@ -131,13 +135,13 @@
     const k = c.conteo, ct = c.cambio_turno, cs = c.cambio_siguiente;
     const marca = (estado, txt) => `<span class="cf-m ${estado}">${estado === "ok" ? "✓" : estado === "mal" ? "!" : estado === "esp" ? "…" : "·"}<span class="sr"> ${esc(txt)}</span></span>`;
     const paso = (estado, titulo, valor, detalle = "", extra = "") => `<li class="cf-p ${estado}">${marca(estado, titulo)}<div class="cf-c"><div class="cf-l"><span>${titulo}</span><b>${valor}</b></div>${detalle ? `<p>${detalle}</p>` : ""}${extra}</div></li>`;
-    const dif = v => Math.abs(v) < 1 ? "cuadra" : v < 0 ? `faltan ${dinero(-v)}` : `sobran ${dinero(v)}`;
-    const est = v => v == null ? "" : Math.abs(v) < 1 ? "ok" : "mal";
+    const dif = v => !descuadre(v) ? "cuadra" : v < 0 ? `faltan ${dinero(-v)}` : `sobran ${dinero(v)}`;
+    const est = v => v == null ? "" : !descuadre(v) ? "ok" : "mal";
     const pasos = [];
     // 1. Cambio recibido
     const cambio = c.cambio && c.cambio.n ? c.cambio.importe : null;
     pasos.push(paso(ct ? est(ct.dif) : cambio != null ? "" : "esp", "Cambio inicial", cambio != null ? dinero(cambio) : "—",
-      ct ? `${avP(ct.de.persona)}${esc(ct.de.persona)} dejó ${dinero(ct.dejado)} · ${avP(ct.recibio)}${esc(ct.recibio)} recibió ${dinero(ct.recibido)}${Math.abs(ct.dif) >= 1 ? ` · <b class="rojo">${dif(ct.dif)}</b>` : ""}`
+      ct ? `${avP(ct.de.persona)}${esc(ct.de.persona)} dejó ${dinero(ct.dejado)} · ${avP(ct.recibio)}${esc(ct.recibio)} recibió ${dinero(ct.recibido)}${descuadre(ct.dif) ? ` · <b class="rojo">${dif(ct.dif)}</b>` : ""}`
         : cambio != null ? (c.cambio.fuente === "tablet" ? `Declarado en la tablet por ${avP(c.cambio.persona)}${esc(c.cambio.persona)}.` : "De la hoja (renglón CAMBIO o FONDO).") : "Nadie declaró el cambio con el que empezó."));
     // 2. Ventas e ingresos que entran a la caja
     pasos.push(paso("", "+ Ventas en efectivo", dinero(c.efectivo), `Báscula ${dinero(c.bascula.EFECTIVO)} · pensión ${dinero(c.pension.EFECTIVO)}`));
@@ -150,7 +154,7 @@
     pasos.push(`<li class="cf-p cf-tot"><span class="cf-m"></span><div class="cf-c"><div class="cf-l"><span>= Debería haber en la caja</span><b>${dinero(esperado)}</b></div>${k && !k.con_cambio && c.cambio && c.cambio.n ? `<p>Este corte se contó sin el fondo de cambio (antes del 14 oct).</p>` : ""}</div></li>`);
     // 5. Contado
     if (k && k.admin) pasos.push(paso("", "Entrega capturada por la administración", dinero(k.efectivo), "Turno sin corte en la tablet: el sobre, los retiros y el cambio los capturó la administración, sin conteo ciego."));
-    else if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), Math.abs(k.dif_efectivo) < 1 ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
+    else if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), !descuadre(k.dif_efectivo) ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
     else pasos.push(paso(enCurso ? "esp" : "mal", "Corte ciego", "—", enCurso ? "El turno sigue abierto: el encargado entrega el corte en la tablet al terminar." : "Nadie entregó el corte de este turno en la tablet."));
     // 6. Reparto
     if (k && k.sobre != null) {
@@ -160,15 +164,15 @@
     }
     // 7. Cambio dejado al siguiente turno
     if (k && k.cambio_sig != null) pasos.push(paso(cs ? est(cs.dif) : k.admin ? "" : "esp", "Cambio para el siguiente turno", dinero(k.cambio_sig),
-      k.admin && !cs ? "Lo anotó la administración." : cs ? `${avP(cs.recibio)}${esc(cs.recibio)} dijo recibir ${dinero(cs.recibido)}${Math.abs(cs.dif) >= 1 ? ` · <b class="rojo">${dif(cs.dif)}</b>` : " · cuadra"}` : "El siguiente turno todavía no declara su cambio inicial."));
+      k.admin && !cs ? "Lo anotó la administración." : cs ? `${avP(cs.recibio)}${esc(cs.recibio)} dijo recibir ${dinero(cs.recibido)}${descuadre(cs.dif) ? ` · <b class="rojo">${dif(cs.dif)}</b>` : " · cuadra"}` : "El siguiente turno todavía no declara su cambio inicial."));
     // Tarjeta: tickets contra la terminal
-    const tj = k && k.tarjeta != null ? paso(est(k.dif_tarjeta), "Tarjeta: tickets contra la terminal", dinero(c.tarjeta), `La terminal dice ${dinero(k.tarjeta)}${Math.abs(k.dif_tarjeta) >= 1 ? ` · <b class="rojo">${dif(k.dif_tarjeta)}</b>` : " · cuadra"}`) : paso("", "Tickets con tarjeta", dinero(c.tarjeta), `Báscula ${dinero(c.bascula.TARJETA)} · pensión ${dinero(c.pension.TARJETA)} (van a Mercado Pago, no a la caja).`);
+    const tj = k && k.tarjeta != null ? paso(est(k.dif_tarjeta), "Tarjeta: tickets contra la terminal", dinero(c.tarjeta), `La terminal dice ${dinero(k.tarjeta)}${descuadre(k.dif_tarjeta) ? ` · <b class="rojo">${dif(k.dif_tarjeta)}</b>` : " · cuadra"}`) : paso("", "Tickets con tarjeta", dinero(c.tarjeta), `Báscula ${dinero(c.bascula.TARJETA)} · pensión ${dinero(c.pension.TARJETA)} (van a Mercado Pago, no a la caja).`);
     // Resumen arriba: ¿cuadra todo?
     const problemas = [];
-    if (ct && Math.abs(ct.dif) >= 1) problemas.push("cambio recibido " + dif(ct.dif));
-    if (k && Math.abs(k.dif_efectivo) >= 1) problemas.push("efectivo " + dif(k.dif_efectivo));
-    if (k && k.dif_tarjeta != null && Math.abs(k.dif_tarjeta) >= 1) problemas.push("tarjeta " + dif(k.dif_tarjeta));
-    if (cs && Math.abs(cs.dif) >= 1) problemas.push("cambio dejado " + dif(cs.dif));
+    if (ct && descuadre(ct.dif)) problemas.push("cambio recibido " + dif(ct.dif));
+    if (k && descuadre(k.dif_efectivo)) problemas.push("efectivo " + dif(k.dif_efectivo));
+    if (k && k.dif_tarjeta != null && descuadre(k.dif_tarjeta)) problemas.push("tarjeta " + dif(k.dif_tarjeta));
+    if (cs && descuadre(cs.dif)) problemas.push("cambio dejado " + dif(cs.dif));
     if (!k && !enCurso) problemas.push("falta el corte");
     const estado = problemas.length ? "mal" : !k ? "esp" : k.admin ? "" : "ok";
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
