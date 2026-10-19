@@ -239,9 +239,19 @@ export async function mantenerArchivos(env, max = 20) {
 export async function estadoArchivos(env) {
   await esquema(env);
   const n = (await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first());
-  let enKv = 0;
-  for (const p of ["x:", "xa:", "tf:", "f:"]) enKv += (await env.FILES.list({ prefix: p, limit: 1000 })).keys.length;
+  let enKv = 0, kvTruncado = false;
+  for (const p of ["x:", "xa:", "tf:", "f:"]) {
+    let cursor = null, paginas = 0;
+    do {
+      const r = await env.FILES.list({ prefix: p, limit: 1000, ...(cursor ? { cursor } : {}) });
+      enKv += r.keys.length;
+      cursor = r.list_complete ? null : r.cursor || null;
+      paginas++;
+    } while (cursor && paginas < 5);
+    if (cursor) kvTruncado = true;
+  }
   const pendientes = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_borrar").first();
   return { en_drive: n.n, bytes_drive: n.b, en_kv: enKv,
+    en_kv_truncado: kvTruncado,
     pendientes_borrar: Number(pendientes?.n || 0), script: conScript(env) };
 }
