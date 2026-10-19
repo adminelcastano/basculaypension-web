@@ -115,7 +115,8 @@ Cuando la exportación, envío e importación local independiente estén validad
 2. Probar que el remote OAuth de Google Drive sólo apunta a la carpeta de respaldos, y su custodia es privada.
 3. Generar y recuperar archivo **sintético**, probar SHA-256 y la restauración SQLite en macOS.
 4. Comprobar que Windows/WSL está disponible en el horario elegido, y que DPAPI se descifra bajo el usuario de la tarea.
-5. Definir alertas, política de retención (sin borrado automático todavía) y custodia redundante de la clave privada.
+5. Supervisar ausencia o deterioro de copias locales: desde Ubuntu/WSL, ejecutar `bash herramientas/verificar-estado-respaldo-wsl.sh` **después** de un primer respaldo válido. Esta consulta no usa secretos ni modifica datos, comprueba el SHA-256 y alerta si han transcurrido más de 36 horas (configurable localmente con `BACKUP_MAX_HOURS`). Para notificaciones automáticas, programar un control Windows separado tras las pruebas y decidir qué canal operativo recibirá las alertas. La comprobación local no certifica disponibilidad remota de Drive.
+6. Definir política de retención (sin borrado automático todavía) y custodia redundante de la clave privada.
 6. Sólo entonces habilitar programación diaria y vigilar el primer respaldo cifrado real.
 
 Referencias: [Microsoft WSLENV](https://learn.microsoft.com/windows/wsl/interop), [PowerShell DPAPI](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/convertfrom-securestring), [rclone Drive](https://rclone.org/drive/), [Cloudflare D1 export](https://developers.cloudflare.com/workers/wrangler/commands/d1/), [age](https://github.com/FiloSottile/age).
