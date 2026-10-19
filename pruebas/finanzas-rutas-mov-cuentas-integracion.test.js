@@ -201,4 +201,48 @@ test("Una pantalla vieja no puede sobrescribir un saldo guardado después",async
   assert.deepEqual(bajas.map(x=>[x.accion,x.n]).sort(),[["borrar",1],["crear",1],["editar",1]]);
 });
 
+test("Saldo de sobres: pestañas viejas y reintentos no alteran dinero ni bitácora",async()=>{
+  const escribir = (efectivo,esperado)=>request("saldo",{mes,efectivo,esperado});
+  const bit = ()=>db.prepare("SELECT accion, COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de los sobres' AND mes=? GROUP BY accion ORDER BY accion").all(mes);
+  const primero=await escribir("1000.25",null);
+  assert.equal(primero.status,200,JSON.stringify(primero));
+  const original=await escribir("1500.25",null);
+  assert.equal(original.status,409,"La pestaña sin captura no puede sobrescribir el primer conteo");
+  const repetido=await escribir("1000.25","1000.25");
+  assert.equal(repetido.status,200);
+  assert.equal(repetido.data.sin_cambios,true);
+  const nuevo=await escribir("1250.50","1000.25");
+  assert.equal(nuevo.status,200,JSON.stringify(nuevo));
+  const obsoleto=await escribir("1300.75","1000.25");
+  assert.equal(obsoleto.status,409);
+  const mismoObsoleto=await escribir("1250.50","1000.25");
+  assert.equal(mismoObsoleto.status,409,"No confirmar datos de una versión obsoleta");
+  const borrarObsoleto=await escribir("","1000.25");
+  assert.equal(borrarObsoleto.status,409);
+  assert.equal(db.prepare("SELECT efectivo FROM fin_saldos WHERE mes=?").get(mes).efectivo,1250.50);
+  const borrar=await escribir("","1250.50");
+  assert.equal(borrar.status,200);
+  const vacio=await escribir("",null);
+  assert.equal(vacio.status,200);
+  assert.equal(vacio.data.sin_cambios,true);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_saldos WHERE mes=?").get(mes).n,0);
+  assert.deepEqual(bit().map(x=>[x.accion,x.n]),[["borrar",1],["crear",1],["editar",1]]);
+});
+
+test("Saldo de sobres: dos envíos simultáneos con la misma versión dejan un ganador",async()=>{
+  const preparar=await request("saldo",{mes,efectivo:"250.10",esperado:null});
+  assert.equal(preparar.status,200,JSON.stringify(preparar));
+  const bitAntes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de los sobres' AND mes=?").get(mes).n;
+  const [a,b]=await Promise.all([
+    request("saldo",{mes,efectivo:"300.10",esperado:"250.10"}),
+    request("saldo",{mes,efectivo:"350.10",esperado:"250.10"})
+  ]);
+  assert.deepEqual([a.status,b.status].sort((x,y)=>x-y),[200,409],JSON.stringify([a,b]));
+  const final=db.prepare("SELECT efectivo FROM fin_saldos WHERE mes=?").get(mes).efectivo;
+  assert.ok([300.10,350.10].includes(final));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de los sobres' AND mes=?").get(mes).n,bitAntes+1);
+  const limpiar=await request("saldo",{mes,efectivo:"",esperado:String(final)});
+  assert.equal(limpiar.status,200);
+});
+
 test.after(()=>db.close());
