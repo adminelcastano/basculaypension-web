@@ -220,12 +220,43 @@
   }
 
   function conectarCuentas(c) {
-    const guardarCuenta = async (datos, msg) => { try { await post("finanzas/cuenta", datos); toast(msg); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); } };
-    c.querySelectorAll("[data-ctipo]").forEach(x => x.addEventListener("change", () => guardarCuenta({ id: x.dataset.ctipo, tipo: x.value }, "Tipo guardado")));
-    c.querySelectorAll("[data-cuso]").forEach(x => x.addEventListener("change", () => { if (x.value) guardarCuenta({ id: x.value, [x.dataset.cuso]: 1 }, "Guardado"); }));
-    c.querySelectorAll("form[data-cnom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.cnom, nombre: f.nombre.value }, "Nombre guardado"); }));
-    c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () => guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta")));
-    c.querySelectorAll("[data-ccom]").forEach(f => f.addEventListener("submit", ev => { ev.preventDefault(); guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada"); }));
+    // Guardado guiado: no dejar seleccionada una cuenta/tipo rechazados
+    // ni permitir un segundo envío mientras el primero está en curso.
+    const guardarCuenta = async (datos, msg, control = null) => {
+      if (control?.disabled) return false;
+      if (control) control.disabled = true;
+      try {
+        await post("finanzas/cuenta", datos);
+        toast(msg);
+        await cargar();
+        return true;
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          if (control?.tagName === "SELECT") control.value = control.dataset.confirmado || "";
+          if (/otra sesión|históric|ya tiene movimientos|ya existe/.test(e.message)) await cargar();
+        }
+        return false;
+      } finally { if (control?.isConnected) control.disabled = false; }
+    };
+    c.querySelectorAll("[data-ctipo]").forEach(x => {
+      x.dataset.confirmado = x.value;
+      x.addEventListener("change", () => guardarCuenta({ id: x.dataset.ctipo, tipo: x.value }, "Tipo guardado", x));
+    });
+    c.querySelectorAll("[data-cuso]").forEach(x => {
+      x.dataset.confirmado = x.value;
+      x.addEventListener("change", () => { if (x.value) guardarCuenta({ id: x.value, [x.dataset.cuso]: 1 }, "Guardado", x); });
+    });
+    c.querySelectorAll("form[data-cnom]").forEach(f => f.addEventListener("submit", ev => {
+      ev.preventDefault();
+      guardarCuenta({ id: f.dataset.cnom, nombre: f.nombre.value }, "Nombre guardado", f.querySelector("[type=submit]"));
+    }));
+    c.querySelectorAll("[data-cact]").forEach(x => x.addEventListener("click", () =>
+      guardarCuenta({ id: x.dataset.cact, activa: x.dataset.v === "1" }, x.dataset.v === "1" ? "Cuenta visible" : "Cuenta oculta", x)));
+    c.querySelectorAll("[data-ccom]").forEach(f => f.addEventListener("submit", ev => {
+      ev.preventDefault();
+      guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada", f.querySelector("[type=submit]"));
+    }));
     const cnu = c.querySelector("#f-cnueva");
     if (cnu) cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
     const cu = c.querySelector("#f-cuentas");
