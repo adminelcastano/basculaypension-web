@@ -331,12 +331,27 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         json({ ok: false, error: "Esta operación ya tiene otro importe, fecha o cuenta. Actualiza la lista antes de registrarla otra vez." }, 409);
     };
     const anterior = await repetido(); if (anterior) return anterior;
+    // Reintentos guardados se reconocen aunque hoy la cuenta esté desactivada;
+    // nuevas operaciones requieren ambas cuentas activas.
+    if ((origen !== "sobres" && !cuentas[origen]?.activa) ||
+        (destino !== "sobres" && !cuentas[destino]?.activa))
+      return json({ok:false,error:"La cuenta de origen o destino está desactivada. Actualiza Finanzas y elige cuentas activas."},422);
+    // Cerrar la carrera de otra sesión que desactive una cuenta después de
+    // la validación: INSERT y bitácora condicional en la misma transacción.
+    const condiciones = [], args = [id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien];
+    for (const cuenta of [origen, destino]) if (cuenta !== "sobres") {
+      condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)");
+      args.push(cuenta);
+    }
+    const sql = `INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`;
     try {
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien),
-        stmtBitacora(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
+      const resultado = await env.DB.batch([
+        env.DB.prepare(sql).bind(...args),
+        stmtBitacoraSiCambio(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
       ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"Una cuenta cambió mientras guardabas el movimiento. Actualiza Finanzas antes de repetir."},409);
     } catch (er) {
       // D1 protege la clave primaria incluso si dos sesiones escriben a la vez.
       const ya = await repetido(); if (ya) return ya;
