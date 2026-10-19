@@ -743,10 +743,24 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
       const pagoId = String(c.pago_id || "");
       if (!/^[0-9a-f-]{36}$/i.test(pagoId)) return json({ ok: false, error: "Falta el identificador de la operación." }, 422);
-      const previo = await env.DB.prepare("SELECT pendiente_id FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first();
-      if (previo) return previo.pendiente_id === id
-        ? json({ ok: true, estado: fila.estado, sin_cambios: true })
-        : json({ ok: false, error: "Identificador de pago utilizado en otro pendiente." }, 409);
+      // Un mismo identificador solo representa el MISMO cobro, con importe,
+      // fecha y forma idénticos. No confirmar un reintento modificado o anulado.
+      const reintento = async () => {
+        const previo = await env.DB.prepare("SELECT pendiente_id, fecha_pago, monto, forma, anulado FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first();
+        if (!previo) return null;
+        if (previo.pendiente_id !== id)
+          return json({ ok: false, error: "Identificador de pago utilizado en otro pendiente." }, 409);
+        if (previo.anulado)
+          return json({ ok: false, error: "Este abono fue anulado. Actualiza el corte antes de registrar otro." }, 409);
+        const igual = previo.fecha_pago === String(c.fecha || "") &&
+          previo.forma === String(c.forma || "") &&
+          centavosIguales(previo.monto, montoUsuario(c.monto));
+        return igual
+          ? json({ ok: true, estado: fila.estado, sin_cambios: true })
+          : json({ ok: false, error: "Este identificador ya registró otro importe, fecha o forma de pago. Actualiza el corte antes de intentar de nuevo." }, 409);
+      };
+      const yaGuardado = await reintento();
+      if (yaGuardado) return yaGuardado;
       const monto = montoUsuario(c.monto);
       const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(Date.parse(fecha + "T12:00:00Z"))
         && new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
@@ -761,7 +775,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const estado = restante <= 0 ? "pagado" : "parcial";
       // La inserción comprueba el saldo dentro de la misma transacción de D1.
       // Dos formularios simultáneos no pueden registrar más dinero del adeudado.
-      const resultados = await env.DB.batch([
+      let resultados;
+      try {
+        resultados = await env.DB.batch([
         env.DB.prepare(`INSERT INTO caja_cobros_admin (id, pendiente_id, fecha_pago, mes, monto, forma, creado, por)
           SELECT ?, ?, ?, ?, ?, ?, ?, ?
           WHERE EXISTS (
@@ -786,7 +802,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
           WHERE EXISTS (SELECT 1 FROM caja_cobros_admin WHERE id = ?)`)
           .bind(id, fila.estado, id, ahora, quien,
             [`Abono de ${monto.toFixed(2)} el ${fecha} por ${forma}`, notas].filter(Boolean).join(" · "), pagoId)
-      ]);
+        ]);
+      } catch (er) {
+        // Una petición concurrente pudo insertar primero este UID.
+        // Recuperar el éxito auténtico sin generar un segundo abono.
+        const ya = await reintento();
+        if (ya) return ya;
+        throw er;
+      }
       if (!resultados[0]?.meta?.changes)
         return json({ ok: false, error: "El saldo pendiente cambió; recarga el corte antes de registrar otro abono." }, 409);
       const saldoActual = await env.DB.prepare(`SELECT p.estado,
