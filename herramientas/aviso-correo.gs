@@ -285,8 +285,9 @@ function probar() {
   } catch { resultados.push('ARCHIVOS DEL PANEL: ERROR'); }
   try {
     const carpeta = DriveApp.getFolderById(CARPETAS_REPORTES.finanzas);
-    const hojas = carpeta.getFilesByName('Finanzas 2026-10 · El Castaño');
-    if (!hojas.hasNext()) throw new Error('Hoja no encontrada');
+    // No depender de un archivo fechado: funciona también en meses futuros.
+    const hojas = carpeta.getFilesByType(MimeType.GOOGLE_SHEETS);
+    if (!hojas.hasNext()) throw new Error('No hay hojas de reportes para comprobar');
     SpreadsheetApp.openById(hojas.next().getId()).getSheets();
     resultados.push('GOOGLE SHEETS: OK');
   } catch { resultados.push('GOOGLE SHEETS: ERROR'); }
