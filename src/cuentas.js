@@ -408,6 +408,12 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         json({ ok: false, error: "Esta operación ya tiene otro importe, fecha o cuenta. Actualiza la lista antes de registrarla otra vez." }, 409);
     };
     const anterior = await repetido(); if (anterior) return anterior;
+    // Un UID borrado no puede revivir dinero por una respuesta tardía del móvil.
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ? LIMIT 1"
+    ).bind(id, TIPOS_MOV[tipo]).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Este movimiento fue eliminado. Actualiza Finanzas antes de registrar otro."},409);
     // Reintentos guardados se reconocen aunque hoy la cuenta esté desactivada;
     // nuevas operaciones requieren ambas cuentas activas.
     if ((origen !== "sobres" && !cuentas[origen]?.activa) ||
@@ -420,6 +426,9 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
       condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)");
       args.push(cuenta);
     }
+    // Una eliminación concurrente se detecta también en la propia escritura.
+    condiciones.push("NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ?)");
+    args.push(id, TIPOS_MOV[tipo]);
     const sql = `INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por)
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`;
     try {
@@ -428,7 +437,9 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
         stmtBitacoraSiCambio(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
       ]);
       if (!resultado[0]?.meta?.changes)
-        return json({ok:false,error:"Una cuenta cambió mientras guardabas el movimiento. Actualiza Finanzas antes de repetir."},409);
+        return json({ok:false,error:await fueEliminado()
+          ? "Este movimiento fue eliminado en otra sesión. Actualiza Finanzas."
+          : "Una cuenta cambió mientras guardabas el movimiento. Actualiza Finanzas antes de repetir."},409);
     } catch (er) {
       // D1 protege la clave primaria incluso si dos sesiones escriben a la vez.
       const ya = await repetido(); if (ya) return ya;
