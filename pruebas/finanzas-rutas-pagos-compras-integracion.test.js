@@ -714,3 +714,49 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   const acciones=db.prepare("SELECT accion FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ? ORDER BY id").all(id).map(x=>x.accion);
   assert.deepEqual(acciones,["crear","editar","borrar"],"Todas las acciones de archivos tienen historial sin duplicados");
 });
+
+test("Borrado de pago con nueva foto concurrente: no deja comprobante huérfano",async()=>{
+  const {db,env}=shared;
+  const pago=await post(env,"pagos/hecho",{
+    uid:"cafe0000-0000-4000-8000-000000000289",
+    fecha:hoy,importe:"18.93",titulo:"Pago de prueba con foto concurrente",forma:"EFECTIVO"
+  });
+  assert.equal(pago.status,200,JSON.stringify(pago));
+  const id=pago.data.id;
+  const foto=async marca=>{
+    const url=new URL("https://ensayo.invalid/panel/api/agenda/pagos/"+id+"/comprobante");
+    const req=new Request(url,{method:"POST",headers:{"Content-Type":"image/png"},
+      body:new Uint8Array([137,80,78,71,13,10,26,10,...new TextEncoder().encode(marca)])});
+    const r=await agendaPanel(req,env,url,["agenda","pagos",id,"comprobante"],actor);
+    return {status:r.status,data:await r.json()};
+  };
+  assert.equal((await foto("primera")).status,200);
+  const original=db.prepare("SELECT comprobante FROM agenda_pagos WHERE id=?").get(id).comprobante;
+  assert.ok(await env.FILES.get(original));
+  const dbBatch=env.DB.batch;
+  let cambio=false;
+  env.DB.batch=async sentencias=>{
+    if(!cambio && sentencias.some(s=>s.sql.includes("DELETE FROM agenda_pagos WHERE id = ?"))){
+      cambio=true;
+      const nuevo=await foto("foto subida mientras borraban");
+      assert.equal(nuevo.status,200,JSON.stringify(nuevo));
+    }
+    return dbBatch(sentencias);
+  };
+  let borrado;
+  try{
+    borrado=await post(env,"pagos/"+id+"/eliminar",{});
+  }finally{env.DB.batch=dbBatch}
+  assert.equal(cambio,true);
+  assert.equal(borrado.status,409,JSON.stringify(borrado));
+  const vigente=db.prepare("SELECT comprobante,gasto_id FROM agenda_pagos WHERE id=?").get(id);
+  assert.ok(vigente?.gasto_id,"Pago y gasto no pueden quedar borrados por una versión obsoleta");
+  assert.notEqual(vigente.comprobante,original);
+  assert.equal(await env.FILES.get(original),null);
+  assert.ok(await env.FILES.get(vigente.comprobante),"La nueva foto continúa disponible");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar' AND que='Pago no programado'").get(id).n,0);
+  const eliminarVigente=await post(env,"pagos/"+id+"/eliminar",{});
+  assert.equal(eliminarVigente.status,200,JSON.stringify(eliminarVigente));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(id).n,0);
+  assert.equal(await env.FILES.get(vigente.comprobante),null);
+});
