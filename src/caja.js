@@ -1128,10 +1128,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   if (partes[1] === "transferencias" && partes[3] === "eliminar" && request.method === "POST") {
     const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM caja_transf WHERE id = ?").bind(x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { fecha: x.fecha, cliente: x.cliente, importe: x.importe, cuenta: x.cuenta, ticket: x.ticket_ref } })
+    // Compare-and-delete: una sesión no puede borrar silenciosamente una
+    // transferencia que otra acaba de vincular o desvincular.
+    const resultado = await env.DB.batch([
+      env.DB.prepare("DELETE FROM caja_transf WHERE id = ? AND mes = ? AND COALESCE(ticket_ref, '') = ?").bind(x.id, x.mes, x.ticket_ref || ""),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { fecha: x.fecha, cliente: x.cliente, importe: x.importe, cuenta: x.cuenta, ticket: x.ticket_ref } })
     ]);
+    if (!resultado[0]?.meta?.changes)
+      return json({ ok: false, error: "La transferencia cambió en otra sesión. Actualiza la lista antes de borrarla." }, 409);
     return json({ ok: true, borrados: 1 });
   }
 
