@@ -15,7 +15,13 @@ async function normalizarMedio(env, c) {
   // silenciosamente por un banco por defecto.
   if (c.forma.startsWith("C:")) c._cuentaSolicitada = c.forma.slice(2);
   const m = await leerMedio(env, c.forma, null);
-  if (m) { c.forma = m.forma; c.cuenta = m.cuenta; }
+  if (m) {
+    // Los clientes antiguos pueden enviar la forma y la cuenta por separado.
+    // Respetar esa cuenta para validarla; no reemplazarla por la predeterminada.
+    const cuentaSeparada = (c.forma === "TRANSFERENCIA" || c.forma === "TARJETA") && Object.hasOwn(c, "cuenta");
+    c.forma = m.forma;
+    if (!cuentaSeparada) c.cuenta = m.cuenta;
+  }
 }
 // Agenda del panel: calendario, por hacer, compras e incidencias.
 // Todo vive en una tabla (agenda_items) con un campo "tipo".
