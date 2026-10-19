@@ -9,7 +9,8 @@ import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, 
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from "./categorias.js";
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
-import { asegurarEsquemaBitacora, stmtBitacora, listaBitacora, ACCIONES } from "./bitacora.js";
+import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES } from "./bitacora.js";
+import { centavosIguales } from "./finanzas-idempotencia.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -303,17 +304,49 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
   const quien = usuario && usuario.email || null, ahora = new Date().toISOString();
   if (partes[1] === "saldo") {
     const mes = String(c.mes || "");
-    if (!(await mesesAbiertos(env)).includes(mes)) return json({ ok: false, error: "Solo se puede capturar el saldo inicial del mes abierto; los meses anteriores toman el saldo calculado." }, 409);
+    if (!(await mesesAbiertos(env)).includes(mes))
+      return json({ ok:false, error:"Solo se puede capturar el saldo inicial de un mes abierto." },409);
     const antes = await env.DB.prepare("SELECT efectivo FROM fin_saldos WHERE mes = ?").bind(mes).first();
-    const log = v => stmtBitacora(env, { quien, accion: v == null ? "borrar" : antes ? "editar" : "crear", que: "Saldo inicial de los sobres", ref: "sobres", mes, detalle: { antes: antes ? antes.efectivo : null, ahora: v } });
-    if (c.efectivo === "" || c.efectivo === null) { await env.DB.batch([env.DB.prepare("DELETE FROM fin_saldos WHERE mes = ?").bind(mes), log(null)]); return json({ ok: true }); }
+    const actual = antes ? Number(antes.efectivo) : null;
+    // El formulario envía el valor que mostraba al abrir. No permitir que una
+    // pestaña antigua reemplace el recuento confirmado por otra sesión.
+    if (Object.hasOwn(c, "esperado")) {
+      const esperado = c.esperado == null || c.esperado === "" ? null : Number(c.esperado);
+      if (esperado !== null && !Number.isFinite(esperado))
+        return json({ ok:false, error:"El saldo de referencia no es válido. Actualiza Finanzas." },422);
+      if (actual === null ? esperado !== null : esperado === null || !centavosIguales(actual, esperado))
+        return json({ ok:false, error:"El saldo de los sobres cambió en otra sesión. Actualiza Finanzas antes de guardar." },409);
+    }
+    const log = v => stmtBitacoraSiCambio(env, {
+      quien, accion:v == null ? "borrar" : antes ? "editar" : "crear",
+      que:"Saldo inicial de los sobres", ref:"sobres", mes,
+      detalle:{ antes:actual, ahora:v }
+    });
+    if (c.efectivo === "" || c.efectivo === null) {
+      if (!antes) return json({ ok:true, sin_cambios:true });
+      const resultado = await env.DB.batch([
+        env.DB.prepare("DELETE FROM fin_saldos WHERE mes = ? AND efectivo = ?").bind(mes, antes.efectivo),
+        log(null)
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ ok:false, error:"El saldo de los sobres cambió en otra sesión. Actualiza Finanzas." },409);
+      return json({ ok:true });
+    }
     const v = montoUsuario(c.efectivo);
-    if (!(v >= 0) || v > 100000000) return json({ ok: false, error: "Escribe el efectivo con el que empezó el mes (solo números)." }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_saldos (mes, efectivo, actualizado, por) VALUES (?, ?, ?, ?) ON CONFLICT(mes) DO UPDATE SET efectivo = excluded.efectivo, actualizado = excluded.actualizado, por = excluded.por").bind(mes, v, ahora, quien),
+    if (!(v >= 0) || v > 100000000)
+      return json({ ok:false, error:"Escribe el efectivo con el que empezó el mes (solo números)." },422);
+    if (antes && centavosIguales(antes.efectivo, v))
+      return json({ ok:true, sin_cambios:true });
+    const resultado = await env.DB.batch([
+      env.DB.prepare(`INSERT INTO fin_saldos (mes, efectivo, actualizado, por) VALUES (?, ?, ?, ?)
+        ON CONFLICT(mes) DO UPDATE SET efectivo = excluded.efectivo,
+          actualizado = excluded.actualizado, por = excluded.por
+        WHERE fin_saldos.efectivo = ?`).bind(mes, v, ahora, quien, antes ? antes.efectivo : null),
       log(v)
     ]);
-    return json({ ok: true });
+    if (!resultado[0]?.meta?.changes)
+      return json({ ok:false, error:"El saldo de los sobres fue modificado en otra sesión. Actualiza Finanzas." },409);
+    return json({ ok:true });
   }
   if (partes[1] === "cuentas") {
     const texto = String(c.texto ?? "").replace(/\r/g, "").slice(0, 4000);
