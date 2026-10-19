@@ -312,3 +312,38 @@ test("Cierre mensual espera una sincronización activa y no genera reportes",asy
     assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_cierre_lock WHERE mes=?").get(MES).n,0);
   }finally{sqlite.prepare("DELETE FROM caja_sync_lock WHERE nombre='hoja' AND token=?").run("sync-activa-prueba")}
 });
+
+test("Mes cerrado no congela sincronización nueva aunque KV conserve marcador viejo",async()=>{
+  const actual=mesActual(), anterior=sumarMesesCaja(actual,-1);
+  const fechaVieja=anterior+"-10T10:00:00", fechaNueva=actual+"-10T10:00:00";
+  const old=sqlite.prepare("INSERT INTO caja_mov (servicio,fecha,dia,turno,folio,importe,forma,mes,tipo) VALUES ('bascula',?,?,'MAÑANA','91629',12.31,'EFECTIVO',?,'ticket')")
+    .run(fechaVieja,fechaVieja.slice(0,10),anterior);
+  const idViejo=Number(old.lastInsertRowid);
+  sqlite.prepare("INSERT INTO caja_cierre_lock (mes,token,tomado) VALUES (?,?,?) ON CONFLICT(mes) DO UPDATE SET token=excluded.token,tomado=excluded.tomado")
+    .run(anterior,"cerrado:ejemplo",new Date().toISOString());
+  await env.FILES.put("caja:mes",anterior);
+  const consultados=[],previo=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    const mes=new URL(url).searchParams.get("mes");
+    consultados.push(mes);
+    return new Response(JSON.stringify({
+      ok:true,mes,bascula:mes===actual?[ingreso(fechaNueva,"91630",26.71)]:[],
+      pension:[]
+    }),{headers:{"Content-Type":"application/json"}});
+  };
+  try{
+    const sync=await sincronizarCaja(env);
+    assert.equal(sync.ocupado,undefined,JSON.stringify(sync));
+    assert.ok(sync.at && !sync.error,JSON.stringify(sync));
+    assert.deepEqual(consultados,[actual],"No volver a consultar el mes cerrado");
+    assert.equal(sqlite.prepare("SELECT importe FROM caja_mov WHERE id=?").get(idViejo).importe,12.31);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_mov WHERE mes=? AND folio='91630'").get(actual).n,1);
+    assert.equal(sqlite.prepare("SELECT token FROM caja_cierre_lock WHERE mes=?").get(anterior).token,"cerrado:ejemplo");
+  }finally{
+    globalThis.fetch=previo;
+    sqlite.prepare("DELETE FROM caja_cierre_lock WHERE mes=? AND token='cerrado:ejemplo'").run(anterior);
+    sqlite.prepare("DELETE FROM caja_mov WHERE id=?").run(idViejo);
+    sqlite.prepare("DELETE FROM caja_mov WHERE folio='91630'").run();
+    await env.FILES.put("caja:mes",MES);
+  }
+});
