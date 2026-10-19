@@ -295,14 +295,17 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
   }
   if (partes[1] === "mov" && partes.length === 2) {
     const tipo = Object.hasOwn(TIPOS_MOV, c.tipo) ? c.tipo : "";
-    const fecha = String(c.fecha || ""), importe = Number(String(c.importe ?? "").replace(/[$,\s]/g, ""));
+    const fecha = String(c.fecha || ""), importe = montoUsuario(c.importe);
     // "sobres" (efectivo de la administración) solo sale en un depósito o en un pago de tarjeta en efectivo, y solo entra en un retiro
     const origen = tipo === "deposito" ? "sobres" : String(c.origen || ""), destino = tipo === "retiro" ? "sobres" : String(c.destino || "");
     const cuentas = Object.fromEntries((await listaCuentas(env, true)).map(x => [x.id, x]));
     const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
     const errores = {};
     if (!tipo) errores.tipo = "Elige el tipo de movimiento.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoy) errores.fecha = "Escribe la fecha del movimiento (no futura).";
+    const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
+      Number.isFinite(Date.parse(fecha + "T12:00:00Z")) &&
+      new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
+    if (!fechaReal || fecha > hoy) errores.fecha = "Escribe una fecha real del movimiento (no futura).";
     else if (!abiertos.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró; usa una fecha del mes abierto.";
     if (!(importe > 0) || importe > 100000000) errores.importe = "Escribe el importe.";
     const okOrigen = origen === "sobres" ? ["deposito", "pago_tarjeta"].includes(tipo) : !!cuentas[origen];
