@@ -311,11 +311,24 @@
       } finally { if (bt.isConnected) bt.disabled = false; }
     });
     const cu = c.querySelector("#f-cuentas");
-    if (cu) cu.addEventListener("submit", async ev => {
-      ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
-      try { await post("finanzas/cuentas", { texto: cu.texto.value }); toast("Cuentas guardadas"); } catch (e) { if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message; }
-      b.disabled = false;
-    });
+    if (cu) {
+      cu.dataset.original = cu.texto.value;
+      cu.addEventListener("submit", async ev => {
+        ev.preventDefault(); const bt = cu.querySelector("button");
+        if (bt.disabled) return;
+        bt.disabled = true;
+        cu.querySelector(".err").textContent = "";
+        try {
+          const res = await post("finanzas/cuentas",
+            { texto: cu.texto.value, esperado: cu.dataset.original });
+          cu.dataset.original = cu.texto.value;
+          if (st.datos?.banco) st.datos.banco.cuentas = cu.texto.value;
+          toast(res.sin_cambios ? "Notas sin cambios" : "Notas guardadas");
+        } catch (e) {
+          if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message;
+        } finally { if (bt.isConnected) bt.disabled = false; }
+      });
+    }
   }
   // Los bloques de Finanzas (sin tocar los de pagos y compras, que viven en la misma pantalla)
   const misBloques = () => ["fb-resumen", "fb-efectivo", "fb-cuentas", "fb-transf", "fb-bitacora"].map(id => $("#" + id)).filter(Boolean);
