@@ -841,18 +841,33 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       if (!pago) return json({ ok: false, error: "No existe ese abono activo." }, 404);
       if (!(await mesesAbiertos(env)).includes(pago.mes))
         return json({ ok: false, error: "No se pueden modificar abonos de meses cerrados." }, 409);
-      const resto = Math.max(0, Math.round((abonado - pago.monto) * 100) / 100);
-      const estado = resto ? "parcial" : "pendiente";
-      await env.DB.batch([
+      // La anulación, el saldo pendiente y su historial comparten transacción.
+      // Dos sesiones no pueden anular el mismo pago ni crear una segunda entrada.
+      const resultados = await env.DB.batch([
         env.DB.prepare(`UPDATE caja_cobros_admin SET anulado = 1, anulado_por = ?, anulado_en = ?
-          WHERE id = ? AND anulado = 0`).bind(quien, ahora, pagoId),
-        env.DB.prepare("UPDATE caja_pendientes SET estado = ?, resuelto = NULL, por = ?, notas = ? WHERE id = ?")
-          .bind(estado, quien, notas, id),
+          WHERE id = ? AND pendiente_id = ? AND anulado = 0
+            AND EXISTS (SELECT 1 FROM caja_pendientes WHERE id = ?)`).bind(quien, ahora, pagoId, id, id),
+        // Recalcular desde los abonos realmente activos dentro del lote:
+        // una nueva captura concurrente no puede dejar estado/importe obsoletos.
+        env.DB.prepare(`UPDATE caja_pendientes SET
+          estado = CASE WHEN EXISTS (
+            SELECT 1 FROM caja_cobros_admin a
+            WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0
+          ) THEN 'parcial' ELSE 'pendiente' END,
+          resuelto = NULL, por = ?, notas = ?
+          WHERE id = ? AND changes() > 0`).bind(quien, notas, id),
         env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, estado, ahora, quien,
+          SELECT ?, ?, (SELECT estado FROM caja_pendientes WHERE id = ?), ?, ?, ?
+          WHERE changes() > 0`).bind(id, fila.estado, id, ahora, quien,
             [`Anulado abono de $${Number(pago.monto).toFixed(2)} (${pago.forma}, ${pago.fecha_pago})`, notas].filter(Boolean).join(" · "))
       ]);
-      return json({ ok: true, estado, abonado: resto });
+      if (!resultados[0]?.meta?.changes)
+        return json({ ok: false, error: "El abono ya fue anulado en otra sesión. Actualiza el corte." }, 409);
+      const actual = await env.DB.prepare(`SELECT p.estado,
+        COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a
+          WHERE a.pendiente_id = p.id AND a.anulado = 0), 0) AS abonado
+        FROM caja_pendientes p WHERE p.id = ?`).bind(id).first();
+      return json({ ok: true, estado: actual.estado, abonado: Math.round(Number(actual.abonado || 0) * 100) / 100 });
     }
     return json({ ok: false, error: "Operación no reconocida." }, 422);
   }
