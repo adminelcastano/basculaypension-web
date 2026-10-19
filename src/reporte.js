@@ -163,7 +163,9 @@ export async function reporteArea(env, tipo, mes, h) {
   if (!r || !r.ok) throw new Error((r && r.error) || "El script de Google no creó la hoja");
   // El script anterior no conoce las carpetas por área: dejaría el archivo en otra carpeta
   if (r.destino !== tipo) throw new Error("Actualiza el script de Google (versión con carpetas de Turnos, Finanzas y Facturación).");
-  const info = { tipo, mes, url: r.url, id: r.id, at: new Date().toISOString(), hojas: hojas.length };
+  // No ocultar duplicados históricos si Drive no permitió archivarlos.
+  const info = { tipo, mes, url: r.url, id: r.id, at: new Date().toISOString(),
+    hojas: hojas.length, pendientes_archivar: Math.max(0, Number(r.pendientes_archivar) || 0) };
   await env.FILES.put(`rep:${tipo}:${mes}`, JSON.stringify(info));
   return info;
 }
