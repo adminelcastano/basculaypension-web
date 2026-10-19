@@ -893,42 +893,38 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         resto: Math.max(0, Math.round((fila.monto - saldoActual.abonado) * 100) / 100),
         nota: "Abono contabilizado por su fecha y forma de pago." });
     }
-    if (c.estado === "conciliado") {
-      if (fila.origen_activo)
+    if (["conciliado", "cancelado", "pendiente"].includes(c.estado)) {
+      const solicitado = c.estado;
+      if (solicitado === "conciliado" && fila.origen_activo)
         return json({ ok: false, error: "La hoja sigue indicando PENDIENTE DE PAGO: primero registra el pago o corrige su origen." }, 409);
-      if (fila.estado === "conciliado") return json({ ok: true, estado: "conciliado", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'conciliado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
-          .bind(ahora, quien, notas, id),
-        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'conciliado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien,
-            [`Comprobado en la hoja, sin asiento duplicado`, notas].filter(Boolean).join(" · "))
-      ]);
-      return json({ ok: true, estado: "conciliado" });
-    }
-    if (c.estado === "cancelado") {
-      if (abonado > 0 && fila.origen_activo)
+      if (solicitado === "cancelado" && abonado > 0 && fila.origen_activo)
         return json({ ok: false, error: "Ya existen abonos: anúlalos antes de cancelar el pendiente." }, 409);
-      if (fila.estado === "cancelado") return json({ ok: true, estado: "cancelado", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'cancelado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
-          .bind(ahora, quien, notas, id),
-        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'cancelado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
-      ]);
-      return json({ ok: true, estado: "cancelado" });
-    }
-    if (c.estado === "pendiente") {
-      if (abonado > 0 || !fila.origen_activo)
+      if (solicitado === "pendiente" && (abonado > 0 || !fila.origen_activo))
         return json({ ok: false, error: "Para reabrir, anula primero los abonos y comprueba que siga pendiente en la hoja." }, 409);
-      if (fila.estado === "pendiente") return json({ ok: true, estado: "pendiente", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'pendiente', resuelto = NULL, por = ?, notas = ? WHERE id = ?")
-          .bind(quien, notas, id),
+      if (fila.estado === solicitado)
+        return json({ ok: true, estado: solicitado, sin_cambios: true });
+      // Dos sesiones pueden leer el mismo estado. El cambio de estado y su
+      // historial deben ser condicionales y atómicos, igual que los abonos.
+      // Cancelar / reabrir no puede ganar si entró un abono mientras se leía.
+      const condiciones = solicitado === "conciliado"
+        ? "AND origen_activo = 0"
+        : solicitado === "pendiente"
+          ? "AND origen_activo = 1 AND NOT EXISTS (SELECT 1 FROM caja_cobros_admin a WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0)"
+          : "AND (origen_activo = 0 OR NOT EXISTS (SELECT 1 FROM caja_cobros_admin a WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0))";
+      const notaHist = solicitado === "conciliado"
+        ? ["Comprobado en la hoja, sin asiento duplicado", notas].filter(Boolean).join(" · ")
+        : notas;
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`UPDATE caja_pendientes SET estado = ?, resuelto = ?, por = ?, notas = ?
+          WHERE id = ? AND estado = ? ${condiciones}`)
+          .bind(solicitado, solicitado === "pendiente" ? null : ahora, quien, notas, id, fila.estado),
         env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'pendiente', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
+          SELECT ?, ?, ?, ?, ?, ? WHERE changes() > 0`)
+          .bind(id, fila.estado, solicitado, ahora, quien, notaHist)
       ]);
-      return json({ ok: true, estado: "pendiente" });
+      if (!resultado[0]?.meta?.changes)
+        return json({ ok: false, error: "El cobro o sus abonos cambiaron en otra sesión. Actualiza el corte antes de continuar." }, 409);
+      return json({ ok: true, estado: solicitado });
     }
     if (c.estado === "anular-abono") {
       const pagoId = String(c.pago_id || "");
