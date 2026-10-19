@@ -346,3 +346,14 @@ test("Finanzas avisa si el usuario intenta registrar dos veces el mismo movimien
   assert.match(ui,/Registrar otro volverá a modificar ambos saldos/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Efectivo en sobres muestra ayuda desplegable, nunca una nota truncada",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const css=source("../src/panel/estilos.css");
+  assert.match(ui,/efectivo: \(\) => `[\s\S]*?<details class="f-guia-saldos">/);
+  assert.match(ui,/<summary>¿Qué entra y sale de los sobres\?<\/summary>/);
+  assert.match(ui,/Captura el saldo inicial solo después de contar los sobres/);
+  assert.doesNotMatch(ui,/<p class="note" style="margin:4px 0 10px">Entra lo que/);
+  assert.match(css,/\.f-guia-saldos > summary/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
