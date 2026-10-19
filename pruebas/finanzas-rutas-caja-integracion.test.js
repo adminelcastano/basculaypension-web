@@ -189,5 +189,42 @@ test("Rutas reales: reintento, ticket duplicado y enlace de dos sesiones sin dob
       env.DB.batch=preBatch;
       db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
     }
+
+    // Bajas simultáneas de dinero: una única anotación real. Un retry del
+    // mismo UID después de borrar no revive el gasto ni el ingreso.
+    for(const escenario of [
+      {ruta:"gastos",tabla:"caja_gastos",que:"Gasto de caja",
+        datos:{dia:hoy,turno:"MAÑANA",concepto:"Gasto de ensayo",monto:"32.15",
+          uid:"aab20000-1111-4111-8111-000000000023"}},
+      {ruta:"extras",tabla:"caja_extra",que:"Ingreso extra de caja",
+        datos:{dia:hoy,turno:"MAÑANA",concepto:"Renta",monto:"41.30",
+          uid:"aab20000-1111-4111-8111-000000000024"}}
+    ]){
+      const nuevoRegistro=await post(env,escenario.ruta,escenario.datos);
+      assert.equal(nuevoRegistro.status,200,JSON.stringify(nuevoRegistro));
+      const [baja1,baja2]=await Promise.all([
+        post(env,escenario.ruta+"/"+nuevoRegistro.data.id+"/eliminar",{}),
+        post(env,escenario.ruta+"/"+nuevoRegistro.data.id+"/eliminar",{})
+      ]);
+      assert.deepEqual([baja1.data.borrados,baja2.data.borrados].sort(),[0,1],JSON.stringify([baja1,baja2]));
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM "+escenario.tabla+" WHERE id=?").get(nuevoRegistro.data.id).n,0);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que=? AND accion='borrar' AND ref=?")
+        .get(escenario.que,nuevoRegistro.data.id).n,1);
+      const repeticion=await post(env,escenario.ruta,escenario.datos);
+      assert.equal(repeticion.status,409,JSON.stringify(repeticion));
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM "+escenario.tabla+" WHERE id=?").get(nuevoRegistro.data.id).n,0);
+      assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?")
+        .get(nuevoRegistro.data.id).n,2,"Alta y baja exactamente una vez");
+    }
+    db.prepare("INSERT INTO turno_cortes (dia,turno,mes,persona,efectivo,creado,actualizado,admin) VALUES (?,?,?,?,?,?,?,1)")
+      .run(hoy,"NOCHE",mes,"Personal ficticio",45,new Date().toISOString(),new Date().toISOString());
+    const dosBajas=await Promise.all([
+      post(env,"entregas-admin/eliminar",{dia:hoy,turno:"NOCHE"}),
+      post(env,"entregas-admin/eliminar",{dia:hoy,turno:"NOCHE"})
+    ]);
+    assert.deepEqual(dosBajas.map(x=>x.data.borrados).sort(),[0,1],JSON.stringify(dosBajas));
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Entrega de turno (captura de administración)' AND accion='borrar' AND ref=?")
+      .get(hoy+"|NOCHE").n,1);
+
   } finally {db.close()}
 });
