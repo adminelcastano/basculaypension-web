@@ -18,7 +18,7 @@ function ensayo(fallarAlLlenar = false, fallarAlMover = false) {
   };
   const ss = { getId: () => "hoja-nueva", getUrl: () => "https://ejemplo.local/nuevo", getSheets: () => [sh], insertSheet: () => sh };
   const fn = new Function("SpreadsheetApp","DriveApp","CARPETAS_REPORTES","carpetaArea","carpetaReportes","d", "const carpeta=undefined;return (function hojaMensual(d) {"+codigo+"\n})(d);");
-  const out = () => fn({ create(){acciones.push("crear-nuevo");return ss;} },{ getFileById(){return nuevo;} },{finanzas:"carpeta"},()=>carpeta,()=>carpeta,{nombre:"Ensayo",destino:"finanzas",anio:"2026",hojas:[{nombre:"Resumen",filas:[["A"],["B"]]}]});
+  const out = () => fn({ create(){acciones.push("crear-nuevo");return ss;}, flush(){acciones.push("confirmar-celdas");} },{ getFileById(){return nuevo;} },{finanzas:"carpeta"},()=>carpeta,()=>carpeta,{nombre:"Ensayo",destino:"finanzas",anio:"2026",hojas:[{nombre:"Resumen",filas:[["A"],["B"]]}]});
   return { out, acciones };
 }
 
