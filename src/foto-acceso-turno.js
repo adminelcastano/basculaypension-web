@@ -4,7 +4,7 @@ import { fotoAvisoPermitida } from "./avisos.js";
 
 export async function permisoFotoTurno(env, llave, sesion) {
   if (!/^tf:(aviso|inc):[0-9a-f-]{36}$/.test(llave))
-    return { permitido: true, castagram: false }; // Otras claves siguen su validación original.
+    return { permitido: false, castagram: false }; // Fuera del ámbito de esta verificación: negar por defecto.
 
   const publicacion = await env.DB.prepare(`SELECT i.id, i.autor, i.para, i.estado FROM agenda_items i
     WHERE i.tipo = 'aviso' AND (i.foto = ? OR i.fotos LIKE ? OR EXISTS
