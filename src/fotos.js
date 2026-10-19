@@ -70,22 +70,46 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
   const tipo = op.tipo || "application/octet-stream";
   const vence = op.ttlDias ? new Date(Date.now() + op.ttlDias * 864e5).toISOString() : null;
   const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
+  // Una carga a Drive solo cuenta como confirmada después de guardar su índice en D1.
+  // Ningún error de limpieza posterior debe activar la ruta KV y retirar el archivo nuevo.
+  let driveNuevo = null;
+  let driveConfirmado = false;
   if (conScript(env)) {
     try {
       const carpeta = op.carpeta || carpetaPorLlave(llave, op.carpetaPersona);
       const nombre = String(op.nombre || llave.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
       const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo, base64: aBase64(bytes) });
+      if (!r.id || typeof r.id !== "string") throw new Error("Drive no devolvió un identificador");
+      driveNuevo = r.id;
       await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (llave) DO UPDATE SET drive_id = excluded.drive_id, tipo = excluded.tipo, nombre = excluded.nombre, tam = excluded.tam, carpeta = excluded.carpeta, creado = excluded.creado, vence = excluded.vence`)
         .bind(llave, r.id, tipo, nombre, bytes.byteLength, carpeta.join("/"), new Date().toISOString(), vence).run();
-      if (anterior && anterior.drive_id !== r.id) await mandarAPapelera(env, anterior.drive_id);
-      await env.FILES.delete(llave).catch(() => {});
-      return { drive: true };
-    } catch (e) { console.error("archivos: Drive no disponible, se guarda en KV"); }
+      driveConfirmado = true;
+    } catch {
+      // Si Drive escribió pero D1 no confirmó, se preserva el archivo remoto:
+      // no se sabe si D1 llegó a confirmar la escritura al fallar la respuesta.
+      console.error("archivos: Drive/D1 no confirmó la carga; conservando referencia anterior");
+    }
   }
-  // Respaldo: KV como antes (la tarea programada lo sube a Drive cuando el script responda)
-  if (anterior) { await mandarAPapelera(env, anterior.drive_id); await env.DB.prepare("DELETE FROM archivos WHERE llave = ?").bind(llave).run(); }
-  await env.FILES.put(llave, bytes, { metadata: { tipo, ...(op.metadata || {}), ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}) }, ...(op.ttlDias ? { expirationTtl: op.ttlDias * 86400 } : {}) });
+  if (driveConfirmado) {
+    await env.FILES.delete(llave).catch(() => {});
+    if (anterior && anterior.drive_id !== driveNuevo) {
+      await mandarAPapelera(env, anterior.drive_id).catch(() => {});
+    }
+    return { drive: true };
+  }
+  // Fallback conservador: escribir KV y confirmar el éxito ANTES de modificar D1
+  // o de enviar el documento anterior a papelera. Si KV falla, el anterior sigue vivo.
+  await env.FILES.put(llave, bytes, {
+    metadata: { tipo, ...(op.metadata || {}), ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}) },
+    ...(op.ttlDias ? { expirationTtl: op.ttlDias * 86400 } : {})
+  });
+  if (anterior) {
+    // La clave KV contiene la versión nueva. Si D1 falla, ambas copias permanecen
+    // y la tarea de sincronización puede reconciliarlas en el siguiente ciclo.
+    await env.DB.prepare("DELETE FROM archivos WHERE llave = ? AND drive_id = ?").bind(llave, anterior.drive_id).run();
+    await mandarAPapelera(env, anterior.drive_id).catch(() => {});
+  }
   return { drive: false };
 }
 
