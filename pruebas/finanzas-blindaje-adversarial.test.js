@@ -291,3 +291,20 @@ test("Capturas de celular: pagos sin redondear y papelera de movimientos con tex
   assert.doesNotThrow(()=>new Function(agenda));
   assert.doesNotThrow(()=>new Function(fin));
 });
+
+test("Tarjeta móvil de transferencias no afirma Al corriente sin consultar Google",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const expression=ui.match(/const estadoTransferencias = ([\s\S]*?);\s*EC\.bloqueN\("finanzas", "transferencias"/)?.[1];
+  assert.ok(expression,"La tarjeta debe tener una política explícita de estado");
+  const estado=new Function("modoEnsayo","fuenteAlerta","pendientesConciliacion","hojaSinLigar","j","return "+expression+";");
+  const sinTickets={transf_hoja:[]};
+  assert.equal(estado(true,false,0,[],sinTickets),"Ensayo · hoja desconectada");
+  assert.equal(estado(false,true,0,[],sinTickets),"Hoja sin sincronización verificada");
+  assert.match(estado(false,false,2,[],sinTickets),/2 conciliaciones por revisar/);
+  assert.match(estado(false,false,0,[{ref:"bascula:01"}],sinTickets),/1 tickets por ligar/);
+  assert.equal(estado(false,false,0,[],sinTickets),"Sin tickets de transferencia en la hoja");
+  assert.equal(estado(false,false,0,[],{transf_hoja:[{ref:"bascula:01"}]}),"Sin tickets pendientes de vincular");
+  assert.match(ui,/pendientesConciliacion > 0 \|\| fuenteAlerta \|\| hojaSinLigar\.length > 0/);
+  assert.doesNotMatch(ui,/texto: hojaSinLigar\.length \? hojaSinLigar\.length \+ " por ligar" : "Al corriente"/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
