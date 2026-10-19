@@ -226,5 +226,7 @@ export async function estadoArchivos(env) {
   const n = (await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first());
   let enKv = 0;
   for (const p of ["x:", "xa:", "tf:", "f:"]) enKv += (await env.FILES.list({ prefix: p, limit: 1000 })).keys.length;
-  return { en_drive: n.n, bytes_drive: n.b, en_kv: enKv, script: conScript(env) };
+  const pendientes = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_borrar").first();
+  return { en_drive: n.n, bytes_drive: n.b, en_kv: enKv,
+    pendientes_borrar: Number(pendientes?.n || 0), script: conScript(env) };
 }
