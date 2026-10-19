@@ -350,7 +350,31 @@
     const ft = $("#f-ftransf");
     if (ft) {
       // Al elegir el ticket se llenan el importe, la fecha y el cliente que trae la hoja
-      ft.ticket_ref.addEventListener("change", () => { const o = ft.ticket_ref.selectedOptions[0]; if (!o || !o.value) return; ft.importe.value = o.dataset.imp; ft.fecha.value = o.dataset.f; if (!ft.cliente.value.trim() && o.dataset.cli) ft.cliente.value = o.dataset.cli; });
+      ft.ticket_ref.addEventListener("change", () => {
+        const o = ft.ticket_ref.selectedOptions[0];
+        const anteriorCliente = ft.dataset.ticketCliente || "";
+        if (!o || !o.value) {
+          // Volver a «Sin ticket»: quitar solo lo autocompletado.
+          if (anteriorCliente && ft.cliente.value.trim() === anteriorCliente) ft.cliente.value = "";
+          if (ft.dataset.ticketImporte && ft.importe.value === ft.dataset.ticketImporte) ft.importe.value = "";
+          if (ft.dataset.ticketFecha && ft.fecha.value === ft.dataset.ticketFecha) ft.fecha.value = hoyMx();
+          delete ft.dataset.ticketCliente;
+          delete ft.dataset.ticketImporte;
+          delete ft.dataset.ticketFecha;
+          return;
+        }
+        const cliente = (o.dataset.cli || "").trim();
+        // Cambiar a otro ticket sustituye el cliente autoanterior, no el escrito a mano.
+        if (!ft.cliente.value.trim() || (anteriorCliente && ft.cliente.value.trim() === anteriorCliente)) {
+          ft.cliente.value = cliente;
+          if (cliente) ft.dataset.ticketCliente = cliente;
+          else delete ft.dataset.ticketCliente;
+        } else delete ft.dataset.ticketCliente;
+        ft.importe.value = o.dataset.imp || "";
+        ft.fecha.value = o.dataset.f || "";
+        ft.dataset.ticketImporte = ft.importe.value;
+        ft.dataset.ticketFecha = ft.fecha.value;
+      });
       ft.addEventListener("submit", async ev => {
         ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); if (b.disabled) return; b.disabled = true; ft.querySelector(".err").textContent = "";
         try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value, uid: ft.dataset.uid || (ft.dataset.uid = crypto.randomUUID()) }); toast("Transferencia guardada"); await cargar(); }
