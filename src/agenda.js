@@ -873,6 +873,8 @@ export async function agendaPanel(request, env, url, partes, usuario) {
           json({ok:false,error:"Esta compra ya quedó registrada con otros datos. Revisa el ticket antes de intentar repetirla."},409);
       };
       const anterior = await repetido(); if (anterior) return anterior;
+      if (await pagoEliminado(env,gidOperacion,"Compra"))
+        return json({ok:false,error:"Este ticket fue devuelto a pendientes. Actualiza Compras antes de intentar registrarlo de nuevo."},409);
     }
     const q = ids.map(() => "?").join(",");
     const filas = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(...ids).all()).results;
@@ -901,7 +903,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
     const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
     if (errorCuenta) return json({ok:false,error:errorCuenta},422);
-    const st = [stmtGastoAdmin(env, gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta)];
+    const st = [stmtGastoAdmin(env, gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta, null, {id:gid,que:"Compra"})];
     for (const f of orden) {
       const imp = cu.precios[f.id] ?? null;
       st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'comprado', cerrado = ?, actualizado = ?, importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(ahora, ahora, imp, gid, f.id));
@@ -911,7 +913,10 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     try { await env.DB.batch(st); }
     catch (er) {
       const ya = await repetido(); if (ya) return ya;
-      if (errorBancoEnEscritura(er)) return conflictoBanco();
+      if (errorBancoEnEscritura(er))
+        return await pagoEliminado(env,gid,"Compra")
+          ? json({ok:false,error:"Este ticket fue devuelto en otra sesión. Actualiza Compras antes de registrar otro."},409)
+          : conflictoBanco();
       if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
         return json({ok:false,error:"Uno de los artículos ya fue comprado por otra sesión. Actualiza la lista antes de volver a registrar el ticket."},409);
       throw er;
