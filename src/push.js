@@ -131,8 +131,8 @@ export async function enviarPush(env, destino, msg) {
       if (r.ok) { ok++; await env.DB.prepare("UPDATE push_subs SET ultimo_ok = ?, fallas = 0 WHERE endpoint = ?").bind(ahora, s.endpoint).run(); }
       // 404/410: el aparato ya no existe (se desinstaló o se borraron los datos del navegador)
       else if (r.status === 404 || r.status === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ?").bind(s.endpoint).run();
-      else { console.error("push", r.status, (await r.text()).slice(0, 200)); await env.DB.prepare("UPDATE push_subs SET fallas = COALESCE(fallas, 0) + 1 WHERE endpoint = ?").bind(s.endpoint).run(); }
-    } catch (e) { console.error("push", e && e.message); }
+      else { console.error("push", r.status); await env.DB.prepare("UPDATE push_subs SET fallas = COALESCE(fallas, 0) + 1 WHERE endpoint = ?").bind(s.endpoint).run(); }
+    } catch (e) { console.error("push", ["AbortError", "TimeoutError", "TypeError"].includes(e?.name) ? e.name : "error"); }
   }));
   return ok;
 }
@@ -166,7 +166,7 @@ self.addEventListener("notificationclick", e => {
 
 // Para las rutas: manda en segundo plano (si hay ctx) sin retrasar la respuesta; nunca lanza error.
 export function notificar(env, destino, msg) {
-  const p = enviarPush(env, destino, msg).catch(e => console.error("push", e && e.message));
+  const p = enviarPush(env, destino, msg).catch(e => console.error("push", ["AbortError", "TimeoutError", "TypeError"].includes(e?.name) ? e.name : "error"));
   if (env && typeof env.enFondo === "function") { env.enFondo(p); return Promise.resolve(); }
   return p;
 }
