@@ -93,4 +93,18 @@ test("No asignar cuentas de crédito como receptoras de cobros o pagos",async()=
   assert.equal(db.prepare("SELECT tipo FROM fin_cuentas WHERE id=?").get(nueva.data.id).tipo,"debito");
 });
 
+test("Eliminar el mismo movimiento simultáneamente registra una sola baja real",async()=>{
+  const mov=db.prepare("SELECT id FROM fin_movs WHERE nota = ?").get("Ensayo aislado");
+  assert.ok(mov?.id,"Movimiento de la prueba anterior disponible");
+  const prev=db.prepare("SELECT COUNT(*) AS n FROM fin_bitacora WHERE accion='borrar' AND ref=?").get(mov.id).n;
+  const [a,b]=await Promise.all([
+    request("mov/"+mov.id+"/eliminar",{}),
+    request("mov/"+mov.id+"/eliminar",{})
+  ]);
+  assert.deepEqual([a.data.borrados,b.data.borrados].sort(),[0,1],JSON.stringify([a,b]));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM fin_movs WHERE id=?").get(mov.id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM fin_bitacora WHERE accion='borrar' AND ref=?").get(mov.id).n-prev,1,
+    "Un borrado repetido no deja dos eventos de bitácora");
+});
+
 test.after(()=>db.close());
