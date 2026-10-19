@@ -1,124 +1,109 @@
-# Instalación preparada: macOS + Windows (WSL)
+# Respaldos cifrados D1 — Windows principal, macOS recuperación
 
-**Estado: preparado, NO probado ni activado.** No ejecutar contra producción antes de la pasada de pruebas y de comprobar el acceso mínimo. No hay contraseñas, tokens ni claves privadas en este repositorio.
+**Estado: preparado, no probado ni activado.** El usuario confirmó que **Windows permanece normalmente encendida**. Ningún archivo de D1 productiva se ha exportado ni hay tareas programadas por estos cambios.
 
-## Separación de responsabilidades
+## Arquitectura definitiva propuesta
 
-- **Windows**: equipo custodio de la **clave privada** `age` y recuperación independiente; Ubuntu mediante WSL. Requiere almacenamiento cifrado y respaldo independiente de la clave. No guardar en OneDrive, Google Drive, repositorio ni chat.
-- **macOS**: posible ejecutor principal de exportación D1 y subida de **archivos ya cifrados**; sólo necesita la **clave pública** `AGE_RECIPIENT`. Se autentica a Cloudflare con un token de exportación guardado en Llavero, y a Google Drive con un remote de rclone protegido localmente.
-- La asignación es reversible, pero mantener el secreto de descifrado separado del equipo que exporta limita el daño si ese equipo se compromete. El equipo programado necesita estar encendido y tener sesión de usuario; launchd recupera tareas omitidas por reposo, no necesariamente por apagado.
+- **Windows (principal)**: Task Scheduler → PowerShell (token Cloudflare cifrado con DPAPI bajo el mismo usuario Windows) → Ubuntu/WSL (Wrangler fijo 4.151.2) → exportación SQL temporal → comprobación SQLite local → cifrado `age` con **clave pública** → rclone → carpeta privada de Drive. El respaldo cifrado también permanece localmente en WSL.
+- **macOS (recuperación y custodia)**: guarda **la clave privada** `age` fuera de Google Drive, GitHub y chats, bajo FileVault y con segunda custodia independiente. Puede descifrar y restaurar una copia en SQLite local con `herramientas/verificar-restauracion-d1-local.sh`.
+- **Drive**: `El Castaño · Respaldos D1 cifrados`, carpeta nueva ya creada en `administracion@basculaypension.com`. Metadatos comprobados: propietario único, no compartida, vacía. Su identificador sólo se utilizará en la configuración local de rclone; **no publicar en GitHub**.
+- **Separación de secretos**: Windows posee el token Cloudflare de exportación y **sólo la clave pública de cifrado**; macOS guarda la clave privada de recuperación. El remote rclone en Windows usa una autorización Google independiente guardada localmente. `root_folder_id` acota las rutas navegables por rclone, pero **no reduce por sí mismo el alcance del permiso OAuth**.
+- **Disponibilidad**: la tarea Windows usa el mismo usuario interactivo que protegió el token con DPAPI. Si la sesión se cierra, no se garantiza ejecución. Una tarea retrasada puede ejecutarse al volver a iniciar sesión, pero Windows debe estar encendida y WSL disponible.
 
-## 1. Preparación de Windows (en el ordenador, no en el chat)
+## Fase A — preparar Mac como custodio (requiere intervención del administrador)
 
-Desde **PowerShell como administrador**, si Ubuntu WSL aún no está instalado:
+En Terminal macOS:
+
+```bash
+brew install age sqlite git
+git clone https://github.com/adminelcastano/basculaypension-web.git
+cd basculaypension-web
+git fetch origin deuda-tecnica/fases-1-4-20261019
+git switch --track origin/deuda-tecnica/fases-1-4-20261019
+```
+
+Habilitar FileVault si el equipo todavía no lo usa y elegir una carpeta **local cifrada, no sincronizada en la nube**. Crear la clave de recuperación **sólo en esa Mac**:
+
+```bash
+export AGE_KEY_DIR="$HOME/Library/Application Support/ElCastano/Clave-D1"
+bash herramientas/preparar-clave-respaldo-local.sh
+```
+
+El programa muestra la **clave pública** `age1...`; es la única cadena que se llevará a Windows. Custodiar el archivo de clave **privada** en macOS, con una segunda copia protegida fuera de ambos equipos. Si se pierde la clave privada, no podrán recuperarse los respaldos cifrados.
+
+Para probar una restauración **local** más adelante, con el archivo cifrado y su manifiesto ya descargados en la Mac:
+
+```bash
+export AGE_KEY_FILE="$HOME/Library/Application Support/ElCastano/Clave-D1/d1-elcastano-age-key.txt"
+bash herramientas/verificar-restauracion-d1-local.sh "/ruta/segura/d1-AAAAMMDDTHHMMSSZ.sql.age"
+```
+
+**No ejecutar aún:** todas las pruebas se harán juntas al finalizar las correcciones.
+
+## Fase B — preparar Windows/Ubuntu WSL como ejecutor
+
+En PowerShell, si todavía no hay Ubuntu WSL:
 
 ```powershell
 wsl --install -d Ubuntu
 ```
 
-Reiniciar si Windows lo solicita y terminar la configuración de Ubuntu. Después, **en la terminal de Ubuntu/WSL**, instalar las herramientas:
+Reiniciar si lo solicita y configurar Ubuntu. Dentro de Ubuntu/WSL, instalar `age`, `sqlite3`, `rclone` y Git, además de Node.js **22 o superior** con `npx` disponible para el usuario WSL (con nvm, por ejemplo). La tarea carga `~/.nvm/nvm.sh` cuando necesita encontrar `npx`.
 
 ```bash
 sudo apt update
-sudo apt install -y age sqlite3 git
-```
-
-Obtener el repositorio y la rama preparada en la carpeta Linux del propio WSL, **no en /mnt/c si está sincronizado con OneDrive**:
-
-```bash
-git clone https://github.com/adminelcastano/basculaypension-web.git
-cd basculaypension-web
+sudo apt install -y age sqlite3 rclone git
+git clone https://github.com/adminelcastano/basculaypension-web.git "$HOME/basculaypension-web"
+cd "$HOME/basculaypension-web"
 git fetch origin deuda-tecnica/fases-1-4-20261019
 git switch --track origin/deuda-tecnica/fases-1-4-20261019
-```
-
-Antes de la primera ejecución real, crear una ubicación **privada y cifrada** de claves (con BitLocker/almacenamiento cifrado habilitado y copia independiente). Cuando el administrador confirme esa protección:
-
-```bash
-export AGE_KEY_DIR="$HOME/.local/share/elcastano-claves"
-bash herramientas/preparar-clave-respaldo-local.sh
-```
-
-La herramienta muestra exclusivamente el **destinatario PÚBLICO** `age1...`. Llevar sólo esa cadena al Mac. Conservar `d1-elcastano-age-key.txt` de forma segura en Windows y en una segunda custodia independiente, nunca en Drive. Si se pierde la clave privada, los respaldos cifrados serán irrecuperables.
-
-La comprobación posterior de descifrado/restauración **local**, tras crear el primer respaldo y descargar sus dos archivos a WSL, será:
-
-```bash
-export AGE_KEY_FILE="$HOME/.local/share/elcastano-claves/d1-elcastano-age-key.txt"
-bash herramientas/verificar-restauracion-d1-local.sh "/ruta/segura/d1-AAAAMMDDTHHMMSSZ.sql.age"
-```
-
-**No ejecutar todavía**: se hará al final, como parte de las pruebas conjuntas.
-
-## 2. Preparación de macOS
-
-Con Homebrew ya instalado en la Mac, estas dependencias son compatibles con los scripts:
-
-```bash
-brew install age rclone sqlite node git
-```
-
-Git y Bash también pueden estar instalados mediante herramientas de Apple. No hace falta instalar GNU coreutils: `respaldo-portable.sh` acepta `shasum` y `md5` nativos de macOS. El script local usa SQLite; no configura ninguna base de producción.
-
-Obtener la rama preparada:
-
-```bash
-git clone https://github.com/adminelcastano/basculaypension-web.git
-cd basculaypension-web
-git fetch origin deuda-tecnica/fases-1-4-20261019
-git switch --track origin/deuda-tecnica/fases-1-4-20261019
-```
-
-Crear la configuración **sin secretos**, usando únicamente la clave pública procedente de Windows:
-
-```bash
 mkdir -p "$HOME/.config/elcastano-d1"
 chmod 700 "$HOME/.config/elcastano-d1"
-cp herramientas/respaldo-macos.env.example "$HOME/.config/elcastano-d1/backup.env"
+cp herramientas/respaldo-wsl.env.example "$HOME/.config/elcastano-d1/backup.env"
 chmod 600 "$HOME/.config/elcastano-d1/backup.env"
 ```
 
-Editar personalmente `backup.env`, reemplazando `AGE_RECIPIENT` por la clave pública `age1...` y eligiendo `BACKUP_DEST` (carpeta local privada fuera del repositorio) y `BACKUP_DRIVE_REMOTE=castano-d1-backups:`. Mantener `BACKUP_ACTIVE="NO"` hasta haber terminado la prueba final conjunta; sólo entonces cambiarlo a `BACKUP_ACTIVE="SI"`. **Nunca** introducir la clave privada ni un token en ese archivo.
+Editar `backup.env` directamente dentro de WSL: `AGE_RECIPIENT` debe contener exclusivamente la **clave pública** que se creó en la Mac, `BACKUP_DEST` debe estar en almacenamiento Linux privado fuera del repositorio y `BACKUP_DRIVE_REMOTE=castano-d1-backups:`. Mantener **`BACKUP_ACTIVE="NO"`** hasta pruebas y autorización de publicación.
 
-En la Terminal del Mac, configurar un **token Cloudflare de permisos mínimos suficientes para exportar D1** en el Llavero (se solicita de forma interactiva, **no se imprime ni se pega en el chat**):
+Con `rclone config`, crear **en WSL** el remote `castano-d1-backups`, cuenta administrativa `administracion@basculaypension.com` y `root_folder_id` de la carpeta exclusiva de respaldos. El remote y su token OAuth se guardan **sólo en WSL**, con permisos restrictivos; no compartirlos ni importarlos a GitHub.
 
-```bash
-security add-generic-password -a "$USER" -s "elcastano-d1-backup" -w
+El token Cloudflare **no se guarda en WSL**. En Windows PowerShell 5.1, desde la misma cuenta Windows con que se ejecutará la tarea, preparar una credencial mínima de **exportación D1**:
+
+```powershell
+.\herramientas\preparar-credencial-d1-windows.ps1
 ```
 
-Comprobar en la configuración administrativa de Cloudflare que ese token puede exportar sólo la base autorizada. No reutilizar secretos de Workers ni colocarlos en un `.env` del proyecto.
+Se solicitará el valor de forma oculta y se cifrará mediante **DPAPI**, enlazado al usuario Windows; se guardará en `%LOCALAPPDATA%\ElCastano\D1\cf-export.dpapi`, con ACL privado. No pegar tokens en este chat ni incluirlos como argumentos. **No reutilizar secretos del Worker.** Si se cambia de cuenta Windows, el archivo DPAPI no puede descifrarse sin reprovisión.
 
-En la Mac, ejecutar **interactivamente** `rclone config` y crear `castano-d1-backups` de tipo `drive`, autenticando sólo la cuenta `administracion@basculaypension.com`. En opciones avanzadas, establecer **`root_folder_id` al ID de la carpeta exclusiva `El Castaño · Respaldos D1 cifrados`**. Obtenerlo de la URL de esa carpeta en tu Drive, sin colocarlo en GitHub.
+La tarea usa `herramientas/ejecutar-respaldo-d1-windows.ps1`, que recupera temporalmente la credencial protegida y la transmite únicamente al proceso hijo WSL mediante `WSLENV`, sin incluirla en la línea de comandos. Windows y ese usuario WSL pueden inspeccionar su propio entorno de proceso durante la ejecución; por ello sólo debe ejecutarse bajo cuentas de administración confiables.
 
-Importante: `root_folder_id` limita las rutas que navega rclone, **no reduce por sí mismo el alcance OAuth** concedido a Google Drive. Mantener el archivo `rclone.conf` bajo permisos privados del usuario y revisar los permisos durante la prueba final.
+## Fase C — prueba final conjunta y activación
 
-El ejecutor preparado es:
+No se ha ejecutado ningún script ni instalado tareas. **Tras aprobar todas las pruebas**, el administrador cambiará `BACKUP_ACTIVE="NO"` por `BACKUP_ACTIVE="SI"` en el archivo local de WSL y validará la ejecución controlada:
 
-```bash
-bash herramientas/ejecutar-respaldo-d1-macos.sh
+```powershell
+.\herramientas\ejecutar-respaldo-d1-windows.ps1
 ```
 
-Este comando **sí exportará D1 de producción cuando las credenciales estén instaladas**. No utilizarlo hasta la prueba final autorizada, después de verificar que las claves, los destinatarios y el remote corresponden a los recursos correctos.
+Este comando, una vez habilitado y autenticado, **sí exporta la D1 productiva**, cifra y sube archivos. Sólo realizarlo en la ventana final de validación acordada, después de cotejar base, cuenta, clave pública y carpeta.
 
-## 3. Programación diaria macOS (preparada, no activada)
+Cuando la exportación, envío e importación local independiente estén validados, se preparará el horario **local de Windows** decidido por administración, sin inventar horas:
 
-Una vez superadas las pruebas conjuntas y establecido el horario local de administración:
-
-```bash
-BACKUP_HOUR=HH BACKUP_MINUTE=MM bash herramientas/instalar-respaldo-d1-macos.sh
+```powershell
+.\herramientas\instalar-tarea-d1-windows.ps1 -Hora HH -Minuto MM -HabilitarTrasPruebas
 ```
 
-Sustituir `HH` y `MM` por la hora y minuto elegidos; no hay un horario impuesto. Crea `~/Library/LaunchAgents/com.elcastano.d1-backup.plist`, valida el formato y lo registra sin ejecutar inmediatamente. Los resultados sólo muestran estados no secretos en `~/Library/Logs/`.
+`HH` (0–23) y `MM` (0–59) son valores a sustituir. La tarea queda asociada al usuario Windows actual; no se instala si ya existe. Si Windows está apagada o no hay sesión, se puede retrasar o perder una copia. Registrar alertas por ausencia de respaldos y definir quién revisa el historial de Task Scheduler.
 
-**Advertencias:** un LaunchAgent de usuario necesita una sesión activa y que el Llavero autorice el acceso; si la Mac está apagada, la tarea puede perderse. Para garantizar respaldo diario deben revisarse tanto el uso real de ese equipo como las alertas y el estado del último respaldo, y considerar un ejecutor siempre encendido autorizado.
+**Mac como emergencia**: los ejecutores `ejecutar-respaldo-d1-macos.sh` y `instalar-respaldo-d1-macos.sh` permanecen como **alternativa opcional**, desactivada, nunca habilitada simultáneamente sin diseñar la coordinación. No duplicar programaciones por defecto.
 
-## 4. Criterios previos a la activación
+## Comprobaciones y medidas que faltan antes del primer respaldo real
 
-1. Clave privada custodiada y recuperable **fuera de la Mac y de Drive**.
-2. Clave pública `AGE_RECIPIENT` correcta en el Mac, probada con un archivo sintético.
-3. Token Cloudflare de exportación mínimo en Llavero; rclone con cuenta y `root_folder_id` verificados.
-4. Prueba SQL sintética y restauración independiente en Windows; comprobación remota de ambos archivos cifrados.
-5. Escoger equipo que esté encendido al horario elegido y aprobar retención, responsables y monitoreo.
-6. Sólo entonces habilitar la programación y revisar resultado del primer backup real. **No borrar respaldos automáticamente todavía.**
+1. Validar permisos del token Cloudflare para exportar sólo la D1 correcta.
+2. Probar que el remote OAuth de Google Drive sólo apunta a la carpeta de respaldos, y su custodia es privada.
+3. Generar y recuperar archivo **sintético**, probar SHA-256 y la restauración SQLite en macOS.
+4. Comprobar que Windows/WSL está disponible en el horario elegido, y que DPAPI se descifra bajo el usuario de la tarea.
+5. Definir alertas, política de retención (sin borrado automático todavía) y custodia redundante de la clave privada.
+6. Sólo entonces habilitar programación diaria y vigilar el primer respaldo cifrado real.
 
-Referencia: [age (proyecto oficial)](https://github.com/FiloSottile/age), [rclone Google Drive](https://rclone.org/drive/), [Cloudflare D1 export](https://developers.cloudflare.com/workers/wrangler/commands/d1/), [Apple launchd](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/ScheduledJobs.html).
+Referencias: [Microsoft WSLENV](https://learn.microsoft.com/windows/wsl/interop), [PowerShell DPAPI](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/convertfrom-securestring), [rclone Drive](https://rclone.org/drive/), [Cloudflare D1 export](https://developers.cloudflare.com/workers/wrangler/commands/d1/), [age](https://github.com/FiloSottile/age).
