@@ -644,9 +644,10 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
       env.DB.prepare(`DELETE FROM agenda_pagos WHERE id = ? AND fecha = ? AND importe = ? AND forma = ?
         AND COALESCE(cuenta, '') = ? AND COALESCE(nota, '') = ?
         AND COALESCE(titulo, '') = ? AND COALESCE(categoria, '') = ?
+        AND COALESCE(comprobante, '') = ?
         AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id = agenda_pagos.gasto_id))`)
         .bind(pago.id, pago.fecha, pago.importe, pago.forma, pago.cuenta || "", pago.nota || "",
-          pago.titulo || "", pago.categoria || ""),
+          pago.titulo || "", pago.categoria || "", pago.comprobante || ""),
       stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar",
         que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id,
         mes: pago.fecha.slice(0, 7),
