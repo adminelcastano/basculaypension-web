@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { cajaPanel, asegurarEsquemaCaja } from "../src/caja.js";
+import { asegurarEsquemaCategorias } from "../src/categorias.js";
 
 const hoy = new Intl.DateTimeFormat("en-CA", {timeZone:"America/Mexico_City"}).format(new Date());
 const mes = hoy.slice(0, 7);
@@ -60,6 +61,8 @@ test("Dos sesiones anulan una vez; la entrada tardía recalcula importe y estado
   const env = adaptar(db);
   try {
     await asegurarEsquemaCaja(env);
+    // Preparar migraciones de categorías antes de iniciar dos rutas en paralelo.
+    await asegurarEsquemaCategorias(env);
     const ahora = new Date().toISOString();
     const pendiente = (id, monto, estado) =>
       db.prepare("INSERT INTO caja_pendientes (id,servicio,fecha,dia,turno,folio,monto,mes,estado,actualizado) VALUES (?,'bascula',?,?,'MAÑANA',?,?,?,?,?)")
