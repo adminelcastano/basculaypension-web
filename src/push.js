@@ -113,6 +113,7 @@ export function datosPush(destino, msg = {}) {
 
 // Mensaje: { titulo, cuerpo, url, etiqueta, grave }. Devuelve cuántos aparatos lo recibieron.
 export async function enviarPush(env, destino, msg) {
+  if (env && env.ENSAYO_AUDITORIA === "1") return 0; // Sin salidas Web Push externas en auditoría.
   await asegurarEsquemaPush(env);
   const subs = (await env.DB.prepare("SELECT * FROM push_subs WHERE destino = ?").bind(destino).all()).results;
   if (!subs.length) return 0;
