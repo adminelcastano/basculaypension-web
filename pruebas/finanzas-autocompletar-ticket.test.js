@@ -35,6 +35,20 @@ test("Nombre escrito manualmente no se reemplaza al cambiar de ticket",()=>{
   assert.equal(ft.fecha.value,"2026-10-16");
   assert.ok(!ft.dataset.ticketCliente);
 });
+test("Cambiar de ticket conserva importe y fecha editados manualmente",()=>{
+  const {ft,elegir}=formulario();
+  elegir("bascula:A",{cli:"Cliente A",imp:"100.50",f:"2026-10-18"});
+  ft.importe.value="105.25";
+  ft.fecha.value="2026-10-17";
+  elegir("pension:B",{cli:"Cliente B",imp:"210.00",f:"2026-10-16"});
+  assert.deepEqual([ft.cliente.value,ft.importe.value,ft.fecha.value],
+    ["Cliente B","105.25","2026-10-17"]);
+  assert.equal(ft.dataset.ticketImporte,undefined);
+  assert.equal(ft.dataset.ticketFecha,undefined);
+  elegir("");
+  assert.deepEqual([ft.cliente.value,ft.importe.value,ft.fecha.value],
+    ["","105.25","2026-10-17"]);
+});
 test("Volver a Sin ticket retira importes/fechas automáticos y respeta valores manuales",()=>{
   const {ft,elegir}=formulario();
   elegir("bascula:A",{cli:"Cliente A",imp:"100.50",f:"2026-10-18"});
