@@ -141,3 +141,71 @@ test("Se conserva la protección contra borrar aportes automáticos fuera del in
   for (const [,s] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
     if (s.trim()) assert.doesNotThrow(() => new Function(s.replace("/*__INTERPRETAR__*/","")));
 });
+
+test("Dos tabletas con fondos distintos: gana una sin mezclar sobres ni auditoría",async()=>{
+  const sqlite=new DatabaseSync(":memory:");
+  const stmt=(sql,args=[])=>({
+    sql,args,bind(...v){return stmt(sql,v)},
+    async first(){return sqlite.prepare(sql).get(...args)??null},
+    async all(){return {results:sqlite.prepare(sql).all(...args)}},
+    async run(){const z=sqlite.prepare(sql).run(...args);return {meta:{changes:Number(z.changes||0)}}}
+  });
+  const env={DB:{
+    prepare:sql=>stmt(sql),
+    async batch(list){
+      sqlite.exec("BEGIN IMMEDIATE");
+      try{
+        const resultado=list.map(x=>{
+          const z=sqlite.prepare(x.sql).run(...x.args);
+          return {meta:{changes:Number(z.changes||0)}};
+        });
+        sqlite.exec("COMMIT");
+        return resultado;
+      }catch(e){sqlite.exec("ROLLBACK");throw e}
+    }
+  }};
+  try{
+    await asegurarEsquemaCaja(env);
+    const ejecutar=env.DB.batch;
+    let esperas=0,continuar;
+    const barrera=new Promise(resolve=>continuar=resolve);
+    env.DB.batch=async statements=>{
+      if(++esperas===2)continuar();
+      await barrera;
+      return ejecutar(statements);
+    };
+    const opciones={dia,turno,persona};
+    const respuestas=await Promise.allSettled([
+      guardarCambioInicio(env,{...opciones,recibido:90,aumento:20}),
+      guardarCambioInicio(env,{...opciones,recibido:75,aumento:35})
+    ]);
+    assert.equal(esperas,2);
+    assert.deepEqual(respuestas.map(x=>x.status).sort(),["fulfilled","rejected"]);
+    const rechazado=respuestas.find(x=>x.status==="rejected").reason;
+    assert.equal(rechazado.code,"INICIO_OBSOLETO");
+    const elegido=respuestas.find(x=>x.status==="fulfilled").value;
+    const guardado=sqlite.prepare("SELECT cambio FROM turno_inicio WHERE dia=? AND turno=?").get(dia,turno);
+    const aporte=sqlite.prepare("SELECT monto FROM caja_extra WHERE id=?").get(idAumentoInicio(dia,turno));
+    assert.equal(guardado.cambio,elegido.cambio);
+    assert.equal(aporte.monto,elegido.aumento);
+    assert.equal(elegido.total,110);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,1);
+
+    env.DB.batch=ejecutar;
+    // Otra pestaña reenvía exactamente lo guardado: no duplica la bitácora.
+    await guardarCambioInicio(env,{...opciones,recibido:elegido.cambio,aumento:elegido.aumento});
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,1);
+
+    // El corte ya se entregó: ni siquiera una edición directa atrasada aplica.
+    const now=new Date().toISOString();
+    sqlite.prepare("INSERT INTO turno_cortes(dia,turno,mes,persona,efectivo,creado,actualizado) VALUES(?,?,?,?,?,?,?)")
+      .run(dia,turno,dia.slice(0,7),persona,110,now,now);
+    await assert.rejects(
+      ()=>guardarCambioInicio(env,{...opciones,recibido:100,aumento:10}),
+      e=>e.code==="INICIO_OBSOLETO"
+    );
+    assert.equal(sqlite.prepare("SELECT cambio FROM turno_inicio WHERE dia=? AND turno=?").get(dia,turno).cambio,elegido.cambio);
+    assert.equal(sqlite.prepare("SELECT monto FROM caja_extra WHERE id=?").get(idAumentoInicio(dia,turno)).monto,elegido.aumento);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cambio al inicio de turno'").get().n,1);
+  }finally{sqlite.close()}
+});
