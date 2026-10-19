@@ -280,8 +280,14 @@ export async function leerHoja(env, mes) {
     throw new Error("La hoja devolvió datos incompletos; se conservan los registros anteriores.");
   if (d.mes !== mes)
     throw new Error("La hoja devolvió un mes diferente; se conservan los registros anteriores.");
+  const fechaHojaValida = v => {
+    const t = String(v || "");
+    const m = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.exec(t);
+    return !!m && Number.isFinite(Date.parse(m[1] + "T12:00:00Z")) &&
+      new Date(m[1] + "T12:00:00Z").toISOString().slice(0, 10) === m[1];
+  };
   if ([...d.bascula, ...d.pension].some(x => !x || typeof x !== "object" ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(x.fecha || "")) ||
+      !fechaHojaValida(x.fecha) ||
       x.fecha.slice(0, 7) !== mes))
     throw new Error("La hoja devolvió movimientos inválidos; se conservan los registros anteriores.");
   const importeHojaValido = v => {
