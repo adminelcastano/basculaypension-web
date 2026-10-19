@@ -1033,7 +1033,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         stmtQuitarHistorialCompra(env, id),
         stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: id, mes: g ? g.mes : null, detalle: g ? { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } : { concepto: fila.titulo } }));
     }
+    const actualizarEstado = env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para), repetir=? WHERE id=?`)
+      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, d.repetir, id);
     if (junto.length) {
+      // Compra individual: el gasto, su historial, bitácora y el estado del
+      // artículo deben confirmarse o revertirse como UNA operación de D1.
+      junto.push(actualizarEstado);
       try { await env.DB.batch(junto); }
       catch (er) {
         if (errorBancoEnEscritura(er)) return conflictoBanco();
@@ -1041,9 +1046,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
           return json({ok:false,error:"Esta compra ya fue registrada por otra sesión. Actualiza la lista antes de repetirla."},409);
         throw er;
       }
+    } else {
+      await actualizarEstado.run();
     }
-    await env.DB.prepare(`UPDATE agenda_items SET titulo=?, detalle=?, fecha=?, hora=?, estado=?, prioridad=?, cantidad=?, turno=?, gravedad=?, actualizado=?, cerrado=?, aviso=?, avisado=?, para_turno=?, area=?, hecho_por=?, para=COALESCE(?, para), repetir=? WHERE id=?`)
-      .bind(d.titulo, d.detalle, d.fecha, d.hora, d.estado, d.prioridad, d.cantidad, d.turno, d.gravedad, ahora, cerradoAhora ? (fila.cerrado || ahora) : null, d.aviso, reprogramar ? null : fila.avisado, d.para_turno, d.area, cerradoAhora ? fila.hecho_por : null, fila.tipo === "aviso" && "para" in c ? d.para : null, d.repetir, id).run();
     if (fila.tipo === "tarea" && d.estado === "hecho" && fila.estado !== "hecho") await repetirTarea(env, id, ahora);
     // Historial del aviso: archivar / reactivar y cambios del texto o de los destinatarios
     if (fila.tipo === "aviso") {
