@@ -369,3 +369,17 @@ test("Dinero: ayudas de pagos hechas desplegables sin frases recortadas en móvi
   assert.match(css,/\.f-guia-saldos > summary/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Dinero: diferencias, sueldos y reportes mantienen ayudas completas en móvil",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const css=source("../src/panel/estilos.css");
+  for(const titulo of [
+    "¿Cómo se calculan las diferencias de caja?",
+    "¿Qué incluyen los sueldos del mes?",
+    "¿Qué contienen los reportes mensuales?"
+  ]) assert.ok(ui.includes("<summary>"+titulo+"</summary>"),titulo);
+  assert.match(ui,/data-nl="1">Aquí puedes consultar quién registró/);
+  assert.match(ui,/data-nl="1".*?Una cuenta puede cumplir los tres usos/);
+  assert.match(css,/\.f-guia-saldos > summary/);
+  assert.doesNotThrow(()=>new Function(ui));
+});
