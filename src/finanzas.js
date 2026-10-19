@@ -289,7 +289,8 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     const d = await datosFinanzas(env, mes);
     // Mostrar la frescura real de la fuente: una cifra de hoy puede proceder de
     // la última sincronización de Google, no de una lectura en vivo.
-    d.sync = await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
+    d.ensayo_finanzas = env.ENSAYO_FINANZAS === "1";
+    d.sync = d.ensayo_finanzas ? null : await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
     delete d.cortes; delete d.gastos_caja;
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
