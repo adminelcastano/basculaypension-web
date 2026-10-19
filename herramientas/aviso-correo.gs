@@ -12,12 +12,14 @@
  *
  * TOKEN: cópialo igual en Cloudflare como secreto AVISO_TOKEN.
  */
-const TOKEN = 'PEGA_AQUI_EL_TOKEN';
+// Mismo valor configurado en Cloudflare; nunca incluirlo en Git ni en logs.
+const TOKEN = () => PropertiesService.getScriptProperties().getProperty('AVISO_TOKEN');
 
 function doPost(e) {
   let datos = {};
   try { datos = JSON.parse(e.postData.contents); } catch (err) { return respuesta('error'); }
-  if (!datos.token || datos.token !== TOKEN) return respuesta('no autorizado');
+  const tokenActual = TOKEN();
+  if (!tokenActual || !datos.token || datos.token !== tokenActual) return respuesta('no autorizado');
   if (datos.accion === 'archivos') {
     try { return json(archivos(datos)); } catch (err) { return json({ ok: false, error: String(err && err.message || err).slice(0, 200) }); }
   }
@@ -210,12 +212,36 @@ function dentroDeRaiz(archivo) {
   return false;
 }
 
-/** Ejecuta esta función una vez desde el editor para autorizar correo y Drive. */
+/**
+ * Verificación no destructiva; nunca envía correos, crea hojas ni borra archivos.
+ * El token solo se verifica como presente y nunca se imprime.
+ */
 function probar() {
-  raizArchivos('El Castaño · Archivos del panel');
-  DriveApp.getFolderById(CARPETA_COLABORADORES).getName();
-  DriveApp.getFolderById(CARPETA_EXTERNOS).getName();
-  Object.keys(CARPETAS_REPORTES).forEach(function (k) { DriveApp.getFolderById(CARPETAS_REPORTES[k]).getName(); });
-  SpreadsheetApp.getActiveSpreadsheet(); // pide el permiso de Google Sheets
-  GmailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'Prueba de aviso · El Castaño', 'Si recibes esto, el aviso de solicitudes y la carpeta de Drive están listos.');
+  const resultados = [];
+  const verificar = (nombre, id) => {
+    try {
+      const carpeta = DriveApp.getFolderById(id);
+      resultados.push(nombre + ': ' + (carpeta.isTrashed() ? 'ERROR' : 'OK'));
+    } catch {
+      resultados.push(nombre + ': ERROR');
+    }
+  };
+  resultados.push('AVISO_TOKEN: ' + (TOKEN() ? 'CONFIGURADO' : 'FALTA'));
+  verificar('COLABORADORES', CARPETA_COLABORADORES);
+  verificar('EXTERNOS', CARPETA_EXTERNOS);
+  verificar('TURNOS', CARPETAS_REPORTES.turnos);
+  verificar('ADMIN FINANZAS', CARPETAS_REPORTES.finanzas);
+  verificar('FACTURACION', CARPETAS_REPORTES.facturacion);
+  try {
+    resultados.push('ARCHIVOS DEL PANEL: ' +
+      (DriveApp.getFoldersByName('El Castaño · Archivos del panel').hasNext() ? 'OK' : 'NO ENCONTRADO'));
+  } catch { resultados.push('ARCHIVOS DEL PANEL: ERROR'); }
+  try {
+    const carpeta = DriveApp.getFolderById(CARPETAS_REPORTES.finanzas);
+    const hojas = carpeta.getFilesByName('Finanzas 2026-10 · El Castaño');
+    if (!hojas.hasNext()) throw new Error('Hoja no encontrada');
+    SpreadsheetApp.openById(hojas.next().getId()).getSheets();
+    resultados.push('GOOGLE SHEETS: OK');
+  } catch { resultados.push('GOOGLE SHEETS: ERROR'); }
+  resultados.forEach(x => Logger.log(x));
 }
