@@ -163,3 +163,33 @@ test("Anular el último pago programado restituye el vencimiento y suprime su eg
   assert.equal(db.prepare("SELECT fecha FROM agenda_items WHERE id='ensayo-programado'").get().fecha,fechaAnterior);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(p.id).n,1);
 });
+
+test("Regresar un ticket comprado devuelve artículos a pendiente y retira su gasto",async()=>{
+  const {db,env}=shared;
+  for(const id of ["ensayo-revertir-a","ensayo-revertir-b"]){
+    db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES(?,'compra',?,'pendiente',?)")
+      .run(id,"Artículo ficticio "+id,"2026-10-18T00:00:00Z");
+  }
+  const datos={ids:["ensayo-revertir-a","ensayo-revertir-b"],total:"120",
+    precios:{"ensayo-revertir-a":"50","ensayo-revertir-b":"70"},
+    forma:"C:bbva-pyme",fecha_compra:hoy,uid:"cc000005-2222-4333-8444-555555555555"};
+  const registrado=await post(env,"compras/terminar",datos);
+  assert.equal(registrado.status,200,JSON.stringify(registrado));
+  const gastoId=registrado.data.gasto_id;
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(gastoId).n,2);
+  const deshacer=await post(env,"compras/regresar-ticket",{gasto_id:gastoId});
+  assert.equal(deshacer.status,200,JSON.stringify(deshacer));
+  assert.equal(deshacer.data.n,2);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(gastoId).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(gastoId).n,0);
+  const filas=db.prepare("SELECT estado,gasto_id,importe FROM agenda_items WHERE id IN (?,?)")
+    .all(...datos.ids);
+  assert.equal(filas.length,2);
+  assert.ok(filas.every(x=>x.estado==="pendiente"&&x.gasto_id===null&&x.importe===null));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(gastoId).n,1);
+  const nuevo=await post(env,"compras/terminar",{...datos,uid:"cc000006-2222-4333-8444-555555555555"});
+  assert.equal(nuevo.status,200,JSON.stringify(nuevo));
+  assert.notEqual(nuevo.data.gasto_id,gastoId);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(nuevo.data.gasto_id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(nuevo.data.gasto_id).n,2);
+});
