@@ -344,7 +344,9 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (t === "") {
       if (!antes) return json({ok:true,sin_cambios:true});
       const resultado = await env.DB.batch([
-        env.DB.prepare("DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ? AND saldo = ?").bind(mes, cuenta, antes.saldo),
+        env.DB.prepare(`DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ? AND saldo = ?
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')`)
+          .bind(mes, cuenta, antes.saldo, mes),
         log(null)
       ]);
       if (!resultado[0]?.meta?.changes)
@@ -360,10 +362,12 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     const resultado = await env.DB.batch([
       env.DB.prepare(`INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado)
         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')
         ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado
         WHERE fin_saldos_cuenta.saldo = ?
-          AND EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)`)
-        .bind(mes, cuenta, saldo, ahora, cuenta, antes ? antes.saldo : null, cuenta),
+          AND EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = excluded.mes AND token LIKE 'cerrado:%')`)
+        .bind(mes, cuenta, saldo, ahora, cuenta, mes, antes ? antes.saldo : null, cuenta),
       log(saldo)
     ]);
     if (!resultado[0]?.meta?.changes)
@@ -429,6 +433,8 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     // Una eliminación concurrente se detecta también en la propia escritura.
     condiciones.push("NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ?)");
     args.push(id, TIPOS_MOV[tipo]);
+    condiciones.push("NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')");
+    args.push(fecha.slice(0, 7));
     const sql = `INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por)
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`;
     try {
@@ -452,7 +458,9 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (!m) return json({ ok: true, borrados: 0 });
     if (!abiertos.includes(m.mes)) return json({ ok: false, error: "Ese movimiento es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const resultado = await env.DB.batch([
-      env.DB.prepare("DELETE FROM fin_movs WHERE id = ? AND mes = ?").bind(m.id, m.mes),
+      env.DB.prepare(`DELETE FROM fin_movs WHERE id = ? AND mes = ?
+        AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = fin_movs.mes AND token LIKE 'cerrado:%')`)
+        .bind(m.id, m.mes),
       stmtBitacoraSiCambio(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
     ]);
     return json({ ok: true, borrados: Number(resultado[0]?.meta?.changes || 0) });
