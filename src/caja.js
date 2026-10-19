@@ -284,19 +284,35 @@ export async function leerHoja(env, mes) {
       !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(x.fecha || "")) ||
       x.fecha.slice(0, 7) !== mes))
     throw new Error("La hoja devolvió movimientos inválidos; se conservan los registros anteriores.");
+  const importeHojaValido = v => {
+    const t = String(v ?? "").toUpperCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/[$,\s]/g, "");
+    return /^(?:MENOS|-|−)?\d{1,9}(?:\.\d{1,2})?$/.test(t) && Number.isFinite(numero(v))
+      && Math.abs(numero(v)) <= 100000000;
+  };
   const limpiar = (lista, servicio) => lista.map(x => {
     const turno = normTurno(x.turno);
     const fecha = texto(x.fecha, 19);
     const folio = texto(x.folio, 60);
+    const tipo = /^\s*\d/.test(folio) ? "ticket" : "caja";
+    const pendiente = x.pendiente === true || /^PENDIENTE\s+DE\s+PAGO\b/i.test(String(x.importe || ""));
+    // Un importe mal formado nunca puede convertirse silenciosamente en $0,
+    // borrando el cobro original de la hoja. Conservar el mes y alertar.
+    const vacio = x.importe == null || String(x.importe).trim() === "";
+    if (!pendiente && (tipo === "ticket" || !vacio) && !importeHojaValido(x.importe))
+      throw new Error("La hoja contiene un importe no válido: se conservaron los tickets anteriores.");
+    if (pendiente && x.monto_pendiente != null && String(x.monto_pendiente).trim() !== "" &&
+        !importeHojaValido(x.monto_pendiente))
+      throw new Error("La hoja contiene un pendiente con importe no válido: se conservaron los tickets anteriores.");
     return {
       // Sin folio numérico es un movimiento de caja (cambio, retiro, sueldo, compra), no un ticket
-      tipo: /^\s*\d/.test(folio) ? "ticket" : "caja",
+      tipo,
       servicio, fecha, turno: turno || "SIN TURNO", dia: diaDelCorte(fecha, turno) || fecha.slice(0, 10),
       folio: folio.slice(0, 40), matricula: texto(x.matricula, 20).toUpperCase(), cliente: texto(x.cliente, 80),
-      importe: x.pendiente === true ? 0 : numero(x.importe),
+      importe: pendiente ? 0 : numero(x.importe),
       forma: normForma(x.forma) || "SIN FORMA",
-      pendiente: x.pendiente === true || /^PENDIENTE\s+DE\s+PAGO\b/i.test(String(x.importe || "")),
-      monto_pendiente: Number(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\s+DE\s+PAGO\s*\$?\s*([\d,.]+)/i)
+      pendiente,
+      monto_pendiente: numero(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\s+DE\s+PAGO\s*\$?\s*([\d,.]+)/i)
         ? numero(String(x.importe).replace(/^PENDIENTE\s+DE\s+PAGO\s*/i, "")) : 0)
     };
   }).filter(x => /^\d{4}-\d{2}-\d{2}T/.test(x.fecha));
