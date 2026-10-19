@@ -20,6 +20,14 @@ export function stmtBitacora(env, { quien, accion, que, ref = null, mes = null, 
     .bind(new Date().toISOString(), quien || null, accion, que, ref, mes, d);
 }
 
+// Usar inmediatamente después de una escritura condicional, en el mismo
+// D1.batch: evita registrar en la bitácora cambios que rechazó la condición.
+export function stmtBitacoraSiCambio(env, { quien, accion, que, ref = null, mes = null, detalle = null }) {
+  const d = detalle == null ? null : JSON.stringify(detalle).slice(0, 2000);
+  return env.DB.prepare("INSERT INTO fin_bitacora (cuando, quien, accion, que, ref, mes, detalle) SELECT ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0")
+    .bind(new Date().toISOString(), quien || null, accion, que, ref, mes, d);
+}
+
 export async function listaBitacora(env, limite = 100) {
   await asegurarEsquemaBitacora(env);
   const filas = (await env.DB.prepare("SELECT * FROM fin_bitacora ORDER BY id DESC LIMIT ?").bind(limite).all()).results;

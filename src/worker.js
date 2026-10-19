@@ -55,6 +55,25 @@ export default {
     // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
     env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
+    if (env.ENSAYO_FINANZAS === "1" && [
+      env.INGRESOS_URL, env.INGRESOS_TOKEN, env.AVISO_URL, env.AVISO_TOKEN,
+      env.CF_API_TOKEN, env.SENDGRID_API_KEY, env.RESEND_API_KEY,
+      env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REFRESH_TOKEN
+    ].some(Boolean)) {
+      return json({ok:false,error:"Configuración insegura del ensayo: hay servicios externos activos."},503);
+    }
+    // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
+    // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
+    // variable explícita del Worker aislado (ausente en producción).
+    if (env.ENSAYO_FINANZAS === "1") {
+      const ruta = url.pathname;
+      if (ruta.startsWith("/api/") || ruta.startsWith("/expediente/") ||
+          ruta === "/turno" || ruta.startsWith("/turno/") ||
+          (request.method !== "GET" && request.method !== "HEAD" &&
+           !ruta.startsWith("/panel/api/"))) {
+        return json({ok:false,error:"Ruta no habilitada en el ensayo financiero."},403);
+      }
+    }
     try {
       // Modo ahorro (consumo cerca del límite incluido): se pausan los formularios públicos
       if (request.method === "POST" && (url.pathname === "/api/solicitud" || url.pathname === "/api/revisar-ticket" || url.pathname.startsWith("/api/expediente/")) && await enAhorro(env))
@@ -73,6 +92,9 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    // Nunca procesar tareas ni sincronizaciones si se disparara accidentalmente
+    // una ejecución programada del Worker de ensayo.
+    if (env.ENSAYO_FINANZAS === "1") return;
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") {
@@ -410,8 +432,19 @@ async function panel(request, env, url) {
   }
 
   const ruta = url.pathname.replace(/\/+$/, "") || "/panel";
+  if (env.ENSAYO_FINANZAS === "1" && ruta === "/panel/api/ensayo/estado" && request.method === "GET") {
+    const esquema = await env.DB.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").first();
+    const kv = await env.FILES.get("ensayo:finanzas:prueba-kv-20261018", {type:"json"});
+    return json({ok:true,entorno:"FINANZAS_INTEGRAL_ENSAYO",tablas:Number(esquema?.total||0),kv_aislada:kv?.entorno==="KV-FINANZAS-ENSAYO",servicios_productivos:false});
+  }
   if (ruta === "/panel" && request.method === "GET") {
-    return new Response(await paginaPanel(), { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
+    let documento = await paginaPanel();
+    if (env.ENSAYO_FINANZAS === "1") {
+      // Señal permanente: nunca confundir un ensayo sintético con las cifras reales.
+      const aviso = '<div role="status" style="background:#fef3c7;color:#663c00;padding:12px 16px;text-align:center;font:700 15px system-ui,sans-serif;position:relative;z-index:9999">ENTORNO DE ENSAYO FINANCIERO · SOLO DATOS SINTÉTICOS · NO ES PRODUCCIÓN</div>';
+      documento = documento.replace(/<body>/, "<body>" + aviso);
+    }
+    return new Response(documento, { headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() } });
   }
   // Estilos y código del panel (con versión en la URL, se guardan en el navegador)
   if (request.method === "GET") { const r = await recursoPanel(ruta, url); if (r) return r; }
@@ -434,6 +467,19 @@ async function rutasPanel(request, env, url, usuario) {
   const ruta = url.pathname.replace(/\/+$/, "");
   await asegurarEsquema(env);
   const partes = ruta.split("/").slice(3); // tras /panel/api/
+
+  // En el ensayo: ningún formulario ajeno al flujo financiero puede escribir.
+  if (env.ENSAYO_FINANZAS === "1" && request.method !== "GET" && request.method !== "HEAD") {
+    const financiero = ["finanzas", "caja", "categorias"].includes(partes[0]);
+    const agendaDinero = partes[0] === "agenda" && (
+      partes[1] === "pagos" || partes[1] === "compras" ||
+      (partes.length === 3 && partes[2] === "pagar") ||
+      (partes.length === 3 && partes[2] === "lugar") ||
+      (partes.length === 3 && partes[2] === "posponer")
+    );
+    if (!financiero && !agendaDinero)
+      return json({ok:false,error:"Solo se permiten operaciones financieras sintéticas en el ensayo."},403);
+  }
 
   if (partes[0] === "yo") return json({ ok: true, email: usuario.email });
   if (partes[0] === "perfil-admin") return await rutaPerfilAdmin(request, env, partes[1] || "");

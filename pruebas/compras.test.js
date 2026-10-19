@@ -26,3 +26,12 @@ test("memoria: veces, último lugar y último precio conocido", () => {
   assert.equal(m[0].ultimo.fecha, "2026-10-10"); assert.equal(m[0].precio.importe, 950);
   assert.equal(normCompra("  Tóner  Negro "), "toner negro");
 });
+
+test("ticket: el desglose nunca supera ni contradice el total, con centavos exactos", () => {
+  assert.match(cuentasTicket(["a", "b"], "150", {a:"100",b:"60"}).error,/superan el total/);
+  assert.match(cuentasTicket(["a", "b"], "200", {a:"100",b:"60"}).error,/no coincide/);
+  assert.match(cuentasTicket(["a", "b"], "100", {a:"100.01"}).error,/superan el total/);
+  assert.deepEqual(cuentasTicket(["a", "b"], "100.30", {a:"51.15",b:"49.15"}),
+    {total:100.30,precios:{a:51.15,b:49.15}});
+  assert.deepEqual(cuentasTicket(["a", "b"], "200", {a:"60"}),{total:200,precios:{a:60}});
+});

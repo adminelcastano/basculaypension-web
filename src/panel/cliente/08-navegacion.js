@@ -168,7 +168,14 @@
   const arriba = document.getElementById("arriba");
   let fuente = document.scrollingElement;
   const alto = el => el === document.scrollingElement ? innerHeight : el.clientHeight;
-  function revisar() { arriba.classList.toggle("on", !!fuente && fuente.scrollTop > alto(fuente) * 1.2); }
+  function revisar() {
+    // En Dinero, la flecha flotante tapa importes y botones del formulario
+    // en teléfonos. El scroll normal permanece disponible.
+    const finanzasPequeno = matchMedia("(max-width: 820px)").matches &&
+      !document.getElementById("mod-finanzas")?.hidden;
+    arriba.classList.toggle("on",
+      !finanzasPequeno && !!fuente && fuente.scrollTop > alto(fuente) * 1.2);
+  }
   document.addEventListener("scroll", e => {
     const el = e.target === document ? document.scrollingElement : e.target;
     if (!(el instanceof Element) || !(el === document.scrollingElement || el.matches(".list, .detail, .ag, #mod-inicio"))) return;

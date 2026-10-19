@@ -9,7 +9,8 @@ import { asegurarEsquemaCaja, leerMes, calcularCortes, unirConteos, totalesMes, 
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from "./categorias.js";
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
-import { asegurarEsquemaBitacora, stmtBitacora, listaBitacora, ACCIONES } from "./bitacora.js";
+import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES } from "./bitacora.js";
+import { centavosIguales } from "./finanzas-idempotencia.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -39,18 +40,26 @@ export async function asegurarEsquemaFinanzas(env) {
 }
 
 // Qué es cada gasto de la administración: pago programado, pago sin programar, compra u otro
-async function clasificarAdmin(env, gastos) {
+export async function clasificarAdmin(env, gastos) {
   if (!gastos.length) return [];
   const ids = gastos.map(g => g.id), pagos = new Map(), compras = new Map();
   for (let i = 0; i < ids.length; i += 90) {
     const l = ids.slice(i, i + 90), q = l.map(() => "?").join(",");
     for (const p of (await env.DB.prepare(`SELECT p.id, p.gasto_id, p.item_id, p.nota, p.comprobante, COALESCE(p.titulo, i.titulo) AS titulo FROM agenda_pagos p LEFT JOIN agenda_items i ON i.id = p.item_id WHERE p.gasto_id IN (${q})`).bind(...l).all()).results) pagos.set(p.gasto_id, p);
-    for (const c of (await env.DB.prepare(`SELECT id, gasto_id, titulo, cantidad FROM agenda_items WHERE tipo = 'compra' AND gasto_id IN (${q})`).bind(...l).all()).results) compras.set(c.gasto_id, c);
+    for (const c of (await env.DB.prepare(`SELECT id, gasto_id, titulo, cantidad FROM agenda_items WHERE tipo = 'compra' AND gasto_id IN (${q})`).bind(...l).all()).results) {
+      if (!compras.has(c.gasto_id)) compras.set(c.gasto_id, []);
+      compras.get(c.gasto_id).push(c);
+    }
   }
   return gastos.map(g => {
     const p = pagos.get(g.id), c = compras.get(g.id);
     const cat = p ? (p.item_id ? "programado" : "no_programado") : c ? "compra" : "otro";
-    const concepto = p ? p.titulo || g.concepto : c ? c.titulo + (c.cantidad ? ` (${c.cantidad})` : "") : g.concepto;
+    // Un egreso puede corresponder a VARIOS artículos comprados con un solo ticket.
+    // Mostrar un artículo aislado con el total completo es engañoso.
+    const concepto = p ? p.titulo || g.concepto : c
+      ? c.length === 1 ? c[0].titulo + (c[0].cantidad ? ` (${c[0].cantidad})` : "")
+        : (g.concepto || `Compra agrupada (${c.length} artículos)`)
+      : g.concepto;
     return { id: g.id, mes: g.mes, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cuenta: g.cuenta || null, cat, categoria: g.categoria || "Otros", nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
   });
 }
@@ -229,7 +238,10 @@ export async function datosFinanzas(env, mes) {
     movs: (await env.DB.prepare("SELECT * FROM fin_movs WHERE mes = ? ORDER BY fecha DESC, creado DESC").bind(mes).all()).results.map(m => ({ ...m, tipo_txt: TIPOS_MOV[m.tipo] || m.tipo, origen_txt: nomCuenta(m.origen), destino_txt: nomCuenta(m.destino) })),
     // Totales de las cuentas que ya tienen saldo (las que no, se listan en faltan_saldo)
     dinero: deb.some(c => c.saldo != null) ? r2(deb.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
+    dinero_parcial: deb.some(c => c.saldo == null),
+    conciliaciones_pendientes: tr.alertas.length,
     deuda: cred.some(c => c.saldo != null) ? r2(cred.reduce((a, c) => a + (c.saldo || 0), 0)) : null,
+    deuda_parcial: cred.some(c => c.saldo == null),
     faltan_saldo: [...deb, ...cred].filter(c => c.saldo == null).map(c => c.nombre)
   };
 
@@ -262,7 +274,8 @@ export async function datosFinanzas(env, mes) {
   return {
     mes, por_categoria: porCategoria, ingresos, egresos, resultado: r2(ingresos.total - egresos.total), efectivo, banco, admin, retiros,
     diferencias: dif, cobros_admin: cobrosAdmin, sueldos: resumenSueldos(gastosCaja, retiros, admin), renglones_hoja: hoja,
-    gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles, por_dia: porDia, cortes
+    gastos_caja: gastos, transferencias: transf, transf_hoja: tr.hoja, transf_posibles: tr.posibles,
+    conciliacion_alertas: tr.alertas, por_dia: porDia, cortes
   };
 }
 
@@ -277,6 +290,10 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
   if (partes.length === 1 && request.method === "GET") {
     const mes = RE_MES.test(url.searchParams.get("mes") || "") && meses.includes(url.searchParams.get("mes")) ? url.searchParams.get("mes") : meses[0];
     const d = await datosFinanzas(env, mes);
+    // Mostrar la frescura real de la fuente: una cifra de hoy puede proceder de
+    // la última sincronización de Google, no de una lectura en vivo.
+    d.ensayo_finanzas = env.ENSAYO_FINANZAS === "1";
+    d.sync = d.ensayo_finanzas ? null : await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
     delete d.cortes; delete d.gastos_caja;
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
@@ -289,22 +306,72 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
   const quien = usuario && usuario.email || null, ahora = new Date().toISOString();
   if (partes[1] === "saldo") {
     const mes = String(c.mes || "");
-    if (!(await mesesAbiertos(env)).includes(mes)) return json({ ok: false, error: "Solo se puede capturar el saldo inicial del mes abierto; los meses anteriores toman el saldo calculado." }, 409);
+    if (!(await mesesAbiertos(env)).includes(mes))
+      return json({ ok:false, error:"Solo se puede capturar el saldo inicial de un mes abierto." },409);
     const antes = await env.DB.prepare("SELECT efectivo FROM fin_saldos WHERE mes = ?").bind(mes).first();
-    const log = v => stmtBitacora(env, { quien, accion: v == null ? "borrar" : antes ? "editar" : "crear", que: "Saldo inicial de los sobres", ref: "sobres", mes, detalle: { antes: antes ? antes.efectivo : null, ahora: v } });
-    if (c.efectivo === "" || c.efectivo === null) { await env.DB.batch([env.DB.prepare("DELETE FROM fin_saldos WHERE mes = ?").bind(mes), log(null)]); return json({ ok: true }); }
+    const actual = antes ? Number(antes.efectivo) : null;
+    // El formulario envía el valor que mostraba al abrir. No permitir que una
+    // pestaña antigua reemplace el recuento confirmado por otra sesión.
+    if (Object.hasOwn(c, "esperado")) {
+      const esperado = c.esperado == null || c.esperado === "" ? null : Number(c.esperado);
+      if (esperado !== null && !Number.isFinite(esperado))
+        return json({ ok:false, error:"El saldo de referencia no es válido. Actualiza Finanzas." },422);
+      if (actual === null ? esperado !== null : esperado === null || !centavosIguales(actual, esperado))
+        return json({ ok:false, error:"El saldo de los sobres cambió en otra sesión. Actualiza Finanzas antes de guardar." },409);
+    }
+    const log = v => stmtBitacoraSiCambio(env, {
+      quien, accion:v == null ? "borrar" : antes ? "editar" : "crear",
+      que:"Saldo inicial de los sobres", ref:"sobres", mes,
+      detalle:{ antes:actual, ahora:v }
+    });
+    if (c.efectivo === "" || c.efectivo === null) {
+      if (!antes) return json({ ok:true, sin_cambios:true });
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`DELETE FROM fin_saldos WHERE mes = ? AND efectivo = ?
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')`)
+          .bind(mes, antes.efectivo, mes),
+        log(null)
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ ok:false, error:"El saldo de los sobres cambió en otra sesión. Actualiza Finanzas." },409);
+      return json({ ok:true });
+    }
     const v = montoUsuario(c.efectivo);
-    if (!(v >= 0) || v > 100000000) return json({ ok: false, error: "Escribe el efectivo con el que empezó el mes (solo números)." }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_saldos (mes, efectivo, actualizado, por) VALUES (?, ?, ?, ?) ON CONFLICT(mes) DO UPDATE SET efectivo = excluded.efectivo, actualizado = excluded.actualizado, por = excluded.por").bind(mes, v, ahora, quien),
+    if (!(v >= 0) || v > 100000000)
+      return json({ ok:false, error:"Escribe el efectivo con el que empezó el mes (solo números)." },422);
+    if (antes && centavosIguales(antes.efectivo, v))
+      return json({ ok:true, sin_cambios:true });
+    const resultado = await env.DB.batch([
+      env.DB.prepare(`INSERT INTO fin_saldos (mes, efectivo, actualizado, por)
+        SELECT ?, ?, ?, ? WHERE NOT EXISTS (
+          SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%'
+        )
+        ON CONFLICT(mes) DO UPDATE SET efectivo = excluded.efectivo,
+          actualizado = excluded.actualizado, por = excluded.por
+        WHERE fin_saldos.efectivo = ? AND NOT EXISTS (
+          SELECT 1 FROM caja_cierre_lock WHERE mes = excluded.mes AND token LIKE 'cerrado:%'
+        )`).bind(mes, v, ahora, quien, mes, antes ? antes.efectivo : null),
       log(v)
     ]);
-    return json({ ok: true });
+    if (!resultado[0]?.meta?.changes)
+      return json({ ok:false, error:"El saldo de los sobres fue modificado en otra sesión. Actualiza Finanzas." },409);
+    return json({ ok:true });
   }
   if (partes[1] === "cuentas") {
     const texto = String(c.texto ?? "").replace(/\r/g, "").slice(0, 4000);
-    await env.DB.prepare("INSERT INTO fin_config (clave, valor, actualizado) VALUES ('cuentas', ?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor, actualizado = excluded.actualizado").bind(texto, ahora).run();
-    return json({ ok: true });
+    const anterior = await env.DB.prepare("SELECT valor FROM fin_config WHERE clave = 'cuentas'").first();
+    const actual = anterior?.valor || "";
+    const esperado = Object.hasOwn(c,"esperado") ? String(c.esperado ?? "").replace(/\r/g, "").slice(0,4000) : actual;
+    if (esperado !== actual)
+      return json({ok:false,error:"Las notas de las cuentas cambiaron en otra sesión. Copia tu texto antes de actualizar Finanzas."},409);
+    if (texto === actual) return json({ok:true,sin_cambios:true});
+    const res = await env.DB.prepare(`INSERT INTO fin_config (clave, valor, actualizado)
+      VALUES ('cuentas', ?, ?)
+      ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor, actualizado=excluded.actualizado
+      WHERE COALESCE(fin_config.valor,'') = ?`).bind(texto, ahora, esperado).run();
+    if (!res.meta?.changes)
+      return json({ok:false,error:"Las notas cambiaron mientras guardabas. Conserva tu texto y actualiza Finanzas antes de repetir."},409);
+    return json({ok:true});
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }

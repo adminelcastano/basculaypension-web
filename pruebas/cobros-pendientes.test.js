@@ -131,3 +131,20 @@ test("Caja: no duplica un pago si ya aparece en hoja con el mismo folio", () => 
   assert.match(src,/cubiertosPorHoja\.has\(\[p\.mes, p\.servicio, p\.folio\]\.join\("\|"\)\) \? 0 : 1/);
   assert.match(src,/p\.origen_activo = 1/);
 });
+
+test("Corte ciego móvil: una diferencia desde un centavo no puede indicar Cuadra",()=>{
+  const caja=readFileSync(new URL("../src/panel/cliente/03-caja.js",import.meta.url),"utf8");
+  const expresion=caja.match(/const descuadre = v => ([\s\S]*?);/)?.[1];
+  assert.ok(expresion,"La ficha móvil debe compartir un único criterio monetario");
+  const esDiferencia=new Function("v","return "+expresion+";");
+  for(const valor of [0,0.004,-0.004,null])assert.equal(esDiferencia(valor),false,String(valor));
+  for(const valor of [0.01,-0.01,0.50,-0.99,1,150])assert.equal(esDiferencia(valor),true,String(valor));
+  assert.match(caja,/const difEtq = v => v == null \? "" : !descuadre\(v\)/);
+  assert.match(caja,/const est = v => v == null \? "" : !descuadre\(v\) \? "ok" : "mal"/);
+  assert.match(caja,/if \(k && descuadre\(k\.dif_efectivo\)\)/);
+  assert.match(caja,/if \(cs && descuadre\(cs\.dif\)\)/);
+  assert.match(caja,/if \(k && k\.dif_tarjeta != null && descuadre\(k\.dif_tarjeta\)\)/);
+  assert.doesNotMatch(caja,/Math\.abs\([^)]*dif[^)]*\) >= 1/);
+  assert.doesNotMatch(caja,/Math\.abs\([^)]*dif[^)]*\) < 1/);
+  assert.doesNotThrow(()=>new Function(caja));
+});

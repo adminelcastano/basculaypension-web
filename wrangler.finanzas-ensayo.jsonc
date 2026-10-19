@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Configuración exclusiva de ensayo integral de Finanzas, autorizada por el usuario.
+  // Solo Worker de ensayo y D1 INTEGRAL NUEVA; nunca usar datos, API keys ni rutas de producción.
+  // El subdominio workers.dev se protege con Cloudflare Access; no habilitar previews.
+  "name": "castano-finanzas-ensayo-20261018",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-06-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*", "/panel", "/panel/*", "/expediente/*", "/turno", "/turno/*"]
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "castano-finanzas-integral-ensayo-20261018",
+    "database_id": "bb6fac21-f3e9-44b3-8e67-770c14796532"
+  }],
+  "kv_namespaces": [{
+    "binding": "FILES",
+    "id": "06093f14870a4df89ab81b0246dec74a"
+  }],
+  "triggers": { "crons": [] },
+  "vars": {
+    "ENSAYO_FINANZAS": "1",
+    "ADMIN_EMAILS": "administracion@basculaypension.com",
+    "TURNO_EMAILS": "",
+    "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
+    "ACCESS_AUD": "61906c005bbf2883bafb408d577211fe96ceef4e7ddc9b0a179e484fef8e390b"
+  },
+  "limits": { "cpu_ms": 5000 },
+  "rules": [
+    { "type": "Data", "globs": ["**/*.webp"], "fallthrough": true },
+    { "type": "Text", "globs": ["**/*.css", "**/cliente/*.js"], "fallthrough": true }
+  ],
+  "observability": { "enabled": true }
+}

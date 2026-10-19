@@ -1,13 +1,17 @@
 import { leerArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
-import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
+import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 // Turnos: ingresos y gastos de caja por corte de turno.
 // Los ingresos vienen de la hoja de Google (pestañas FORBAS y FORPEN) por medio del script
 // herramientas/ingresos-hoja.gs. Solo se guarda el mes actual; al cambiar de mes se envía
 // los reportes en Google Sheets (Turnos, Finanzas y Facturación) y se borra lo de hace más de 13 meses.
 
 const TZ = "America/Mexico_City";
+const fechaCalendarioCaja = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) &&
+  Number.isFinite(Date.parse(d + "T12:00:00Z")) &&
+  new Date(d + "T12:00:00Z").toISOString().slice(0, 10) === d;
 export const TURNOS = ["MAÑANA", "TARDE", "NOCHE"];
 // Horario de cada turno (horas desde el inicio del día del corte)
 const VENTANA = { "MAÑANA": [6, 14], "TARDE": [14, 22], "NOCHE": [22, 30] };
@@ -40,31 +44,48 @@ export async function guardarCambioInicio(env, { dia, turno, persona, recibido, 
   const cambio = !anterior || Number(anterior.cambio) !== recibido || anterior.persona !== persona
     || Number(extra && extra.monto || 0) !== aumento;
   const sentencias = [
+    // Comparar ambos valores: fondo recibido y aporte desde sobres.
+    // Una tableta que cambia solo el aporte tampoco puede pisar la otra.
     env.DB.prepare(`INSERT INTO turno_inicio (dia, turno, mes, persona, cambio, creado, actualizado)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (dia, turno) DO UPDATE SET persona = excluded.persona,
-        cambio = excluded.cambio, actualizado = excluded.actualizado`)
-      .bind(dia, turno, mes, persona, recibido, ahora, ahora)
+      SELECT ?, ?, ?, ?, ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)
+        AND COALESCE((SELECT monto FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0), 0) = ?
+      ON CONFLICT (dia, turno) DO UPDATE SET
+        persona = excluded.persona, cambio = excluded.cambio,
+        actualizado = excluded.actualizado
+      WHERE turno_inicio.cambio = ? AND turno_inicio.persona = ?
+        AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)
+        AND COALESCE((SELECT monto FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0), 0) = ?`)
+      .bind(dia, turno, mes, persona, recibido, ahora, ahora,
+        dia, turno, id, Number(extra?.monto || 0),
+        anterior ? anterior.cambio : -1, anterior ? anterior.persona : "",
+        dia, turno, id, Number(extra?.monto || 0))
   ];
-  if (aumento > 0) {
-    sentencias.push(env.DB.prepare(`INSERT INTO caja_extra
-      (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
-      VALUES (?, ?, ?, ?, 'Aumento de cambio', 'Aporte al iniciar turno', ?, 0, NULL, ?, ?, ?)
-      ON CONFLICT (id) DO UPDATE SET monto = excluded.monto, persona = excluded.persona`)
-      .bind(id, mes, dia, turno, aumento, persona, ahora, "tablet:" + persona));
-  } else if (extra) {
-    // Exclusivamente el registro automático propio; los aumentos manuales se conservan.
-    sentencias.push(env.DB.prepare("DELETE FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0")
-      .bind(id));
-  }
-  if (cambio) sentencias.push(stmtBitacora(env, {
+  if (cambio) sentencias.push(stmtBitacoraSiCambio(env, {
     quien: "tablet:" + persona, accion: anterior ? "editar" : "crear",
     que: "Cambio al inicio de turno", ref: dia + "|" + turno, mes,
     detalle: { antes: anterior ? { recibido: anterior.cambio, aumento: Number(extra && extra.monto || 0) } : null,
       recibido, aumento, total: totalCambioInicio(recibido, aumento) }
   }));
-  // D1.batch es transaccional: no puede guardarse el recibido sin el aporte ni viceversa.
-  await env.DB.batch(sentencias);
+  if (aumento > 0) {
+    sentencias.push(env.DB.prepare(`INSERT INTO caja_extra
+      (id, mes, dia, turno, concepto, detalle, monto, ingreso, foto, persona, creado, creado_por)
+      SELECT ?, ?, ?, ?, 'Aumento de cambio', 'Aporte al iniciar turno', ?, 0, NULL, ?, ?, ?
+      WHERE changes() > 0
+      ON CONFLICT (id) DO UPDATE SET monto = excluded.monto, persona = excluded.persona`)
+      .bind(id, mes, dia, turno, aumento, persona, ahora, "tablet:" + persona));
+  } else if (extra) {
+    // Nunca retirar un aumento hecho por otra sesión o un aporte manual.
+    sentencias.push(env.DB.prepare(
+      "DELETE FROM caja_extra WHERE id = ? AND concepto = 'Aumento de cambio' AND ingreso = 0 AND changes() > 0"
+    ).bind(id));
+  }
+  const resultados = await env.DB.batch(sentencias);
+  if (!resultados[0]?.meta?.changes) {
+    const error = new Error("El fondo de cambio fue corregido o el corte fue entregado en otra sesión. Actualiza el turno antes de repetir.");
+    error.code = "INICIO_OBSOLETO";
+    throw error;
+  }
   return { cambio: recibido, aumento, total: totalCambioInicio(recibido, aumento), persona, actualizado: ahora };
 }
 
@@ -113,7 +134,14 @@ const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, 
 // turno no se parte en dos meses: todo se guarda con el mes del DÍA DEL CORTE, no de la hora de captura.
 export async function mesesAbiertos(env) {
   const actual = mesActual(), g = await env.FILES.get("caja:mes");
-  return g && g < actual ? [g, actual] : [actual];
+  if (!g || g >= actual) return [actual];
+  // KV puede seguir mostrando el mes anterior tras completar el cierre.
+  // La lápida de D1 manda: jamás permitir nuevas escrituras en ese mes.
+  await asegurarEsquemaCaja(env);
+  const cerrado = await env.DB.prepare(
+    "SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%'"
+  ).bind(g).first();
+  return cerrado ? [actual] : [g, actual];
 }
 export function mesActual(ahora = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(ahora).slice(0, 7);
@@ -243,7 +271,13 @@ export async function asegurarEsquemaCaja(env) {
       monto REAL NOT NULL, forma TEXT NOT NULL, creado TEXT NOT NULL, por TEXT,
       anulado INTEGER NOT NULL DEFAULT 0, anulado_por TEXT, anulado_en TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_mes ON caja_cobros_admin (mes, anulado)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)")
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)"),
+    // Exclusión de cierre mensual: KV puede servir lecturas simultáneas antiguas.
+    // Una sola ejecución por mes toma la llave transaccional de D1.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cierre_lock (mes TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)"),
+    // Serializar lecturas simultáneas de la hoja para impedir que datos
+    // anteriores reemplacen tickets ya conciliados.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_sync_lock (nombre TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)")
   ]);
   await asegurarEsquemaBitacora(env);
   esquemaListo = true;
@@ -273,23 +307,45 @@ export async function leerHoja(env, mes) {
     throw new Error("La hoja devolvió datos incompletos; se conservan los registros anteriores.");
   if (d.mes !== mes)
     throw new Error("La hoja devolvió un mes diferente; se conservan los registros anteriores.");
+  const fechaHojaValida = v => {
+    const t = String(v || "");
+    const m = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.exec(t);
+    return !!m && Number.isFinite(Date.parse(m[1] + "T12:00:00Z")) &&
+      new Date(m[1] + "T12:00:00Z").toISOString().slice(0, 10) === m[1];
+  };
   if ([...d.bascula, ...d.pension].some(x => !x || typeof x !== "object" ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(x.fecha || "")) ||
+      !fechaHojaValida(x.fecha) ||
       x.fecha.slice(0, 7) !== mes))
     throw new Error("La hoja devolvió movimientos inválidos; se conservan los registros anteriores.");
+  const importeHojaValido = v => {
+    const t = String(v ?? "").toUpperCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/[$,\s]/g, "");
+    return /^(?:MENOS|-|−)?\d{1,9}(?:\.\d{1,2})?$/.test(t) && Number.isFinite(numero(v))
+      && Math.abs(numero(v)) <= 100000000;
+  };
   const limpiar = (lista, servicio) => lista.map(x => {
     const turno = normTurno(x.turno);
     const fecha = texto(x.fecha, 19);
     const folio = texto(x.folio, 60);
+    const tipo = /^\s*\d/.test(folio) ? "ticket" : "caja";
+    const pendiente = x.pendiente === true || /^PENDIENTE\s+DE\s+PAGO\b/i.test(String(x.importe || ""));
+    // Un importe mal formado nunca puede convertirse silenciosamente en $0,
+    // borrando el cobro original de la hoja. Conservar el mes y alertar.
+    const vacio = x.importe == null || String(x.importe).trim() === "";
+    if (!pendiente && (tipo === "ticket" || !vacio) && !importeHojaValido(x.importe))
+      throw new Error("La hoja contiene un importe no válido: se conservaron los tickets anteriores.");
+    if (pendiente && x.monto_pendiente != null && String(x.monto_pendiente).trim() !== "" &&
+        !importeHojaValido(x.monto_pendiente))
+      throw new Error("La hoja contiene un pendiente con importe no válido: se conservaron los tickets anteriores.");
     return {
       // Sin folio numérico es un movimiento de caja (cambio, retiro, sueldo, compra), no un ticket
-      tipo: /^\s*\d/.test(folio) ? "ticket" : "caja",
+      tipo,
       servicio, fecha, turno: turno || "SIN TURNO", dia: diaDelCorte(fecha, turno) || fecha.slice(0, 10),
       folio: folio.slice(0, 40), matricula: texto(x.matricula, 20).toUpperCase(), cliente: texto(x.cliente, 80),
-      importe: x.pendiente === true ? 0 : numero(x.importe),
+      importe: pendiente ? 0 : numero(x.importe),
       forma: normForma(x.forma) || "SIN FORMA",
-      pendiente: x.pendiente === true || /^PENDIENTE\s+DE\s+PAGO\b/i.test(String(x.importe || "")),
-      monto_pendiente: Number(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\s+DE\s+PAGO\s*\$?\s*([\d,.]+)/i)
+      pendiente,
+      monto_pendiente: numero(x.monto_pendiente) || (String(x.importe || "").match(/^PENDIENTE\s+DE\s+PAGO\s*\$?\s*([\d,.]+)/i)
         ? numero(String(x.importe).replace(/^PENDIENTE\s+DE\s+PAGO\s*/i, "")) : 0)
     };
   }).filter(x => /^\d{4}-\d{2}-\d{2}T/.test(x.fecha));
@@ -312,8 +368,27 @@ export function diferenciasCaja(actuales, nuevas) {
 }
 export async function sincronizarCaja(env) {
   await asegurarEsquemaCaja(env);
-  const meses = await mesesAbiertos(env);
+  const token = crypto.randomUUID();
+  let lock = false;
   try {
+    const instanteLock = new Date();
+    const venceSync = new Date(instanteLock.getTime() - 10 * 60 * 1000).toISOString();
+    const venceCierre = new Date(instanteLock.getTime() - 2 * 3600 * 1000).toISOString();
+    // Sincronización y cierre comparten exclusión en D1: ninguno puede
+    // reescribir tickets del mes mientras el otro está conciliándolos.
+    const tomado = await env.DB.prepare(`INSERT INTO caja_sync_lock (nombre, token, tomado)
+      SELECT 'hoja', ?, ? WHERE NOT EXISTS (
+        SELECT 1 FROM caja_cierre_lock WHERE token NOT LIKE 'cerrado:%' AND tomado >= ?
+      ) ON CONFLICT(nombre) DO UPDATE SET
+        token = excluded.token, tomado = excluded.tomado
+      WHERE caja_sync_lock.tomado < ? AND NOT EXISTS (
+        SELECT 1 FROM caja_cierre_lock WHERE token NOT LIKE 'cerrado:%' AND tomado >= ?
+      )`)
+      .bind(token, instanteLock.toISOString(), venceCierre, venceSync, venceCierre).run();
+    if (!tomado.meta?.changes) return { ocupado: true };
+    lock = true;
+    // Los meses se eligen DESPUÉS del bloqueo, nunca de una lista antigua.
+    const meses = await mesesAbiertos(env);
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
     const filas = [];
     for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
@@ -372,6 +447,9 @@ export async function sincronizarCaja(env) {
     const estado = { ...previo, error: String(e && e.message || e).slice(0, 200), error_at: new Date().toISOString() };
     await env.FILES.put("caja:sync", JSON.stringify(estado));
     return estado;
+  } finally {
+    if (lock) await env.DB.prepare("DELETE FROM caja_sync_lock WHERE nombre = 'hoja' AND token = ?")
+      .bind(token).run().catch(e => console.error("Sincronización: liberar bloqueo D1", e && e.message));
   }
 }
 
@@ -454,12 +532,35 @@ export function transferenciasMes(movs, transf) {
     const ref = refTicket(m), l = ligadas.get(ref);
     return { ref, servicio: m.servicio, folio: m.folio, fecha: String(m.fecha).slice(0, 10), dia: m.dia, turno: m.turno, cliente: m.cliente || "", matricula: m.matricula || "", importe: m.importe, ligada: l ? { id: l.id, cliente: l.cliente, cuenta: l.cuenta || null, factura: l.factura || null } : null };
   });
+  // Una conciliación válida al capturar puede quedar obsoleta si Google
+  // corrige después el importe, la forma de pago o elimina el ticket.
+  // Señalar el conflicto sin borrar la relación ni modificar importes.
+  const tickets = new Map();
+  for (const m of movs.filter(m => m.tipo === "ticket")) {
+    const ref = refTicket(m);
+    if (!tickets.has(ref)) tickets.set(ref, []);
+    tickets.get(ref).push(m);
+  }
+  const alertas = [];
+  for (const x of transf.filter(t => t.ticket_ref)) {
+    const relacionados = tickets.get(x.ticket_ref) || [];
+    let motivo = null;
+    if (!relacionados.length) motivo = "ausente";
+    else if (relacionados.length !== 1) motivo = "ambiguo";
+    else if (!esTransf(relacionados[0].forma)) motivo = "forma";
+    else if (Math.round(Number(relacionados[0].importe) * 100) !== Math.round(Number(x.importe) * 100))
+      motivo = "importe";
+    if (motivo) alertas.push({
+      id: x.id, ref: x.ticket_ref, motivo, importe_capturado: x.importe,
+      importe_hoja: relacionados.length === 1 ? relacionados[0].importe : null
+    });
+  }
   const enHoja = new Set(hoja.map(h => h.ref));
   const contadas = transf.filter(x => !x.ticket_ref || !enHoja.has(x.ticket_ref));
   const sinLigar = hoja.filter(h => !h.ligada);
   const posibles = contadas.filter(x => !x.ticket_ref).map(x => ({ id: x.id, tickets: sinLigar.filter(h => Math.abs(h.importe - x.importe) < 0.01 && h.fecha >= sumDias(x.fecha, -3) && h.fecha <= sumDias(x.fecha, 3)).map(h => h.ref) })).filter(x => x.tickets.length);
   const r2 = v => Math.round(v * 100) / 100;
-  return { hoja, contadas, posibles, total_hoja: r2(hoja.reduce((a, h) => a + h.importe, 0)), total_manual: r2(contadas.reduce((a, x) => a + x.importe, 0)) };
+  return { hoja, contadas, posibles, alertas, total_hoja: r2(hoja.reduce((a, h) => a + h.importe, 0)), total_manual: r2(contadas.reduce((a, x) => a + x.importe, 0)) };
 }
 
 // ---- Cambio entre turnos: lo que dejó un turno para el siguiente contra lo que el siguiente dijo recibir ----
@@ -589,19 +690,37 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
 // Cambio de mes: el mes anterior se deja en la base tal como quedó en la hoja y se crean sus reportes
 // en Google Sheets (Turnos, Finanzas y Facturación, cada uno en su carpeta de Drive). Si los reportes no
 // se crean, no se borra nada y se reintenta cada hora.
-export async function cierreMensualCaja(env, h) {
+export async function cierreMensualCaja(env, h, ahora = new Date()) {
   await asegurarEsquemaCaja(env);
-  const actual = mesActual();
+  const actual = mesActual(ahora);
   const guardado = await env.FILES.get("caja:mes");
   if (!guardado) { await env.FILES.put("caja:mes", actual); return { nada: true }; }
   if (guardado >= actual) return { nada: true };
   // Se espera a que termine el turno de noche del último día del mes (7:00 del día 1, hora de Tapachula)
-  if (mesActual(new Date(Date.now() - 7 * 3600e3)) !== actual) return { esperando: true };
+  if (mesActual(new Date(ahora.getTime() - 7 * 3600e3)) !== actual) return { esperando: true };
   const intento = await env.FILES.get("caja:cierre_intento");
-  if (intento && Date.now() - Date.parse(intento) < 3600e3) return { esperando: true };
-  await env.FILES.put("caja:cierre_intento", new Date().toISOString(), { expirationTtl: 7200 });
+  if (intento && ahora.getTime() - Date.parse(intento) < 3600e3) return { esperando: true };
   const mes = guardado;
-  let movs;
+  const token = crypto.randomUUID();
+  const vencido = new Date(ahora.getTime() - 2 * 3600e3).toISOString();
+  // El INSERT / UPDATE condicional se serializa en D1. Un segundo Worker
+  // no puede obtener el mismo mes a la vez aunque ambos leyeran KV vacío.
+  // La llave vence para permitir recuperación si un Worker desaparece.
+  const venceSync = new Date(ahora.getTime() - 10 * 60 * 1000).toISOString();
+  const toma = await env.DB.prepare(`INSERT INTO caja_cierre_lock (mes, token, tomado)
+    SELECT ?, ?, ? WHERE NOT EXISTS (
+      SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
+    ) ON CONFLICT(mes) DO UPDATE SET
+      token = excluded.token, tomado = excluded.tomado
+    WHERE caja_cierre_lock.tomado < ? AND caja_cierre_lock.token NOT LIKE 'cerrado:%' AND NOT EXISTS (
+      SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
+    )`)
+    .bind(mes, token, ahora.toISOString(), venceSync, vencido, venceSync).run();
+  if (!toma.meta?.changes) return { esperando: true };
+  let completado = false;
+  try {
+    await env.FILES.put("caja:cierre_intento", ahora.toISOString(), { expirationTtl: 7200 });
+    let movs;
   try {
     // Del mes que se cierra: lo de su hoja más lo capturado después de medianoche del día 1 que es de su último día
     const sig = (await leerHoja(env, actual)).filter(f => String(f.dia).slice(0, 7) === mes);
@@ -609,7 +728,33 @@ export async function cierreMensualCaja(env, h) {
   } catch (e) { console.error("cierre caja: hoja", e.message); return { error: e.message }; }
   // Lo del mes que se cierra queda en el panel tal como quedó en la hoja (por si hubo cambios después de la última lectura)
   const filasMes = movs.map(f => ({ ...f, mes }));
-  const POR = 9, st = [env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes)];
+  // La lectura final de la hoja debe conciliar los cobros pendientes igual que
+  // la sincronización ordinaria. De lo contrario, el mes puede cerrarse con
+  // un ticket ya pagado Y un abono administrativo que sigue sumando dos veces.
+  const pendientes = new Map();
+  for (const f of filasMes.filter(x => x.pendiente)) {
+    const id = [f.servicio, f.fecha, f.folio].join("|");
+    if (pendientes.has(id)) return { error: "La hoja tiene dos pendientes con la misma identificación: no se cerró el mes." };
+    if (!Number.isFinite(f.monto_pendiente) || f.monto_pendiente < 0 || f.monto_pendiente > 100000000)
+      return { error: "La hoja tiene un importe pendiente inválido: no se cerró el mes." };
+    pendientes.set(id, { ...f, id });
+  }
+  const cubiertosPorHoja = new Set(filasMes.filter(x => !x.pendiente && x.tipo === "ticket" && x.importe > 0)
+    .map(x => [x.mes, x.servicio, x.folio].join("|")));
+  const POR = 9, st = [
+    env.DB.prepare("DELETE FROM caja_mov WHERE mes = ?").bind(mes),
+    env.DB.prepare("UPDATE caja_pendientes SET origen_activo = 0 WHERE mes = ?").bind(mes)
+  ];
+  for (const p of pendientes.values()) st.push(env.DB.prepare(`INSERT INTO caja_pendientes
+    (id, servicio, fecha, dia, turno, folio, matricula, cliente, forma, monto, mes, estado, origen_activo, actualizado)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)
+    ON CONFLICT(id) DO UPDATE SET dia=excluded.dia, turno=excluded.turno,
+      matricula=excluded.matricula, cliente=excluded.cliente, forma=excluded.forma,
+      monto=excluded.monto, origen_activo=excluded.origen_activo, actualizado=excluded.actualizado`)
+    .bind(p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.matricula, p.cliente,
+      p.forma, p.monto_pendiente, p.mes,
+      cubiertosPorHoja.has([p.mes, p.servicio, p.folio].join("|")) ? 0 : 1, ahora.toISOString())
+  );
   for (let i = 0; i < filasMes.length; i += POR) {
     const lote = filasMes.slice(i, i + POR);
     st.push(env.DB.prepare(`INSERT INTO caja_mov (${COLS_MOV.join(", ")}) VALUES ${lote.map(() => "(" + COLS_MOV.map(() => "?").join(",") + ")").join(",")}`).bind(...lote.flatMap(f => COLS_MOV.map(c => f[c] ?? null))));
@@ -627,8 +772,19 @@ export async function cierreMensualCaja(env, h) {
   await env.DB.batch(["caja_gastos", "caja_transf", "caja_extra", "caja_mov", "turno_cortes", "turno_cortes_hist", "turno_inicio", "caja_folios"]
     .map(t => env.DB.prepare(`DELETE FROM ${t} WHERE mes < ?`).bind(limite)));
   await env.FILES.put("caja:mes", actual);
-  await env.FILES.delete("caja:cierre_intento");
+  completado = true;
+  await env.FILES.delete("caja:cierre_intento").catch(e => console.error("cierre caja: marcador", e && e.message));
   return { cerrado: mes };
+  } finally {
+    // Al cerrar conservar una lápida definitiva distinguible del cierre
+    // activo: protege ante KV obsoleto SIN bloquear el nuevo mes.
+    if (completado) await env.DB.prepare(
+      "UPDATE caja_cierre_lock SET token = ? WHERE mes = ? AND token = ?"
+    ).bind("cerrado:" + token, mes, token).run().catch(e => console.error("cierre caja: finalizar bloqueo", e && e.message));
+    else await env.DB.prepare(
+      "DELETE FROM caja_cierre_lock WHERE mes = ? AND token = ?"
+    ).bind(mes, token).run().catch(e => console.error("cierre caja: liberar", e && e.message));
+  }
 }
 
 // ---- Entregas capturadas por la administración (turnos sin corte en la tablet) ----
@@ -647,7 +803,7 @@ export function leerTablaEntregas(textoTabla, anio) {
     else if ((m = /^(\d{1,2})\s*[\/\- ]\s*([a-záéíóú]{3,4})\.?$/i.exec(c[0])) && MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")])
       dia = `${anio}-${String(MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     const turno = normTurno(c[1]);
-    if (!dia || !turno) { if (i === 0 || /d[ií]a|turno/i.test(linea)) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
+    if (!fechaCalendarioCaja(dia) || !turno) { if (i === 0 && /^(d[ií]a|fecha)$/i.test(c[0]) && /^turno$/i.test(c[1])) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
     const [sobre, taxi, sueldo, cambio] = [c[2], c[3], c[4], c[5]].map(celdaMonto);
     if ([sobre, taxi, sueldo, cambio].some(v => Number.isNaN(v))) { errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "Hay un monto que no es número." }); return; }
     filas.push({ linea: i + 1, dia, turno, sobre, taxi, sueldo, cambio });
@@ -696,14 +852,22 @@ export async function entregasAdmin(env, textoTabla, { aplicar = false, meses, h
 }
 
 // ticket_ref "servicio:folio" de un ticket de la hoja del mes pagado por transferencia y sin otra transferencia ligada
-async function validarTicketRef(env, valor, mes, excepto) {
+// El vínculo cambia cuánto se reconoce como ingreso: nunca asociar tickets
+// de importes distintos o folios ambiguos sin un modelo explícito de abonos.
+export async function validarTicketRef(env, valor, mes, excepto, importe = null) {
   const v = String(valor ?? "").trim();
   if (!v) return null;
   const m = /^(bascula|pension):(.{1,40})$/.exec(v);
   if (!m) return { error: "Ticket inválido." };
-  const t = (await env.DB.prepare("SELECT forma FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
-  if (!t.some(x => esTransf(x.forma))) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
-  const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE ticket_ref = ? AND id != ?").bind(v, excepto || "").first();
+  const t = (await env.DB.prepare("SELECT forma, importe FROM caja_mov WHERE mes = ? AND tipo = 'ticket' AND servicio = ? AND folio = ?").bind(mes, m[1], m[2]).all()).results;
+  const pagados = t.filter(x => esTransf(x.forma));
+  if (!pagados.length) return { error: "Ese ticket no está en la hoja de este mes como pagado por transferencia." };
+  if (t.length !== 1 || pagados.length !== 1) return { error: "Hay varios tickets con ese folio. Revisa la hoja antes de vincular la transferencia; no se puede elegir uno con seguridad." };
+  if (!(Number.isFinite(importe) && importe > 0))
+    return { error: "Escribe un importe válido para comparar con el ticket." };
+  if (Math.round(Number(pagados[0].importe) * 100) !== Math.round(importe * 100))
+    return { error: "El importe de la transferencia no coincide con el ticket de la hoja. No los vincules: si es un abono parcial o varios tickets, hay que conciliarlo por separado." };
+  const otra = await env.DB.prepare("SELECT cliente FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?").bind(mes, v, excepto || "").first();
   if (otra) return { error: `Ese ticket ya está ligado a la transferencia de ${otra.cliente}.` };
   return { ref: v };
 }
@@ -714,7 +878,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCategorias(env);
   const meses = await mesesAbiertos(env), mes = meses[meses.length - 1];
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
-  const diaValido = d => /^\d{4}-\d{2}-\d{2}$/.test(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
+  const diaValido = d => fechaCalendarioCaja(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
 
   if (partes[1] === "pendiente" && partes[2] && partes[3] === "resolver" && request.method === "POST") {
@@ -734,10 +898,24 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
       const pagoId = String(c.pago_id || "");
       if (!/^[0-9a-f-]{36}$/i.test(pagoId)) return json({ ok: false, error: "Falta el identificador de la operación." }, 422);
-      const previo = await env.DB.prepare("SELECT pendiente_id FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first();
-      if (previo) return previo.pendiente_id === id
-        ? json({ ok: true, estado: fila.estado, sin_cambios: true })
-        : json({ ok: false, error: "Identificador de pago utilizado en otro pendiente." }, 409);
+      // Un mismo identificador solo representa el MISMO cobro, con importe,
+      // fecha y forma idénticos. No confirmar un reintento modificado o anulado.
+      const reintento = async () => {
+        const previo = await env.DB.prepare("SELECT pendiente_id, fecha_pago, monto, forma, anulado FROM caja_cobros_admin WHERE id = ?").bind(pagoId).first();
+        if (!previo) return null;
+        if (previo.pendiente_id !== id)
+          return json({ ok: false, error: "Identificador de pago utilizado en otro pendiente." }, 409);
+        if (previo.anulado)
+          return json({ ok: false, error: "Este abono fue anulado. Actualiza el corte antes de registrar otro." }, 409);
+        const igual = previo.fecha_pago === String(c.fecha || "") &&
+          previo.forma === String(c.forma || "") &&
+          centavosIguales(previo.monto, montoUsuario(c.monto));
+        return igual
+          ? json({ ok: true, estado: fila.estado, sin_cambios: true })
+          : json({ ok: false, error: "Este identificador ya registró otro importe, fecha o forma de pago. Actualiza el corte antes de intentar de nuevo." }, 409);
+      };
+      const yaGuardado = await reintento();
+      if (yaGuardado) return yaGuardado;
       const monto = montoUsuario(c.monto);
       const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) && !Number.isNaN(Date.parse(fecha + "T12:00:00Z"))
         && new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
@@ -752,7 +930,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       const estado = restante <= 0 ? "pagado" : "parcial";
       // La inserción comprueba el saldo dentro de la misma transacción de D1.
       // Dos formularios simultáneos no pueden registrar más dinero del adeudado.
-      const resultados = await env.DB.batch([
+      let resultados;
+      try {
+        resultados = await env.DB.batch([
         env.DB.prepare(`INSERT INTO caja_cobros_admin (id, pendiente_id, fecha_pago, mes, monto, forma, creado, por)
           SELECT ?, ?, ?, ?, ?, ?, ?, ?
           WHERE EXISTS (
@@ -777,7 +957,14 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
           WHERE EXISTS (SELECT 1 FROM caja_cobros_admin WHERE id = ?)`)
           .bind(id, fila.estado, id, ahora, quien,
             [`Abono de ${monto.toFixed(2)} el ${fecha} por ${forma}`, notas].filter(Boolean).join(" · "), pagoId)
-      ]);
+        ]);
+      } catch (er) {
+        // Una petición concurrente pudo insertar primero este UID.
+        // Recuperar el éxito auténtico sin generar un segundo abono.
+        const ya = await reintento();
+        if (ya) return ya;
+        throw er;
+      }
       if (!resultados[0]?.meta?.changes)
         return json({ ok: false, error: "El saldo pendiente cambió; recarga el corte antes de registrar otro abono." }, 409);
       const saldoActual = await env.DB.prepare(`SELECT p.estado,
@@ -788,42 +975,38 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         resto: Math.max(0, Math.round((fila.monto - saldoActual.abonado) * 100) / 100),
         nota: "Abono contabilizado por su fecha y forma de pago." });
     }
-    if (c.estado === "conciliado") {
-      if (fila.origen_activo)
+    if (["conciliado", "cancelado", "pendiente"].includes(c.estado)) {
+      const solicitado = c.estado;
+      if (solicitado === "conciliado" && fila.origen_activo)
         return json({ ok: false, error: "La hoja sigue indicando PENDIENTE DE PAGO: primero registra el pago o corrige su origen." }, 409);
-      if (fila.estado === "conciliado") return json({ ok: true, estado: "conciliado", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'conciliado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
-          .bind(ahora, quien, notas, id),
-        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'conciliado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien,
-            [`Comprobado en la hoja, sin asiento duplicado`, notas].filter(Boolean).join(" · "))
-      ]);
-      return json({ ok: true, estado: "conciliado" });
-    }
-    if (c.estado === "cancelado") {
-      if (abonado > 0 && fila.origen_activo)
+      if (solicitado === "cancelado" && abonado > 0 && fila.origen_activo)
         return json({ ok: false, error: "Ya existen abonos: anúlalos antes de cancelar el pendiente." }, 409);
-      if (fila.estado === "cancelado") return json({ ok: true, estado: "cancelado", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'cancelado', resuelto = ?, por = ?, notas = ? WHERE id = ?")
-          .bind(ahora, quien, notas, id),
-        env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'cancelado', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
-      ]);
-      return json({ ok: true, estado: "cancelado" });
-    }
-    if (c.estado === "pendiente") {
-      if (abonado > 0 || !fila.origen_activo)
+      if (solicitado === "pendiente" && (abonado > 0 || !fila.origen_activo))
         return json({ ok: false, error: "Para reabrir, anula primero los abonos y comprueba que siga pendiente en la hoja." }, 409);
-      if (fila.estado === "pendiente") return json({ ok: true, estado: "pendiente", sin_cambios: true });
-      await env.DB.batch([
-        env.DB.prepare("UPDATE caja_pendientes SET estado = 'pendiente', resuelto = NULL, por = ?, notas = ? WHERE id = ?")
-          .bind(quien, notas, id),
+      if (fila.estado === solicitado)
+        return json({ ok: true, estado: solicitado, sin_cambios: true });
+      // Dos sesiones pueden leer el mismo estado. El cambio de estado y su
+      // historial deben ser condicionales y atómicos, igual que los abonos.
+      // Cancelar / reabrir no puede ganar si entró un abono mientras se leía.
+      const condiciones = solicitado === "conciliado"
+        ? "AND origen_activo = 0"
+        : solicitado === "pendiente"
+          ? "AND origen_activo = 1 AND NOT EXISTS (SELECT 1 FROM caja_cobros_admin a WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0)"
+          : "AND (origen_activo = 0 OR NOT EXISTS (SELECT 1 FROM caja_cobros_admin a WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0))";
+      const notaHist = solicitado === "conciliado"
+        ? ["Comprobado en la hoja, sin asiento duplicado", notas].filter(Boolean).join(" · ")
+        : notas;
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`UPDATE caja_pendientes SET estado = ?, resuelto = ?, por = ?, notas = ?
+          WHERE id = ? AND estado = ? ${condiciones}`)
+          .bind(solicitado, solicitado === "pendiente" ? null : ahora, quien, notas, id, fila.estado),
         env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, 'pendiente', ?, ?, ?)`).bind(id, fila.estado, ahora, quien, notas)
+          SELECT ?, ?, ?, ?, ?, ? WHERE changes() > 0`)
+          .bind(id, fila.estado, solicitado, ahora, quien, notaHist)
       ]);
-      return json({ ok: true, estado: "pendiente" });
+      if (!resultado[0]?.meta?.changes)
+        return json({ ok: false, error: "El cobro o sus abonos cambiaron en otra sesión. Actualiza el corte antes de continuar." }, 409);
+      return json({ ok: true, estado: solicitado });
     }
     if (c.estado === "anular-abono") {
       const pagoId = String(c.pago_id || "");
@@ -832,18 +1015,33 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       if (!pago) return json({ ok: false, error: "No existe ese abono activo." }, 404);
       if (!(await mesesAbiertos(env)).includes(pago.mes))
         return json({ ok: false, error: "No se pueden modificar abonos de meses cerrados." }, 409);
-      const resto = Math.max(0, Math.round((abonado - pago.monto) * 100) / 100);
-      const estado = resto ? "parcial" : "pendiente";
-      await env.DB.batch([
+      // La anulación, el saldo pendiente y su historial comparten transacción.
+      // Dos sesiones no pueden anular el mismo pago ni crear una segunda entrada.
+      const resultados = await env.DB.batch([
         env.DB.prepare(`UPDATE caja_cobros_admin SET anulado = 1, anulado_por = ?, anulado_en = ?
-          WHERE id = ? AND anulado = 0`).bind(quien, ahora, pagoId),
-        env.DB.prepare("UPDATE caja_pendientes SET estado = ?, resuelto = NULL, por = ?, notas = ? WHERE id = ?")
-          .bind(estado, quien, notas, id),
+          WHERE id = ? AND pendiente_id = ? AND anulado = 0
+            AND EXISTS (SELECT 1 FROM caja_pendientes WHERE id = ?)`).bind(quien, ahora, pagoId, id, id),
+        // Recalcular desde los abonos realmente activos dentro del lote:
+        // una nueva captura concurrente no puede dejar estado/importe obsoletos.
+        env.DB.prepare(`UPDATE caja_pendientes SET
+          estado = CASE WHEN EXISTS (
+            SELECT 1 FROM caja_cobros_admin a
+            WHERE a.pendiente_id = caja_pendientes.id AND a.anulado = 0
+          ) THEN 'parcial' ELSE 'pendiente' END,
+          resuelto = NULL, por = ?, notas = ?
+          WHERE id = ? AND changes() > 0`).bind(quien, notas, id),
         env.DB.prepare(`INSERT INTO caja_pendientes_hist (pendiente_id, anterior, nuevo, fecha, quien, notas)
-          VALUES (?, ?, ?, ?, ?, ?)`).bind(id, fila.estado, estado, ahora, quien,
+          SELECT ?, ?, (SELECT estado FROM caja_pendientes WHERE id = ?), ?, ?, ?
+          WHERE changes() > 0`).bind(id, fila.estado, id, ahora, quien,
             [`Anulado abono de $${Number(pago.monto).toFixed(2)} (${pago.forma}, ${pago.fecha_pago})`, notas].filter(Boolean).join(" · "))
       ]);
-      return json({ ok: true, estado, abonado: resto });
+      if (!resultados[0]?.meta?.changes)
+        return json({ ok: false, error: "El abono ya fue anulado en otra sesión. Actualiza el corte." }, 409);
+      const actual = await env.DB.prepare(`SELECT p.estado,
+        COALESCE((SELECT SUM(a.monto) FROM caja_cobros_admin a
+          WHERE a.pendiente_id = p.id AND a.anulado = 0), 0) AS abonado
+        FROM caja_pendientes p WHERE p.id = ?`).bind(id).first();
+      return json({ ok: true, estado: actual.estado, abonado: Math.round(Number(actual.abonado || 0) * 100) / 100 });
     }
     return json({ ok: false, error: "Operación no reconocida." }, 422);
   }
@@ -943,6 +1141,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
     const estado = await sincronizarCaja(env);
+    if (estado.ocupado) return json({ok:false,error:"Otra sincronización de la hoja sigue en curso. Espera a que termine antes de repetir."},409);
     if (estado.error && estado.error_at && (!estado.at || estado.error_at > estado.at)) return json({ ok: false, error: estado.error }, 502);
     return json({ ok: true, sync: estado });
   }
@@ -957,10 +1156,39 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (!FORMAS_GASTO.includes(forma)) errores.forma = "Forma de pago inválida.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del gasto.", errores }, 422);
-    const id = crypto.randomUUID();
+    const quien = usuario && usuario.email || null;
+    let id; try { id = await idFinanciero("gasto-turno-admin", c.uid, quien); }
+    catch (er) { return json({ok:false,error:er.message},422); }
     const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
-    await env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?)")
-      .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), usuario && usuario.email || null, cat).run();
+    const repetido = async () => {
+      const g = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(id).first() : null;
+      if (!g) return null;
+      const igual = g.dia === dia && g.turno === turno && g.concepto === concepto
+        && centavosIguales(g.monto, monto) && g.forma === forma
+        && (g.categoria || null) === (cat || null) && g.origen === "caja";
+      return igual ? json({ok:true,id,repetido:true}) :
+        json({ok:false,error:"Este gasto ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Gasto de caja' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Ese gasto fue eliminado. Actualiza el corte antes de capturar otro."},409);
+    try {
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?
+          WHERE NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Gasto de caja')`)
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), quien, cat, id),
+        stmtBitacoraSiCambio(env, { quien, accion:"crear", que:"Gasto de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,monto,forma,categoria:cat} })
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"Ese gasto fue eliminado en otra sesión. Actualiza Caja."},409);
+    } catch (er) {
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
 
@@ -970,9 +1198,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!meses.includes(g.mes)) return json({ ok: false, error: "Ese gasto es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const r = (await env.DB.batch([
       env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(g.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Gasto de caja", ref: g.id, mes: g.mes, detalle: { dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, persona: g.persona || g.creado_por } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Gasto de caja", ref: g.id, mes: g.mes, detalle: { dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, persona: g.persona || g.creado_por } })
     ]))[0];
-    if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
+    if (r.meta?.changes && g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
@@ -987,11 +1215,11 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const x = await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(String(c.dia || ""), String(c.turno || "")).first();
     if (!x) return json({ ok: true, borrados: 0 });
     if (!meses.includes(x.mes)) return json({ ok: false, error: "Esa entrega es de un mes ya cerrado." }, 409);
-    await env.DB.batch([
+    const resultados = await env.DB.batch([
       env.DB.prepare("DELETE FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(x.dia, x.turno),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Entrega de turno (captura de administración)", ref: x.dia + "|" + x.turno, mes: x.mes, detalle: { sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros) } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Entrega de turno (captura de administración)", ref: x.dia + "|" + x.turno, mes: x.mes, detalle: { sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros) } })
     ]);
-    return json({ ok: true, borrados: 1 });
+    return json({ ok: true, borrados: Number(resultados[0]?.meta?.changes || 0) });
   }
 
   // Ingresos extra capturados desde el panel
@@ -1004,9 +1232,39 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!concepto) errores.concepto = "Elige el concepto.";
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
-    const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, cuentaComoIngreso(concepto) ? 1 : 0, new Date().toISOString(), usuario && usuario.email || null).run();
+    const quien = usuario && usuario.email || null;
+    let id; try { id = await idFinanciero("extra-turno-admin", c.uid, quien); }
+    catch (er) { return json({ok:false,error:er.message},422); }
+    const ingreso = cuentaComoIngreso(concepto) ? 1 : 0;
+    const repetido = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_extra WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.dia === dia && x.turno === turno && x.concepto === concepto
+        && (x.detalle || null) === (detalle || null) && centavosIguales(x.monto, monto)
+        && Number(x.ingreso) === ingreso;
+      return igual ? json({ok:true,id,repetido:true}) :
+        json({ok:false,error:"Este ingreso extra ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
+    };
+    const previo = await repetido(); if (previo) return previo;
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Ingreso extra de caja' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Ese ingreso fue eliminado. Actualiza Caja antes de capturar otro."},409);
+    try {
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          WHERE NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Ingreso extra de caja')`)
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, ingreso, new Date().toISOString(), quien, id),
+        stmtBitacoraSiCambio(env, { quien, accion:"crear", que:"Ingreso extra de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,detalle,monto,ingreso} })
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"Ese ingreso fue eliminado en otra sesión. Actualiza Caja."},409);
+    } catch (er) {
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
   if (partes[1] === "extras" && partes[3] === "eliminar" && request.method === "POST") {
@@ -1017,9 +1275,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!meses.includes(x.mes)) return json({ ok: false, error: "Ese ingreso es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const r = (await env.DB.batch([
       env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Ingreso extra de caja", ref: x.id, mes: x.mes, detalle: { dia: x.dia, turno: x.turno, concepto: x.concepto, detalle: x.detalle, monto: x.monto, persona: x.persona || x.creado_por } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Ingreso extra de caja", ref: x.id, mes: x.mes, detalle: { dia: x.dia, turno: x.turno, concepto: x.concepto, detalle: x.detalle, monto: x.monto, persona: x.persona || x.creado_por } })
     ]))[0];
-    if (x.foto) await borrarArchivo(env, x.foto).catch(() => {});
+    if (r.meta?.changes && x.foto) await borrarArchivo(env, x.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
@@ -1027,32 +1285,98 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const fecha = String(c.fecha || ""), cliente = texto(c.cliente, 120), importe = montoUsuario(c.importe), factura = texto(c.factura, 60);
     const errores = {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha.slice(0, 7) !== mes) errores.fecha = "Elige una fecha del mes actual.";
+    const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
+      Number.isFinite(Date.parse(fecha + "T12:00:00Z")) &&
+      new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
+    if (!fechaReal || fecha.slice(0, 7) !== mes || fecha > hoy)
+      errores.fecha = "Elige una fecha válida del mes actual, no futura.";
     if (cliente.length < 2) errores.cliente = "Escribe el nombre del cliente.";
     if (!(importe > 0) || importe > 10000000) errores.importe = "Escribe un importe válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos de la transferencia.", errores }, 422);
-    const id = crypto.randomUUID();
-    // Cuenta a la que llegó (por defecto, la marcada para transferencias de clientes)
+    const quien = usuario && usuario.email || null;
+    let id;
+    try { id = await idFinanciero("transferencia-cliente", c.uid, quien); }
+    catch (er) { return json({ ok: false, error: er.message }, 422); }
+    // Cuenta a la que llegó. Nunca sustituir silenciosamente una cuenta
+    // seleccionada pero inválida o desactivada por otra cuenta: movería el
+    // ingreso al banco equivocado sin que el administrador lo advirtiera.
     await asegurarEsquemaCuentas(env);
-    const cta = c.cuenta && await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito'").bind(String(c.cuenta)).first() ? String(c.cuenta) : await cuentaDefecto(env, "transf");
+    const cuentaElegida = c.cuenta == null ? "" : String(c.cuenta).trim();
+    const cta = cuentaElegida || await cuentaDefecto(env, "transf");
+    const solicitada = String(c.ticket_ref || "").trim() || null;
+    const repetida = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.fecha === fecha && x.cliente === cliente && centavosIguales(x.importe, importe)
+        && (x.factura || null) === (factura || null) && (x.cuenta || null) === (cta || null)
+        && (x.ticket_ref || null) === solicitada;
+      return igual ? json({ ok: true, id, repetido: true }) :
+        json({ ok: false, error: "Esta transferencia ya se registró con otros datos. Actualiza la lista para revisarla." }, 409);
+    };
+    const ya = await repetida(); if (ya) return ya;
+    // Una respuesta de red tardía no debe recrear transferencias eliminadas.
+    const fueEliminada = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Transferencia de cliente' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminada())
+      return json({ok:false,error:"Esta transferencia fue eliminada. Actualiza Finanzas antes de capturar otra."},409);
+    // Un reintento del MISMO UID se reconoce antes de validar la cuenta activa:
+    // si fue desactivada después de guardar, el reintento no debe duplicar ni fallar.
+    if (cuentaElegida) {
+      const elegida = await env.DB.prepare("SELECT id FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1")
+        .bind(cuentaElegida).first();
+      if (!elegida) return json({
+        ok:false,error:"La cuenta elegida no está disponible. Actualiza Finanzas y selecciona una cuenta de débito activa.",
+        errores:{cuenta:"Elige una cuenta de débito activa."}
+      },422);
+    }
     // Ticket de la hoja pagado por transferencia al que corresponde (opcional)
-    const ref = await validarTicketRef(env, c.ticket_ref, mes, null);
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, null, importe);
     if (ref && ref.error) return json({ ok: false, error: ref.error, errores: { ticket_ref: ref.error } }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), usuario && usuario.email || null, cta, ref ? ref.ref : null),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle: { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null } })
-    ]);
+    try {
+      // Comprobaciones definitivas dentro del mismo INSERT: si otra sesión
+      // desactiva la cuenta o liga el ticket entre validación y escritura,
+      // ninguna transferencia ni bitácora queda contabilizada.
+      const condiciones = [];
+      if (cta) condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND tipo = 'debito' AND activa = 1)");
+      if (ref) condiciones.push("NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ?)");
+      condiciones.push("NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Transferencia de cliente')");
+      const sql = condiciones.length
+        ? `INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`
+        : "INSERT INTO caja_transf (id, mes, fecha, cliente, importe, factura, creado, creado_por, cuenta, ticket_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+      const parametros = [id, mes, fecha, cliente, importe, factura || null, new Date().toISOString(), quien, cta, ref ? ref.ref : null];
+      if (cta) parametros.push(cta);
+      if (ref) parametros.push(mes, ref.ref);
+      parametros.push(id);
+      const detalle = { fecha, cliente, importe, cuenta: cta, ticket: ref ? ref.ref : null };
+      const resultados = await env.DB.batch([
+        env.DB.prepare(sql).bind(...parametros),
+        condiciones.length ? stmtBitacoraSiCambio(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
+          : stmtBitacora(env, { quien, accion: "crear", que: "Transferencia de cliente", ref: id, mes, detalle })
+      ]);
+      if (!resultados[0]?.meta?.changes)
+        return json({ok:false,error:await fueEliminada()
+          ? "Esta transferencia fue eliminada en otra sesión. Actualiza Finanzas."
+          : "El ticket ya fue vinculado o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de repetir."},409);
+    } catch (er) {
+      const ya = await repetida(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
 
   if (partes[1] === "transferencias" && partes[3] === "eliminar" && request.method === "POST") {
     const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM caja_transf WHERE id = ?").bind(x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { fecha: x.fecha, cliente: x.cliente, importe: x.importe, cuenta: x.cuenta, ticket: x.ticket_ref } })
+    // Compare-and-delete: una sesión no puede borrar silenciosamente una
+    // transferencia que otra acaba de vincular o desvincular.
+    const resultado = await env.DB.batch([
+      env.DB.prepare("DELETE FROM caja_transf WHERE id = ? AND mes = ? AND COALESCE(ticket_ref, '') = ?").bind(x.id, x.mes, x.ticket_ref || ""),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { fecha: x.fecha, cliente: x.cliente, importe: x.importe, cuenta: x.cuenta, ticket: x.ticket_ref } })
     ]);
+    if (!resultado[0]?.meta?.changes)
+      return json({ ok: false, error: "La transferencia cambió en otra sesión. Actualiza la lista antes de borrarla." }, 409);
     return json({ ok: true, borrados: 1 });
   }
 
@@ -1061,12 +1385,27 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     const x = await env.DB.prepare("SELECT * FROM caja_transf WHERE id = ? AND mes = ?").bind(partes[2], mes).first();
     if (!x) return json({ ok: false, error: "Esa transferencia no existe o es de un mes ya cerrado." }, 409);
-    const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id);
+    const ref = await validarTicketRef(env, c.ticket_ref, mes, x.id, Number(x.importe));
     if (ref && ref.error) return json({ ok: false, error: ref.error }, 422);
-    await env.DB.batch([
-      env.DB.prepare("UPDATE caja_transf SET ticket_ref = ? WHERE id = ?").bind(ref ? ref.ref : null, x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "editar", que: "Transferencia de cliente", ref: x.id, mes: x.mes, detalle: { cliente: x.cliente, importe: x.importe, ticket_antes: x.ticket_ref, ticket: ref ? ref.ref : null } })
+    const solicitado = ref ? ref.ref : null;
+    if ((x.ticket_ref || null) === solicitado) return json({ok:true,sin_cambios:true});
+    // La misma sentencia comprueba que el ticket sigue disponible Y que este
+    // registro no fue modificado por otra sesión mientras estaba abierto.
+    const sql = ref
+      ? `UPDATE caja_transf SET ticket_ref = ? WHERE id = ? AND mes = ?
+         AND COALESCE(ticket_ref, '') = ?
+         AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE mes = ? AND ticket_ref = ? AND id != ?)`
+      : "UPDATE caja_transf SET ticket_ref = NULL WHERE id = ? AND mes = ? AND COALESCE(ticket_ref, '') = ?";
+    const anterior = x.ticket_ref || "";
+    const params = ref ? [ref.ref, x.id, mes, anterior, mes, ref.ref, x.id] : [x.id, mes, anterior];
+    const resultados = await env.DB.batch([
+      env.DB.prepare(sql).bind(...params),
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "editar",
+        que: "Transferencia de cliente", ref: x.id, mes:x.mes,
+        detalle: { cliente: x.cliente, importe:x.importe, ticket_antes:x.ticket_ref, ticket:ref ? ref.ref : null } })
     ]);
+    if (!resultados[0]?.meta?.changes)
+      return json({ ok:false,error:"El vínculo cambió en otra sesión o ya no está disponible. Actualiza antes de intentarlo nuevamente." },409);
     return json({ ok: true });
   }
 

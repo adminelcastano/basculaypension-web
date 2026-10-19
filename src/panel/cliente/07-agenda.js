@@ -378,9 +378,13 @@ window.interpretarAgenda = function (texto, hoy) {
     (f.titulo || f.importe).focus();
     d.querySelector("[data-cerrar]").addEventListener("click", () => d.close());
     let forzar = false;
+    const uidPago = crypto.randomUUID(); // mismo identificador tras error de red
     const enviar = async () => {
-      const b = f.querySelector("[type=submit]"); b.disabled = true; f.querySelector(".err").textContent = "";
-      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}) };
+      const b = f.querySelector("[type=submit]");
+      if (b.disabled) return;
+      b.disabled = true;
+      f.querySelector(".err").textContent = "";
+      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}), uid: uidPago };
       let id;
       try {
         if (modo === "editar") { await post(`agenda/pagos/${pago.id}/editar`, cuerpo); id = pago.id; }
@@ -579,8 +583,9 @@ window.interpretarAgenda = function (texto, hoy) {
       ev.preventDefault(); err.textContent = "";
       const precios = {}; if (f.detallar.checked) pr.querySelectorAll("[data-precio]").forEach(i => { if (i.value.trim()) precios[i.dataset.precio] = i.value; });
       const b = f.querySelector("[type=submit]"); b.disabled = true; b.textContent = "Registrando…";
+      const uidCompra = f.dataset.uid || (f.dataset.uid = crypto.randomUUID());
       try {
-        const r = await post("agenda/compras/terminar", { ids: carro.map(x => x.id), total: f.total.value, precios, forma: f.forma.value, fecha_compra: f.fecha_compra.value });
+        const r = await post("agenda/compras/terminar", { ids: carro.map(x => x.id), total: f.total.value, precios, forma: f.forma.value, fecha_compra: f.fecha_compra.value, uid: uidCompra });
         d.close(); st.tienda = null; toast(`Compra registrada: ${MXN(r.total)} en Dinero`); await cargar();
       } catch (e) { if (e.message !== "sesion") err.textContent = e.message; b.disabled = false; b.textContent = "Registrar compra"; }
     });
@@ -683,13 +688,15 @@ window.interpretarAgenda = function (texto, hoy) {
         <div class="k"><span>Por pagar este mes</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
         <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
         <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
-      </div><p class="note" style="margin:8px 0 0">Todo esto sale de la administración: el efectivo de los sobres o el banco. No toca la caja de ningún turno; se suma a los egresos en Dinero.</p></section>`;
+      </div><details class="f-guia-saldos" style="margin-top:12px"><summary>¿De dónde salen estos pagos?</summary>
+      <p class="note" data-nl="1">Son pagos de la administración: desde los sobres o el banco. No afectan la caja de ningún turno y se registran como egresos en Dinero.</p></details></section>`;
     return resumen;
   }
   function vistaProgramados() { return resumenPagos() + vistaLista("pago"); }
   function vistaHechos() {
     return `<section class="card"><div class="pago-acc"><button class="btn btn-primary" type="button" data-nuevo-pago="hecho">${ico("i-billete")}Registrar un pago o gasto ya hecho</button></div>
-        <p class="note" style="margin:10px 0 0">Para lo que ya pagaste y no estaba programado: un recibo, una refacción, gasolina, una comida… Lleva comprobante opcional.</p></section>
+        <details class="f-guia-saldos" style="margin-top:12px"><summary>¿Qué pagos se registran aquí?</summary>
+          <p class="note" data-nl="1">Registra gastos ya realizados que no estaban programados: recibos, refacciones, gasolina o comidas. Puedes adjuntar foto o PDF como comprobante opcional.</p></details></section>
       <section class="card">${listaPagosHechos()}</section>`;
   }
   // Contadores de cada bloque (en su título y en el submenú)
@@ -706,7 +713,8 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueN("finanzas", "hechos", hechos.length);
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
-    const D0 = v => EC.dinero(v, 0);
+    // Cantidades enteras compactas; los importes con centavos NUNCA se redondean.
+    const D0 = v => EC.dinero(v, Math.round(Math.abs(Number(v) || 0) * 100) % 100 ? 2 : 0);
     const evHoy = st.items.filter(x => x.tipo === "evento" && x.fecha === st.hoy).length;
     const venc = tareas.filter(x => x.fecha && x.fecha < st.hoy).length;
     const graves = inc.filter(x => x.gravedad === "grave").length;
@@ -1650,9 +1658,23 @@ window.interpretarAgenda = function (texto, hoy) {
     c.querySelectorAll("[data-nuevo-pago]").forEach(b => b.addEventListener("click", () => b.dataset.nuevoPago === "hecho" ? ventanaPago("hecho") : ventanaProgramar()));
     c.querySelectorAll("[data-editar-pago]").forEach(b => b.addEventListener("click", () => { const p = (st.pagosHechos || []).find(x => x.id === b.dataset.editarPago); if (p) ventanaPago("editar", null, p); }));
     c.querySelectorAll("[data-borrar-pago]").forEach(b => b.addEventListener("click", async () => {
-      const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago); if (!p) return;
-      if (!(await EC.confirmar(`¿Eliminar el pago de «${p.titulo || "Pago"}»?`, `Del ${diaTxt(p.fecha)} por ${MXN(p.importe)}. También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`, "Eliminar", true))) return;
-      try { const r = await post(`agenda/pagos/${p.id}/eliminar`); toast(r.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(r.regreso)}` : "Pago eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      if (b.disabled) return;
+      const p = (st.pagosHechos || []).find(x => x.id === b.dataset.borrarPago);
+      if (!p) return;
+      b.disabled = true;
+      try {
+        if (!(await EC.confirmar(`¿Eliminar el pago de «${p.titulo || "Pago"}»?`,
+          `Del ${diaTxt(p.fecha)} por ${MXN(p.importe)}. También se quita de Dinero${p.comprobante ? " y se borra su comprobante" : ""}.`,
+          "Eliminar", true))) return;
+        const res = await post(`agenda/pagos/${p.id}/eliminar`);
+        toast(res.regreso ? `Pago eliminado; el programado vuelve a vencer el ${diaTxt(res.regreso)}` : "Pago eliminado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          if (/otra sesión|cambió|ya no existe/.test(e.message)) await cargar();
+        }
+      } finally { if (b.isConnected) b.disabled = false; }
     }));
     c.querySelectorAll("[data-estado]").forEach(s => s.addEventListener("change", async () => {
       try { await post("agenda/" + s.dataset.estado, { estado: s.value }); toast(s.value === "resuelta" ? "Incidencia resuelta" : "Estado actualizado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }

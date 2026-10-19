@@ -3,8 +3,9 @@
 // - Crédito: llevan deuda (inicial del mes + cargos − pagos a la tarjeta). Lo que se compra con la tarjeta cuenta como
 //   gasto el día de la compra; pagar la tarjeta es un traspaso (no es un gasto nuevo, así no se cuenta dos veces).
 // Los cobros con tarjeta de los turnos caen en la cuenta marcada con `tarjeta = 1` (MDO PAGO).
-import { mesesAbiertos } from "./caja.js";
-import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { mesesAbiertos, montoUsuario } from "./caja.js";
+import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
+import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
 export const CUENTAS_BASE = [
@@ -184,6 +185,87 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      // Ocultar una cuenta usada haría desaparecer su saldo del total visible.
+      // Una cuenta sin actividad puede ocultarse, pero el comprobante se ejecuta
+      // en la MISMA escritura para evitar carreras con pagos y traspasos.
+      if ("activa" in c && !c.activa) {
+        if (Object.keys(c).some(k => !["id", "activa"].includes(k)))
+          return json({ok:false,error:"Oculta la cuenta por separado, sin combinarlo con otros ajustes."},422);
+        if (!f.activa) return json({ok:true,sin_cambios:true});
+        const resultado = await env.DB.batch([
+          env.DB.prepare(`UPDATE fin_cuentas SET activa = 0 WHERE id = ? AND activa = 1
+            AND tarjeta = 0 AND def_transf = 0 AND def_pago = 0
+            AND NOT EXISTS (SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM fin_movs WHERE origen = fin_cuentas.id OR destino = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_gastos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_pagos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_items WHERE tipo = 'pago' AND cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE cuenta = fin_cuentas.id)`).bind(f.id),
+          stmtBitacoraSiCambio(env, { quien, accion:"editar", que:"Cuenta", ref:f.id,
+            detalle:{cuenta:f.nombre,cambios:{activa:false}} })
+        ]);
+        if (!resultado[0]?.meta?.changes)
+          return json({ok:false,error:"Esta cuenta tiene saldos, pagos o movimientos, o cumple una función financiera. No se puede ocultar sin alterar los totales. Conserva la cuenta visible."},409);
+        return json({ok:true});
+      }
+      const tipoFinal = "tipo" in c ? tipo : f.tipo;
+      const rolesRecepcion = ["tarjeta", "def_transf", "def_pago"];
+      if (tipoFinal === "credito" && (
+        rolesRecepcion.some(rol => c[rol]) ||
+        (tipoFinal !== f.tipo && rolesRecepcion.some(rol => f[rol]))
+      )) return json({ok:false,error:"Las cuentas para recibir cobros y pagos deben ser de débito. Selecciona una cuenta de débito para esos usos antes de cambiar este tipo."},422);
+      // Una cuenta que ya tiene movimientos no puede cambiar de débito a crédito:
+      // invierte la fórmula de todo su historial, también el de meses cerrados.
+      if ("tipo" in c && tipo !== f.tipo) {
+        const actividad = await env.DB.prepare(`SELECT
+          EXISTS(SELECT 1 FROM fin_movs WHERE origen = ? OR destino = ?) +
+          EXISTS(SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM caja_gastos WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM agenda_pagos WHERE cuenta = ?) +
+          EXISTS(SELECT 1 FROM caja_transf WHERE cuenta = ?) AS usado`)
+          .bind(f.id, f.id, f.id, f.id, f.id, f.id).first();
+        const origenes = (f.tarjeta || f.def_transf) ? await env.DB.prepare(`SELECT 1 FROM caja_mov
+          WHERE tipo = 'ticket' AND ${f.tarjeta && f.def_transf ? "(forma = 'TARJETA' OR forma LIKE 'TRANSF%')" : f.tarjeta ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'"} LIMIT 1`).first() : null;
+        if ((actividad && actividad.usado) || origenes)
+          return json({ok:false,error:"Esta cuenta ya tiene movimientos, cobros o saldos. Cambiarla entre débito y crédito reinterpretaría meses anteriores. Conserva el tipo y crea una cuenta nueva si corresponde."},409);
+      }
+      if ("tipo" in c && tipo !== f.tipo) {
+        // En el móvil el tipo se cambia por separado. No combinarlo con
+        // otros ajustes: la condición de historial debe ser atómica.
+        if (Object.keys(c).some(k => !["id","tipo"].includes(k)))
+          return json({ok:false,error:"Cambia el tipo de cuenta por separado de los demás ajustes."},422);
+        const resultado = await env.DB.batch([
+          env.DB.prepare(`UPDATE fin_cuentas SET tipo = ? WHERE id = ? AND tipo = ?
+            AND tarjeta = 0 AND def_transf = 0 AND def_pago = 0
+            AND NOT EXISTS (SELECT 1 FROM fin_movs WHERE origen = fin_cuentas.id OR destino = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM fin_saldos_cuenta WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_gastos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_pagos WHERE cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM agenda_items WHERE tipo = 'pago' AND cuenta = fin_cuentas.id)
+            AND NOT EXISTS (SELECT 1 FROM caja_transf WHERE cuenta = fin_cuentas.id)`)
+            .bind(tipo, f.id, f.tipo),
+          stmtBitacoraSiCambio(env, {quien,accion:"editar",que:"Cuenta",ref:f.id,
+            detalle:{cuenta:f.nombre,cambios:{tipo}}})
+        ]);
+        if (!resultado[0]?.meta?.changes)
+          return json({ok:false,error:"La cuenta recibió actividad o cambió en otra sesión. No se modificó su tipo; actualiza Finanzas."},409);
+        return json({ok:true});
+      }
+      // Los cobros antiguos se asignan según el rol actual de estas cuentas.
+      // Impedir un cambio silencioso mientras no exista un historial de asignaciones por fecha.
+      const rolesSolicitados = ["def_transf","def_pago","tarjeta"].filter(rol => !!c[rol]);
+      const titulares = {};
+      for (const rol of rolesSolicitados) {
+        const previa = await env.DB.prepare(`SELECT id FROM fin_cuentas WHERE ${rol} = 1 LIMIT 1`).first();
+        titulares[rol] = previa?.id || null;
+        if (["tarjeta","def_transf"].includes(rol) && previa?.id !== f.id) {
+          const forma = rol === "tarjeta" ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'";
+          const usados = await env.DB.prepare(`SELECT 1 FROM caja_mov WHERE tipo = 'ticket' AND ${forma} LIMIT 1`).first();
+          if (usados) return json({ok:false,error:rol==="tarjeta"
+            ? "Hay cobros históricos con tarjeta. Cambiar la cuenta receptora alteraría los saldos anteriores. Mantén la cuenta actual hasta que se incorpore asignación por fecha."
+            : "Hay transferencias históricas de tickets. Cambiar su cuenta por defecto alteraría saldos anteriores. Mantén la asignación hasta contar con vigencias por fecha."},409);
+        }
+      }
       if (f.tarjeta && ("comision_pct" in c || "comision_iva" in c))
         return json({ ok: false, error: "La comisión histórica de Mercado Pago es fija: 3.50 % + IVA." }, 409);
       let pct = f.comision_pct, iva = f.comision_iva;
@@ -196,10 +278,35 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
       if ("comision_iva" in c) iva = c.comision_iva ? 1 : 0;
       if ("nombre" in c && nombre.length < 2) return json({ ok: false, error: "Escribe el nombre de la cuenta." }, 422);
       if (nombre && nombre !== f.nombre && await env.DB.prepare("SELECT 1 FROM fin_cuentas WHERE id != ? AND upper(nombre) = ?").bind(c.id, nombre).first()) return json({ ok: false, error: "Ya hay otra cuenta con ese nombre." }, 409);
-      const st = [env.DB.prepare("UPDATE fin_cuentas SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ? WHERE id = ?").bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo, "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id)];
-      for (const k of ["def_transf", "def_pago", "tarjeta"]) if (c[k]) st.push(env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 0`), env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 1 WHERE id = ?`).bind(c.id));
-      st.push(stmtBitacora(env, { quien, accion: "editar", que: "Cuenta", ref: f.id, detalle: { cuenta: f.nombre, cambios: Object.fromEntries(Object.entries(c).filter(([k]) => k !== "id")) } }));
-      await env.DB.batch(st);
+      // Los cobros pueden llegar desde Google mientras se cambia el banco
+      // receptor. Verificar historial y titular del rol DENTRO de D1.batch.
+      // Dos administradores que eligen cuentas diferentes no se pisan.
+      const condiciones = [], args = [];
+      for (const rol of rolesSolicitados) {
+        if (titulares[rol]) {
+          condiciones.push(`EXISTS (SELECT 1 FROM fin_cuentas WHERE ${rol} = 1 AND id = ?)`);
+          args.push(titulares[rol]);
+        } else condiciones.push(`NOT EXISTS (SELECT 1 FROM fin_cuentas WHERE ${rol} = 1)`);
+        if (titulares[rol] !== f.id && ["tarjeta","def_transf"].includes(rol)) {
+          condiciones.push(`NOT EXISTS (SELECT 1 FROM caja_mov WHERE tipo='ticket' AND ${rol === "tarjeta" ? "forma = 'TARJETA'" : "forma LIKE 'TRANSF%'"} )`);
+        }
+      }
+      const condicion = condiciones.length ? " AND " + condiciones.join(" AND ") : "";
+      const st = [env.DB.prepare(`UPDATE fin_cuentas
+        SET nombre = ?, tipo = ?, activa = ?, comision_pct = ?, comision_iva = ?
+        WHERE id = ? AND nombre = ? AND tipo = ? AND activa = ?${condicion}`)
+        .bind(nombre || f.nombre, "tipo" in c ? tipo : f.tipo,
+          "activa" in c ? (c.activa ? 1 : 0) : f.activa, pct, iva, c.id,
+          f.nombre, f.tipo, f.activa, ...args)];
+      for (const k of rolesSolicitados) st.push(
+        env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 0 WHERE changes() > 0`),
+        env.DB.prepare(`UPDATE fin_cuentas SET ${k} = 1 WHERE id = ? AND changes() > 0`).bind(c.id)
+      );
+      st.push(stmtBitacoraSiCambio(env, { quien, accion: "editar", que: "Cuenta", ref: f.id,
+        detalle: { cuenta: f.nombre, cambios: Object.fromEntries(Object.entries(c).filter(([k]) => k !== "id")) } }));
+      const resultado = await env.DB.batch(st);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"La cuenta o su asignación cambió mientras guardabas, o aparecieron cobros nuevos. Actualiza las cuentas y verifica antes de repetir."},409);
       return json({ ok: true });
     }
     if (nombre.length < 2) return json({ ok: false, error: "Escribe el nombre de la cuenta." }, 422);
@@ -214,29 +321,72 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
   if (partes[1] === "saldo-cuenta") {
     const mes = String(c.mes || ""), cuenta = String(c.cuenta || "");
     if (!abiertos.includes(mes)) return json({ ok: false, error: "Solo se puede capturar el saldo inicial del mes abierto; los meses anteriores toman el saldo calculado." }, 409);
-    const f = await env.DB.prepare("SELECT nombre FROM fin_cuentas WHERE id = ?").bind(cuenta).first();
+    const f = await env.DB.prepare("SELECT nombre, activa FROM fin_cuentas WHERE id = ?").bind(cuenta).first();
     if (!f) return json({ ok: false, error: "Cuenta inválida." }, 422);
+    if (!f.activa) return json({ok:false,error:"La cuenta fue ocultada o desactivada. Actualiza Finanzas antes de capturar un saldo."},409);
     const antes = await env.DB.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta).first();
+    // Evita sobrescribir un saldo desde una pestaña desactualizada. Un cliente
+    // antiguo sin "esperado" sigue funcionando, pero el panel nuevo siempre
+    // envía el valor original que mostró al abrir el campo.
+    if (Object.hasOwn(c, "esperado")) {
+      const esperado = c.esperado == null || c.esperado === "" ? null : Number(c.esperado);
+      if (esperado !== null && !Number.isFinite(esperado))
+        return json({ok:false,error:"El saldo de referencia no es válido. Actualiza Finanzas."},422);
+      const actual = antes ? Number(antes.saldo) : null;
+      if (actual === null ? esperado !== null : esperado === null || !centavosIguales(actual, esperado))
+        return json({ok:false,error:"El saldo cambió en otra sesión. Actualiza la lista antes de guardarlo."},409);
+    }
     const t = String(c.saldo ?? "").replace(/[$,\s]/g, "");
-    const log = saldo => stmtBitacora(env, { quien, accion: saldo == null ? "borrar" : antes ? "editar" : "crear", que: "Saldo inicial de cuenta", ref: cuenta, mes, detalle: { cuenta: f.nombre, antes: antes ? antes.saldo : null, ahora: saldo } });
-    if (t === "") { await env.DB.batch([env.DB.prepare("DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta), log(null)]); return json({ ok: true }); }
-    if (!/^-?\d{1,10}(\.\d{1,2})?$/.test(t)) return json({ ok: false, error: "Escribe el saldo (solo números)." }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado) VALUES (?, ?, ?, ?) ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado").bind(mes, cuenta, Number(t), ahora),
-      log(Number(t))
+    const log = saldo => stmtBitacoraSiCambio(env, { quien,
+      accion: saldo == null ? "borrar" : antes ? "editar" : "crear",
+      que: "Saldo inicial de cuenta", ref: cuenta, mes,
+      detalle: { cuenta: f.nombre, antes: antes ? antes.saldo : null, ahora: saldo } });
+    if (t === "") {
+      if (!antes) return json({ok:true,sin_cambios:true});
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ? AND saldo = ?
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')`)
+          .bind(mes, cuenta, antes.saldo, mes),
+        log(null)
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"El saldo fue modificado en otra sesión. Actualiza la lista antes de borrarlo."},409);
+      return json({ok:true});
+    }
+    if (!/^-?\d{1,10}(\.\d{1,2})?$/.test(t))
+      return json({ok:false,error:"Escribe el saldo (solo números)."},422);
+    const saldo = Number(t);
+    if (antes && centavosIguales(antes.saldo, saldo)) return json({ok:true,sin_cambios:true});
+    // Compara con la versión leída: dos pestañas no se pisan al guardar.
+    // La inserción por primera vez solo gana si nadie creó el saldo entretanto.
+    const resultado = await env.DB.batch([
+      env.DB.prepare(`INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado)
+        SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')
+        ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado
+        WHERE fin_saldos_cuenta.saldo = ?
+          AND EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)
+          AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = excluded.mes AND token LIKE 'cerrado:%')`)
+        .bind(mes, cuenta, saldo, ahora, cuenta, mes, antes ? antes.saldo : null, cuenta),
+      log(saldo)
     ]);
-    return json({ ok: true });
+    if (!resultado[0]?.meta?.changes)
+      return json({ok:false,error:"El saldo o la cuenta bancaria cambió en otra sesión. Actualiza la lista antes de confirmar."},409);
+    return json({ok:true});
   }
   if (partes[1] === "mov" && partes.length === 2) {
     const tipo = Object.hasOwn(TIPOS_MOV, c.tipo) ? c.tipo : "";
-    const fecha = String(c.fecha || ""), importe = Number(String(c.importe ?? "").replace(/[$,\s]/g, ""));
+    const fecha = String(c.fecha || ""), importe = montoUsuario(c.importe);
     // "sobres" (efectivo de la administración) solo sale en un depósito o en un pago de tarjeta en efectivo, y solo entra en un retiro
     const origen = tipo === "deposito" ? "sobres" : String(c.origen || ""), destino = tipo === "retiro" ? "sobres" : String(c.destino || "");
     const cuentas = Object.fromEntries((await listaCuentas(env, true)).map(x => [x.id, x]));
     const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
     const errores = {};
     if (!tipo) errores.tipo = "Elige el tipo de movimiento.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha > hoy) errores.fecha = "Escribe la fecha del movimiento (no futura).";
+    const fechaReal = /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
+      Number.isFinite(Date.parse(fecha + "T12:00:00Z")) &&
+      new Date(fecha + "T12:00:00Z").toISOString().slice(0, 10) === fecha;
+    if (!fechaReal || fecha > hoy) errores.fecha = "Escribe una fecha real del movimiento (no futura).";
     else if (!abiertos.includes(fecha.slice(0, 7))) errores.fecha = "Ese mes ya se cerró; usa una fecha del mes abierto.";
     if (!(importe > 0) || importe > 100000000) errores.importe = "Escribe el importe.";
     const okOrigen = origen === "sobres" ? ["deposito", "pago_tarjeta"].includes(tipo) : !!cuentas[origen];
@@ -249,23 +399,74 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (tipo === "deposito" && cuentas[destino] && cuentas[destino].tipo === "credito") errores.destino = "Para abonar a una tarjeta de crédito usa «Pago de tarjeta de crédito».";
     if (tipo === "retiro" && cuentas[origen] && cuentas[origen].tipo === "credito") errores.origen = "El retiro de efectivo sale de una cuenta de débito.";
     if (Object.keys(errores).length) return json({ ok: false, error: Object.values(errores).join(" "), errores }, 422);
-    const id = crypto.randomUUID(), imp = Math.round(importe * 100) / 100, nota = String(c.nota || "").trim().slice(0, 200) || null;
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien),
-      stmtBitacora(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
-    ]);
+    let id;
+    try { id = await idFinanciero("mov", c.uid, quien); }
+    catch (er) { return json({ ok: false, error: er.message }, 422); }
+    const imp = Math.round(importe * 100) / 100, nota = String(c.nota || "").trim().slice(0, 200) || null;
+    const repetido = async () => {
+      const x = c.uid ? await env.DB.prepare("SELECT * FROM fin_movs WHERE id = ?").bind(id).first() : null;
+      if (!x) return null;
+      const igual = x.tipo === tipo && x.fecha === fecha && x.origen === origen && x.destino === destino
+        && centavosIguales(x.importe, imp) && (x.nota || null) === nota;
+      return igual ? json({ ok: true, id, repetido: true }) :
+        json({ ok: false, error: "Esta operación ya tiene otro importe, fecha o cuenta. Actualiza la lista antes de registrarla otra vez." }, 409);
+    };
+    const anterior = await repetido(); if (anterior) return anterior;
+    // Un UID borrado no puede revivir dinero por una respuesta tardía del móvil.
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ? LIMIT 1"
+    ).bind(id, TIPOS_MOV[tipo]).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Este movimiento fue eliminado. Actualiza Finanzas antes de registrar otro."},409);
+    // Reintentos guardados se reconocen aunque hoy la cuenta esté desactivada;
+    // nuevas operaciones requieren ambas cuentas activas.
+    if ((origen !== "sobres" && !cuentas[origen]?.activa) ||
+        (destino !== "sobres" && !cuentas[destino]?.activa))
+      return json({ok:false,error:"La cuenta de origen o destino está desactivada. Actualiza Finanzas y elige cuentas activas."},422);
+    // Cerrar la carrera de otra sesión que desactive una cuenta después de
+    // la validación: INSERT y bitácora condicional en la misma transacción.
+    const condiciones = [], args = [id, fecha.slice(0, 7), fecha, tipo, origen, destino, imp, nota, ahora, quien];
+    for (const cuenta of [origen, destino]) if (cuenta !== "sobres") {
+      condiciones.push("EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1)");
+      args.push(cuenta);
+    }
+    // Una eliminación concurrente se detecta también en la propia escritura.
+    condiciones.push("NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = ?)");
+    args.push(id, TIPOS_MOV[tipo]);
+    condiciones.push("NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = ? AND token LIKE 'cerrado:%')");
+    args.push(fecha.slice(0, 7));
+    const sql = `INSERT INTO fin_movs (id, mes, fecha, tipo, origen, destino, importe, nota, creado, creado_por)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${condiciones.join(" AND ")}`;
+    try {
+      const resultado = await env.DB.batch([
+        env.DB.prepare(sql).bind(...args),
+        stmtBitacoraSiCambio(env, { quien, accion: "crear", que: TIPOS_MOV[tipo], ref: id, mes: fecha.slice(0, 7), detalle: { fecha, de: origen, a: destino, importe: imp, nota } })
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:await fueEliminado()
+          ? "Este movimiento fue eliminado en otra sesión. Actualiza Finanzas."
+          : "Una cuenta cambió mientras guardabas el movimiento. Actualiza Finanzas antes de repetir."},409);
+    } catch (er) {
+      // D1 protege la clave primaria incluso si dos sesiones escriben a la vez.
+      const ya = await repetido(); if (ya) return ya;
+      throw er;
+    }
     return json({ ok: true, id });
   }
   if (partes[1] === "mov" && partes[3] === "eliminar") {
     const m = await env.DB.prepare("SELECT * FROM fin_movs WHERE id = ?").bind(partes[2]).first();
     if (!m) return json({ ok: true, borrados: 0 });
     if (!abiertos.includes(m.mes)) return json({ ok: false, error: "Ese movimiento es de un mes ya cerrado; ya no se puede borrar." }, 409);
-    await env.DB.batch([
-      env.DB.prepare("DELETE FROM fin_movs WHERE id = ?").bind(m.id),
-      stmtBitacora(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
+    const resultado = await env.DB.batch([
+      env.DB.prepare(`DELETE FROM fin_movs WHERE id = ? AND mes = ?
+        AND NOT EXISTS (SELECT 1 FROM caja_cierre_lock WHERE mes = fin_movs.mes AND token LIKE 'cerrado:%')`)
+        .bind(m.id, m.mes),
+      stmtBitacoraSiCambio(env, { quien, accion: "borrar", que: TIPOS_MOV[m.tipo] || m.tipo, ref: m.id, mes: m.mes, detalle: { fecha: m.fecha, de: m.origen, a: m.destino, importe: m.importe, nota: m.nota } })
     ]);
-    return json({ ok: true, borrados: 1 });
+    const borrados = Number(resultado[0]?.meta?.changes || 0);
+    if (!borrados && await env.DB.prepare("SELECT 1 FROM fin_movs WHERE id = ?").bind(m.id).first())
+      return json({ok:false,error:"El mes se cerró mientras intentabas eliminar este movimiento. No se modificaron los saldos; actualiza Finanzas."},409);
+    return json({ ok: true, borrados });
   }
   return json({ ok: false, error: "Ruta no encontrada." }, 404);
 }

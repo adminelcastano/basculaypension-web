@@ -1,0 +1,105 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { transfConCuenta } from "../src/finanzas.js";
+import { transferenciasMes } from "../src/caja.js";
+import { flujosMes } from "../src/cuentas.js";
+
+// Conciliar reduce dos registros del MISMO cobro a una sola entrada al banco.
+// El folio por servicio discrimina la misma numeración entre Báscula y Pensión.
+test("Ticket de hoja vinculado: una sola entrada y a la cuenta de la transferencia",()=>{
+  const ticket={tipo:"ticket",servicio:"bascula",folio:"F100",mes:"2026-10",fecha:"2026-10-18T10:00:00",
+    dia:"2026-10-18",turno:"MAÑANA",importe:850,forma:"TRANSFERENCIA",cliente:"ENSAYO"};
+  const manual={id:"ensayo-ligada",mes:"2026-10",fecha:"2026-10-18",cliente:"ENSAYO",
+    importe:850,ticket_ref:"bascula:F100",cuenta:"bbva-personal"};
+  const saldo=transfConCuenta([ticket],[manual],"bbva-pyme");
+  assert.equal(saldo.length,1,"El mismo ingreso no se debe sumar dos veces");
+  assert.equal(saldo[0].importe,850);
+  assert.equal(saldo[0].cuenta,"bbva-personal","Una asignación explícita prevalece sobre la cuenta por defecto");
+  const f=flujosMes({tarjeta:[],transf:saldo,admin:[],movs:[],sobres:[]},[
+    {id:"bbva-pyme",tipo:"debito"},{id:"bbva-personal",tipo:"debito"}
+  ]);
+  assert.equal(f.cuentas["bbva-personal"].entradas,850);
+  assert.equal(f.cuentas["bbva-pyme"].entradas,0);
+  assert.equal(f.sin_cuenta.transferencias,0);
+});
+
+test("Transferencia sin vínculo no desaparece ni se suma como ticket de hoja",()=>{
+  const ticket={tipo:"ticket",servicio:"pension",folio:"P100",mes:"2026-10",fecha:"2026-10-18T10:00:00",
+    dia:"2026-10-18",turno:"MAÑANA",importe:900,forma:"TRANSFERENCIA"};
+  const manual={id:"ensayo-otra",mes:"2026-10",fecha:"2026-10-19",cliente:"ENSAYO",
+    importe:220,ticket_ref:null,cuenta:"bbva-personal"};
+  const tr=transferenciasMes([ticket],[manual]);
+  assert.equal(tr.hoja.length,1);
+  assert.equal(tr.contadas.length,1);
+  assert.equal(tr.total_hoja,900);
+  assert.equal(tr.total_manual,220);
+  const banco=transfConCuenta([ticket],[manual],"bbva-pyme");
+  assert.equal(banco.length,2);
+  assert.equal(banco.reduce((sum,x)=>sum+x.importe,0),1120);
+  assert.deepEqual(banco.map(x=>[x.importe,x.cuenta]).sort((x,y)=>x[0]-y[0]),[
+    [220,"bbva-personal"],[900,"bbva-pyme"]
+  ]);
+});
+
+test("Folio idéntico entre servicios no mezcla tickets ni cuentas",()=>{
+  const mk=(servicio,importe)=>({tipo:"ticket",servicio,folio:"001",mes:"2026-10",
+    fecha:"2026-10-18T12:00:00",dia:"2026-10-18",turno:"MAÑANA",importe,forma:"TRANSFERENCIA"});
+  const manual={id:"ensayo-pension",mes:"2026-10",fecha:"2026-10-18",cliente:"ENSAYO",importe:300,
+    ticket_ref:"pension:001",cuenta:"bbva-personal"};
+  const rows=transfConCuenta([mk("bascula",500),mk("pension",300)],[manual],"bbva-pyme");
+  assert.equal(rows.length,2);
+  assert.equal(rows.find(x=>x.ref==="pension:001").cuenta,"bbva-personal");
+  assert.equal(rows.find(x=>x.ref==="bascula:001").cuenta,"bbva-pyme");
+  assert.equal(rows.reduce((sum,x)=>sum+x.importe,0),800);
+});
+
+
+test("Corregir la hoja no oculta una conciliación obsoleta ni elimina capturas",()=>{
+  const hoja={tipo:"ticket",servicio:"bascula",folio:"ENS-01",mes:"2026-10",fecha:"2026-10-18T10:00:00",
+    dia:"2026-10-18",turno:"MAÑANA",importe:400,forma:"TRANSFERENCIA"};
+  const manual={id:"captura-vinculada",mes:"2026-10",fecha:"2026-10-18",cliente:"Ficticio",
+    importe:400,ticket_ref:"bascula:ENS-01",cuenta:"bbva-personal"};
+  const valido=transferenciasMes([hoja],[manual]);
+  assert.deepEqual(valido.alertas,[]);
+  const distinto=transferenciasMes([{...hoja,importe:425.25}],[manual]);
+  assert.deepEqual(distinto.alertas.map(a=>a.motivo),["importe"]);
+  assert.equal(distinto.alertas[0].importe_capturado,400);
+  assert.equal(distinto.alertas[0].importe_hoja,425.25);
+  assert.equal(distinto.contadas.length,0,"No sumar automáticamente dos veces el mismo registro vinculado");
+  assert.equal(distinto.total_hoja,425.25);
+  const banco=transfConCuenta([{...hoja,importe:425.25}],[manual],"bbva-pyme");
+  assert.equal(banco.length,1,"No duplicar un ticket cuyo importe cambió");
+  assert.equal(banco[0].cuenta,"bbva-personal");
+
+  const forma=transferenciasMes([{...hoja,forma:"EFECTIVO"}],[manual]);
+  assert.deepEqual(forma.alertas.map(a=>a.motivo),["forma"]);
+  assert.equal(forma.contadas.length,1,"Conservar la captura manual si la hoja dejó de tratarla como transferencia");
+  const ausente=transferenciasMes([],[manual]);
+  assert.deepEqual(ausente.alertas.map(a=>a.motivo),["ausente"]);
+  const ambiguo=transferenciasMes([hoja,{...hoja,fecha:"2026-10-18T12:00:00"}],[manual]);
+  assert.deepEqual(ambiguo.alertas.map(a=>a.motivo),["ambiguo"]);
+  assert.equal(manual.importe,400,"La comprobación nunca reescribe datos de origen");
+});
+
+test("La pantalla financiera presenta las discrepancias sin botones automáticos de corrección",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const codigo=readFileSync(new URL("../src/panel/cliente/05-finanzas.js",import.meta.url),"utf8");
+  assert.doesNotThrow(()=>new Function(codigo));
+  assert.match(codigo,/Conciliaciones que necesitan revisión/);
+  assert.match(codigo,/No se borró ningún dato/);
+});
+
+
+test("Las tarjetas bancarias y el reporte distinguen saldo parcial de conciliación pendiente",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const panel=readFileSync(new URL("../src/panel/cliente/05-finanzas.js",import.meta.url),"utf8");
+  const fin=readFileSync(new URL("../src/finanzas.js",import.meta.url),"utf8");
+  const reporte=readFileSync(new URL("../src/reporte.js",import.meta.url),"utf8");
+  assert.match(fin,/conciliaciones_pendientes: tr\.alertas\.length/);
+  assert.match(panel,/revisar conciliación/);
+  assert.match(panel,/conciliaciones_pendientes/);
+  assert.match(reporte,/Conciliaciones de transferencias por revisar/);
+  assert.match(reporte,/Total bancario parcial/);
+  assert.match(reporte,/Deuda parcial/);
+  assert.doesNotThrow(()=>new Function(panel));
+});
