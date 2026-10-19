@@ -149,3 +149,12 @@ test("Una compra agrupada no se presenta como si el gasto completo fuera un solo
   assert.equal(fila.concepto,gasto.concepto);
   assert.ok(!fila.concepto.startsWith("Plumones (1)"));
 });
+
+test("Si otro administrador corrigió el saldo, el panel recupera el dato confirmado",()=>{
+  const cliente=source("../src/panel/cliente/05-finanzas.js");
+  assert.match(cliente,/const res = await post\("finanzas\/saldo-cuenta"/);
+  assert.match(cliente,/res\.sin_cambios \? "Saldo sin cambios"/);
+  assert.match(cliente,/if \(\/otra sesión\/\.test\(e\.message\)\) await cargar\(\)/);
+  assert.match(cliente,/if \(inp\.disabled\) return/);
+  assert.doesNotThrow(()=>new Function(cliente));
+});
