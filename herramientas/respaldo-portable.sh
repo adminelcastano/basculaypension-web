@@ -37,5 +37,5 @@ backup_verificar_sha256() {
     echo "Manifiesto inválido o correspondiente a otro archivo" >&2; return 1
   }
   recibido="$(backup_sha256 "$archivo")" || return
-  [ "${recibido,,}" = "${esperado,,}" ] || { echo "SHA-256 distinto" >&2; return 1; }
+  [ "$recibido" = "$esperado" ] || { echo "SHA-256 distinto" >&2; return 1; }
 }
