@@ -43,3 +43,5 @@ jobs:
 
       - name: Validar compilación de Finanzas ensayo sin publicar
         run: npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run --outdir /tmp/finanzas-ensayo-validado
+      - name: Validar compilación de auditoría privada sin publicar
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.auditoria-ensayo.jsonc --dry-run --outdir /tmp/auditoria-privada-validada
