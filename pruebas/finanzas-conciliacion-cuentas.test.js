@@ -52,3 +52,39 @@ test("Folio idéntico entre servicios no mezcla tickets ni cuentas",()=>{
   assert.equal(rows.find(x=>x.ref==="bascula:001").cuenta,"bbva-pyme");
   assert.equal(rows.reduce((sum,x)=>sum+x.importe,0),800);
 });
+
+
+test("Corregir la hoja no oculta una conciliación obsoleta ni elimina capturas",()=>{
+  const hoja={tipo:"ticket",servicio:"bascula",folio:"ENS-01",mes:"2026-10",fecha:"2026-10-18T10:00:00",
+    dia:"2026-10-18",turno:"MAÑANA",importe:400,forma:"TRANSFERENCIA"};
+  const manual={id:"captura-vinculada",mes:"2026-10",fecha:"2026-10-18",cliente:"Ficticio",
+    importe:400,ticket_ref:"bascula:ENS-01",cuenta:"bbva-personal"};
+  const valido=transferenciasMes([hoja],[manual]);
+  assert.deepEqual(valido.alertas,[]);
+  const distinto=transferenciasMes([{...hoja,importe:425.25}],[manual]);
+  assert.deepEqual(distinto.alertas.map(a=>a.motivo),["importe"]);
+  assert.equal(distinto.alertas[0].importe_capturado,400);
+  assert.equal(distinto.alertas[0].importe_hoja,425.25);
+  assert.equal(distinto.contadas.length,0,"No sumar automáticamente dos veces el mismo registro vinculado");
+  assert.equal(distinto.total_hoja,425.25);
+  const banco=transfConCuenta([{...hoja,importe:425.25}],[manual],"bbva-pyme");
+  assert.equal(banco.length,1,"No duplicar un ticket cuyo importe cambió");
+  assert.equal(banco[0].cuenta,"bbva-personal");
+
+  const forma=transferenciasMes([{...hoja,forma:"EFECTIVO"}],[manual]);
+  assert.deepEqual(forma.alertas.map(a=>a.motivo),["forma"]);
+  assert.equal(forma.contadas.length,1,"Conservar la captura manual si la hoja dejó de tratarla como transferencia");
+  const ausente=transferenciasMes([],[manual]);
+  assert.deepEqual(ausente.alertas.map(a=>a.motivo),["ausente"]);
+  const ambiguo=transferenciasMes([hoja,{...hoja,fecha:"2026-10-18T12:00:00"}],[manual]);
+  assert.deepEqual(ambiguo.alertas.map(a=>a.motivo),["ambiguo"]);
+  assert.equal(manual.importe,400,"La comprobación nunca reescribe datos de origen");
+});
+
+test("La pantalla financiera presenta las discrepancias sin botones automáticos de corrección",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const codigo=readFileSync(new URL("../src/panel/cliente/05-finanzas.js",import.meta.url),"utf8");
+  assert.doesNotThrow(()=>new Function(codigo));
+  assert.match(codigo,/Conciliaciones que necesitan revisión/);
+  assert.match(codigo,/No se borró ningún dato/);
+});
