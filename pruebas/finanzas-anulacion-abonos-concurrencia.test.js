@@ -139,6 +139,63 @@ test("Abonos de Caja: anulación concurrente, saldo vigente y reintentos por UID
     assert.equal(u2.status,200,JSON.stringify(u2));
     assert.ok(u1.datos.sin_cambios || u2.datos.sin_cambios,"Uno de los dos reintentos recupera el éxito");
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_cobros_admin WHERE pendiente_id='p-uid-simult'").get().n,1);
+
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-uid-simult'").get().n,1);
+
+    // Dos operadores intentan cancelar el mismo pendiente: una sola transición.
+    pendiente("p-cancelado-doble",90,"pendiente");
+    const [c1,c2]=await Promise.all([
+      enviar(env,"p-cancelado-doble",{estado:"cancelado"}),
+      enviar(env,"p-cancelado-doble",{estado:"cancelado"})
+    ]);
+    assert.ok([c1.status,c2.status].every(x=>x===200||x===409),JSON.stringify([c1,c2]));
+    assert.equal(db.prepare("SELECT estado FROM caja_pendientes WHERE id='p-cancelado-doble'").get().estado,"cancelado");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-cancelado-doble'").get().n,1);
+    const reabierto=await enviar(env,"p-cancelado-doble",{estado:"pendiente"});
+    assert.equal(reabierto.status,200,JSON.stringify(reabierto));
+    const yaReabierto=await enviar(env,"p-cancelado-doble",{estado:"pendiente"});
+    assert.equal(yaReabierto.status,200);
+    assert.equal(yaReabierto.datos.sin_cambios,true);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-cancelado-doble'").get().n,2);
+
+    // Un abono entra justo después de leer abonado=0, antes de cancelar.
+    pendiente("p-cancelado-carrera",100,"pendiente");
+    let seAbono=false;
+    env.DB.batch=async consultas=>{
+      if(!seAbono && consultas[0]?.sql.includes("UPDATE caja_pendientes SET estado = ?") &&
+         consultas[0]?.parametros[0]==="cancelado" &&
+         consultas[0]?.parametros[4]==="p-cancelado-carrera"){
+        seAbono=true;
+        abono("abono-concurrente-cancel", "p-cancelado-carrera",60);
+        db.prepare("UPDATE caja_pendientes SET estado='parcial' WHERE id='p-cancelado-carrera'").run();
+      }
+      return batchOriginal(consultas);
+    };
+    const carrera=await enviar(env,"p-cancelado-carrera",{estado:"cancelado"});
+    assert.equal(seAbono,true);
+    assert.equal(carrera.status,409,JSON.stringify(carrera));
+    assert.equal(db.prepare("SELECT estado FROM caja_pendientes WHERE id='p-cancelado-carrera'").get().estado,"parcial");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-cancelado-carrera'").get().n,0);
+    env.DB.batch=batchOriginal;
+
+    // El ticket reaparece como pendiente en hoja mientras otra sesión lo conciliaba.
+    pendiente("p-conciliar-carrera",45,"pendiente");
+    db.prepare("UPDATE caja_pendientes SET origen_activo=0 WHERE id='p-conciliar-carrera'").run();
+    let reaparecio=false;
+    env.DB.batch=async consultas=>{
+      if(!reaparecio && consultas[0]?.sql.includes("UPDATE caja_pendientes SET estado = ?") &&
+         consultas[0]?.parametros[0]==="conciliado" &&
+         consultas[0]?.parametros[4]==="p-conciliar-carrera"){
+        reaparecio=true;
+        db.prepare("UPDATE caja_pendientes SET origen_activo=1 WHERE id='p-conciliar-carrera'").run();
+      }
+      return batchOriginal(consultas);
+    };
+    const desfasado=await enviar(env,"p-conciliar-carrera",{estado:"conciliado"});
+    assert.equal(reaparecio,true);
+    assert.equal(desfasado.status,409,JSON.stringify(desfasado));
+    assert.equal(db.prepare("SELECT estado FROM caja_pendientes WHERE id='p-conciliar-carrera'").get().estado,"pendiente");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-conciliar-carrera'").get().n,0);
+    env.DB.batch=batchOriginal;
   } finally { db.close(); }
 });
