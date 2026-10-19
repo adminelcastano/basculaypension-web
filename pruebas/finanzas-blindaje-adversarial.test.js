@@ -264,7 +264,7 @@ test("Movimiento bancario en celular exige cuentas seleccionadas y confirma orig
   assert.match(ui,/if \(!origen \|\| !destino \|\| origen === destino\)/);
   assert.match(ui,/máximo dos decimales/);
   assert.match(ui,/const detalle = `\$\{D\(Number\(importe\)\)\} · \$\{nombre\(origen\)\} → \$\{nombre\(destino\)\}/);
-  assert.match(ui,/await EC\.confirmar\("¿Registrar " \+ clase\.toLowerCase\(\) \+ "\?", detalle, "Registrar"\)/);
+  assert.match(ui,/await EC\.confirmar\(titulo, detalle, yaExiste \? "Registrar otro" : "Registrar"\)/);
   assert.match(ui,/if \(bt\.isConnected\) bt\.disabled = false/);
   assert.doesNotThrow(()=>new Function(ui));
 });
@@ -327,4 +327,22 @@ test("Notificación blanca: texto centrado en móvil sin cubrir la navegación",
   assert.match(css,/\.toast \{ bottom: calc\(84px \+ env\(safe-area-inset-bottom, 0px\)\); \}/);
   assert.match(page,/class="toast" id="toast" role="status" aria-live="polite"/);
   assert.match(base,/t\.textContent = msg/);
+});
+
+
+test("Finanzas avisa si el usuario intenta registrar dos veces el mismo movimiento",()=>{
+  const ui=source("../src/panel/cliente/05-finanzas.js");
+  const expr=ui.match(/const mismoMovimiento = \(a, b\) => ([\s\S]*?);/)?.[1];
+  assert.ok(expr,"Comparador puro de movimientos requerido");
+  const coinciden=new Function("a","b","return "+expr);
+  const base={tipo:"traspaso",origen:"bbva-pyme",destino:"mdo-pago",fecha:"2026-10-18",importe:1.23};
+  assert.equal(coinciden(base,{...base,importe:"1.23"}),true);
+  assert.equal(coinciden(base,{...base,importe:1.24}),false);
+  assert.equal(coinciden(base,{...base,origen:"mdo-pago",destino:"bbva-pyme"}),false);
+  assert.equal(coinciden(base,{...base,fecha:"2026-10-19"}),false);
+  assert.equal(coinciden(base,{...base,tipo:"retiro"}),false);
+  assert.match(ui,/const yaExiste = \(st\.datos\?\.banco\?\.movs \|\| \[\]\)\.some/);
+  assert.match(ui,/¿Registrar otro movimiento idéntico\?/);
+  assert.match(ui,/Registrar otro volverá a modificar ambos saldos/);
+  assert.doesNotThrow(()=>new Function(ui));
 });
