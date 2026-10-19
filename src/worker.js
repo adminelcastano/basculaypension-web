@@ -57,12 +57,22 @@ export default {
     // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
     env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
-    if (env.ENSAYO_FINANZAS === "1" && [
+    if ((env.ENSAYO_FINANZAS === "1" || env.ENSAYO_AUDITORIA === "1") && [
       env.INGRESOS_URL, env.INGRESOS_TOKEN, env.AVISO_URL, env.AVISO_TOKEN,
       env.CF_API_TOKEN, env.SENDGRID_API_KEY, env.RESEND_API_KEY,
       env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REFRESH_TOKEN
     ].some(Boolean)) {
       return json({ok:false,error:"Configuración insegura del ensayo: hay servicios externos activos."},503);
+    }
+    // Auditoría privada: panel y tableta con D1/KV sintéticos; nunca formularios
+    // públicos, expedientes, correos ni servicios externos. Nunca activar en producción.
+    if (env.ENSAYO_AUDITORIA === "1") {
+      const ruta = url.pathname;
+      if (ruta.startsWith("/api/") || ruta.startsWith("/expediente/") ||
+          (request.method !== "GET" && request.method !== "HEAD" &&
+           !ruta.startsWith("/panel/api/") && !ruta.startsWith("/turno/api/"))) {
+        return json({ ok: false, error: "Ruta no habilitada en la auditoría privada." }, 403);
+      }
     }
     // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
     // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
@@ -96,7 +106,7 @@ export default {
   async scheduled(event, env, ctx) {
     // Nunca procesar tareas ni sincronizaciones si se disparara accidentalmente
     // una ejecución programada del Worker de ensayo.
-    if (env.ENSAYO_FINANZAS === "1") return;
+    if (env.ENSAYO_FINANZAS === "1" || env.ENSAYO_AUDITORIA === "1") return;
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") {
