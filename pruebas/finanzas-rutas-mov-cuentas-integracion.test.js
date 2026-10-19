@@ -516,4 +516,33 @@ test("Notas bancarias: una pestaña vieja no sobrescribe cambios de otra sesión
     "Terminación sintética 5678");
 });
 
+
+test("Dos administradores que guardan notas bancarias simultáneamente no se pisan",async()=>{
+  const valor=db.prepare("SELECT valor FROM fin_config WHERE clave='cuentas'").get()?.valor||"";
+  const originalPrepare=env.DB.prepare;
+  let leidas=0,liberar;
+  const barrera=new Promise(resolve=>{liberar=resolve});
+  env.DB.prepare=sql=>{
+    const stmt=originalPrepare(sql);
+    if(sql!=="SELECT valor FROM fin_config WHERE clave = 'cuentas'")return stmt;
+    return {...stmt,async first(){
+      const antes=await stmt.first();
+      if(++leidas===2)liberar();
+      await barrera;
+      return antes;
+    }};
+  };
+  let resultados;
+  try{
+    resultados=await Promise.all([
+      request("cuentas",{texto:"Administración A: cuenta 1",esperado:valor}),
+      request("cuentas",{texto:"Administración B: cuenta 2",esperado:valor})
+    ]);
+  }finally{env.DB.prepare=originalPrepare}
+  assert.equal(leidas,2);
+  assert.deepEqual(resultados.map(x=>x.status).sort((a,b)=>a-b),[200,409],JSON.stringify(resultados));
+  const guardado=db.prepare("SELECT valor FROM fin_config WHERE clave='cuentas'").get()?.valor;
+  assert.ok(["Administración A: cuenta 1","Administración B: cuenta 2"].includes(guardado));
+});
+
 test.after(()=>db.close());
