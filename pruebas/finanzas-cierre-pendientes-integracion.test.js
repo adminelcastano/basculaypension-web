@@ -217,3 +217,22 @@ test("Google con cantidades válidas preserva ceros, centavos y devoluciones neg
     assert.equal(filas[3].monto_pendiente,65.75);
   }finally{quitar()}
 });
+
+test("La hoja con calendario u horario imposible no reescribe los tickets del mes",async()=>{
+  for(const fecha of [
+    "2026-10-00T10:00:00","2026-10-32T10:00:00",
+    "2026-10-18T25:00:00","2026-10-18T10:61:00",
+    "2026-10-18T10:00:60","2026-10-18T10:00"
+  ]){
+    const desinstalar=instalarHoja({[MES]:{bascula:[ingreso(fecha,"17097",20)]},[SIG]:{}});
+    try{
+      await assert.rejects(()=>leerHoja(env,MES),/movimientos inválidos/,fecha);
+    }finally{desinstalar()}
+  }
+  const retirar=instalarHoja({[MES]:{bascula:[ingreso("2026-10-18T10:00:00","17097",12.25)]},[SIG]:{}});
+  try{
+    const filas=await leerHoja(env,MES);
+    assert.equal(filas.length,1);
+    assert.equal(filas[0].importe,12.25);
+  }finally{retirar()}
+});
