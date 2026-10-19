@@ -17,7 +17,9 @@
 - `herramientas/respaldo-d1-cifrado.sh` prepara un respaldo externo cifrado con `age`, usando Wrangler **4.151.2**, comprueba que el SQL exportado restaura en SQLite local y exige `PRAGMA quick_check=ok` **antes** del cifrado.
 - Nunca guarda SQL ni secretos en GitHub, no restaura producción, no publica ni modifica bases. Requiere `BACKUP_DEST` **fuera del repositorio**, `AGE_RECIPIENT` (clave **pública**) y `CLOUDFLARE_API_TOKEN` configurados en el entorno administrativo. La clave privada se custodia separadamente.
 - `.gitignore` y la protección de CI impiden nuevos respaldos o binarios SQLite en commits públicos.
-- **Pendiente de infraestructura:** elegir destino cifrado con redundancia, custodios de clave, política de retención y programador de ejecuciones. Propuesta inicial para aprobación: respaldo diario, 35 diarios y 12 mensuales, auditoría semanal de legibilidad, recuperación completa trimestral. No configurar ni borrar backups sin resolver custodios.
+- **Destino Drive creado y comprobado:** carpeta exclusiva `El Castaño · Respaldos D1 cifrados` en la raíz de `administracion@basculaypension.com`. Sus metadatos indican propietario único, no compartida y vacía. El ID exacto se mantiene fuera del repositorio público.
+- **Transporte preparado:** `herramientas/subir-respaldo-cifrado-drive.sh` únicamente sube `.sql.age` y `.sha256` a la carpeta privada mediante un remote de `rclone` previamente autorizado y limitado a esa carpeta (`root_folder_id`). Verifica SHA-256 local y MD5 remoto. No descarga ni sube SQL plano ni borra objetos; las comprobaciones de existencia previas a copia no constituyen una operación atómica frente a ejecutores concurrentes. El script principal lo invoca sólo cuando `BACKUP_DRIVE_REMOTE` está configurada.
+- **Pendiente de infraestructura:** configurar la autorización OAuth de rclone en el equipo administrativo (sin compartir tokens), custodios de clave privada `age`, política de retención y programador de ejecuciones. Propuesta inicial para aprobación: respaldo diario, 35 diarios y 12 mensuales, auditoría semanal de legibilidad, recuperación completa trimestral. No configurar ni borrar backups sin resolver custodios.
 - **Prueba final:** descargar el archivo SQL real exportado de una D1 de ensayo, restaurarlo en **una segunda D1 aislada** y comparar esquema, conteos y datos sintéticos. El éxito de un `quick_check` local no sustituye esta prueba.
 
 ## Fase 3. Google Apps Script y privacidad operativa
@@ -46,7 +48,7 @@
 
 ## Decisiones pendientes que no pueden suplirse con código
 
-1. Destino privado y cifrado para copias duraderas fuera de Cloudflare, cuenta administradora y custodia de clave.
+1. **Destino creado** en la cuenta administrativa, sin documentos todavía. Pendientes: clave privada de recuperación custodiada fuera de Drive, configuración OAuth externa del remote rclone y ubicación local segura para ejecuciones.
 2. Instalar la nueva versión íntegra del Apps Script, después de validación técnica, porque GitHub no modifica automáticamente ese proyecto.
 3. Validación en los dispositivos físicos que usan los encargados.
 4. Permiso separado de publicación productiva después de pruebas y comparación de commits.
