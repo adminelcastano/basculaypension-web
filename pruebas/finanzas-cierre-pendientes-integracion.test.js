@@ -236,3 +236,40 @@ test("La hoja con calendario u horario imposible no reescribe los tickets del me
     assert.equal(filas[0].importe,12.25);
   }finally{retirar()}
 });
+
+test("Dos sincronizaciones simultáneas no pisan la hoja; una llave antigua se recupera",async()=>{
+  await env.FILES.put("caja:mes",MES);
+  sqlite.prepare("INSERT INTO caja_sync_lock (nombre,token,tomado) VALUES ('hoja','abandonada','2026-01-01T00:00:00Z') ON CONFLICT(nombre) DO UPDATE SET token=excluded.token,tomado=excluded.tomado").run();
+  let liberar,avisar,consultas=0,abierta=false;
+  const bloqueada=new Promise(resolve=>{liberar=resolve});
+  const iniciada=new Promise(resolve=>{avisar=resolve});
+  const antes=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    consultas++;
+    if(!abierta){abierta=true;avisar();await bloqueada;}
+    const m=new URL(url).searchParams.get("mes");
+    return new Response(JSON.stringify({ok:true,mes:m,
+      bascula:m===MES?[ingreso("2026-10-18T10:00:00","17097",160)]:[],
+      pension:[]}),{headers:{"Content-Type":"application/json"}});
+  };
+  let primera;
+  try{
+    primera=sincronizarCaja(env);
+    await iniciada; // la primera ya tomó la llave, pero Google no respondió
+    const segunda=await sincronizarCaja(env);
+    assert.equal(segunda.ocupado,true,"La lectura más vieja no ejecuta ningún INSERT/DELETE");
+    assert.equal(consultas,1,"No se consulta Google una segunda vez");
+    liberar();
+    const estado=await primera;
+    assert.ok(estado.at && !estado.error,JSON.stringify(estado));
+    assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM caja_sync_lock").get().n,0,
+      "Al terminar se libera la llave de sincronización");
+    const nueva=await sincronizarCaja(env);
+    assert.ok(nueva.at && !nueva.ocupado,JSON.stringify(nueva));
+    assert.equal(consultas,2,"Después del cierre normal se permite una nueva lectura");
+  }finally{
+    liberar();
+    globalThis.fetch=antes;
+    if(primera)await primera.catch(()=>{});
+  }
+});
