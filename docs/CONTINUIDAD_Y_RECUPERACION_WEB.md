@@ -39,6 +39,10 @@ La prueba **no equivale a haber descargado, inspeccionado, cifrado y restaurado 
 
 Se comprobó mediante la API que las D1 productiva y de ensayo poseen bookmarks de Time Travel. Esto indica que la API responde; **no garantiza** que un instante específico siga dentro de la ventana de recuperación ni que los sistemas externos estén sincronizados.
 
+### 2.4 Integridad SQLite — consulta de solo lectura
+
+Se ejecutó `PRAGMA quick_check` en la D1 productiva y en la D1 privada de auditoría. Ambas devolvieron **`ok`**. Es una comprobación rápida de integridad de SQLite, no una auditoría contable, validación de relaciones externas ni sustituto de respaldo/restauración.
+
 ## 3. Procedimiento antes de una recuperación productiva
 
 1. Confirmar identidad de la D1 mediante su vinculación `DB` en el Worker correspondiente; **nunca copiar IDs desde ensayos ni asumir el nombre**.
