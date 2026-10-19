@@ -258,7 +258,20 @@
       guardarCuenta({ id: f.dataset.ccom, comision_pct: f.pct.value, comision_iva: f.iva.checked }, "Comisión guardada", f.querySelector("[type=submit]"));
     }));
     const cnu = c.querySelector("#f-cnueva");
-    if (cnu) cnu.addEventListener("submit", async ev => { ev.preventDefault(); cnu.querySelector(".err").textContent = ""; try { await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value }); toast("Cuenta agregada"); await cargar(); } catch (e) { if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message; } });
+    if (cnu) cnu.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const bt = cnu.querySelector("[type=submit]");
+      if (bt.disabled) return;
+      bt.disabled = true;
+      cnu.querySelector(".err").textContent = "";
+      try {
+        await post("finanzas/cuenta", { nombre: cnu.nombre.value, tipo: cnu.tipo.value });
+        toast("Cuenta agregada");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") cnu.querySelector(".err").textContent = e.message;
+      } finally { if (bt.isConnected) bt.disabled = false; }
+    });
     const cu = c.querySelector("#f-cuentas");
     if (cu) cu.addEventListener("submit", async ev => {
       ev.preventDefault(); const b = cu.querySelector("button"); b.disabled = true;
@@ -308,32 +321,60 @@
       };
       fm.tipo.addEventListener("change", pintarMov); pintarMov();
       fm.addEventListener("submit", async ev => {
-        ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); bt.disabled = true; fm.querySelector(".err").textContent = "";
+        ev.preventDefault(); const bt = fm.querySelector("[type=submit]"); if (bt.disabled) return; bt.disabled = true; fm.querySelector(".err").textContent = "";
         try { await post("finanzas/mov", { tipo: fm.tipo.value, origen: fm.origen.value, destino: fm.destino.value, importe: fm.importe.value, fecha: fm.fecha.value, nota: fm.nota.value, uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID()) }); toast("Movimiento registrado"); await cargar(); }
         catch (e) { if (e.message !== "sesion") fm.querySelector(".err").textContent = e.message; bt.disabled = false; }
       });
     }
     c.querySelectorAll("[data-mdel]").forEach(bt => bt.addEventListener("click", async () => {
       if (!bt.classList.contains("armed")) { bt.classList.add("armed"); bt.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => bt.classList.remove("armed"), 3000); return; }
-      try { await post(`finanzas/mov/${encodeURIComponent(bt.dataset.mdel)}/eliminar`); toast("Movimiento eliminado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      if (bt.disabled) return;
+      bt.disabled = true;
+      try {
+        const res = await post(`finanzas/mov/${encodeURIComponent(bt.dataset.mdel)}/eliminar`);
+        toast(res.borrados ? "Movimiento eliminado" : "Movimiento ya eliminado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") toast(e.message);
+      } finally { if (bt.isConnected) { bt.disabled = false; bt.classList.remove("armed"); } }
     }));
     const ft = $("#f-ftransf");
     if (ft) {
       // Al elegir el ticket se llenan el importe, la fecha y el cliente que trae la hoja
       ft.ticket_ref.addEventListener("change", () => { const o = ft.ticket_ref.selectedOptions[0]; if (!o || !o.value) return; ft.importe.value = o.dataset.imp; ft.fecha.value = o.dataset.f; if (!ft.cliente.value.trim() && o.dataset.cli) ft.cliente.value = o.dataset.cli; });
       ft.addEventListener("submit", async ev => {
-        ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); b.disabled = true; ft.querySelector(".err").textContent = "";
+        ev.preventDefault(); const b = ft.querySelector("button[type=submit]"); if (b.disabled) return; b.disabled = true; ft.querySelector(".err").textContent = "";
         try { await post("caja/transferencias", { cliente: ft.cliente.value, importe: ft.importe.value.replace(/[$,\s]/g, ""), fecha: ft.fecha.value, factura: ft.factura.value, cuenta: ft.cuenta.value, ticket_ref: ft.ticket_ref.value, uid: ft.dataset.uid || (ft.dataset.uid = crypto.randomUUID()) }); toast("Transferencia guardada"); await cargar(); }
         catch (e) { if (e.message !== "sesion") ft.querySelector(".err").textContent = e.errores ? Object.values(e.errores).join(" ") : e.message; b.disabled = false; }
       });
     }
     c.querySelectorAll("[data-tdel]").forEach(b => b.addEventListener("click", async () => {
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.setAttribute("aria-label", "Toca otra vez para eliminar"); setTimeout(() => b.classList.remove("armed"), 3000); return; }
-      try { await post(`caja/transferencias/${encodeURIComponent(b.dataset.tdel)}/eliminar`); toast("Transferencia eliminada"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); }
+      if (b.disabled) return;
+      b.disabled = true;
+      try {
+        await post(`caja/transferencias/${encodeURIComponent(b.dataset.tdel)}/eliminar`);
+        toast("Transferencia eliminada");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          if (/otra sesión|cambió/.test(e.message)) await cargar();
+        }
+      } finally { if (b.isConnected) { b.disabled = false; b.classList.remove("armed"); } }
     }));
     c.querySelectorAll("[data-tligar]").forEach(b => b.addEventListener("click", async () => {
       b.disabled = true;
-      try { await post(`caja/transferencias/${encodeURIComponent(b.dataset.tligar)}/ligar`, { ticket_ref: b.dataset.ref }); toast(b.dataset.ref ? "Ligada al ticket: ya no cuenta dos veces" : "Ticket quitado"); await cargar(); } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+      try {
+        const res = await post(`caja/transferencias/${encodeURIComponent(b.dataset.tligar)}/ligar`, { ticket_ref: b.dataset.ref });
+        toast(res.sin_cambios ? "El ticket ya tenía ese vínculo" : b.dataset.ref ? "Ligada al ticket: ya no cuenta dos veces" : "Ticket quitado");
+        await cargar();
+      } catch (e) {
+        if (e.message !== "sesion") {
+          toast(e.message);
+          if (/otra sesión|cambió/.test(e.message)) await cargar();
+        }
+      } finally { if (b.isConnected) b.disabled = false; }
     }));
     const bit = $("#f-bit");
     if (bit) bit.addEventListener("toggle", async () => {
