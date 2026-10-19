@@ -7,13 +7,15 @@ umask 077
 : "${BACKUP_DEST:?Define BACKUP_DEST, carpeta privada FUERA del repositorio}"
 : "${AGE_RECIPIENT:?Define AGE_RECIPIENT con la clave PÚBLICA de cifrado age}"
 : "${CLOUDFLARE_API_TOKEN:?Usa un token de lectura/autorización de exportación D1 en tu entorno}"
-for cmd in npx age sqlite3 sha256sum realpath mktemp; do
+for cmd in npx age sqlite3 mktemp; do
   command -v "$cmd" >/dev/null || { echo "Falta herramienta: $cmd" >&2; exit 2; }
 done
-root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$root/herramientas/respaldo-portable.sh"
+cd "$root"
 mkdir -p "$BACKUP_DEST"
-dest="$(realpath "$BACKUP_DEST")"
-raiz="$(realpath "$root")"
+dest="$(backup_directorio_real "$BACKUP_DEST")"
+raiz="$(backup_directorio_real "$root")"
 case "$dest/" in "$raiz/"*) echo "No almacenar respaldos dentro del repositorio" >&2; exit 2;; esac
 if [ ! -d "$dest" ] || [ ! -w "$dest" ]; then
   echo "Destino privado inaccesible" >&2; exit 2
@@ -35,7 +37,7 @@ comprobacion="$(sqlite3 -readonly "$temporal/ensayo.sqlite" 'PRAGMA quick_check;
 
 age -r "$AGE_RECIPIENT" -o "$salida" "$temporal/export.sql"
 test -s "$salida" || { echo "Falló el cifrado" >&2; exit 1; }
-( cd "$dest" && sha256sum "$(basename "$salida")" ) > "$salida.sha256"
+backup_escribir_sha256 "$salida"
 chmod 600 "$salida" "$salida.sha256"
 printf 'Respaldo cifrado y restauración local verificada: %s\n' "$salida"
 # Transferir únicamente el cifrado y su manifiesto; ningún .sql descifrado sale de /tmp.
