@@ -162,4 +162,25 @@ test("Borrar saldo ya vacío no inventa una baja; borrar valor existente se audi
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Saldo inicial de cuenta' AND ref='bbva-personal' AND accion='borrar'").get().n,1);
 });
 
+test("Una pantalla vieja no puede sobrescribir un saldo guardado después",async()=>{
+  const cuenta="klar-manu";
+  const escribir=(saldo,esperado)=>request("saldo-cuenta",{mes,cuenta,saldo,esperado});
+  const primero=await escribir("1000",null);
+  assert.equal(primero.status,200,JSON.stringify(primero));
+  const viejo=await escribir("1500",null);
+  assert.equal(viejo.status,409,"Otra pestaña abrió el saldo antes de la primera captura");
+  const correcto=await escribir("1200","1000");
+  assert.equal(correcto.status,200,JSON.stringify(correcto));
+  const repetidoAntiguo=await escribir("1200","1000");
+  assert.equal(repetidoAntiguo.status,409,"No tratar un formulario viejo como guardado sin cambios");
+  const borrarAntiguo=await escribir("","1000");
+  assert.equal(borrarAntiguo.status,409,"Tampoco puede borrar el nuevo saldo");
+  assert.equal(db.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,cuenta).saldo,1200);
+  const borrarActual=await escribir("","1200");
+  assert.equal(borrarActual.status,200,JSON.stringify(borrarActual));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_saldos_cuenta WHERE mes=? AND cuenta=?").get(mes,cuenta).n,0);
+  const bajas=db.prepare("SELECT accion,COUNT(*) AS n FROM fin_bitacora WHERE ref=? AND que='Saldo inicial de cuenta' GROUP BY accion").all(cuenta);
+  assert.deepEqual(bajas.map(x=>[x.accion,x.n]).sort(),[["borrar",1],["crear",1],["editar",1]]);
+});
+
 test.after(()=>db.close());
