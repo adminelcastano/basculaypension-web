@@ -310,7 +310,9 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 .reparto b { color: var(--fg); }
 .reparto.ok { background: var(--ok-soft); color: #c9f5d6; } .reparto.ok span:last-child { color: var(--ok); font-weight: 700; }
 .reparto.mal { background: var(--warn-soft); color: #f5e3b8; } .reparto.mal span:last-child { color: var(--warn); font-weight: 700; }
-.red { padding: 6px 12px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.red { padding: 6px 12px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: .82rem; font-weight: 700; white-space: normal; }
+.red button { margin-left: 6px; padding: 3px 8px; border: 1px solid currentColor; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.red button:disabled { opacity: .65; cursor: default; }
 .aviso-warn { background: var(--warn-soft); color: #f5e3b8; }
 .aviso-warn svg { color: var(--warn); }
 /* Hoja (diálogo) */
@@ -767,6 +769,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   let sesionGeneracion = 0;
   async function mostrarEntrada() {
     sesionGeneracion++; // invalida cargas anteriores al cambio de PIN o salida
+    colaBloqueada = false;
     guardarLS("turno:estado", null); // borra estado legado con datos privados
     if (castaVisor?.open) castaFotoCerrar(true);
     const hojaPrivada = sec().querySelector("dialog.casta-sheet[open]"); if (hojaPrivada) hojaPrivada.close();
@@ -866,6 +869,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       if (generacion !== sesionGeneracion) throw new Error("La sesión cambió durante la carga.");
       if (E && (E.persona !== nuevo.persona || E.turno !== nuevo.turno || E.dia !== nuevo.dia)) {
         Object.keys(hilos).forEach(k => delete hilos[k]); hilosAb.clear(); castaFotoActual.clear();
+        colaBloqueada = false;
       }
       E = nuevo;
       sinRed = false;
@@ -879,10 +883,11 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     pintarCabecera(); return E;
   }
   // Manda lo que quedó pendiente sin internet, en orden
-  let enviando = false;
+  let enviando = false, colaBloqueada = false;
   async function enviarCola() {
     if (enviando || !E) return;
     enviando = true;
+    pintarRed();
     try {
       let l = cola(), n = 0;
       const persona = E.persona, turno = E.turno, dia = E.dia;
@@ -894,12 +899,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         try { await api(it.ruta, it.datos, { cola: false }); n++; }
         catch (e) {
           if (e.red || !E || (e.datos && e.datos.sesion === false)) break;
+          colaBloqueada = true;
           toast(`No se pudo enviar un registro guardado: ${e.message}. Se conservó pendiente.`, true);
           break; // no descartar mensajes, fotos ni registros rechazados
         }
         if (!E || E.persona !== persona || E.turno !== turno || E.dia !== dia) break;
         l = cola(); l.shift(); if (!guardarCola(l)) break;
       }
+      if (!l.length && E && E.persona === persona && E.turno === turno && E.dia === dia) colaBloqueada = false;
       if (n && E && E.persona === persona && E.turno === turno && E.dia === dia) {
         toast(`Se enviaron ${n} ${n === 1 ? "registro guardado" : "registros guardados"} sin internet.`);
         // Una sincronización offline no debe cerrar los comentarios que se estén leyendo.
@@ -919,8 +926,20 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     el.hidden = !n && !sinRed && !antiguos;
     el.textContent = (sinRed ? "Sin internet" : "") +
       (n ? ` · ${n} por enviar` : "") +
+      (colaBloqueada && n ? " · Envío detenido; datos conservados" : "") +
       (antiguos ? ` · ${antiguos} envío(s) anterior(es) por revisar` : "");
+    if (n && E) {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.dataset.reintentarCola = "1";
+      boton.textContent = enviando ? "Enviando…" : "Reintentar";
+      boton.disabled = enviando;
+      el.appendChild(boton);
+    }
   }
+  $("#red").addEventListener("click", e => {
+    if (E && e.target.closest("[data-reintentar-cola]")) enviarCola();
+  });
   addEventListener("online", () => { enviarCola(); });
   async function abrirApp() {
     const generacion = sesionGeneracion;

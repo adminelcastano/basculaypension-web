@@ -89,16 +89,35 @@ export async function vapid(endpoint, publica, privadaJwk, ahora = Date.now()) {
   return `vapid t=${cab}.${cuerpo}.${b64u(firma)}, k=${publica}`;
 }
 
+// Los push de tablet llegan al aparato compartido, no a una identidad autenticada.
+// Blindaje central: ningún módulo puede poner su contenido privado en el aviso del sistema.
+export function datosPush(destino, msg = {}) {
+  if (destino === "tablet") {
+    const sec = ["inicio", "avisos", "calendario"].includes(msg.sec) ? msg.sec : null;
+    const etiqueta = /^(aviso|tarea|compra)-[a-f0-9-]{16,64}$/i.test(String(msg.etiqueta || ""))
+      ? msg.etiqueta : null;
+    return {
+      titulo: msg.grave ? "Actividad importante en El Castaño" : "Nueva actividad en El Castaño",
+      cuerpo: "Abre la tableta con tu PIN para consultar novedades.",
+      url: sec && sec !== "inicio" ? "/turno?sec=" + sec : "/turno",
+      etiqueta, grave: !!msg.grave, sec
+    };
+  }
+  return {
+    titulo: String(msg.titulo || "El Castaño").slice(0, 120),
+    cuerpo: String(msg.cuerpo || "").slice(0, 400),
+    url: msg.url || "/panel",
+    etiqueta: msg.etiqueta || null, grave: !!msg.grave, sec: msg.sec || null
+  };
+}
+
 // Mensaje: { titulo, cuerpo, url, etiqueta, grave }. Devuelve cuántos aparatos lo recibieron.
 export async function enviarPush(env, destino, msg) {
   await asegurarEsquemaPush(env);
   const subs = (await env.DB.prepare("SELECT * FROM push_subs WHERE destino = ?").bind(destino).all()).results;
   if (!subs.length) return 0;
   const { publica, privada } = await llaves(env);
-  const datos = JSON.stringify({
-    titulo: String(msg.titulo || "El Castaño").slice(0, 120), cuerpo: String(msg.cuerpo || "").slice(0, 400),
-    url: msg.url || (destino === "tablet" ? "/turno" : "/panel"), etiqueta: msg.etiqueta || null, grave: !!msg.grave, sec: msg.sec || null
-  });
+  const datos = JSON.stringify(datosPush(destino, msg));
   let ok = 0;
   const ahora = new Date().toISOString();
   await Promise.all(subs.map(async s => {
@@ -112,8 +131,8 @@ export async function enviarPush(env, destino, msg) {
       if (r.ok) { ok++; await env.DB.prepare("UPDATE push_subs SET ultimo_ok = ?, fallas = 0 WHERE endpoint = ?").bind(ahora, s.endpoint).run(); }
       // 404/410: el aparato ya no existe (se desinstaló o se borraron los datos del navegador)
       else if (r.status === 404 || r.status === 410) await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ?").bind(s.endpoint).run();
-      else { console.error("push", r.status, (await r.text()).slice(0, 200)); await env.DB.prepare("UPDATE push_subs SET fallas = COALESCE(fallas, 0) + 1 WHERE endpoint = ?").bind(s.endpoint).run(); }
-    } catch (e) { console.error("push", e && e.message); }
+      else { console.error("push", r.status); await env.DB.prepare("UPDATE push_subs SET fallas = COALESCE(fallas, 0) + 1 WHERE endpoint = ?").bind(s.endpoint).run(); }
+    } catch (e) { console.error("push", ["AbortError", "TimeoutError", "TypeError"].includes(e?.name) ? e.name : "error"); }
   }));
   return ok;
 }
@@ -147,7 +166,7 @@ self.addEventListener("notificationclick", e => {
 
 // Para las rutas: manda en segundo plano (si hay ctx) sin retrasar la respuesta; nunca lanza error.
 export function notificar(env, destino, msg) {
-  const p = enviarPush(env, destino, msg).catch(e => console.error("push", e && e.message));
+  const p = enviarPush(env, destino, msg).catch(e => console.error("push", ["AbortError", "TimeoutError", "TypeError"].includes(e?.name) ? e.name : "error"));
   if (env && typeof env.enFondo === "function") { env.enFondo(p); return Promise.resolve(); }
   return p;
 }
