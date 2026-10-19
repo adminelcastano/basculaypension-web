@@ -528,15 +528,35 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     if (!TIPOS_COMP.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG, HEIC) o un PDF." }, 415);
     const bytes = await request.arrayBuffer();
     if (!bytes.byteLength || bytes.byteLength > 10 * 1024 * 1024) return json({ ok: false, error: "El archivo está vacío o pesa más de 10 MB." }, 413);
-    const llave = "pc:" + pago.id;
+    // Llave única por versión: dos sesiones no sobrescriben el mismo archivo
+    // antes de ganar la actualización condicional del recibo.
+    const llave = "pc:" + pago.id + ":" + crypto.randomUUID();
     const nombre = `${pago.fecha} ${String(pago.titulo || "Pago").replace(/[^\p{L}\p{N} .-]/gu, "").slice(0, 60)}.${tipo === "application/pdf" ? "pdf" : (tipo.split("/")[1] || "jpg").replace("jpeg", "jpg")}`;
     await guardarArchivo(env, llave, bytes, { tipo, nombre, carpeta: ["Comprobantes de pago", pago.fecha.slice(0, 7)] });
-    await env.DB.prepare("UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ? WHERE id = ?").bind(llave, tipo, pago.id).run();
+    let guardado;
+    try {
+      guardado = await env.DB.prepare(`UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?
+        WHERE id = ? AND COALESCE(comprobante, '') = ?`)
+        .bind(llave, tipo, pago.id, pago.comprobante || "").run();
+    } catch (e) {
+      await borrarArchivo(env, llave).catch(() => {});
+      throw e;
+    }
+    if (!guardado.meta?.changes) {
+      await borrarArchivo(env, llave).catch(() => {});
+      return json({ok:false,error:"El comprobante cambió o el pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409);
+    }
+    // Solo borrar la versión anterior DESPUÉS de vincular la nueva.
+    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(e => console.error("Comprobante antiguo", e?.message));
     return json({ ok: true });
   }
   if (accion === "quitar-comprobante") {
-    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
-    await env.DB.prepare("UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL WHERE id = ?").bind(pago.id).run();
+    if (!pago.comprobante) return json({ok:true,sin_cambios:true});
+    const guardado = await env.DB.prepare(`UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL
+      WHERE id = ? AND comprobante = ?`).bind(pago.id, pago.comprobante).run();
+    if (!guardado.meta?.changes)
+      return json({ok:false,error:"El comprobante cambió en otra sesión. Actualiza Pagos hechos antes de quitarlo."},409);
+    await borrarArchivo(env, pago.comprobante).catch(e => console.error("Comprobante retirado", e?.message));
     return json({ ok: true });
   }
   if (accion === "editar") {
