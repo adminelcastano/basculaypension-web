@@ -225,7 +225,16 @@
     // Dinero muestra todo a la vez, en bloques (los de pagos y compras los pinta la Agenda)
     const BLOQUES = { "fb-resumen": ["resumen", "diferencias", "sueldos", "categorias", "admin"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["bitacora", "reportes"] };
     for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
-    EC.bloqueN("finanzas", "transferencias", hojaSinLigar.length || null, hojaSinLigar.length > 0);
+    const pendientesConciliacion = (j.conciliacion_alertas || []).length;
+    const estadoTransferencias = modoEnsayo ? "Ensayo · hoja desconectada"
+      : fuenteAlerta ? "Hoja sin sincronización verificada"
+      : pendientesConciliacion ? pendientesConciliacion + " conciliaciones por revisar"
+      : hojaSinLigar.length ? hojaSinLigar.length + " tickets por ligar"
+      : !(j.transf_hoja || []).length ? "Sin tickets de transferencia en la hoja"
+      : "Sin tickets pendientes de vincular";
+    EC.bloqueN("finanzas", "transferencias",
+      pendientesConciliacion || hojaSinLigar.length || null,
+      pendientesConciliacion > 0 || fuenteAlerta || hojaSinLigar.length > 0);
     EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     // Tarjetas financieras: preservar los centavos cuando no son .00.
@@ -234,7 +243,7 @@
     EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
     EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : "—", texto: e.saldo != null ? "en sobres" : "Sin saldo inicial capturado" });
     EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "")) + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
-    EC.bloqueInfo("finanzas", "transferencias", { texto: hojaSinLigar.length ? hojaSinLigar.length + " por ligar" : "Al corriente" });
+    EC.bloqueInfo("finanzas", "transferencias", { texto: estadoTransferencias });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();
     pintarConfigCuentas();
