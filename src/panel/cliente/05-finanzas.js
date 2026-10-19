@@ -323,7 +323,7 @@
             { texto: cu.texto.value, esperado: cu.dataset.original });
           cu.dataset.original = cu.texto.value;
           if (st.datos?.banco) st.datos.banco.cuentas = cu.texto.value;
-          toast(res.sin_cambios ? "Notas sin cambios" : "Notas guardadas");
+          toast(res.sin_cambios ? "Estas notas ya estaban guardadas" : "Notas guardadas");
         } catch (e) {
           if (e.message !== "sesion") cu.querySelector(".err").textContent = e.message;
         } finally { if (bt.isConnected) bt.disabled = false; }
