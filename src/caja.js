@@ -244,7 +244,10 @@ export async function asegurarEsquemaCaja(env) {
       monto REAL NOT NULL, forma TEXT NOT NULL, creado TEXT NOT NULL, por TEXT,
       anulado INTEGER NOT NULL DEFAULT 0, anulado_por TEXT, anulado_en TEXT)`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_mes ON caja_cobros_admin (mes, anulado)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)")
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_cobros_admin_pendiente ON caja_cobros_admin (pendiente_id, anulado)"),
+    // Exclusión de cierre mensual: KV puede servir lecturas simultáneas antiguas.
+    // Una sola ejecución por mes toma la llave transaccional de D1.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_cierre_lock (mes TEXT PRIMARY KEY, token TEXT NOT NULL, tomado TEXT NOT NULL)")
   ]);
   await asegurarEsquemaBitacora(env);
   esquemaListo = true;
@@ -623,9 +626,22 @@ export async function cierreMensualCaja(env, h, ahora = new Date()) {
   if (mesActual(new Date(ahora.getTime() - 7 * 3600e3)) !== actual) return { esperando: true };
   const intento = await env.FILES.get("caja:cierre_intento");
   if (intento && ahora.getTime() - Date.parse(intento) < 3600e3) return { esperando: true };
-  await env.FILES.put("caja:cierre_intento", ahora.toISOString(), { expirationTtl: 7200 });
   const mes = guardado;
-  let movs;
+  const token = crypto.randomUUID();
+  const vencido = new Date(ahora.getTime() - 2 * 3600e3).toISOString();
+  // El INSERT / UPDATE condicional se serializa en D1. Un segundo Worker
+  // no puede obtener el mismo mes a la vez aunque ambos leyeran KV vacío.
+  // La llave vence para permitir recuperación si un Worker desaparece.
+  const toma = await env.DB.prepare(`INSERT INTO caja_cierre_lock (mes, token, tomado)
+    VALUES (?, ?, ?) ON CONFLICT(mes) DO UPDATE SET
+      token = excluded.token, tomado = excluded.tomado
+    WHERE caja_cierre_lock.tomado < ?`)
+    .bind(mes, token, ahora.toISOString(), vencido).run();
+  if (!toma.meta?.changes) return { esperando: true };
+  let completado = false;
+  try {
+    await env.FILES.put("caja:cierre_intento", ahora.toISOString(), { expirationTtl: 7200 });
+    let movs;
   try {
     // Del mes que se cierra: lo de su hoja más lo capturado después de medianoche del día 1 que es de su último día
     const sig = (await leerHoja(env, actual)).filter(f => String(f.dia).slice(0, 7) === mes);
@@ -677,8 +693,16 @@ export async function cierreMensualCaja(env, h, ahora = new Date()) {
   await env.DB.batch(["caja_gastos", "caja_transf", "caja_extra", "caja_mov", "turno_cortes", "turno_cortes_hist", "turno_inicio", "caja_folios"]
     .map(t => env.DB.prepare(`DELETE FROM ${t} WHERE mes < ?`).bind(limite)));
   await env.FILES.put("caja:mes", actual);
-  await env.FILES.delete("caja:cierre_intento");
+  completado = true;
+  await env.FILES.delete("caja:cierre_intento").catch(e => console.error("cierre caja: marcador", e && e.message));
   return { cerrado: mes };
+  } finally {
+    // El éxito conserva la llave temporal para absorber lecturas KV obsoletas
+    // después del cierre. El error la suelta para que pueda reintentarse.
+    if (!completado) await env.DB.prepare(
+      "DELETE FROM caja_cierre_lock WHERE mes = ? AND token = ?"
+    ).bind(mes, token).run().catch(e => console.error("cierre caja: liberar", e && e.message));
+  }
 }
 
 // ---- Entregas capturadas por la administración (turnos sin corte en la tablet) ----
