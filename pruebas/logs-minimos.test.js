@@ -39,3 +39,11 @@ test("A-11B: log de mantenimiento no copia errores de Google", () => {
   assert.match(cron, /tipoErrorSeguro\(e\)/);
   assert.doesNotMatch(worker, /limpieza: respaldo no confirmado, no se borra nada", e && e\.message/);
 });
+
+test("A-11B: push no registra respuestas externas ni excepciones con identificadores", () => {
+  const push = readFileSync(new URL("../src/push.js", import.meta.url), "utf8");
+  assert.doesNotMatch(push, /console\.error\("push", r\.status, \(await r\.text\(\)\)/);
+  assert.doesNotMatch(push, /console\.error\("push", e && e\.message\)/);
+  assert.match(push, /console\.error\("push", r\.status\)/);
+  assert.match(push, /\["AbortError", "TimeoutError", "TypeError"\]\.includes\(e\?\.name\)/);
+});
