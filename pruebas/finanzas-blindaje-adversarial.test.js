@@ -111,10 +111,13 @@ test("Saldos parcialmente conocidos y sincronización no aparentan cifras comple
   const ui=source("../src/panel/cliente/05-finanzas.js");
   assert.match(finanzas,/dinero_parcial: deb\.some/);
   assert.match(finanzas,/deuda_parcial: cred\.some/);
-  assert.match(finanzas,/d\.sync = await env\.FILES\.get\("caja:sync"/);
+  assert.match(finanzas,/d\.ensayo_finanzas = env\.ENSAYO_FINANZAS === "1"/);
+  assert.match(finanzas,/d\.sync = d\.ensayo_finanzas \? null : await env\.FILES\.get\("caja:sync"/);
   assert.match(ui,/Total parcial: faltan saldos/);
   assert.match(ui,/Última actualización registrada de ingresos/);
   assert.match(ui,/Puede haber consultas de la hoja sin cambios/);
+  assert.match(ui,/ENSAYO: solo datos ficticios\. La hoja de ingresos está desconectada intencionalmente/);
+  assert.match(ui,/const fuenteAlerta = !modoEnsayo/);
   assert.doesNotThrow(()=>new Function(ui));
 });
 
