@@ -89,16 +89,35 @@ export async function vapid(endpoint, publica, privadaJwk, ahora = Date.now()) {
   return `vapid t=${cab}.${cuerpo}.${b64u(firma)}, k=${publica}`;
 }
 
+// Los push de tablet llegan al aparato compartido, no a una identidad autenticada.
+// Blindaje central: ningún módulo puede poner su contenido privado en el aviso del sistema.
+export function datosPush(destino, msg = {}) {
+  if (destino === "tablet") {
+    const sec = ["inicio", "avisos", "calendario"].includes(msg.sec) ? msg.sec : null;
+    const etiqueta = /^(aviso|tarea|compra)-[a-f0-9-]{16,64}$/i.test(String(msg.etiqueta || ""))
+      ? msg.etiqueta : null;
+    return {
+      titulo: msg.grave ? "Actividad importante en El Castaño" : "Nueva actividad en El Castaño",
+      cuerpo: "Abre la tableta con tu PIN para consultar novedades.",
+      url: sec && sec !== "inicio" ? "/turno?sec=" + sec : "/turno",
+      etiqueta, grave: !!msg.grave, sec
+    };
+  }
+  return {
+    titulo: String(msg.titulo || "El Castaño").slice(0, 120),
+    cuerpo: String(msg.cuerpo || "").slice(0, 400),
+    url: msg.url || "/panel",
+    etiqueta: msg.etiqueta || null, grave: !!msg.grave, sec: msg.sec || null
+  };
+}
+
 // Mensaje: { titulo, cuerpo, url, etiqueta, grave }. Devuelve cuántos aparatos lo recibieron.
 export async function enviarPush(env, destino, msg) {
   await asegurarEsquemaPush(env);
   const subs = (await env.DB.prepare("SELECT * FROM push_subs WHERE destino = ?").bind(destino).all()).results;
   if (!subs.length) return 0;
   const { publica, privada } = await llaves(env);
-  const datos = JSON.stringify({
-    titulo: String(msg.titulo || "El Castaño").slice(0, 120), cuerpo: String(msg.cuerpo || "").slice(0, 400),
-    url: msg.url || (destino === "tablet" ? "/turno" : "/panel"), etiqueta: msg.etiqueta || null, grave: !!msg.grave, sec: msg.sec || null
-  });
+  const datos = JSON.stringify(datosPush(destino, msg));
   let ok = 0;
   const ahora = new Date().toISOString();
   await Promise.all(subs.map(async s => {
