@@ -209,6 +209,11 @@ test("Regresar un ticket comprado devuelve artículos a pendiente y retira su ga
   assert.equal(filas.length,2);
   assert.ok(filas.every(x=>x.estado==="pendiente"&&x.gasto_id===null&&x.importe===null));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(gastoId).n,1);
+  const viejoReintento=await post(env,"compras/terminar",datos);
+  assert.equal(viejoReintento.status,409,JSON.stringify(viejoReintento));
+  assert.match(viejoReintento.data.error,/devuelto/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(gastoId).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(gastoId).n,0);
   const nuevo=await post(env,"compras/terminar",{...datos,uid:"cc000006-2222-4333-8444-555555555555"});
   assert.equal(nuevo.status,200,JSON.stringify(nuevo));
   assert.notEqual(nuevo.data.gasto_id,gastoId);
