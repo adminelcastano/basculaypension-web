@@ -92,11 +92,21 @@ export async function vapid(endpoint, publica, privadaJwk, ahora = Date.now()) {
 // Los push de tablet llegan al aparato compartido, no a una identidad autenticada.
 // Blindaje central: ningún módulo puede poner su contenido privado en el aviso del sistema.
 export function datosPush(destino, msg = {}) {
-  const tablet = destino === "tablet";
+  if (destino === "tablet") {
+    const sec = ["inicio", "avisos", "calendario"].includes(msg.sec) ? msg.sec : null;
+    const etiqueta = /^(aviso|tarea|compra)-[a-f0-9-]{16,64}$/i.test(String(msg.etiqueta || ""))
+      ? msg.etiqueta : null;
+    return {
+      titulo: msg.grave ? "Actividad importante en El Castaño" : "Nueva actividad en El Castaño",
+      cuerpo: "Abre la tableta con tu PIN para consultar novedades.",
+      url: sec && sec !== "inicio" ? "/turno?sec=" + sec : "/turno",
+      etiqueta, grave: !!msg.grave, sec
+    };
+  }
   return {
-    titulo: tablet ? (msg.grave ? "Actividad importante en El Castaño" : "Nueva actividad en El Castaño") : String(msg.titulo || "El Castaño").slice(0, 120),
-    cuerpo: tablet ? "Abre la tableta con tu PIN para consultar novedades." : String(msg.cuerpo || "").slice(0, 400),
-    url: msg.url || (tablet ? "/turno" : "/panel"),
+    titulo: String(msg.titulo || "El Castaño").slice(0, 120),
+    cuerpo: String(msg.cuerpo || "").slice(0, 400),
+    url: msg.url || "/panel",
     etiqueta: msg.etiqueta || null, grave: !!msg.grave, sec: msg.sec || null
   };
 }
