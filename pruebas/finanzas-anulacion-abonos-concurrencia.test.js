@@ -48,15 +48,17 @@ function adaptar(db) {
   };
 }
 
-async function accion(env, pendiente, pago) {
+async function enviar(env, pendiente, datos) {
   const u = new URL("https://ensayo.invalid/panel/api/caja/pendiente/" + pendiente + "/resolver");
   const req = new Request(u, {method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({estado:"anular-abono",pago_id:pago})});
+    body:JSON.stringify(datos)});
   const r = await cajaPanel(req,env,u,["caja","pendiente",pendiente,"resolver"],actor,{});
   return {status:r.status,datos:await r.json()};
 }
+const accion = (env, pendiente, pago) =>
+  enviar(env,pendiente,{estado:"anular-abono",pago_id:pago});
 
-test("Dos sesiones anulan una vez; la entrada tardía recalcula importe y estado", async () => {
+test("Abonos de Caja: anulación concurrente, saldo vigente y reintentos por UID", async () => {
   const db = new DatabaseSync(":memory:");
   const env = adaptar(db);
   try {
@@ -108,5 +110,35 @@ test("Dos sesiones anulan una vez; la entrada tardía recalcula importe y estado
     assert.equal(db.prepare("SELECT estado FROM caja_pendientes WHERE id='p-intercalado'").get().estado,"parcial");
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-intercalado'").get().n,1);
     env.DB.batch = batchOriginal;
+
+    // Mismo UID con datos distintos: jamás responder "registrado" a un abono diferente.
+    pendiente("p-uid",100,"pendiente");
+    const pid="50000000-0000-4000-8000-000000000001";
+    const datos={estado:"pagado",pago_id:pid,monto:"75.25",fecha:hoy,forma:"EFECTIVO"};
+    const primero=await enviar(env,"p-uid",datos);
+    assert.equal(primero.status,200,JSON.stringify(primero));
+    const mismo=await enviar(env,"p-uid",datos);
+    assert.equal(mismo.status,200,JSON.stringify(mismo));
+    assert.equal(mismo.datos.sin_cambios,true);
+    const diferente=await enviar(env,"p-uid",{...datos,monto:"75.26"});
+    assert.equal(diferente.status,409,"Un UID no puede cambiar de importe");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_cobros_admin WHERE pendiente_id='p-uid'").get().n,1);
+    const anulado=await accion(env,"p-uid",pid);
+    assert.equal(anulado.status,200);
+    assert.equal(anulado.datos.abonado,0);
+    assert.equal(anulado.datos.estado,"pendiente");
+    const revivido=await enviar(env,"p-uid",datos);
+    assert.equal(revivido.status,409,"Una operación anulada no se puede confirmar de nuevo");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_cobros_admin WHERE pendiente_id='p-uid'").get().n,1);
+
+    // Dos solicitudes con el MISMO pago_id deben recuperar exactamente el mismo éxito.
+    pendiente("p-uid-simult",120,"pendiente");
+    const simult={...datos,pago_id:"50000000-0000-4000-8000-000000000002",monto:"60.00"};
+    const [u1,u2]=await Promise.all([enviar(env,"p-uid-simult",simult),enviar(env,"p-uid-simult",simult)]);
+    assert.equal(u1.status,200,JSON.stringify(u1));
+    assert.equal(u2.status,200,JSON.stringify(u2));
+    assert.ok(u1.datos.sin_cambios || u2.datos.sin_cambios,"Uno de los dos reintentos recupera el éxito");
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_cobros_admin WHERE pendiente_id='p-uid-simult'").get().n,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_pendientes_hist WHERE pendiente_id='p-uid-simult'").get().n,1);
   } finally { db.close(); }
 });
