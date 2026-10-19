@@ -354,17 +354,25 @@ export async function sincronizarCaja(env) {
     // reescribir tickets del mes mientras el otro está conciliándolos.
     const tomado = await env.DB.prepare(`INSERT INTO caja_sync_lock (nombre, token, tomado)
       SELECT 'hoja', ?, ? WHERE NOT EXISTS (
-        SELECT 1 FROM caja_cierre_lock WHERE tomado >= ?
+        SELECT 1 FROM caja_cierre_lock WHERE token NOT LIKE 'cerrado:%' AND tomado >= ?
       ) ON CONFLICT(nombre) DO UPDATE SET
         token = excluded.token, tomado = excluded.tomado
       WHERE caja_sync_lock.tomado < ? AND NOT EXISTS (
-        SELECT 1 FROM caja_cierre_lock WHERE tomado >= ?
+        SELECT 1 FROM caja_cierre_lock WHERE token NOT LIKE 'cerrado:%' AND tomado >= ?
       )`)
       .bind(token, instanteLock.toISOString(), venceCierre, venceSync, venceCierre).run();
     if (!tomado.meta?.changes) return { ocupado: true };
     lock = true;
     // Los meses se eligen DESPUÉS del bloqueo, nunca de una lista antigua.
-    const meses = await mesesAbiertos(env);
+    const mesesAbiertosAhora = await mesesAbiertos(env);
+    // Un cierre terminado es definitivo aunque KV devuelva temporalmente
+    // el marcador del mes anterior: no reescribir un mes ya cerrado.
+    const cerrados = (await env.DB.prepare(
+      "SELECT mes FROM caja_cierre_lock WHERE token LIKE 'cerrado:%'"
+    ).all()).results;
+    const cerrado = new Set(cerrados.map(x => x.mes));
+    const meses = mesesAbiertosAhora.filter(m => !cerrado.has(m));
+    if (!meses.length) return { sin_cambios: true };
     // Cada registro va al mes de su día de corte (una NOCHE de las 2 a.m. del día 1 es del mes anterior)
     const filas = [];
     for (const m of meses) for (const f of await leerHoja(env, m)) { const mes = String(f.dia).slice(0, 7); if (meses.includes(mes)) filas.push({ ...f, mes }); }
@@ -688,7 +696,7 @@ export async function cierreMensualCaja(env, h, ahora = new Date()) {
       SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
     ) ON CONFLICT(mes) DO UPDATE SET
       token = excluded.token, tomado = excluded.tomado
-    WHERE caja_cierre_lock.tomado < ? AND NOT EXISTS (
+    WHERE caja_cierre_lock.tomado < ? AND caja_cierre_lock.token NOT LIKE 'cerrado:%' AND NOT EXISTS (
       SELECT 1 FROM caja_sync_lock WHERE nombre = 'hoja' AND tomado >= ?
     )`)
     .bind(mes, token, ahora.toISOString(), venceSync, vencido, venceSync).run();
@@ -752,9 +760,12 @@ export async function cierreMensualCaja(env, h, ahora = new Date()) {
   await env.FILES.delete("caja:cierre_intento").catch(e => console.error("cierre caja: marcador", e && e.message));
   return { cerrado: mes };
   } finally {
-    // El éxito conserva la llave temporal para absorber lecturas KV obsoletas
-    // después del cierre. El error la suelta para que pueda reintentarse.
-    if (!completado) await env.DB.prepare(
+    // Al cerrar conservar una lápida definitiva distinguible del cierre
+    // activo: protege ante KV obsoleto SIN bloquear el nuevo mes.
+    if (completado) await env.DB.prepare(
+      "UPDATE caja_cierre_lock SET token = ? WHERE mes = ? AND token = ?"
+    ).bind("cerrado:" + token, mes, token).run().catch(e => console.error("cierre caja: finalizar bloqueo", e && e.message));
+    else await env.DB.prepare(
       "DELETE FROM caja_cierre_lock WHERE mes = ? AND token = ?"
     ).bind(mes, token).run().catch(e => console.error("cierre caja: liberar", e && e.message));
   }
