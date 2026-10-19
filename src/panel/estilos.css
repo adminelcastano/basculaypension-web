@@ -1718,3 +1718,14 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 .f-guia-saldos summary:focus-visible, .f-aviso-saldos summary:focus-visible {
   outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 7px;
 }
+
+/* Movimientos: eliminar debe ser explícito y tocable, nunca una papelera diminuta. */
+.fmov-lista .fmov-eliminar {
+  display: inline-flex; width: auto; height: auto; min-height: 44px;
+  align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: 12px; color: var(--bad); font-size: var(--t-sm);
+  font-weight: 600; touch-action: manipulation;
+}
+.fmov-lista .fmov-eliminar svg { width: 18px; height: 18px; flex: none; }
+.fmov-lista .fmov-eliminar:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
