@@ -185,6 +185,12 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (c.id) {
       const f = await env.DB.prepare("SELECT * FROM fin_cuentas WHERE id = ?").bind(c.id).first();
       if (!f) return json({ ok: false, error: "No existe esa cuenta." }, 404);
+      const tipoFinal = "tipo" in c ? tipo : f.tipo;
+      const rolesRecepcion = ["tarjeta", "def_transf", "def_pago"];
+      if (tipoFinal === "credito" && (
+        rolesRecepcion.some(rol => c[rol]) ||
+        (tipoFinal !== f.tipo && rolesRecepcion.some(rol => f[rol]))
+      )) return json({ok:false,error:"Las cuentas para recibir cobros y pagos deben ser de débito. Selecciona una cuenta de débito para esos usos antes de cambiar este tipo."},422);
       // Una cuenta que ya tiene movimientos no puede cambiar de débito a crédito:
       // invierte la fórmula de todo su historial, también el de meses cerrados.
       if ("tipo" in c && tipo !== f.tipo) {
