@@ -11,3 +11,15 @@
 node_modules/
 *.log
 .DS_Store
+
+# Respaldos, exportaciones SQL y copias SQLite: siempre fuera del repositorio.
+respaldos/
+backups/
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.sql.age
+*.sql.gz
+*.sql.enc
