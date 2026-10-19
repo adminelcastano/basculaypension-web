@@ -353,3 +353,62 @@ test("Cuenta bancaria desactivada o de tipo incorrecto no registra pago ni compr
     db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
   }
 });
+
+test("Cuenta desactivada entre validación y D1.batch revierte pagos y compras",async()=>{
+  const {db,env}=shared, previoBatch=env.DB.batch;
+  const antes=()=>({
+    gastos:db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,
+    pagos:db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,
+    historiales:db.prepare("SELECT COUNT(*) n FROM compras_historial").get().n,
+    bitacora:db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n
+  });
+  try{
+    const cuenta="bbva-pyme", resumen=antes();
+    const disputar=async (ruta,datos)=>{
+      // Otra sesión desactiva la cuenta en la ventana entre la lectura
+      // validada y el primer INSERT del lote transaccional.
+      let inyectado=false;
+      env.DB.batch=async sentencias=>{
+        if(!inyectado && sentencias.some(x=>x.sql.includes("INSERT INTO caja_gastos"))){
+          inyectado=true;
+          db.prepare("UPDATE fin_cuentas SET activa = 0 WHERE id = ?").run(cuenta);
+        }
+        return previoBatch(sentencias);
+      };
+      try{
+        const resp=await post(env,ruta,datos);
+        assert.equal(inyectado,true,JSON.stringify(resp));
+        assert.equal(resp.status,409,JSON.stringify(resp));
+        assert.deepEqual(antes(),resumen,"Un banco desactivado no deja asientos parciales ni bitácora falsa");
+      }finally{
+        env.DB.batch=previoBatch;
+        db.prepare("UPDATE fin_cuentas SET activa = 1 WHERE id = ?").run(cuenta);
+      }
+    };
+    await disputar("pagos/hecho",{
+      uid:"70000000-0000-4000-8000-000000000001",fecha:hoy,importe:"211.25",
+      titulo:"Pago de carrera de banco",forma:"C:bbva-pyme",nota:"ensayo"
+    });
+    const programado="pago-ensayo-banco-race";
+    db.prepare("INSERT INTO agenda_items (id,tipo,titulo,fecha,estado,frecuencia,forma,importe,creado) VALUES (?, 'pago', ?, ?, 'pendiente', 'mensual', 'TRANSFERENCIA', 200, ?)")
+      .run(programado,"Servicio de carrera",hoy,new Date().toISOString());
+    await disputar(programado+"/pagar",{
+      uid:"70000000-0000-4000-8000-000000000002",fecha:hoy,importe:"200",
+      forma:"C:bbva-pyme",nota:"ensayo"
+    });
+    assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(programado).estado,"pendiente");
+    assert.equal(db.prepare("SELECT fecha FROM agenda_items WHERE id=?").get(programado).fecha,hoy);
+
+    const compra="compra-ensayo-banco-race";
+    db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES (?, 'compra', 'Artículo sintético', 'pendiente', ?)")
+      .run(compra,new Date().toISOString());
+    await disputar("compras/terminar",{
+      uid:"70000000-0000-4000-8000-000000000003",ids:[compra],total:"150.30",
+      precios:{[compra]:"150.30"},forma:"C:bbva-pyme",fecha_compra:hoy
+    });
+    assert.equal(db.prepare("SELECT estado FROM agenda_items WHERE id=?").get(compra).estado,"pendiente");
+  } finally {
+    env.DB.batch=previoBatch;
+    db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-pyme'").run();
+  }
+});
