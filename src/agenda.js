@@ -535,9 +535,17 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     await guardarArchivo(env, llave, bytes, { tipo, nombre, carpeta: ["Comprobantes de pago", pago.fecha.slice(0, 7)] });
     let guardado;
     try {
-      guardado = await env.DB.prepare(`UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?
-        WHERE id = ? AND COALESCE(comprobante, '') = ?`)
-        .bind(llave, tipo, pago.id, pago.comprobante || "").run();
+      const resultados = await env.DB.batch([
+        env.DB.prepare(`UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?
+          WHERE id = ? AND COALESCE(comprobante, '') = ?`)
+          .bind(llave, tipo, pago.id, pago.comprobante || ""),
+        stmtBitacoraSiCambio(env, {
+          quien: usuario?.email, accion: pago.comprobante ? "editar" : "crear",
+          que: "Comprobante de pago", ref: pago.id, mes: pago.fecha.slice(0, 7),
+          detalle: { tipo, operacion: pago.comprobante ? "reemplazo" : "adjuntar" }
+        })
+      ]);
+      guardado = resultados[0];
     } catch (e) {
       await borrarArchivo(env, llave).catch(() => {});
       throw e;
@@ -552,8 +560,15 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
   }
   if (accion === "quitar-comprobante") {
     if (!pago.comprobante) return json({ok:true,sin_cambios:true});
-    const guardado = await env.DB.prepare(`UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL
-      WHERE id = ? AND comprobante = ?`).bind(pago.id, pago.comprobante).run();
+    const resultados = await env.DB.batch([
+      env.DB.prepare(`UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL
+        WHERE id = ? AND comprobante = ?`).bind(pago.id, pago.comprobante),
+      stmtBitacoraSiCambio(env, {
+        quien: usuario?.email, accion: "borrar", que: "Comprobante de pago",
+        ref: pago.id, mes: pago.fecha.slice(0, 7), detalle: { operacion: "retirar" }
+      })
+    ]);
+    const guardado = resultados[0];
     if (!guardado.meta?.changes)
       return json({ok:false,error:"El comprobante cambió en otra sesión. Actualiza Pagos hechos antes de quitarlo."},409);
     await borrarArchivo(env, pago.comprobante).catch(e => console.error("Comprobante retirado", e?.message));
