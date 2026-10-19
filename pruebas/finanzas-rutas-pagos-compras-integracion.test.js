@@ -631,3 +631,78 @@ test("Pago eliminado no reaparece tras un reintento tardío del mismo UID",async
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(gastoProgramado.gasto_id).n,0);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=?").get(sched.data.id).n,registrado);
 });
+
+test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el archivo vigente",async()=>{
+  const {db,env}=shared;
+  const n=await post(env,"pagos/hecho",{
+    uid:"cafe0000-0000-4000-8000-000000000245",fecha:hoy,importe:"22.15",
+    titulo:"Comprobante sintético concurrente",forma:"EFECTIVO"
+  });
+  assert.equal(n.status,200,JSON.stringify(n));
+  const id=n.data.id;
+  const leer=()=>db.prepare("SELECT comprobante,comp_tipo FROM agenda_pagos WHERE id=?").get(id);
+  const subir=async etiqueta=>{
+    const url=new URL("https://ensayo.invalid/panel/api/agenda/pagos/"+id+"/comprobante");
+    const req=new Request(url,{method:"POST",headers:{"Content-Type":"image/png"},
+      body:new TextEncoder().encode("Contenido de imagen ficticia "+etiqueta)});
+    const res=await agendaPanel(req,env,url,["agenda","pagos",id,"comprobante"],actor);
+    return {status:res.status,data:await res.json()};
+  };
+  const primera=await subir("primera");
+  assert.equal(primera.status,200,JSON.stringify(primera));
+  const anterior=leer().comprobante;
+  assert.match(anterior,/^pc:/);
+  assert.equal(leer().comp_tipo,"image/png");
+  assert.ok(await env.FILES.get(anterior),"La foto original debe existir");
+
+  // Error de D1: el archivo anterior sigue vinculado y disponible.
+  const originalPrepare=env.DB.prepare;
+  let fallar=true;
+  env.DB.prepare=sql=>{
+    const st=originalPrepare(sql);
+    if(!fallar||!sql.includes("UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?"))
+      return st;
+    return {bind(...args){
+      const m=st.bind(...args);
+      return {...m,async run(){throw Error("Fallo sintético de D1 al enlazar");}};
+    }};
+  };
+  try{
+    await assert.rejects(()=>subir("d1-falla"),/Fallo sintético de D1/);
+    assert.equal(leer().comprobante,anterior);
+    assert.ok(await env.FILES.get(anterior),"No borrar la versión válida antes de que D1 confirme");
+  }finally{fallar=false;env.DB.prepare=originalPrepare}
+
+  // Dos pestañas suben una versión nueva a la vez; una gana y la otra
+  // borra únicamente su propia versión huérfana.
+  const [u1,u2]=await Promise.all([subir("pestana-a"),subir("pestana-b")]);
+  assert.deepEqual([u1.status,u2.status].sort((a,b)=>a-b),[200,409],JSON.stringify([u1,u2]));
+  const vigente=leer().comprobante;
+  assert.notEqual(vigente,anterior);
+  assert.ok(await env.FILES.get(vigente),"Mantener archivo del ganador");
+  assert.equal(await env.FILES.get(anterior),null,"Eliminar archivo viejo tras confirmación");
+  const fotosAntes=leer();
+
+  // Fallo en la eliminación: no cambiar base ni tocar bytes.
+  env.DB.prepare=sql=>{
+    const st=originalPrepare(sql);
+    if(!sql.includes("UPDATE agenda_pagos SET comprobante = NULL"))return st;
+    return {bind(...args){
+      const m=st.bind(...args);
+      return {...m,async run(){throw Error("D1 no pudo desvincular");}};
+    }};
+  };
+  try{
+    await assert.rejects(()=>post(env,"pagos/"+id+"/quitar-comprobante",{}),/D1 no pudo desvincular/);
+    assert.deepEqual({...leer()},{...fotosAntes});
+    assert.ok(await env.FILES.get(vigente));
+  }finally{env.DB.prepare=originalPrepare}
+
+  const quitar=await post(env,"pagos/"+id+"/quitar-comprobante",{});
+  assert.equal(quitar.status,200,JSON.stringify(quitar));
+  assert.equal(leer().comprobante,null);
+  assert.equal(await env.FILES.get(vigente),null);
+  const repetir=await post(env,"pagos/"+id+"/quitar-comprobante",{});
+  assert.equal(repetir.status,200);
+  assert.equal(repetir.data.sin_cambios,true);
+});
