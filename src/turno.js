@@ -419,7 +419,7 @@ export async function turnoRuta(request, env, url, h) {
     if (/^tf:(aviso|inc):[0-9a-f-]{36}$/.test(llave)) {
       await asegurarEsquemaAvisos(env);
       const decision = await permisoFotoTurno(env, llave, s);
-      if (!decision.permitido) return new Response("No encontrado", { status: 404 });
+      if (!decision.permitido) return new Response("No encontrado", { status: 404, headers: { "Cache-Control": "private, no-store" } });
       esFotoCastagram = decision.castagram;
     }
     const respuesta = await servirFoto(env, llave);
