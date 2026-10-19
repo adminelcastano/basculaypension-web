@@ -72,3 +72,12 @@ test("A-05 SQL: incidencia anterior mantiene acceso por ruta prevista", async ()
     assert.equal((await permisoFotoTurno(env, INCIDENCIA, sesion("LUIS"))).permitido, false);
   } finally { db.close(); }
 });
+
+test("A-05 SQL: claves no previstas se rechazan por defecto", async () => {
+  const { env, db } = entorno();
+  try {
+    for (const llave of ["tf:tarea:31234567-89ab-4cde-8fab-0123456789ab", "cualquier-llave", ""]) {
+      assert.deepEqual(await permisoFotoTurno(env, llave, sesion("ANA")), { permitido: false, castagram: false });
+    }
+  } finally { db.close(); }
+});
