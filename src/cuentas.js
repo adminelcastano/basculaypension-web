@@ -252,14 +252,35 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     if (!f) return json({ ok: false, error: "Cuenta inválida." }, 422);
     const antes = await env.DB.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta).first();
     const t = String(c.saldo ?? "").replace(/[$,\s]/g, "");
-    const log = saldo => stmtBitacora(env, { quien, accion: saldo == null ? "borrar" : antes ? "editar" : "crear", que: "Saldo inicial de cuenta", ref: cuenta, mes, detalle: { cuenta: f.nombre, antes: antes ? antes.saldo : null, ahora: saldo } });
-    if (t === "") { await env.DB.batch([env.DB.prepare("DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta), log(null)]); return json({ ok: true }); }
-    if (!/^-?\d{1,10}(\.\d{1,2})?$/.test(t)) return json({ ok: false, error: "Escribe el saldo (solo números)." }, 422);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado) VALUES (?, ?, ?, ?) ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado").bind(mes, cuenta, Number(t), ahora),
-      log(Number(t))
+    const log = saldo => stmtBitacoraSiCambio(env, { quien,
+      accion: saldo == null ? "borrar" : antes ? "editar" : "crear",
+      que: "Saldo inicial de cuenta", ref: cuenta, mes,
+      detalle: { cuenta: f.nombre, antes: antes ? antes.saldo : null, ahora: saldo } });
+    if (t === "") {
+      if (!antes) return json({ok:true,sin_cambios:true});
+      const resultado = await env.DB.batch([
+        env.DB.prepare("DELETE FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ? AND saldo = ?").bind(mes, cuenta, antes.saldo),
+        log(null)
+      ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"El saldo fue modificado en otra sesión. Actualiza la lista antes de borrarlo."},409);
+      return json({ok:true});
+    }
+    if (!/^-?\d{1,10}(\.\d{1,2})?$/.test(t))
+      return json({ok:false,error:"Escribe el saldo (solo números)."},422);
+    const saldo = Number(t);
+    if (antes && centavosIguales(antes.saldo, saldo)) return json({ok:true,sin_cambios:true});
+    // Compara con la versión leída: dos pestañas no se pisan al guardar.
+    // La inserción por primera vez solo gana si nadie creó el saldo entretanto.
+    const resultado = await env.DB.batch([
+      env.DB.prepare(`INSERT INTO fin_saldos_cuenta (mes, cuenta, saldo, actualizado) VALUES (?, ?, ?, ?)
+        ON CONFLICT(mes, cuenta) DO UPDATE SET saldo = excluded.saldo, actualizado = excluded.actualizado
+        WHERE fin_saldos_cuenta.saldo = ?`).bind(mes, cuenta, saldo, ahora, antes ? antes.saldo : null),
+      log(saldo)
     ]);
-    return json({ ok: true });
+    if (!resultado[0]?.meta?.changes)
+      return json({ok:false,error:"El saldo fue modificado en otra sesión. Actualiza la lista para confirmar el valor correcto."},409);
+    return json({ok:true});
   }
   if (partes[1] === "mov" && partes.length === 2) {
     const tipo = Object.hasOwn(TIPOS_MOV, c.tipo) ? c.tipo : "";
