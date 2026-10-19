@@ -849,9 +849,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       repetido = async () => {
         const gasto = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(gidOperacion).first() : null;
         if (!gasto) return null;
-        const filasPrev = (await env.DB.prepare("SELECT id FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gidOperacion).all()).results;
+        const filasPrev = (await env.DB.prepare("SELECT id, importe FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gidOperacion).all()).results;
+        // Dos tickets pueden sumar lo mismo con precios individuales distintos.
+        // El UID identifica también el desglose, no solo el total bancario.
+        const mismosPrecios = filasPrev.every(f => f.importe == null
+          ? total.precios[f.id] == null
+          : total.precios[f.id] != null && centavosIguales(f.importe, total.precios[f.id]));
         const coinciden = filasPrev.length === ids.length && filasPrev.every(f => ids.includes(f.id))
-          && centavosIguales(gasto.monto,total.total) && gasto.dia === dia && gasto.forma === forma
+          && mismosPrecios && centavosIguales(gasto.monto,total.total) && gasto.dia === dia && gasto.forma === forma
           && (c.cuenta == null || (gasto.cuenta || null) === (c.cuenta || null));
         return coinciden ? json({ok:true,gasto_id:gidOperacion,total:total.total,repetido:true}) :
           json({ok:false,error:"Esta compra ya quedó registrada con otros datos. Revisa el ticket antes de intentar repetirla."},409);
