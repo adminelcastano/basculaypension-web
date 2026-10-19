@@ -724,7 +724,7 @@ export function leerTablaEntregas(textoTabla, anio) {
     else if ((m = /^(\d{1,2})\s*[\/\- ]\s*([a-záéíóú]{3,4})\.?$/i.exec(c[0])) && MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")])
       dia = `${anio}-${String(MESES_TXT[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")]).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     const turno = normTurno(c[1]);
-    if (!fechaCalendarioCaja(dia) || !turno) { if (i === 0 || /d[ií]a|turno/i.test(linea)) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
+    if (!fechaCalendarioCaja(dia) || !turno) { if (i === 0 && /^(d[ií]a|fecha)$/i.test(c[0]) && /^turno$/i.test(c[1])) return; errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "No se entiende el día o el turno." }); return; }
     const [sobre, taxi, sueldo, cambio] = [c[2], c[3], c[4], c[5]].map(celdaMonto);
     if ([sobre, taxi, sueldo, cambio].some(v => Number.isNaN(v))) { errores.push({ linea: i + 1, texto: linea.slice(0, 80), error: "Hay un monto que no es número." }); return; }
     filas.push({ linea: i + 1, dia, turno, sobre, taxi, sueldo, cambio });
