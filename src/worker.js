@@ -35,6 +35,8 @@ const TIPO_PDF = "application/pdf";
 const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const RE_CP = /^\d{5}$/;
 const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
+// Sólo categorías de error conocidas, nunca respuestas externas ni texto de tickets.
+const tipoErrorSeguro = e => ["AbortError", "TimeoutError", "TypeError", "SyntaxError", "RangeError"].includes(e && e.name) ? e.name : "Error";
 
 // Las URL de Apps Script de cuentas de empresa vienen como /a/macros/<dominio>/s/...,
 // que piden iniciar sesión; la forma /macros/s/... funciona sin sesión con acceso "Cualquiera".
@@ -55,12 +57,22 @@ export default {
     // Tareas en segundo plano (notificaciones push) sin retrasar la respuesta
     env = Object.assign(Object.create(Object.getPrototypeOf(env)), env, { enFondo: p => ctx.waitUntil(p) });
     const url = new URL(request.url);
-    if (env.ENSAYO_FINANZAS === "1" && [
+    if ((env.ENSAYO_FINANZAS === "1" || env.ENSAYO_AUDITORIA === "1") && [
       env.INGRESOS_URL, env.INGRESOS_TOKEN, env.AVISO_URL, env.AVISO_TOKEN,
       env.CF_API_TOKEN, env.SENDGRID_API_KEY, env.RESEND_API_KEY,
       env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REFRESH_TOKEN
     ].some(Boolean)) {
       return json({ok:false,error:"Configuración insegura del ensayo: hay servicios externos activos."},503);
+    }
+    // Auditoría privada: panel y tableta con D1/KV sintéticos; nunca formularios
+    // públicos, expedientes, correos ni servicios externos. Nunca activar en producción.
+    if (env.ENSAYO_AUDITORIA === "1") {
+      const ruta = url.pathname;
+      if (ruta.startsWith("/api/") || ruta.startsWith("/expediente/") ||
+          (request.method !== "GET" && request.method !== "HEAD" &&
+           !ruta.startsWith("/panel/api/") && !ruta.startsWith("/turno/api/"))) {
+        return json({ ok: false, error: "Ruta no habilitada en la auditoría privada." }, 403);
+      }
     }
     // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
     // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
@@ -86,7 +98,7 @@ export default {
       if (url.pathname === "/turno" || url.pathname.startsWith("/turno/")) return await turnoRuta(request, env, url, { verificarAcceso, paginaBloqueada, cabeceras: cabecerasPanel, html: TURNO_HTML, llamarScript });
       return env.ASSETS.fetch(request);
     } catch (err) {
-      console.error("error", err && err.stack || err);
+      console.error("error", tipoErrorSeguro(err));
       return json({ ok: false, error: "Ocurrió un error. Intenta de nuevo o escríbenos por WhatsApp." }, 500);
     }
   },
@@ -95,6 +107,7 @@ export default {
     // Nunca procesar tareas ni sincronizaciones si se disparara accidentalmente
     // una ejecución programada del Worker de ensayo.
     if (env.ENSAYO_FINANZAS === "1") return;
+    if (env.ENSAYO_AUDITORIA === "1") return;
     env = normalizarScripts(env);
     // 14:47 UTC = 8:47 en Tapachula: recordatorios del expediente laboral
     if (event.cron === "47 14 * * *") {
@@ -107,7 +120,7 @@ export default {
       ctx.waitUntil((async () => {
         await recordatoriosAgenda(env, llamarScript).catch(e => console.error("recordatorios agenda", e && e.message));
         // Fotos y PDFs: de KV a la carpeta dedicada de Google Drive
-        await mantenerArchivos(env).then(r => (r.subidos || r.vencidos || r.error) && console.log("archivos", JSON.stringify(r))).catch(e => console.error("archivos", e && e.message));
+        await mantenerArchivos(env).then(r => (r.subidos || r.vencidos || r.error) && console.log("archivos", JSON.stringify({ subidos: r.subidos || 0, vencidos: r.vencidos || 0, fallo: !!r.error }))).catch(e => console.error("archivos", tipoErrorSeguro(e)));
         const enPuntoDeHora = new Date(event.scheduledTime).getUTCMinutes() < 10;
         // Cada hora: revisar el consumo del mes (avisos y modo ahorro)
         if (enPuntoDeHora) await revisarConsumo(env, llamarScript).catch(e => console.error("consumo", e && e.message));
@@ -253,7 +266,7 @@ async function crearSolicitud(request, env, ctx) {
   if (REVISAR_FOTO_IA && env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
     let rev = null;
     try { rev = await conLimite(revisarTicket(env, ticketBuf, ticket.type, servicio), 20000); }
-    catch (e) { console.error("revisar ticket", e && e.message); rev = null; }
+    catch (e) { console.error("revisar ticket", tipoErrorSeguro(e)); rev = null; }
     if (rev && !rev.error) {
       if (rev.clase === "otro") {
         if (texto(form, "forzar_ticket") !== "1") {
@@ -296,7 +309,7 @@ async function crearSolicitud(request, env, ctx) {
     .run();
   } catch (e) {
     // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
-    console.error("guardar solicitud", e && e.message);
+    console.error("guardar solicitud", tipoErrorSeguro(e));
     await borrarArchivo(env, `f:${id}:ticket`).catch(() => {});
     if (csfTipo) await borrarArchivo(env, `f:${id}:csf`).catch(() => {});
     return json({ ok: false, error: "No pudimos registrar tu solicitud en este momento. Intenta de nuevo en unas horas o escríbenos por WhatsApp." }, 503);
@@ -304,15 +317,15 @@ async function crearSolicitud(request, env, ctx) {
 
   if (LEER_TICKET_IA && lectura && !lectura.error) {
     try { await guardarLecturaTicket(env, { id, folio_ticket: folioTicket }, lectura.datos, false); }
-    catch (e) { console.error("guardar lectura", e && e.message); }
+    catch (e) { console.error("guardar lectura", tipoErrorSeguro(e)); }
   }
 
   if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
-    ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", e)));
+    ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", tipoErrorSeguro(e))));
   }
   if (LEER_TICKET_IA && ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
     // Si la lectura falló o tardó, se reintenta en segundo plano
-    ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", e && e.message)));
+    ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", tipoErrorSeguro(e))));
   }
 
   return json({ ok: true, folio });
@@ -368,7 +381,7 @@ async function enviarAviso(env, origen, d) {
 </table>
 <p><a href="${panel}" style="display:inline-block;background:#f0a00a;color:#241a10;padding:10px 18px;border-radius:8px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">Abrir panel de facturas</a></p>`;
   await llamarScript(env, { asunto: `Nueva solicitud de factura ${d.folio} · ${quien}`, texto, html });
-  console.log("aviso enviado", d.folio);
+  console.log("aviso enviado");
 }
 
 // Apps Script ejecuta doPost y luego redirige a una URL que entrega la respuesta;
@@ -823,7 +836,7 @@ async function limpiarArchivos(env) {
     const r = await scriptArchivos(env, { op: "hoja", destino: "facturacion", anio: hoy.slice(0, 4), nombre: `Respaldo de facturas borradas ${hoy} · El Castaño`, hojas: [{ nombre: "Facturas", filas: filasExcel(results).map(f => f.map(celda)) }] }, 120000);
     if (!r || r.destino !== "facturacion") throw new Error("el script de Google no tiene la versión con carpetas por área");
   } catch (e) {
-    console.error("limpieza: respaldo no confirmado, no se borra nada", e && e.message);
+    console.error("limpieza: respaldo no confirmado, no se borra nada", tipoErrorSeguro(e));
     return { borradas: 0, error: "respaldo no confirmado" };
   }
   for (const r of results) {
@@ -891,18 +904,18 @@ async function revisarTicket(env, bytes, tipo, servicioElegido) {
   if (guardado) return guardado;
   await aceptarLicenciaModelo(env);
   let clase = null, fallo = false;
-  try { clase = await clasificarTicket(env, bytes, tipo); } catch (e) { fallo = true; console.error("clasificar", e && e.message); }
+  try { clase = await clasificarTicket(env, bytes, tipo); } catch (e) { fallo = true; console.error("clasificar", tipoErrorSeguro(e)); }
   let lectura = null;
   if (clase !== "otro") {
     const servicio = clase || (servicioElegido === "bascula" ? "bascula" : "pension");
-    try { lectura = await analizarTicketImagen(env, bytes, tipo, servicio); } catch (e) { fallo = true; console.error("leer", e && e.message); }
+    try { lectura = await analizarTicketImagen(env, bytes, tipo, servicio); } catch (e) { fallo = true; console.error("leer", tipoErrorSeguro(e)); }
     // Solo es ticket si la IA leyó datos reales del ticket (folio o importe). Sin eso, no se acepta.
     const d = lectura && !lectura.error ? lectura.datos : null;
     const conDatos = !!(d && (/\d{3,}/.test(d.folio_ticket || "") || d.importe));
     if (conDatos) clase = clase || servicio;
     else if (!fallo) clase = "otro";
   }
-  console.log("revision ticket", JSON.stringify({ clase, fallo, folio: lectura && lectura.datos && lectura.datos.folio_ticket || null }));
+  console.log("revision ticket", JSON.stringify({ clasificado: !!clase, fallo, lectura: !!(lectura && !lectura.error) }));
   const res = { clase, lectura: lectura && !lectura.error ? lectura : null };
   if (clase) await env.FILES.put(llave, JSON.stringify(res), { expirationTtl: 7200 });
   return res;

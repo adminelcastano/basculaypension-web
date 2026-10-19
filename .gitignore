@@ -1,0 +1,13 @@
+# Estado local de Wrangler / Miniflare: nunca versionar.
+.wrangler/
+
+# Configuración y credenciales locales (mantener plantillas sin secretos).
+.dev.vars*
+.env
+.env.*
+!.env.example
+
+# Dependencias y archivos generados localmente.
+node_modules/
+*.log
+.DS_Store
