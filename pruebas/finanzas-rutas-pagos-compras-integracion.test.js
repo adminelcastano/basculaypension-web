@@ -114,3 +114,52 @@ test("Ruta real de carrito: dos UIDs no compran los mismos artículos y mantiene
     assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items WHERE estado='comprado'").get().n,2);
   }finally{}
 });
+
+test("Corrección de pago ya hecho modifica el recibo y su egreso juntos, sin doble gasto",async()=>{
+  const {db,env}=shared;
+  const viejo=db.prepare("SELECT * FROM agenda_pagos WHERE item_id='' AND titulo='Recibo sintético'").get();
+  assert.ok(viejo);
+  const resp=await post(env,"pagos/"+viejo.id+"/editar",{
+    fecha:hoy,importe:"410.25",titulo:"Recibo sintético revisado",
+    forma:"C:mdo-pago",nota:"Corrección de prueba",categoria:"Servicios"
+  });
+  assert.equal(resp.status,200,JSON.stringify(resp));
+  const pago=db.prepare("SELECT * FROM agenda_pagos WHERE id=?").get(viejo.id);
+  const gasto=db.prepare("SELECT * FROM caja_gastos WHERE id=?").get(viejo.gasto_id);
+  assert.equal(pago.importe,410.25);
+  assert.equal(gasto.monto,410.25);
+  assert.equal(pago.titulo,"Recibo sintético revisado");
+  assert.equal(gasto.concepto,"Pago: Recibo sintético revisado");
+  assert.equal(pago.cuenta,"mdo-pago");
+  assert.equal(gasto.cuenta,"mdo-pago");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(viejo.id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(viejo.gasto_id).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='editar'").get(viejo.id).n,1);
+});
+
+test("Eliminación de pago hecho retira un único recibo y su gasto, conservando bitácora",async()=>{
+  const {db,env}=shared;
+  const p=db.prepare("SELECT * FROM agenda_pagos WHERE item_id='' AND titulo='Recibo sintético revisado'").get();
+  assert.ok(p);
+  const resp=await post(env,"pagos/"+p.id+"/eliminar",{});
+  assert.equal(resp.status,200,JSON.stringify(resp));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(p.id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(p.gasto_id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(p.id).n,1);
+  const repeated=await post(env,"pagos/"+p.id+"/eliminar",{});
+  assert.equal(repeated.status,404);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(p.id).n,1);
+});
+
+test("Anular el último pago programado restituye el vencimiento y suprime su egreso",async()=>{
+  const {db,env}=shared;
+  const p=db.prepare("SELECT * FROM agenda_pagos WHERE item_id='ensayo-programado'").get();
+  assert.ok(p && p.programado);
+  const fechaAnterior=p.programado;
+  const resp=await post(env,"pagos/"+p.id+"/eliminar",{});
+  assert.equal(resp.status,200,JSON.stringify(resp));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(p.id).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(p.gasto_id).n,0);
+  assert.equal(db.prepare("SELECT fecha FROM agenda_items WHERE id='ensayo-programado'").get().fecha,fechaAnterior);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(p.id).n,1);
+});
