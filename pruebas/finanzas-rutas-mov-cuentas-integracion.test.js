@@ -497,4 +497,23 @@ test("Sincronizar un ticket justo al reasignar el banco receptor no reinterpreta
   }
 });
 
+
+test("Notas bancarias: una pestaña vieja no sobrescribe cambios de otra sesión",async()=>{
+  const initial=await request("cuentas",{texto:"Terminación sintética 1234",esperado:""});
+  assert.equal(initial.status,200,JSON.stringify(initial));
+  const obsoleto=await request("cuentas",{texto:"Terminación obsoleta 9999",esperado:""});
+  assert.equal(obsoleto.status,409,JSON.stringify(obsoleto));
+  assert.equal(db.prepare("SELECT valor FROM fin_config WHERE clave='cuentas'").get().valor,
+    "Terminación sintética 1234");
+  const igual=await request("cuentas",{texto:"Terminación sintética 1234",esperado:"Terminación sintética 1234"});
+  assert.equal(igual.status,200);
+  assert.equal(igual.data.sin_cambios,true);
+  const cambiado=await request("cuentas",{texto:"Terminación sintética 5678",esperado:"Terminación sintética 1234"});
+  assert.equal(cambiado.status,200,JSON.stringify(cambiado));
+  const conflicto=await request("cuentas",{texto:"Otra corrección",esperado:"Terminación sintética 1234"});
+  assert.equal(conflicto.status,409,JSON.stringify(conflicto));
+  assert.equal(db.prepare("SELECT valor FROM fin_config WHERE clave='cuentas'").get().valor,
+    "Terminación sintética 5678");
+});
+
 test.after(()=>db.close());
