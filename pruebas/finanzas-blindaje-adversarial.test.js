@@ -308,3 +308,23 @@ test("Tarjeta móvil de transferencias no afirma Al corriente sin consultar Goog
   assert.doesNotMatch(ui,/texto: hojaSinLigar\.length \? hojaSinLigar\.length \+ " por ligar" : "Al corriente"/);
   assert.doesNotThrow(()=>new Function(ui));
 });
+
+test("Notificación blanca: texto centrado en móvil sin cubrir la navegación",()=>{
+  const css=source("../src/panel/estilos.css");
+  const page=source("../src/panel/pagina.html");
+  const base=source("../src/panel/cliente/00-base.js");
+  const bloque=css.match(/(?:^|\\n)\\.toast\\s*\\{([^}]*)\\}/)?.[1];
+  assert.ok(bloque,"La notificación debe tener estilo propio");
+  for(const declaracion of [
+    /display:\\s*flex\\s*;/,
+    /align-items:\\s*center\\s*;/,
+    /justify-content:\\s*center\\s*;/,
+    /text-align:\\s*center\\s*;/,
+    /max-width:\\s*calc\\(100vw\\s*-\\s*32px\\)\\s*;/,
+    /white-space:\\s*normal\\s*;/,
+    /overflow-wrap:\\s*anywhere\\s*;/
+  ]) assert.match(bloque,declaracion);
+  assert.match(css,/\\.toast \\{ bottom: calc\\(84px \\+ env\\(safe-area-inset-bottom, 0px\\)\\); \\}/);
+  assert.match(page,/class="toast" id="toast" role="status" aria-live="polite"/);
+  assert.match(base,/t\\.textContent = msg/);
+});
