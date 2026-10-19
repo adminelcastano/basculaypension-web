@@ -7,6 +7,25 @@
   const abrir = ap => { if (window.irA) window.irA("config", { historia: "push", vista: ap || null }); };
   const b = $("#cfg-abrir");
   if (b) b.addEventListener("click", () => abrir(null));
+  // Comprueba Correo Panel desde la sesión actual; no envía correos ni escribe en Drive.
+  const verificarCorreo = $("#cfg-correo-verificar");
+  const resultadoCorreo = $("#cfg-correo-resultado");
+  if (verificarCorreo && resultadoCorreo) {
+    verificarCorreo.addEventListener("click", async () => {
+      verificarCorreo.disabled = true;
+      resultadoCorreo.textContent = "Verificando conexión…";
+      try {
+        const respuesta = await api("diagnostico/correo-panel", { method: "POST" });
+        resultadoCorreo.textContent = respuesta.conexion === "verificada"
+          ? "Conexión verificada" : "No se pudo verificar";
+      } catch {
+        resultadoCorreo.textContent = "No se pudo verificar";
+      } finally {
+        verificarCorreo.disabled = false;
+      }
+    });
+  }
+
   // Enlaces cortos al final de cada sección y el índice de Configuración
   document.addEventListener("click", e => {
     const a = e.target.closest("a[data-cfg]"); if (!a) return;
