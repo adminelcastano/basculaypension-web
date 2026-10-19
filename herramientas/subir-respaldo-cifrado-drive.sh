@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Envía ÚNICAMENTE un archivo cifrado age a la carpeta privada de Drive.
 # BACKUP_DRIVE_REMOTE debe ser un remote de rclone cuyo root_folder_id
-# ya esté limitado a «El Castaño · Respaldos D1 cifrados».
+# esté configurado con root_folder_id de «El Castaño · Respaldos D1 cifrados».\n# root_folder_id acota rutas de rclone, NO limita los permisos OAuth otorgados.
 # No crea credenciales ni guarda claves; no borra respaldos.\n# Usa --immutable para rechazar cambios sobre una copia remota ya existente.
 set -euo pipefail
 umask 077
