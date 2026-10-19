@@ -296,4 +296,50 @@ test("Desactivar cuenta justo al escribir movimiento no crea asiento ni auditorÃ
   }
 });
 
+
+test("Ocultar cuentas con saldos, operaciones o roles no puede alterar total visible",async()=>{
+  const roles=await request("cuenta",{id:"bbva-pyme",activa:false});
+  assert.equal(roles.status,409,JSON.stringify(roles));
+  assert.equal(db.prepare("SELECT activa FROM fin_cuentas WHERE id='bbva-pyme'").get().activa,1);
+  const movimientos=await request("cuenta",{id:"klar-manu",activa:false});
+  assert.equal(movimientos.status,409,JSON.stringify(movimientos));
+  assert.equal(db.prepare("SELECT activa FROM fin_cuentas WHERE id='klar-manu'").get().activa,1);
+  const creada=await request("cuenta",{nombre:"ENSAYO CUENTA SIN USAR",tipo:"debito"});
+  assert.equal(creada.status,200,JSON.stringify(creada));
+  const id=creada.data.id;
+  const ocultar=await request("cuenta",{id,activa:false});
+  assert.equal(ocultar.status,200,JSON.stringify(ocultar));
+  assert.equal(db.prepare("SELECT activa FROM fin_cuentas WHERE id=?").get(id).activa,0);
+  const repetir=await request("cuenta",{id,activa:false});
+  assert.equal(repetir.status,200);
+  assert.equal(repetir.data.sin_cambios,true);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=? AND detalle LIKE '%activa%'").get(id).n,1);
+});
+
+test("Si entra un saldo durante el ocultamiento la cuenta queda visible y no se audita la baja",async()=>{
+  const nueva=await request("cuenta",{nombre:"ENSAYO CUENTA CARRERA",tipo:"debito"});
+  assert.equal(nueva.status,200,JSON.stringify(nueva));
+  const id=nueva.data.id, batch=env.DB.batch;
+  const antes=db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=? AND accion='editar'").get(id).n;
+  let inyectado=false;
+  env.DB.batch=async stmts=>{
+    if(!inyectado && stmts[0]?.sql.includes("UPDATE fin_cuentas SET activa = 0")){
+      inyectado=true;
+      db.prepare("INSERT INTO fin_saldos_cuenta (mes,cuenta,saldo,actualizado) VALUES (?,?,?,?)")
+        .run(mes,id,0,new Date().toISOString());
+    }
+    return batch(stmts);
+  };
+  try{
+    const ocultar=await request("cuenta",{id,activa:false});
+    assert.equal(inyectado,true);
+    assert.equal(ocultar.status,409,JSON.stringify(ocultar));
+    assert.equal(db.prepare("SELECT activa FROM fin_cuentas WHERE id=?").get(id).activa,1);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Cuenta' AND ref=? AND accion='editar'").get(id).n,antes);
+  }finally{
+    env.DB.batch=batch;
+    db.prepare("DELETE FROM fin_saldos_cuenta WHERE cuenta=?").run(id);
+  }
+});
+
 test.after(()=>db.close());
