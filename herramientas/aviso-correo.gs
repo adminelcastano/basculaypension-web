@@ -86,13 +86,23 @@ function drive(d) {
   if (d.op === 'carpeta' || d.op === 'borrar-carpeta') return 'ok-drive'; // la oficina administra las carpetas
   const llaveArchivo = 'f_' + d.id + '_' + String(d.slot || '');
   const anterior = props.getProperty(llaveArchivo);
-  if (anterior) { try { DriveApp.getFileById(anterior).setTrashed(true); } catch (err) {} props.deleteProperty(llaveArchivo); }
-  if (d.op === 'borrar') return 'ok-drive';
+  if (d.op === 'borrar') {
+    if (anterior) {
+      DriveApp.getFileById(anterior).setTrashed(true);
+      props.deleteProperty(llaveArchivo);
+    }
+    return 'ok-drive';
+  }
   if (d.op === 'subir') {
     const carpeta = carpetaDePersona(d);
     const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'documento'));
+    // Conservar el documento anterior si falla la carga o la actualización del índice.
     const archivo = carpeta.createFile(blob);
     props.setProperty(llaveArchivo, archivo.getId());
+    if (anterior && anterior !== archivo.getId()) {
+      // La copia nueva ya quedó registrada: si falla la papelera, conservar ambas copias.
+      try { DriveApp.getFileById(anterior).setTrashed(true); } catch (err) {}
+    }
     return 'ok-drive';
   }
   return 'error drive: operación';
