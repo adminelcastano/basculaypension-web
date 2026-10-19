@@ -1087,12 +1087,21 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         json({ok:false,error:"Este gasto ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
     };
     const previo = await repetido(); if (previo) return previo;
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Gasto de caja' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Ese gasto fue eliminado. Actualiza el corte antes de capturar otro."},409);
     try {
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?)")
-          .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), quien, cat),
-        stmtBitacora(env, { quien, accion:"crear", que:"Gasto de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,monto,forma,categoria:cat} })
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO caja_gastos (id, mes, dia, turno, concepto, monto, forma, creado, creado_por, origen, categoria)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'caja', ?
+          WHERE NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Gasto de caja')`)
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, monto, forma, new Date().toISOString(), quien, cat, id),
+        stmtBitacoraSiCambio(env, { quien, accion:"crear", que:"Gasto de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,monto,forma,categoria:cat} })
       ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"Ese gasto fue eliminado en otra sesión. Actualiza Caja."},409);
     } catch (er) {
       const ya = await repetido(); if (ya) return ya;
       throw er;
@@ -1154,12 +1163,21 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         json({ok:false,error:"Este ingreso extra ya fue registrado con otros datos. Revisa el corte antes de repetir."},409);
     };
     const previo = await repetido(); if (previo) return previo;
+    const fueEliminado = async () => !!(await env.DB.prepare(
+      "SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Ingreso extra de caja' LIMIT 1"
+    ).bind(id).first());
+    if (await fueEliminado())
+      return json({ok:false,error:"Ese ingreso fue eliminado. Actualiza Caja antes de capturar otro."},409);
     try {
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, ingreso, new Date().toISOString(), quien),
-        stmtBitacora(env, { quien, accion:"crear", que:"Ingreso extra de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,detalle,monto,ingreso} })
+      const resultado = await env.DB.batch([
+        env.DB.prepare(`INSERT INTO caja_extra (id, mes, dia, turno, concepto, detalle, monto, ingreso, creado, creado_por)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          WHERE NOT EXISTS (SELECT 1 FROM fin_bitacora WHERE ref = ? AND accion = 'borrar' AND que = 'Ingreso extra de caja')`)
+          .bind(id, dia.slice(0, 7), dia, turno, concepto, detalle || null, monto, ingreso, new Date().toISOString(), quien, id),
+        stmtBitacoraSiCambio(env, { quien, accion:"crear", que:"Ingreso extra de caja", ref:id, mes:dia.slice(0,7), detalle:{dia,turno,concepto,detalle,monto,ingreso} })
       ]);
+      if (!resultado[0]?.meta?.changes)
+        return json({ok:false,error:"Ese ingreso fue eliminado en otra sesión. Actualiza Caja."},409);
     } catch (er) {
       const ya = await repetido(); if (ya) return ya;
       throw er;
