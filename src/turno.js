@@ -16,6 +16,7 @@ import AV5 from "./avatares/a5.webp";
 import { clavePublica, suscribir, desuscribir, notificar, swPush } from "./push.js";
 import { repetirTarea, lugarSugerido, asegurarEsquemaAgenda, insertarItem, validarItem, ABIERTO, AREAS, normalizarPara, avisoParaEncargado, listaFotos, errorDestinatariosCastagram } from "./agenda.js";
 import { idOperacionCastagram, asegurarEsquemaAvisos, fotoAvisoPermitida, resumenConversaciones, conversacion, marcarVisto, comentar, enterarComentario } from "./avisos.js";
+import { permisoFotoTurno } from "./foto-acceso-turno.js";
 // El intérprete de fechas en lenguaje natural es el mismo del panel (se toma de su código y se inserta en la página)
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
@@ -415,28 +416,11 @@ export async function turnoRuta(request, env, url, h) {
     let esFotoCastagram = false;
     let llave = "";
     try { llave = decodeURIComponent(partes[1] || ""); } catch {}
-    // Las fotos de publicaciones y comentarios de Castagram deben respetar destinatarios.
-    // tf:inc también se usa en incidencias del panel; se comprueba su pertenencia antes de servir.
     if (/^tf:(aviso|inc):[0-9a-f-]{36}$/.test(llave)) {
       await asegurarEsquemaAvisos(env);
-      const a = await env.DB.prepare(`SELECT i.id, i.autor, i.para, i.estado FROM agenda_items i
-        WHERE i.tipo = 'aviso' AND (i.foto = ? OR i.fotos LIKE ? OR EXISTS
-        (SELECT 1 FROM aviso_comentarios c WHERE c.item_id = i.id AND c.foto = ?)) LIMIT 1`)
-        .bind(llave, '%"' + llave + '"%', llave).first();
-      if (a) {
-        esFotoCastagram = true;
-        const com = await env.DB.prepare("SELECT borrado FROM aviso_comentarios WHERE item_id = ? AND foto = ? LIMIT 1")
-          .bind(a.id, llave).first();
-        if (!fotoAvisoPermitida(a, s.persona, s.turno, !!(com && com.borrado)))
-          return new Response("No encontrado", { status: 404 });
-      } else if (llave.startsWith("tf:aviso:")) {
-        return new Response("No encontrado", { status: 404 });
-      } else {
-        const inc = await env.DB.prepare(`SELECT 1 FROM agenda_items
-          WHERE tipo = 'incidencia' AND (foto = ? OR fotos LIKE ?) LIMIT 1`)
-          .bind(llave, '%"' + llave + '"%').first();
-        if (!inc) return new Response("No encontrado", { status: 404 });
-      }
+      const decision = await permisoFotoTurno(env, llave, s);
+      if (!decision.permitido) return new Response("No encontrado", { status: 404 });
+      esFotoCastagram = decision.castagram;
     }
     const respuesta = await servirFoto(env, llave);
     if (esFotoCastagram) respuesta.headers.set("Cache-Control", "private, no-store");
