@@ -251,6 +251,17 @@ export async function cuentasRutas(request, env, partes, usuario, meses) {
     const f = await env.DB.prepare("SELECT nombre FROM fin_cuentas WHERE id = ?").bind(cuenta).first();
     if (!f) return json({ ok: false, error: "Cuenta inválida." }, 422);
     const antes = await env.DB.prepare("SELECT saldo FROM fin_saldos_cuenta WHERE mes = ? AND cuenta = ?").bind(mes, cuenta).first();
+    // Evita sobrescribir un saldo desde una pestaña desactualizada. Un cliente
+    // antiguo sin "esperado" sigue funcionando, pero el panel nuevo siempre
+    // envía el valor original que mostró al abrir el campo.
+    if (Object.hasOwn(c, "esperado")) {
+      const esperado = c.esperado == null || c.esperado === "" ? null : Number(c.esperado);
+      if (esperado !== null && !Number.isFinite(esperado))
+        return json({ok:false,error:"El saldo de referencia no es válido. Actualiza Finanzas."},422);
+      const actual = antes ? Number(antes.saldo) : null;
+      if (actual === null ? esperado !== null : esperado === null || !centavosIguales(actual, esperado))
+        return json({ok:false,error:"El saldo cambió en otra sesión. Actualiza la lista antes de guardarlo."},409);
+    }
     const t = String(c.saldo ?? "").replace(/[$,\s]/g, "");
     const log = saldo => stmtBitacoraSiCambio(env, { quien,
       accion: saldo == null ? "borrar" : antes ? "editar" : "crear",
