@@ -3,6 +3,11 @@
   const $ = q => document.querySelector(q);
   const esc = EC.esc;
   const D = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Aviso preventivo: una segunda operación idéntica con UID nuevo es otro
+  // movimiento real. Advertirlo sin bloquear traspasos legítimos repetidos.
+  const mismoMovimiento = (a, b) => a.tipo === b.tipo && a.fecha === b.fecha &&
+    a.origen === b.origen && a.destino === b.destino &&
+    Math.round(Number(a.importe) * 100) === Math.round(Number(b.importe) * 100);
   const fDia = new Intl.DateTimeFormat("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
   const diaTxt = d => fDia.format(new Date(d + "T12:00:00Z"));
   const nomMes = m => { const t = new Date(m + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" }); return t.charAt(0).toUpperCase() + t.slice(1); };
@@ -389,8 +394,14 @@
           const nombre = id => id === "sobres" ? "Efectivo (sobres)" :
             (activas.find(c => c.id === id) || { nombre: id }).nombre;
           const clase = fm.tipo.selectedOptions[0]?.textContent || "Movimiento";
-          const detalle = `${D(Number(importe))} · ${nombre(origen)} → ${nombre(destino)} · ${diaTxt(fm.fecha.value)}. Esta operación modificará los saldos. ¿Son correctos los datos?`;
-          if (!(await EC.confirmar("¿Registrar " + clase.toLowerCase() + "?", detalle, "Registrar"))) return;
+          const yaExiste = (st.datos?.banco?.movs || []).some(m =>
+            mismoMovimiento(m, { tipo, origen, destino, fecha: fm.fecha.value, importe }));
+          const aviso = yaExiste
+            ? " ATENCIÓN: ya hay un movimiento con los mismos datos en este mes. Registrar otro volverá a modificar ambos saldos."
+            : "";
+          const detalle = `${D(Number(importe))} · ${nombre(origen)} → ${nombre(destino)} · ${diaTxt(fm.fecha.value)}. Esta operación modificará los saldos. ¿Son correctos los datos?${aviso}`;
+          const titulo = yaExiste ? "¿Registrar otro movimiento idéntico?" : "¿Registrar " + clase.toLowerCase() + "?";
+          if (!(await EC.confirmar(titulo, detalle, yaExiste ? "Registrar otro" : "Registrar"))) return;
           await post("finanzas/mov", {
             tipo, origen, destino, importe, fecha: fm.fecha.value, nota: fm.nota.value,
             uid: fm.dataset.uid || (fm.dataset.uid = crypto.randomUUID())
