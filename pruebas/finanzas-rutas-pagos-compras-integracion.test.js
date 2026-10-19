@@ -305,9 +305,10 @@ test("Dos sesiones devuelven el mismo ticket: una sola baja y no afecta recompra
 
 
 test("Cuenta bancaria desactivada o de tipo incorrecto no registra pago ni compra",async()=>{
-  const {db,env}=entorno();
+  // El proyecto inicializa esquemas una vez por isolate: reutilizar su DB
+  // evita que el caché global de esquemas omita tablas en una DB nueva.
+  const {db,env}=shared;
   try{
-    await iniciar(env);
     db.prepare("UPDATE fin_cuentas SET activa=0 WHERE id='bbva-personal'").run();
     const antes={g:db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,
       p:db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,
@@ -333,5 +334,5 @@ test("Cuenta bancaria desactivada o de tipo incorrecto no registra pago ni compr
     assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,antes.g);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,antes.p);
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora").get().n,antes.b);
-  }finally{db.close()}
+  }finally{db.prepare("UPDATE fin_cuentas SET activa=1 WHERE id='bbva-personal'").run()}
 });
