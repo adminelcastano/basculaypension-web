@@ -249,3 +249,56 @@ test("Dos sesiones corrigen la misma versión de pago: solo una gana, sin gasto 
   assert.equal(gasto.monto,pago.importe,"Recibo y gasto deben quedar en la misma versión");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='editar'").get(id).n,1);
 });
+
+test("Dos sesiones devuelven el mismo ticket: una sola baja y no afecta recompra posterior",async()=>{
+  const {db,env}=shared;
+  const ids=["ensayo-cas-volver-a","ensayo-cas-volver-b"];
+  for(const id of ids)
+    db.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado) VALUES(?,'compra',?,'pendiente',?)")
+      .run(id,"ENSAYO CAS "+id,"2026-10-18T00:00:00Z");
+  const datos={ids,total:"90.00",precios:{[ids[0]]:"35",[ids[1]]:"55"},
+    forma:"C:bbva-pyme",fecha_compra:hoy,uid:"cc000008-2222-4333-8444-555555555555"};
+  const compra=await post(env,"compras/terminar",datos);
+  assert.equal(compra.status,200,JSON.stringify(compra));
+  const gid=compra.data.gasto_id;
+  // Ambas solicitudes leen una misma versión inicial, como dos pestañas.
+  const prepare=env.DB.prepare;
+  let leidas=0,resolver;
+  const barrier=new Promise(ok=>resolver=ok);
+  env.DB.prepare=sql=>{
+    const stmt=prepare(sql);
+    if(!sql.includes("SELECT id, titulo, estado FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?"))return stmt;
+    return {bind(...p){
+      const q=stmt.bind(...p);
+      if(p[0]!==gid)return q;
+      return {...q,async all(){
+        const result=await q.all();
+        leidas++;
+        if(leidas===2)resolver();
+        await barrier;
+        return result;
+      }};
+    }};
+  };
+  let r1,r2;
+  try {
+    [r1,r2]=await Promise.all([
+      post(env,"compras/regresar-ticket",{gasto_id:gid}),
+      post(env,"compras/regresar-ticket",{gasto_id:gid})
+    ]);
+  }finally{env.DB.prepare=prepare}
+  assert.equal(leidas,2);
+  assert.deepEqual([r1.status,r2.status].sort((a,b)=>a-b),[200,409],JSON.stringify([r1,r2]));
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(gid).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(gid).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items WHERE gasto_id=?").get(gid).n,0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar'").get(gid).n,1);
+  const compraNueva=await post(env,"compras/terminar",{...datos,uid:"cc000009-2222-4333-8444-555555555555"});
+  assert.equal(compraNueva.status,200,JSON.stringify(compraNueva));
+  const nuevoGid=compraNueva.data.gasto_id;
+  const viejo=await post(env,"compras/regresar-ticket",{gasto_id:gid});
+  assert.equal(viejo.status,409,"El antiguo ticket nunca puede devolver una nueva compra");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos WHERE id=?").get(nuevoGid).n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM compras_historial WHERE gasto_id=?").get(nuevoGid).n,2);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items WHERE gasto_id=? AND estado='comprado'").get(nuevoGid).n,2);
+});
