@@ -504,6 +504,28 @@ async function rutasPanel(request, env, url, usuario) {
     const interno = async r => { const u = new URL("/panel/api/" + r, url.origin); return (await rutasPanel(new Request(u, { method: "GET" }), env, u, usuario)).json(); };
     return json(await hoyPanel(env, interno));
   }
+  // Diagnóstico privado, explícito y no destructivo de Correo Panel.
+  // Nunca llama a la función "probar()" de Apps Script, que en versiones antiguas envía correo.
+  // Sólo invoca drive(op=probar): leer nombre de las dos carpetas del personal.
+  if (partes[0] === "diagnostico" && partes[1] === "correo-panel" && partes.length === 2) {
+    if (request.method !== "POST") return json({ ok: false, error: "Método no permitido." }, 405);
+    if (!env.AVISO_URL || !env.AVISO_TOKEN) return json({ ok: false, error: "Correo Panel no configurado." }, 503);
+    try {
+      const respuesta = await fetch(env.AVISO_URL.trim(), {
+        method: "POST", redirect: "follow",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: env.AVISO_TOKEN.trim(), accion: "drive", op: "probar" }),
+        signal: AbortSignal.timeout(12000)
+      });
+      const texto = (await respuesta.text()).trim();
+      // No devolver nunca el cuerpo, la URL, los secretos ni detalles del proveedor.
+      return json({ ok: respuesta.ok && texto === "ok-drive",
+        conexion: respuesta.ok && texto === "ok-drive" ? "verificada" : "no_confirmada" },
+        respuesta.ok && texto === "ok-drive" ? 200 : 502);
+    } catch {
+      return json({ ok: false, conexion: "no_confirmada" }, 502);
+    }
+  }
   if (partes[0] === "colaboradores") return await personalPanel(request, env, url, partes, enviarCorreoA);
   // Reportes mensuales en Google Sheets (Turnos, Finanzas y Facturación): lista y generación a demanda
   if (partes[0] === "reportes") {
