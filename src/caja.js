@@ -1106,9 +1106,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!meses.includes(g.mes)) return json({ ok: false, error: "Ese gasto es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const r = (await env.DB.batch([
       env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND ${DE_CAJA}`).bind(g.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Gasto de caja", ref: g.id, mes: g.mes, detalle: { dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, persona: g.persona || g.creado_por } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Gasto de caja", ref: g.id, mes: g.mes, detalle: { dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, persona: g.persona || g.creado_por } })
     ]))[0];
-    if (g.foto) await borrarArchivo(env, g.foto).catch(() => {});
+    if (r.meta?.changes && g.foto) await borrarArchivo(env, g.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
@@ -1123,11 +1123,11 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const x = await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(String(c.dia || ""), String(c.turno || "")).first();
     if (!x) return json({ ok: true, borrados: 0 });
     if (!meses.includes(x.mes)) return json({ ok: false, error: "Esa entrega es de un mes ya cerrado." }, 409);
-    await env.DB.batch([
+    const resultados = await env.DB.batch([
       env.DB.prepare("DELETE FROM turno_cortes WHERE dia = ? AND turno = ? AND admin = 1").bind(x.dia, x.turno),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Entrega de turno (captura de administración)", ref: x.dia + "|" + x.turno, mes: x.mes, detalle: { sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros) } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Entrega de turno (captura de administración)", ref: x.dia + "|" + x.turno, mes: x.mes, detalle: { sobre: x.sobre, cambio_sig: x.cambio_sig, retiros: leerRetiros(x.retiros) } })
     ]);
-    return json({ ok: true, borrados: 1 });
+    return json({ ok: true, borrados: Number(resultados[0]?.meta?.changes || 0) });
   }
 
   // Ingresos extra capturados desde el panel
@@ -1174,9 +1174,9 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!meses.includes(x.mes)) return json({ ok: false, error: "Ese ingreso es de un mes ya cerrado; ya no se puede borrar." }, 409);
     const r = (await env.DB.batch([
       env.DB.prepare("DELETE FROM caja_extra WHERE id = ?").bind(x.id),
-      stmtBitacora(env, { quien: usuario && usuario.email, accion: "borrar", que: "Ingreso extra de caja", ref: x.id, mes: x.mes, detalle: { dia: x.dia, turno: x.turno, concepto: x.concepto, detalle: x.detalle, monto: x.monto, persona: x.persona || x.creado_por } })
+      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Ingreso extra de caja", ref: x.id, mes: x.mes, detalle: { dia: x.dia, turno: x.turno, concepto: x.concepto, detalle: x.detalle, monto: x.monto, persona: x.persona || x.creado_por } })
     ]))[0];
-    if (x.foto) await borrarArchivo(env, x.foto).catch(() => {});
+    if (r.meta?.changes && x.foto) await borrarArchivo(env, x.foto).catch(() => {});
     return json({ ok: true, borrados: r.meta && r.meta.changes || 0 });
   }
 
