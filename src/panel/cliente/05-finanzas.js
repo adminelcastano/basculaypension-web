@@ -63,13 +63,13 @@
 
   // ---- Administrar cuentas (vive en Configuración): usos, nombre, tipo, comisión, nuevas y notas ----
   function adminCuentas(b) {
-    return `<p class="note" style="margin:0">Las cuentas de banco y tarjetas de la administración. Los saldos y traspasos de cada mes siguen en Dinero → Cuentas y sobres.</p>
+    return `<p class="note" data-nl="1" style="margin:0">Configura aquí las cuentas bancarias y tarjetas. Sus saldos y movimientos aparecen en Dinero → Cuentas y tarjetas.</p>
           ${(() => {
             // Para qué se usa cada cuenta: una misma cuenta puede tener los tres usos a la vez
             const deb = (b.lista || []).filter(c => c.tipo !== "credito" && c.activa);
             const uso = (k, txt, ayuda) => `<label class="cuso"><span>${txt}<small>${ayuda}</small></span><select data-cuso="${k}" aria-label="${esc(txt)}">${(b.lista || []).some(c => c[k]) ? "" : `<option value="">Elige…</option>`}${deb.map(c => `<option value="${esc(c.id)}" ${c[k] ? "selected" : ""}>${esc(c.nombre)}</option>`).join("")}</select></label>`;
             return `<div class="cusos">${uso("def_pago", "Pagos y compras", "cuenta que se propone al pagar con transferencia o débito")}${uso("def_transf", "Transferencias de clientes", "a dónde llegan por defecto")}${uso("tarjeta", "Cobros con tarjeta", "a dónde entran los cobros de la terminal")}</div>
-              <p class="note" style="margin:4px 0 0">Puedes elegir la misma cuenta en los tres. Al registrar cada movimiento puedes cambiar la cuenta. Si una cuenta tiene cobros históricos, el servidor protegerá su asignación y explicará cómo corregirla.</p>`;
+              <p class="note" data-nl="1" style="margin:4px 0 0">Una cuenta puede cumplir los tres usos. Puedes cambiar la cuenta para cada movimiento, pero las asignaciones con cobros históricos están protegidas.</p>`;
           })()}
           <div class="alist" style="margin-top:8px">${(b.lista || []).map(c => `<div class="aitem cfila" style="opacity:${c.activa ? 1 : .55}"><form class="cnom" data-cnom="${esc(c.id)}"><input name="nombre" value="${esc(c.nombre)}" maxlength="40" aria-label="Nombre de la cuenta" autocomplete="off"><button class="btn btn-line" type="submit">Guardar</button></form><span class="acc" style="flex-wrap:wrap"><select data-ctipo="${esc(c.id)}" aria-label="Tipo de ${esc(c.nombre)}"><option value="debito" ${c.tipo !== "credito" ? "selected" : ""}>Débito</option><option value="credito" ${c.tipo === "credito" ? "selected" : ""}>Crédito</option></select><button class="btn btn-line" type="button" data-cact="${esc(c.id)}" data-v="${c.activa ? 0 : 1}" style="min-height:34px;padding:0 10px">${c.activa ? "Ocultar" : "Mostrar"}</button></span>
             <span class="mm">${[c.def_pago ? "Pagos y compras" : "", c.def_transf ? "Transferencias de clientes" : "", c.tarjeta ? "Cobros con tarjeta" : ""].filter(Boolean).map(t => `<span class="cat-chip">${t}</span>`).join("")}</span>
@@ -125,14 +125,14 @@
         ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
       </section>`,
       diferencias: () => `      <section class="card"><h3>Diferencias de caja</h3>
-        <p class="note" style="margin:4px 0 10px">Lo que el encargado contó contra lo que el sistema esperaba, y el cambio que dejó un turno contra el que recibió el siguiente. Lo que falta cuenta como egreso; lo que sobra, como ingreso.</p>
+        <details class="f-guia-saldos"><summary>¿Cómo se calculan las diferencias de caja?</summary><p class="note" data-nl="1">Se compara el efectivo contado por el encargado con el cálculo de ventas y movimientos. También se compara el cambio entregado con el recibido por el siguiente turno. Los faltantes cuentan como egreso y los sobrantes como ingreso.</p></details>
         <div class="ctot" style="margin:0 0 10px"><div class="k"><span>Faltó</span><b style="color:#ff8a80">${D(df.faltantes)}</b></div><div class="k"><span>Sobró</span><b style="color:#7ee2a0">${D(df.sobrantes)}</b></div><div class="k dest"><span>Neto</span><b>${D(df.sobrantes - df.faltantes)}</b></div></div>
         ${df.lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Diferencias de caja"><table class="cmovs"><thead><tr><th>Día</th><th>Turno</th><th>Encargado</th><th>Qué</th><th class="n">Diferencia</th></tr></thead><tbody>
           ${df.lista.map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${x.persona ? avP(x.persona) + esc(x.persona) : ""}</td><td>${esc(x.concepto)}</td><td class="n"><b style="color:${x.dif < 0 ? "#ff8a80" : "#7ee2a0"}">${D(x.dif)}</b></td></tr>`).join("")}
         </tbody></table></div>` : `<p class="note">Todos los cortes entregados cuadran.</p>`}
       </section>`,
       sueldos: () => `      <section class="card"><h3>Sueldos del mes</h3>
-        <p class="note" style="margin:4px 0 10px">Lo que cada encargado se cobró del turno (gastos de caja o retiros del corte con categoría <b>Sueldos</b>, aunque lo junte en varios turnos) y lo que pagaste tú (pagos con categoría Sueldos, en efectivo de los sobres o por banco). Para verlos por persona, pon su nombre en el concepto del pago.</p>
+        <details class="f-guia-saldos"><summary>¿Qué incluyen los sueldos del mes?</summary><p class="note" data-nl="1">Se suman los sueldos cobrados en los turnos (gastos de caja y retiros del corte con categoría Sueldos) y los pagos de administración desde sobres o bancos. Para consultar por persona, escribe su nombre en el concepto.</p></details>
         <div class="ctot" style="margin:0 0 10px"><div class="k"><span>Cobrado del turno</span><b>${D(su.total_caja)}</b></div><div class="k"><span>Pagado por ti</span><b>${D(su.total_admin)}</b></div><div class="k dest"><span>Total</span><b>${D(su.total)}</b></div></div>
         ${su.caja.length || su.admin.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Sueldos"><table class="cmovs"><thead><tr><th>Quién o concepto</th><th>De dónde</th><th class="n">Pagos</th><th class="n">Total</th></tr></thead><tbody>
           ${su.caja.map(x => `<tr><td>${avP(x.persona)}${esc(x.persona)}</td><td>Del turno</td><td class="n">${x.n}</td><td class="n">${D(x.total)}</td></tr>`).join("")}
@@ -221,11 +221,11 @@
         <button class="btn btn-line" type="button" data-ir-pagos style="margin-top:10px">Ver pagos y gastos hechos ›</button>
       </section>`,
       bitacora: () => `      <section class="card"><h3>Bitácora de cambios</h3>
-        <p class="note" style="margin:4px 0 10px">Quién registró, cambió o borró pagos, compras, traspasos, saldos, transferencias y gastos de caja. Sirve para saber por qué cambió una cifra.</p>
+        <p class="note" data-nl="1" style="margin:4px 0 10px">Aquí puedes consultar quién registró, modificó o eliminó pagos, compras, movimientos y saldos.</p>
         <details id="f-bit"><summary class="note" style="cursor:pointer;font-weight:600">Ver los últimos cambios</summary><div id="f-bit-lista" style="margin-top:8px"><p class="note">Cargando…</p></div></details>
       </section>`,
       reportes: () => `      <section class="card"><h3>Reportes en Google Sheets</h3>
-        <p class="note" style="margin:4px 0 10px">Al cerrar cada mes se crean solos tres reportes, cada uno en su carpeta de Drive: <b>Turnos</b> (TURNOS), <b>Finanzas</b> (ADMIN FINANZAS) y <b>Facturación</b> (FACTURACION). Aquí puedes generarlos para cualquiera de los últimos 13 meses; si ya existen, se reemplazan.</p>
+        <details class="f-guia-saldos"><summary>¿Qué contienen los reportes mensuales?</summary><p class="note" data-nl="1">Se generan automáticamente tres reportes en Google Drive: Turnos, Finanzas y Facturación, cada uno en su carpeta. También puedes generarlos para cualquiera de los últimos 13 meses. Si ya existen, se reemplazan.</p></details>
         <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select id="f-rep-mes" aria-label="Mes del reporte"></select><button class="btn btn-primary" id="f-rep-gen" type="button">Generar los tres</button><span class="note" id="f-rep-estado" role="status"></span></div>
         <div id="f-rep-lista"></div>
       </section>`
