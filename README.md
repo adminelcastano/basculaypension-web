@@ -4,7 +4,7 @@ Página web de basculaypension.com. Sitio estático en `public/`, sin compilaci�
 
 ## Verificación antes de proponer cambios
 
-La fuente de código es la rama/commit exacto de GitHub; no asumir que un PR en borrador está publicado. La suite sin credenciales ni datos productivos se ejecuta con `node --test pruebas/*.test.js` (Node 22). Para validar la compilación **sin desplegar** se usan `npx --yes wrangler@4 deploy --dry-run` y `npx --yes wrangler@4 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run`, como en GitHub Actions. El número de versión menor de Wrangler aún no está fijado en un lockfile: guardar el resultado de CI y no confundir el dry-run con publicación.
+La fuente de código es la rama/commit exacto de GitHub; no asumir que un PR en borrador está publicado. La suite sin credenciales ni datos productivos se ejecuta con `node --test pruebas/*.test.js` (Node 22). Para validar la compilación **sin desplegar** se usan `npx --yes wrangler@4.151.2 deploy --dry-run` y `npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run`, como en GitHub Actions (versión comprobada en CI del 19 de octubre de 2026). No hay todavía lockfile de dependencias transitivas: estas compilaciones fijan la versión directa de Wrangler, pero no garantizan reproducción byte a byte. La publicación automática configurada externamente usa `npx wrangler deploy` y debe verificarse aparte; el dry-run no publica.
 
 ## Cambiar datos del negocio
 
