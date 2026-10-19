@@ -6,10 +6,10 @@ const fuente = readFileSync(new URL("../herramientas/aviso-correo.gs", import.me
 const codigo = fuente.split("function hojaMensual(d) {")[1]?.split("\nfunction dentroDeRaiz(")[0]?.replace(/\n}\s*$/, "");
 assert.ok(codigo, "Falta hojaMensual");
 
-function ensayo(fallarAlLlenar = false) {
+function ensayo(fallarAlLlenar = false, fallarAlMover = false) {
   const acciones = [];
   const viejo = { getId: () => "hoja-antigua", setTrashed: () => acciones.push("borrar-anterior") };
-  const nuevo = { getId: () => "hoja-nueva", setTrashed: () => acciones.push("borrar-nuevo"), moveTo: () => acciones.push("mover-nuevo") };
+  const nuevo = { getId: () => "hoja-nueva", setTrashed: () => acciones.push("borrar-nuevo"), moveTo: () => { if (fallarAlMover) throw Error("fallo-movimiento"); acciones.push("mover-nuevo"); } };
   const carpeta = { getFilesByName: () => { acciones.push("buscar-anteriores"); const a = [viejo, nuevo]; return { hasNext: () => a.length > 0, next: () => a.shift() }; }};
   const sh = {
     setName() { acciones.push("nombre-hoja"); return this; },
@@ -33,4 +33,13 @@ test("reporte mensual: mueve nuevo antes de archivar anterior; nunca borra nuevo
   assert.equal(r.id,"hoja-nueva");
   assert.deepEqual(acciones.slice(-3),["mover-nuevo","buscar-anteriores","borrar-anterior"]);
   assert.equal(acciones.includes("borrar-nuevo"),false);
+});
+
+test("reporte mensual: conserva anterior si Google Drive rechaza mover el nuevo", () => {
+  const { out, acciones } = ensayo(false, true);
+  assert.throws(out, /fallo-movimiento/);
+  assert.ok(acciones.includes("crear-nuevo"));
+  assert.ok(!acciones.includes("buscar-anteriores"));
+  assert.ok(!acciones.includes("borrar-anterior"));
+  assert.ok(!acciones.includes("borrar-nuevo"));
 });
