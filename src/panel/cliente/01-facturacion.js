@@ -12,11 +12,20 @@
     return `<span class="svc ${esc(servicio || "")}" title="${esc(nombre)}" role="img" aria-label="${esc(nombre)}"><svg aria-hidden="true"><use href="#${ico}"/></svg></span>`;
   };
   const dinero = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  function mensajeCliente(s, servicios) {
+  function mensajeCliente(s, servicios, cfdis = []) {
     const concepto = { bascula: "servicio de báscula", pension: "servicio de pensión", ambos: "servicios de báscula y pensión" }[s.servicio] || "servicio";
     const unidad = [s.descripcion, s.placas ? `placas ${s.placas}` : ""].filter(Boolean).join(", ");
     const ticket = (s.folio_ticket ? `tu ticket ${s.folio_ticket}` : "tu ticket") + (unidad ? ` (${unidad})` : "");
     const importe = s.importe ? ` por ${dinero(s.importe)}` : "";
+    const cancelados = cfdis.filter(x => x.estado === "cancelada");
+    const vigentes = cfdis.filter(x => x.estado === "vigente");
+    if (cancelados.length) {
+      const originales = cancelados.map(x => x.folio).join(", ");
+      const nuevos = vigentes.map(x => x.folio).join(", ");
+      return `Hola, te saluda Báscula y Pensión El Castaño. Te informamos que ${cancelados.length === 1 ? "la factura" : "las facturas"} ${originales} ${cancelados.length === 1 ? "fue cancelada" : "fueron canceladas"} en Facturador. ${nuevos ? "Los nuevos comprobantes registrados son: " + nuevos + ". Te haremos llegar sus PDF y XML por el medio acordado." : "Estamos revisando cómo corresponde continuar y te avisaremos cuando haya nuevos comprobantes."} Tu solicitud es ${s.folio}. Si tienes dudas, responde este mensaje.`;
+    }
+    if (vigentes.length > 1)
+      return `Hola, te saluda Báscula y Pensión El Castaño. Para tu solicitud ${s.folio}, registramos dos facturas: ${vigentes.map(x => x.folio + " (" + dinero(x.importe) + ")").join(" y ")}. Coordinaremos contigo la entrega de los documentos PDF y XML. Gracias por tu preferencia.`;
     if (s.estado === "facturada" || s.estado === "enviada") {
       return `Hola, te saluda Báscula y Pensión El Castaño. Te confirmamos que ${ticket}${importe} por concepto de ${concepto} quedó facturado con el número de factura ${s.folio_factura}. ${s.estado === "enviada" ? "La administración ya confirmó su entrega." : "La administración coordinará la entrega del comprobante."} Gracias por tu preferencia.`;
     }
@@ -65,9 +74,9 @@
   const api = EC.api;
 
   // Todas las solicitudes a la vista, agrupadas por estado (el submenú baja a cada grupo)
-  const ESTADOS = ["pendiente", "facturada", "enviada", "rechazada", "historico"];
-  const NOM_EST = { pendiente: "Recibidas y en revisión", facturada: "Facturadas", enviada: "Enviadas al cliente", rechazada: "Rechazadas", historico: "Histórico" };
-  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", enviada: "i-ok", rechazada: "i-x", historico: "i-arch" };
+  const ESTADOS = ["pendiente", "facturada", "enviada", "rechazada", "cancelada", "historico"];
+  const NOM_EST = { pendiente: "Recibidas y en revisión", facturada: "Facturadas", enviada: "Enviadas al cliente", rechazada: "Rechazadas", cancelada: "Canceladas", historico: "Histórico" };
+  const ICO_EST = { pendiente: "i-inbox", facturada: "i-ok", enviada: "i-ok", rechazada: "i-x", cancelada: "i-x", historico: "i-arch" };
   let secuenciaLista = 0;
   async function cargarLista() {
     const solicitud = ++secuenciaLista;
@@ -92,11 +101,12 @@
       EC.bloqueInfo("facturacion", "facturada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "enviada", { texto: "Últimos 7 días" });
       EC.bloqueInfo("facturacion", "rechazada", { texto: "Últimos 7 días" });
+      EC.bloqueInfo("facturacion", "cancelada", { texto: "Conservar historial" });
       EC.bloqueInfo("facturacion", "historico", { texto: `Se borran a los ${dias} días` });
       $("#titulo").textContent = "Facturas.";
-      $("#subtitulo").textContent = `${conteos.pendiente || 0} recibidas/en revisión · ${conteos.facturada || 0} facturadas · ${conteos.enviada || 0} enviadas · ${conteos.rechazada || 0} rechazadas · ${conteos.historico || 0} en histórico`;
+      $("#subtitulo").textContent = `${conteos.pendiente || 0} recibidas/en revisión · ${conteos.facturada || 0} facturadas · ${conteos.enviada || 0} enviadas · ${conteos.rechazada || 0} rechazadas · ${conteos.cancelada || 0} canceladas · ${conteos.historico || 0} en histórico`;
       const restan = iso => Math.max(0, Math.ceil(dias - (Date.now() - new Date(iso).getTime()) / 86400e3));
-      const VACIO = { pendiente: "No hay solicitudes recibidas o en revisión.", facturada: "Sin facturas por enviar en los últimos 7 días.", enviada: "Sin facturas entregadas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", historico: "El histórico está vacío." };
+      const VACIO = { pendiente: "No hay solicitudes recibidas o en revisión.", facturada: "Sin facturas por enviar en los últimos 7 días.", enviada: "Sin facturas entregadas en los últimos 7 días.", rechazada: "Sin rechazos en los últimos 7 días.", cancelada: "Sin CFDI cancelados pendientes de sustitución.", historico: "El histórico está vacío." };
       const AYUDA = { rechazada: "Desliza una a la derecha para eliminarla.", historico: `Se eliminan ${dias} días después de facturar o rechazar. Antes se guarda un respaldo en Google Drive.` };
       lista.innerHTML = ESTADOS.map((e, i) => {
         const j = rs[i], n = conteos[e] || 0, l = j.solicitudes.filter(s => !borrandoIds.has(s.id));
@@ -130,6 +140,7 @@
     let j;
     try { j = await api("solicitudes/" + id); } catch (e) { d.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
     const s = j.solicitud; estadoState.cat = j;
+    const cfdis = j.cfdis || [], cancelados = cfdis.filter(x => x.estado === "cancelada"), vigentes = cfdis.filter(x => x.estado === "vigente");
     const reg = s.regimen ? `${s.regimen} · ${j.regimenes[s.regimen] || ""}` : "";
     const uso = s.uso ? `${s.uso} · ${j.usos[s.uso] || ""}` : "";
     const pago = s.forma_pago ? `${s.forma_pago} · ${(j.formas_pago || {})[s.forma_pago] || ""}` : "";
@@ -143,7 +154,7 @@
     const faltan = !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(String(s.rfc || "").toUpperCase()) ||
       String(s.nombre || "").trim().length < 3 || !/^\d{5}$/.test(String(s.cp || "")) ||
       !j.regimenes?.[s.regimen] || !j.usos?.[s.uso] || !j.formas_pago?.[s.forma_pago];
-    const bloqueado = s.estado === "facturada" || s.estado === "enviada";
+    const bloqueado = ["facturada", "enviada", "cancelada"].includes(s.estado);
     const duplicada = !!(j.ya_facturado && j.ya_facturado.solicitud_id !== s.id);
     const esBascula = s.servicio === "bascula";
     const capturado = !!(s.folio_ticket || s.importe);
@@ -153,7 +164,7 @@
       <div class="detail-head">
         <h2>${esc(s.nombre || "Solicitud " + s.folio)}</h2>
         <span class="svc-tag">${iconoServicio(s.servicio)}${esc(j.servicios[s.servicio] || s.servicio || "")}</span>
-        <span class="pill ${s.estado}">${{ pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" }[s.estado]}</span>
+        <span class="pill ${s.estado}">${{ pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada", cancelada: "CFDI cancelado" }[s.estado]}</span>
         <span class="note">Folio ${esc(s.folio)} · recibida ${fecha(s.creado)}</span>
       </div>
       <div class="fflujo">
@@ -186,6 +197,8 @@
             <h3 class="fpaso"><span class="num">2</span>Datos del ticket</h3><p class="note fguia">Captura el número de folio y el importe tal como aparecen en la foto (paso 6). Conserva los ceros iniciales. Al guardar quedan listos para copiar.</p>
             <div class="fields">
               ${s.comentario ? campo("Comentario del cliente", s.comentario, false) : ""}
+              ${Number(s.facturas_solicitadas || 1) === 2 ? campo("Solicitud del cliente", "Dos facturas (sujeto a revisión)", false) : ""}
+              ${s.facturas_motivo ? campo("Aclaración sobre dos facturas", s.facturas_motivo, false) : ""}
             </div>
             ${duplicada ? `<p class="warn"><b>Ticket ya facturado:</b> aparece con la factura ${esc(j.ya_facturado.folio_factura)}. No emitas otro CFDI; si corresponde, rechaza la nueva solicitud.</p>` : ""}
             ${j.contraste?.advertencia ? `<p class="warn"><b>Verificación de ingresos:</b> ${esc(j.contraste.advertencia)}</p>` : ""}
@@ -225,8 +238,9 @@
               <h3 class="fpaso"><span class="num">4</span>Resultado</h3><p class="note fguia">Comprueba los datos y el ticket. Después de emitir el CFDI en Facturador, registra su folio; si no procede, rechaza la solicitud con motivo.</p>
               ${s.estado === "pendiente" ? `<div class="row"><button class="btn btn-line" id="iniciar-revision" type="button">Iniciar revisión</button></div>` : `<p class="note">En revisión por administración.</p>`}
               <div class="row">
-                <input type="text" id="folio-factura" placeholder="Folio de Facturador" aria-label="Folio de Facturador">
-                <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>Facturada</button>
+                <input type="text" id="folio-factura" placeholder="Folio/UUID del primer CFDI" aria-label="Folio de Facturador">
+                ${Number(s.facturas_solicitadas || 1) === 2 ? `<input type="text" id="importe-factura-1" placeholder="Importe CFDI 1" inputmode="decimal" aria-label="Importe primera factura"><input type="text" id="folio-factura-2" placeholder="Folio/UUID CFDI 2 (opcional)" aria-label="Folio segunda factura"><input type="text" id="importe-factura-2" placeholder="Importe CFDI 2" inputmode="decimal" aria-label="Importe segunda factura"><label class="note"><input type="checkbox" id="cfdi-emitido-externo"> Ya emití los CFDI en Facturador; capturé los importes manualmente.</label>` : ""}
+                <button class="btn btn-primary" id="facturar" type="button" ${duplicada ? 'disabled title="Ticket ya facturado"' : ''}>${Number(s.facturas_solicitadas || 1) === 2 ? "Registrar CFDI emitidos" : "Facturada"}</button>
               </div>
               <p class="note">Fecha: ${fecha(new Date().toISOString())} (automática). Se guardan también el folio del ticket y el importe del paso 2.</p>
               <div class="rechazo">
@@ -235,8 +249,8 @@
                   <button class="btn btn-bad" id="rechazar" type="button">Rechazar</button>
                 </div>
               </div>` : `
-              <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
-              <p>${["facturada", "enviada"].includes(s.estado) ? `Factura <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
+              <h3 class="fpaso"><span class="num">4</span>${s.estado === "rechazada" ? "Rechazada" : s.estado === "cancelada" ? "Cancelada en Facturador" : s.estado === "enviada" ? "Enviada al cliente" : "Facturada"}</h3>
+              <p>${["facturada", "enviada", "cancelada"].includes(s.estado) ? `${s.estado === "cancelada" ? "Factura original cancelada" : "Factura registrada"} <b>${esc(s.folio_factura)}</b>${s.importe ? ` · ticket ${dinero(s.importe)}` : ""}` : `Motivo: ${esc(s.motivo)}`} · ${fecha(s.resuelta_en)}</p>
               ${s.estado === "facturada" ? `<div class="row"><button class="btn btn-primary" id="marcar-enviada" type="button">Confirmar envío al cliente</button></div><p class="note">Sólo después de entregarla por Facturador; este botón no envía correo.</p>` : ""}
               ${s.estado === "enviada" ? `<p class="note">Entrega confirmada: ${fecha(s.enviada_en)}</p>` : ""}
               ${s.estado === "rechazada" ? `
@@ -254,8 +268,8 @@
           </section>
           <section class="card">
             <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
-            <p class="note">${{ pendiente: "Confirma recepción.", en_revision: "Confirma que está en revisión.", facturada: "CFDI emitido, pendiente de confirmar entrega.", enviada: "Entrega registrada por administración.", rechazada: "Explica el rechazo." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
-            <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios))}</textarea>
+            <p class="note">${{ pendiente: "Confirma recepción.", en_revision: "Confirma que está en revisión.", facturada: "CFDI emitido, pendiente de confirmar entrega.", enviada: "Entrega registrada por administración.", rechazada: "Explica el rechazo.", cancelada: "Avisa de la cancelación confirmada y de la sustitución, si existe." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
+            <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios, cfdis))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
               <button class="btn btn-line" id="wa-copiar" type="button">Copiar mensaje</button>
