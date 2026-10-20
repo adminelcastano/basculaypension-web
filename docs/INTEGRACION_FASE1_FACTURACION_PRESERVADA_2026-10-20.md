@@ -47,3 +47,9 @@ Se incorporó una prueba con SQLite en memoria y KV falso para comprobar fallo D
 ## Adaptación de pruebas históricas sin debilitar verificaciones
 
 La suite financiera suponía que una llave lógica `pc:` correspondía directamente a una clave física KV. El nuevo almacenamiento conserva las llaves lógicas para sus consumidores, pero guarda físicamente en `fv:` y lee mediante `leerArchivo`. Se modificó solo el doble aislado de KV para admitir `getWithMetadata` y se verifican los mismos invariantes financieros y archivos accesibles a través de la API pública del módulo, incluidos borrados y sustituciones. La prueba A-11B continúa exigiendo mensajes sin nombres ni claves privadas, con el nuevo texto de fallback seguro.
+
+## Contrato Apps Script en la misma entrega (sin publicación)
+
+Se preparó **solamente** la función `archivos(d)` del Apps Script existente: el cliente Worker ya envía `operacion` como SHA-256 de llave lógica y bytes; el script propuesto valida esa marca, busca un archivo del mismo nombre y descripción en la carpeta permitida y devuelve el mismo Drive ID en reintentos. Si no existe, crea un archivo nuevo y lo marca; si la marca falla, intenta retirar únicamente el nuevo. `probar`, `leer`, `borrar` y `hoja` conservan sus interfaces. No se modifican otras funciones ni se crea despliegue duplicado.
+
+**No se actualizó el Apps Script productivo.** La publicación requiere mantener su proyecto y URL existentes, validar contrato en carpeta ficticia y autorizar el orden de actualización del script y Worker. Se añade la prueba sintética del contrato de idempotencia, procedente de la rama de auditoría.
