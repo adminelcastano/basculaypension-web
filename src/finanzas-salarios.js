@@ -24,13 +24,14 @@ export async function rutaSalarios(request,env,partes,usuario){
   const habilitado=activo(env);
   if(request.method==="GET"&&partes.length===2){
     const pagos=await leerPagos(env);
+    const huerfanos=(await env.DB.prepare("SELECT v.gasto_id FROM fin_nomina_vinculos v LEFT JOIN caja_gastos g ON g.id=v.gasto_id WHERE g.id IS NULL OR g.categoria!='Sueldos'").all()).results.length;
     let empleados=[],aviso=null;
     if(habilitado)try{
       const r=await scriptArchivos(env,{accion:"salarios",op:"catalogo"},20000);
       empleados=r.colaboradores||[];
     }catch{aviso="La conexión privada SALARIOS no está disponible. No se enviaron pagos.";}
-    return json({ok:true,habilitado,empleados,pagos,
-      aviso:aviso||(!habilitado?"Sincronización SALARIOS suspendida; puedes consultar pagos ya registrados sin duplicarlos.":"Los pagos sin colaborador confirmado no se sincronizan."),
+    return json({ok:true,habilitado,empleados,pagos,huerfanos,
+      aviso:huerfanos?String(huerfanos)+" referencia(s) salariales sin origen vigente. Conciliar antes de sincronizar.":aviso||(!habilitado?"Sincronización SALARIOS suspendida; puedes consultar pagos ya registrados sin duplicarlos.":"Los pagos sin colaborador confirmado no se sincronizan."),
       fuentes_no_vinculadas:"Los retiros incluidos en cortes y los renglones de la hoja necesitan conciliación individual antes de habilitar su reflejo."});
   }
   if(request.method!=="POST"||partes.length!==3)return json({ok:false,error:"Operación no permitida."},405);
@@ -60,6 +61,8 @@ export async function rutaSalarios(request,env,partes,usuario){
   }
   if(partes[2]==="sincronizar"){
     if(c.confirmado!==true)return json({ok:false,error:"Confirma que revisaste los pagos y su colaborador."},422);
+    const orf=await env.DB.prepare("SELECT 1 FROM fin_nomina_vinculos v LEFT JOIN caja_gastos g ON g.id=v.gasto_id WHERE g.id IS NULL OR g.categoria!='Sueldos' LIMIT 1").first();
+    if(orf)return json({ok:false,error:"Existen pagos vinculados cuyo origen ya no es Sueldos; concilia antes de sincronizar."},409);
     const todos=await leerPagos(env);
     if(todos.some(x=>x.vinculo&&x.vinculo.sincronizado_en&&!x.vinculo_actual))return json({ok:false,error:'Un pago ya sincronizado fue modificado en su origen. Requiere conciliación manual.'},409);
     const pendientes=todos.filter(x=>x.vinculo&&!x.vinculo.sincronizado_en);
