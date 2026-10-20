@@ -69,12 +69,12 @@ La sección SALARIOS ahora también **lista exclusivamente para revisión**:
 
 No asigna colaboradores a estos candidatos, **no crea pagos nuevos**, no los refleja en `PAGOS WEB` y no los acumula de nuevo. Estas fuentes pueden cambiar durante correcciones de cortes o reimportación: carecen todavía de un identificador inmutable por movimiento individual. Para incorporarlas a la sincronización habrá que asignar un ID persistente en su flujo original y conciliar cada caso, sin reutilizar posiciones de renglón como identidad.
 
-Se reforzó el puente ya preparado para detectar **cambios de importe, fecha, concepto o categoría en cualquier pago previamente vinculado**, incluso si no figura entre los 400 pagos recientes del listado. Un pago borrado o reclasificado se señala y detiene la sincronización, no se altera la hoja automáticamente.
+Se reforzó el puente ya preparado para detectar **cambios de importe, fecha, concepto, categoría, origen, forma de pago o cuenta interna en cualquier pago previamente vinculado**, incluso si no figura entre los 400 pagos recientes del listado. `PAGOS WEB` conserva ahora columnas adicionales de forma de pago y código interno de cuenta, sin números bancarios completos. Un pago borrado o reclasificado se señala y detiene la sincronización, no se altera la hoja automáticamente.
 
 ### Revisión de UI y pruebas
 
 Los nuevos scripts `05b-estados.js` y `05c-salarios.js` se validan sintácticamente con Node, junto con la presencia de campos de periodo bancario, campos de crédito, estados parciales y adaptación CSS para pantallas estrechas. Se corrigió la actualización de la lista tras confirmar un vínculo salarial; una recarga solicitada durante otra carga se atiende al terminar.
 
-**Pruebas verificadas en el commit `220bbd7a6d27e9e94b747203afd4842d42a8a67f`: 425/425 aprobadas, 0 fallidas, ambas compilaciones Wrangler `--dry-run` correctas.** Al incorporarse únicamente esta documentación después, se repetirá la CI del nuevo SHA.
+**Pruebas verificadas en el commit `7364d2135a9bc745bc0f59fd8ac186982795ca4d`: 426/426 aprobadas, 0 fallidas, ambas compilaciones Wrangler `--dry-run` correctas.** Se repetirá CI tras este último ajuste de documentación.
 
 **Pendiente:** prueba con navegador/teléfono/tablet reales, ensayo de Apps Script desplegado contra Sheet *nuevo* y totalmente ficticio, diseño del ID inmutable para retiros de corte y autorización explícita antes de modificar código productivo y activar el puente SALARIOS.
