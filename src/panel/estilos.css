@@ -1746,3 +1746,17 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 #mod-caja .caja-admin-saldo { display: grid; gap: 4px; padding: 14px; margin: 10px 0; border: 1px solid #3d8fd6; border-radius: 14px; background: #102538; }
 #mod-caja .caja-admin-saldo b { color: #90d7ff; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 @media (max-width: 460px) { #mod-caja .caja-admin-form { padding: 10px; } }
+
+
+/* Facturador informativo: lista de CFDI y acciones de cancelación/sustitución. */
+#mod-facturacion .cfdi-historial { display: grid; gap: 2px; min-width: 0; }
+#mod-facturacion .cfdi-fila { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+#mod-facturacion .cfdi-fila .pill { margin-inline-start: 6px; }
+#mod-facturacion details > .f { display: grid; gap: 6px; margin: 12px 0; font-weight: 600; }
+#mod-facturacion details > .f textarea,
+#mod-facturacion details > .f select,
+#mod-facturacion details .grid-form input { width: 100%; min-width: 0; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); border-radius: 12px; padding: 11px 12px; font: inherit; }
+#mod-facturacion details .check { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; font-size: var(--t-sm); line-height: 1.45; }
+#mod-facturacion details .check input { width: 20px; height: 20px; flex: none; accent-color: var(--amber); }
+#mod-facturacion details > button { margin-top: 8px; }
+@media(max-width: 560px) { #mod-facturacion details .grid-form { grid-template-columns: minmax(0,1fr); } #mod-facturacion details > button { width: 100%; min-height: 48px; } }
