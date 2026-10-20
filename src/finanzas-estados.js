@@ -5,13 +5,14 @@ const respuesta = (o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{"
 const DIA=/^\d{4}-\d{2}-\d{2}$/;
 export const fechaReal = s => typeof s==="string" && DIA.test(s) && !Number.isNaN(Date.parse(s+"T12:00:00Z")) &&
   new Date(s+"T12:00:00Z").toISOString().slice(0,10)===s;
-export function dineroCentavos(x,{opcional=false}={}) {
+export function dineroCentavos(x,{opcional=false,permitirNegativo=false}={}) {
   if(opcional && (x==null||x==="")) return null;
   const s=String(x??"").trim().replace(/[$,\s]/g,"");
-  if(!/^\d{1,9}(\.\d{1,2})?$/.test(s))return NaN;
-  const [p,c=""]=s.split(".");
+  if(!(permitirNegativo?/^-?\d{1,9}(\.\d{1,2})?$/:/^\d{1,9}(\.\d{1,2})?$/).test(s))return NaN;
+  const signo=s.startsWith("-")?-1:1;
+  const [p,c=""]=s.replace(/^-/,"").split(".");
   const v=Number(p)*100+Number(c.padEnd(2,"0"));
-  return Number.isSafeInteger(v)&&v<=10000000000?v:NaN;
+  return Number.isSafeInteger(v)&&v<=10000000000?signo*v:NaN;
 }
 const pesos=v=>v==null?null:Number((v/100).toFixed(2));
 const CAMPOS=["saldo_inicial","saldo_final","cargos","abonos","comisiones","intereses","iva","pago_minimo","pago_sin_intereses"];
@@ -67,7 +68,7 @@ export function validarEstado(c,cuenta) {
     return{error:"La fecha límite de pago no es válida."};
   const valores={};
   for(const campo of CAMPOS){
-    valores[campo]=dineroCentavos(c[campo],{opcional:true});
+    valores[campo]=dineroCentavos(c[campo],{opcional:true,permitirNegativo:campo==="saldo_inicial"||campo==="saldo_final"});
     if(Number.isNaN(valores[campo]))return{error:"Revisa el valor de "+campo.replaceAll("_"," ")+". Utiliza pesos y centavos."};
   }
   if(cuenta.tipo!=="credito"&&(valores.pago_minimo!=null||valores.pago_sin_intereses!=null))
