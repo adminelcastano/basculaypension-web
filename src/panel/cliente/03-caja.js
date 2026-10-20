@@ -54,7 +54,7 @@
         : `${esc(per)} · ${hace === null ? "sin actualizar" : hace < 1 ? "actualizado hace un momento" : `actualizado hace ${hace} min`}${s && s.error && (!s.at || s.error_at > s.at) ? ` · <span style="color:var(--bad)">Última lectura falló: ${esc(s.error)}</span>` : ""}`;
       const t = j.totales;
       const sobres = j.cortes.reduce((a, c) => a + (c.conteo && c.conteo.sobre || 0), 0);
-      $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tarjeta (va a Mercado Pago)", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Sobres entregados", sobres, "dest"]]
+      $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tarjeta (va a Mercado Pago)", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Entregas a administración", sobres, "dest"]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
       // Línea de estado de cada tarjeta del índice (celular y tablet) y botón de filtros plegados
@@ -66,7 +66,7 @@
         EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
         EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
         EC.bloqueInfo("caja", "movs", { texto: "gastos " + D0(t.gastos || 0) + (t.extras ? " · extras " + D0(t.extras) : "") });
-        EC.bloqueInfo("caja", "entregas", { texto: "sobres " + D0(sobres) });
+        EC.bloqueInfo("caja", "entregas", { texto: "administración " + D0(sobres) });
         const fb = $("#c-fil-btn"); if (fb) fb.textContent = "Periodo: " + per.replace(/^(\S)/, c => c.toUpperCase()) + " ▾";
       }
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
@@ -80,7 +80,7 @@
           <span class="t">${esc(TURNO_TXT[c.turno] || c.turno)}${es ? ` <span class="cturno ahora">en curso</span>` : ""}</span>
           <span class="m"><span>Efectivo ${dinero(c.efectivo)}</span><span>Tarjeta ${dinero(c.tarjeta)}</span></span>
           <span class="m"><span>${c.n_gastos ? `Gastos ${dinero(c.gastos_total)}` : "Sin gastos"}</span><span>En caja ${dinero(c.efectivo_caja)}</span></span>
-          ${c.conteo && c.conteo.admin ? `<span class="m"><span>Entrega de la administración</span><span>Sobre ${dinero(c.conteo.sobre || 0)}</span></span>` : c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
+          ${c.conteo && c.conteo.admin ? `<span class="m"><span>Entrega de la administración</span><span>Entregado ${dinero(c.conteo.sobre || 0)}</span></span>` : c.conteo ? `<span class="m"><span>Contó ${avP(c.conteo.persona)}${esc(c.conteo.persona)} ${dinero(c.conteo.efectivo)}</span>${difEtq(c.conteo.dif_efectivo)}</span>` : ""}
           ${c.cambio_turno && descuadre(c.cambio_turno.dif) ? `<span class="m"><span>Cambio recibido</span>${difEtq(c.cambio_turno.dif)}</span>` : ""}
         </button>`;
       };
@@ -159,7 +159,7 @@
     const esperado = k ? (k.esperado ?? c.efectivo_caja) : c.efectivo_caja;
     pasos.push(`<li class="cf-p cf-tot"><span class="cf-m"></span><div class="cf-c"><div class="cf-l"><span>= Debería haber en la caja</span><b>${dinero(esperado)}</b></div>${k && !k.con_cambio && c.cambio && c.cambio.n ? `<p>Este corte se contó sin el fondo de cambio (antes del 14 oct).</p>` : ""}</div></li>`);
     // 5. Contado
-    if (k && k.admin) pasos.push(paso("", "Entrega capturada por la administración", dinero(k.efectivo), "Turno sin corte en la tablet: el sobre, los retiros y el cambio los capturó la administración, sin conteo ciego."));
+    if (k && k.admin) pasos.push(paso("", "Entrega capturada por la administración", dinero(k.efectivo), "Turno sin corte en la tablet: la entrega, los retiros y el cambio los capturó la administración, sin conteo ciego."));
     else if (k) pasos.push(paso(est(k.dif_efectivo), "Contó " + `${avP(k.persona)}${esc(k.persona)}`, dinero(k.efectivo), !descuadre(k.dif_efectivo) ? "Cuadra con lo que debería haber." : `<b class="rojo">${dif(k.dif_efectivo)}</b> contra lo que debería haber.`));
     else pasos.push(paso(enCurso ? "esp" : "mal", "Corte ciego", "—", enCurso ? "El turno sigue abierto: el encargado entrega el corte en la tablet al terminar." : "Nadie entregó el corte de este turno en la tablet."));
     // 6. Reparto
@@ -262,7 +262,7 @@
             ${p.origen_activo && (p.estado === "pendiente" || p.estado === "parcial") && Math.max(0, p.monto - (p.abonado || 0)) > 0 ? `<form data-abonar="${esc(p.id)}" class="cform" style="grid-column:1/-1" novalidate>
               <label>Importe cobrado<input name="monto" inputmode="decimal" value="${(Math.max(0, p.monto - (p.abonado || 0))).toFixed(2)}" required></label>
               <label>Fecha de pago<input name="fecha" type="date" value="${hoyMx()}" required></label>
-              <label>Forma<select name="forma" required><option value="EFECTIVO">Efectivo (sobres)</option><option value="TARJETA">Tarjeta (Mercado Pago)</option><option value="TRANSFERENCIA">Transferencia (cuenta predeterminada)</option></select></label>
+              <label>Forma<select name="forma" required><option value="EFECTIVO">Efectivo (administración)</option><option value="TARJETA">Tarjeta (Mercado Pago)</option><option value="TRANSFERENCIA">Transferencia (cuenta predeterminada)</option></select></label>
               <label>Nota opcional<input name="notas" maxlength="240" placeholder="Referencia del pago"></label>
               <div class="row wide"><button class="btn btn-primary" type="submit">Registrar pago</button>
                 ${!p.abonado ? `<button class="btn btn-bad" type="button" data-cobro-id="${esc(p.id)}" data-cobro-estado="cancelado">Cancelar pendiente</button>` : ""}</div>
@@ -413,16 +413,16 @@
     const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
     c.innerHTML = `<section class="card">
-      <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el sobre para la administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
+      <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el efectivo entregado a administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
       <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas de turnos sin tablet</summary>
         <div class="cform" style="display:block;margin:0 0 14px">
-          <p class="note" style="margin:0 0 8px">Pega una tabla con una línea por turno: <b>día, turno, sobre, taxi, sueldo y cambio que dejó</b> (separada por tabuladores, como al copiar de una hoja). «—» o vacío = sin dato. Primero se revisa; no se guarda nada hasta que confirmes. El sueldo o taxi que ya está como renglón en la hoja de ese turno no se cuenta dos veces, y los turnos que entregaron en la tablet no se cambian.</p>
+          <p class="note" style="margin:0 0 8px">Pega una tabla con una línea por turno: <b>día, turno, entrega a administración, taxi, sueldo y cambio que dejó</b> (separada por tabuladores, como al copiar de una hoja). «—» o vacío = sin dato. Primero se revisa; no se guarda nada hasta que confirmes. El sueldo o taxi que ya está como renglón en la hoja de ese turno no se cuenta dos veces, y los turnos que entregaron en la tablet no se cambian.</p>
           <textarea id="c-imp-t" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:var(--t-sm)" placeholder="01/oct&#9;Tarde&#9;$3,500&#9;$200&#9;—&#9;$130"></textarea>
           <div class="row" style="margin-top:8px"><button class="btn btn-primary" type="button" id="c-imp-rev">Revisar</button></div>
           <div id="c-imp-r"></div>
         </div></details>
-      <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Sobres</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div></div>
-      ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Sobre</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+      <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Administración</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div></div>
+      ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Administración</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
@@ -436,9 +436,9 @@
       catch (e) { if (e.message !== "sesion") r.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
       if (aplicar) { toast(`Entregas guardadas: ${x.totales.turnos} turnos`); $("#c-imp-t").value = ""; await cargar(); return; }
       const T = x.totales;
-      r.innerHTML = `<div class="ctot" style="margin:10px 0"><div class="k"><span>Turnos a guardar</span><b>${T.turnos}</b></div><div class="k dest"><span>Sobres</span><b>${dinero(T.sobre)}</b></div><div class="k"><span>Taxi</span><b>${dinero(T.taxi)}</b></div><div class="k"><span>Sueldos</span><b>${dinero(T.sueldo)}</b></div></div>
+      r.innerHTML = `<div class="ctot" style="margin:10px 0"><div class="k"><span>Turnos a guardar</span><b>${T.turnos}</b></div><div class="k dest"><span>Administración</span><b>${dinero(T.sobre)}</b></div><div class="k"><span>Taxi</span><b>${dinero(T.taxi)}</b></div><div class="k"><span>Sueldos</span><b>${dinero(T.sueldo)}</b></div></div>
         ${x.errores.length ? `<p class="err">${x.errores.map(e => `Línea ${e.linea}: ${esc(e.error)} (${esc(e.texto)})`).join("<br>")}</p>` : ""}
-        <div class="tabla-scroll" tabindex="0" role="region" aria-label="Revisión de entregas"><table class="cmovs cimp"><thead><tr><th>Turno</th><th class="n">Sobre</th><th>Retiros que se agregan</th><th class="n">Cambio dejó</th><th>Qué pasa</th></tr></thead><tbody>
+        <div class="tabla-scroll" tabindex="0" role="region" aria-label="Revisión de entregas"><table class="cmovs cimp"><thead><tr><th>Turno</th><th class="n">Administración</th><th>Retiros que se agregan</th><th class="n">Cambio dejó</th><th>Qué pasa</th></tr></thead><tbody>
         ${x.filas.map(f => `<tr class="${EST[f.estado][1] === "no" ? "no" : ""}"><td>${esc(diaTxt(f.dia))} · ${esc(TURNO_TXT[f.turno] || f.turno)}</td><td class="n">${f.sobre != null ? dinero(f.sobre) : "—"}</td><td>${f.retiros.map(r => `${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") || "—"}</td><td class="n">${f.cambio != null ? dinero(f.cambio) : "—"}</td><td><b>${EST[f.estado][0]}</b>${f.avisos.length ? `<div class="note">${f.avisos.map(esc).join("<br>")}</div>` : ""}</td></tr>`).join("")}
         </tbody></table></div>
         ${T.turnos ? `<div class="row" style="margin-top:10px"><button class="btn btn-primary" type="button" id="c-imp-ok">Guardar ${T.turnos} ${T.turnos === 1 ? "entrega" : "entregas"}</button></div>` : ""}`;
