@@ -41,8 +41,12 @@ test("Servidor bloquea duplicidad con clave única; permite advertencia sin bloq
   assert.match(worker, /estado='enviada'/);
 });
 
-test("Formulario ofrece contacto opcional y una vía de aclaración alternativa", () => {
-  assert.match(publico, /form\.email\.value\.trim\(\) &&/);
+test("Facturación exige correo y conserva WhatsApp como contacto opcional", () => {
+  assert.match(publico, /if \(!RE_EMAIL\.test\(form\.email\.value\.trim\(\)\)\)/);
+  assert.match(publico, /name="email"[^>]*required/);
+  assert.match(worker, /if \(!RE_EMAIL\.test\(email\)\)/);
+  assert.match(panel, /id="d-email"/);
+  assert.match(worker, /errores\.email = "Correo electrónico inválido/);
   assert.match(publico, /if \(tel &&/);
   assert.match(publico, /contáctanos directamente para solicitar tu CFDI/);
   assert.match(publico, /hecho-entrega/);

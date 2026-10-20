@@ -2,6 +2,7 @@ import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
+import { reconocerCsfImagen } from "./lectura-csf.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
 // Los datos del ticket ya no se leen con IA: el administrador los captura a mano viendo la foto.
 const REVISAR_FOTO_IA = true;
@@ -218,7 +219,7 @@ async function crearSolicitud(request, env, ctx) {
   if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
-  if (email && !RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
+  if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo electrónico válido para recibir tu factura.";
   if (telefono && telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
 
@@ -233,10 +234,12 @@ async function crearSolicitud(request, env, ctx) {
 
   const ticket = archivo(form, "ticket");
   const csf = archivo(form, "csf");
-  const errTicket = validarArchivo(ticket, true, "la foto del ticket");
+  const tipoTicket = await tipoArchivo(ticket);
+  const tipoCsf = await tipoArchivo(csf);
+  const errTicket = validarArchivo(ticket, tipoTicket, true, "la foto del ticket");
   if (errTicket) errores.ticket = errTicket;
   if (modo === "csf") {
-    const errCsf = validarArchivo(csf, true, "tu Constancia de Situación Fiscal");
+    const errCsf = validarArchivo(csf, tipoCsf, true, "tu Constancia de Situación Fiscal");
     if (errCsf) errores.csf = errCsf;
   }
 
@@ -250,40 +253,35 @@ async function crearSolicitud(request, env, ctx) {
   const ticketBuf = await ticket.arrayBuffer();
   await env.FILES.put(llaveLimite, String(conteo + 1), { expirationTtl: 3700 });
 
-  // Revisar el ticket con IA antes de guardar (se reutiliza la revisión hecha al tomar la foto)
+  // Una sola revisión acotada: la clasificación es orientativa, nunca requisito para subir.
   let lectura = null, avisoTicket = null;
-  if (REVISAR_FOTO_IA && env.AI && TIPOS_LEGIBLES.includes(ticket.type)) {
+  if (REVISAR_FOTO_IA && env.AI && TIPOS_LEGIBLES.includes(tipoTicket)) {
     let rev = null;
-    try { rev = await conLimite(revisarTicket(env, ticketBuf, ticket.type, servicio), 20000); }
+    try { rev = await conLimite(revisarTicket(env, ticketBuf, tipoTicket, servicio), 7000); }
     catch (e) { console.error("revisar ticket", tipoErrorSeguro(e)); rev = null; }
     if (rev && !rev.error) {
-      if (rev.clase === "otro") {
-        if (texto(form, "forzar_ticket") !== "1") {
-          return json({ ok: false, error: "La foto no parece un ticket de Báscula y Pensión El Castaño.",
-            errores: { ticket: "Esta foto no parece un ticket de El Castaño. Toma la foto de tu ticket." } }, 422);
-        }
-        avisoTicket = "La revisión automática no reconoció un ticket de El Castaño en la foto. Revísala antes de facturar.";
-      } else if (rev.clase && rev.clase !== servicio) {
-        avisoTicket = `El cliente eligió ${SERVICIOS[servicio]}, pero la foto es de un ticket de ${SERVICIOS[rev.clase].toLowerCase()}. Se registró como ${SERVICIOS[rev.clase].toLowerCase()}.`;
-        servicio = rev.clase;
-      }
+      // Un modelo puede equivocarse: avisar a administración en vez de bloquear al cliente.
+      if (rev.clase === "otro")
+        avisoTicket = "La revisión automática no pudo confirmar que la imagen sea un ticket. Verificarlo manualmente.";
+      else if (rev.clase && rev.clase !== servicio)
+        avisoTicket = "La revisión automática sugiere otro servicio. Verificar ticket y servicio seleccionado.";
+      if (rev.clase === "pension" && esTicketDeEntrada(rev.lectura))
+        avisoTicket = "La revisión automática sugiere un ticket de ENTRADA de pensión. Comprobar el de SALIDA antes de emitir.";
       lectura = rev.lectura || null;
-    }
-    if (servicio === "pension" && esTicketDeEntrada(lectura)) {
-      return json({ ok: false, error: "Enviaste el ticket de ENTRADA. Para facturar necesitamos el ticket de SALIDA: el que entregan al salir y trae el TOTAL pagado.",
-        errores: { ticket: "Este es el ticket de entrada. Toma la foto del ticket de salida (el que tiene el total)." } }, 422);
+    } else if (!rev) {
+      avisoTicket = "La revisión automática no finalizó. Revisar manualmente el ticket.";
     }
   }
 
   // El cliente envió la foto aunque la revisión de su teléfono dijo que no se ve bien
   const calidad = texto(form, "aviso_calidad").slice(0, 300);
   if (calidad) avisoTicket = [avisoTicket, "El cliente envió la foto aunque la revisión de calidad marcó: " + calidad].filter(Boolean).join(" ");
-  await env.FILES.put(`f:${id}:ticket`, ticketBuf, { metadata: { tipo: ticket.type } });
+  await env.FILES.put(`f:${id}:ticket`, ticketBuf, { metadata: { tipo: tipoTicket } });
   let csfTipo = null;
   if (modo === "csf" && csf) {
     const csfBuf = await csf.arrayBuffer();
-    await env.FILES.put(`f:${id}:csf`, csfBuf, { metadata: { tipo: csf.type } });
-    csfTipo = csf.type;
+    await env.FILES.put(`f:${id}:csf`, csfBuf, { metadata: { tipo: tipoCsf } });
+    csfTipo = tipoCsf;
   }
 
   try {
@@ -294,7 +292,7 @@ async function crearSolicitud(request, env, ctx) {
       rfc || null, modo === "manual" ? nombre : (nombre || null),
       modo === "manual" ? regimen : (REGIMENES[regimen] ? regimen : null),
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
-      uso, email, telefono || null, comentario || null, ticket.type, csfTipo, avisoTicket, formaPago, "2026-10-17")
+      uso, email, telefono || null, comentario || null, tipoTicket, csfTipo, avisoTicket, formaPago, "2026-10-17")
     .run();
   } catch (e) {
     // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
@@ -312,7 +310,7 @@ async function crearSolicitud(request, env, ctx) {
   if (ctx && env.AVISO_URL && env.AVISO_TOKEN) {
     ctx.waitUntil(enviarAviso(env, url.origin, { folio, servicio, modo, rfc, nombre, email }).catch(e => console.error("aviso", tipoErrorSeguro(e))));
   }
-  if (LEER_TICKET_IA && ctx && env.AI && TIPOS_LEGIBLES.includes(ticket.type) && (!lectura || lectura.error)) {
+  if (LEER_TICKET_IA && ctx && env.AI && TIPOS_LEGIBLES.includes(tipoTicket) && (!lectura || lectura.error)) {
     // Si la lectura falló o tardó, se reintenta en segundo plano
     ctx.waitUntil(leerTicket(env, id).catch(e => console.error("leer ticket", tipoErrorSeguro(e))));
   }
@@ -338,10 +336,22 @@ function archivo(form, nombre) {
   const v = form.get(nombre);
   return v && typeof v === "object" && typeof v.arrayBuffer === "function" && v.size > 0 ? v : null;
 }
-function validarArchivo(f, requerido, que) {
-  if (!f) return requerido ? `Adjunta ${que}.` : null;
-  if (f.size > MAX_ARCHIVO) return `El archivo de ${que} pesa más de 10 MB.`;
-  if (!(TIPOS_IMAGEN.includes(f.type) || f.type === TIPO_PDF)) return `Para ${que} usa una foto (JPG o PNG) o un PDF.`;
+// La firma real evita rechazar fotos móviles sin MIME y aceptar un archivo disfrazado.
+async function tipoArchivo(f) {
+  if (!f) return null;
+  const a = new Uint8Array(await f.slice(0, 1024).arrayBuffer());
+  const ascii = (i, j) => String.fromCharCode(...a.slice(i, j));
+  if (a.length >= 3 && a[0] === 255 && a[1] === 216 && a[2] === 255) return "image/jpeg";
+  if (a.length >= 8 && a.slice(0, 8).every((v, i) => v === [137, 80, 78, 71, 13, 10, 26, 10][i])) return "image/png";
+  if (a.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+  if (a.length >= 5 && ascii(0, 1024).includes("%PDF-")) return "application/pdf";
+  if (a.length >= 12 && ascii(4, 8) === "ftyp" && /^(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1)$/.test(ascii(8, 12))) return "image/heic";
+  return null;
+}
+function validarArchivo(f, tipo, requerido, que) {
+  if (!f) return requerido ? "Adjunta " + que + "." : null;
+  if (f.size > MAX_ARCHIVO) return "El archivo de " + que + " pesa más de 10 MB.";
+  if (!tipo) return "Para " + que + " usa JPG, PNG, WebP, HEIC o PDF válido.";
   return null;
 }
 function crearFolio() {
@@ -646,6 +656,47 @@ async function rutasPanel(request, env, url, usuario) {
       });
     }
 
+    // OCR de constancias exclusivo del panel protegido: no almacena la imagen procesada,
+    // no expone texto completo de documentos y NO guarda campos fiscales automáticamente.
+    if (partes[2] === "leer-csf-imagen" && partes.length === 3 && request.method === "POST") {
+      if (fila.modo !== "csf" || fila.archivos_borrados || ["facturada", "enviada"].includes(fila.estado))
+        return json({ ok: false, error: "Esta constancia no está disponible para revisión." }, 409);
+      if (!env.AI) return json({ ok: false, error: "La lectura asistida no está disponible. Captura los datos viendo la constancia." }, 503);
+      if (Number(request.headers.get("Content-Length") || 0) > 7 * 1024 * 1024)
+        return json({ ok: false, error: "La imagen de la constancia supera el límite de lectura." }, 413);
+      const cuerpo = await request.json().catch(() => null);
+      if (!cuerpo || typeof cuerpo !== "object" || Array.isArray(cuerpo))
+        return json({ ok: false, error: "Solicitud de lectura inválida." }, 422);
+      let bytes, tipo;
+      if (Object.hasOwn(cuerpo, "imagen")) {
+        // Imagen JPEG generada dentro del navegador a partir de PDF escaneado o HEIC.
+        const txt = cuerpo.imagen;
+        if (typeof txt !== "string" || txt.length > 6_500_000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(txt))
+          return json({ ok: false, error: "La página escaneada debe enviarse como imagen JPEG." }, 422);
+        try { bytes = Uint8Array.from(atob(txt.slice(txt.indexOf(",") + 1)), c => c.charCodeAt(0)); }
+        catch { return json({ ok: false, error: "Imagen codificada incorrectamente." }, 422); }
+        tipo = await tipoArchivo(new Blob([bytes]));
+        if (tipo !== "image/jpeg") return json({ ok: false, error: "El archivo no es una imagen JPEG válida." }, 422);
+      } else {
+        const archivo = await leerArchivo(env, "f:" + id + ":csf");
+        if (!archivo?.value) return json({ ok: false, error: "La constancia ya no está disponible." }, 404);
+        bytes = new Uint8Array(archivo.value);
+        tipo = await tipoArchivo(new Blob([bytes]));
+        if (!["image/jpeg", "image/png", "image/webp"].includes(tipo))
+          return json({ ok: false, error: "Este formato no admite lectura directa. Captura los datos o convierte la imagen a JPG." }, 422);
+      }
+      if (bytes.byteLength < 500 || bytes.byteLength > 5 * 1024 * 1024)
+        return json({ ok: false, error: "La imagen debe pesar entre 500 bytes y 5 MB para lectura asistida." }, 413);
+      try {
+        await aceptarLicenciaModelo(env);
+        const resultado = await reconocerCsfImagen(env, bytes, tipo);
+        return json({ ok: true, ...resultado });
+      } catch {
+        // La IA puede estar saturada o sin cupo; no registrar contenido personal en logs.
+        return json({ ok: false, error: "No se pudo leer la constancia automáticamente. Captura o revisa los datos manualmente." }, 503);
+      }
+    }
+
     if (request.method === "POST" && partes.length === 3) {
       const cuerpo = await request.json().catch(() => ({}));
       const ahora = new Date().toISOString();
@@ -724,10 +775,14 @@ async function rutasPanel(request, env, url, usuario) {
         if (![ "pendiente", "en_revision", "rechazada" ].includes(fila.estado)) return json({ ok: false, error: "Los datos de un CFDI ya emitido no se pueden alterar desde la solicitud." }, 409);
         const rfc = String(cuerpo.rfc || "").toUpperCase().replace(/[\s-]/g, "");
         const nombre = String(cuerpo.nombre || "").replace(/\s+/g, " ").trim().slice(0, 254);
+        // Solicitudes históricas pueden estar sin correo: permitir corregir otros datos
+        // mientras el administrador localiza el contacto, pero validar todo correo escrito.
+        const email = "email" in cuerpo ? String(cuerpo.email || "").trim().toLowerCase().slice(0, 254) : (fila.email || "");
         const regimen = String(cuerpo.regimen || "");
         const cp = String(cuerpo.cp || "").trim();
         const errores = {};
         if (rfc && !RE_RFC.test(rfc)) errores.rfc = "RFC con formato inválido.";
+        if (email && !RE_EMAIL.test(email)) errores.email = "Correo electrónico inválido.";
         if (regimen && !REGIMENES[regimen]) errores.regimen = "Régimen inválido.";
         if (cp && !RE_CP.test(cp)) errores.cp = "Código postal inválido.";
         const importe = "importe" in cuerpo ? normalizarImporte(cuerpo.importe) : (fila.importe || "");
@@ -744,8 +799,8 @@ async function rutasPanel(request, env, url, usuario) {
         if (formaPago && !FORMAS_PAGO[formaPago]) errores.forma_pago = "Forma de pago inválida.";
         const anotacion = "anotacion" in cuerpo ? String(cuerpo.anotacion || "").replace(/\s+/g, " ").trim().slice(0, 80) : (fila.anotacion || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=?, forma_pago=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, formaPago || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=?, forma_pago=?, email=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, formaPago || null, email, id).run();
         return json({ ok: true });
       }
     }
