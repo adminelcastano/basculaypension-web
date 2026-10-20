@@ -65,3 +65,48 @@ Fuentes de operación consultadas:
 - https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/export/
 
 **Publicar código de documentación en `main` no concede autorización para exportar, restaurar, programar, crear D1 ni tocar claves o credenciales.**
+
+## Ensayo D1 real de 20/10/2026 — verificación selectiva
+
+**Autorización recibida:** crear dos D1 nuevas con registros exclusivamente ficticios y ensayar exportación y recuperación sin tocar producción. Se trabajó mediante la API D1 conectada con autorización de administración. No se utilizó la clave privada age ni token compartido por chat. Los UUID específicos se conservan en Cloudflare, no en este documento público.
+
+### Recursos efectivamente creados
+
+- **Fuente:** `castano-respaldo-sintetico-20261020`.
+- **Destino independiente:** `castano-restauracion-sintetico-20261020`.
+- Antes de cualquier escritura, se verificaron los nombres y UUID de ambas y su separación de `castano-facturas`. Ambas comenzaron sin tablas de ensayo; Cloudflare incluye su propia tabla interna `_cf_KV`.
+- Se confirmó finalmente que el binding `DB` del Worker productivo continúa conectado **sólo a `castano-facturas`**, sin apuntar a la fuente ni al destino de ensayo. El Worker productivo permaneció en **versión 160**, despliegue `99ffa6cf-dcff-43f0-8c4e-bc746aa6ea09`, al 100 %.
+- **No borrar automáticamente estas dos D1:** contienen únicamente fixtures sintéticas y quedan disponibles para una validación posterior. Toda destrucción requiere autorización específica.
+
+### Datos y comprobaciones realizadas
+
+Se cargaron exclusivamente en la fuente dos tablas de ensayo, `ensayo_turnos` y `ensayo_movimientos`, más el índice `idx_ensayo_mov_turno`. Dos turnos ficticios con fondos iniciales de 10 000 y 8 000 centavos, y seis movimientos con tipos de venta, retiro administrativo e ingreso administrativo:
+
+| Métrica | Fuente | Destino |
+| --- | ---: | ---: |
+| Turnos | 2 | 2 |
+| Movimientos | 6 | 6 |
+| Índices explícitos de ensayo | 1 | 1 |
+| Ventas (centavos) | 34 600 | 34 600 |
+| Retiro administrativo (centavos) | 20 000 | 20 000 |
+| Ingresos administrativos (centavos) | 7 500 | 7 500 |
+| Saldo turno MAÑANA (centavos) | 22 000 | 22 000 |
+| Saldo turno TARDE (centavos) | 18 100 | 18 100 |
+| `PRAGMA quick_check` | `ok` | `ok` |
+| `PRAGMA foreign_key_check` | Sin anomalías | Sin anomalías |
+
+Las consultas compararon **independientemente en ambas D1** el SQL completo de las dos tablas y del índice, filas ordenadas, agregaciones de importes, cálculos de saldos e integridad rápida. Los resultados fueron iguales.
+
+**Exportación D1:** se ejecutó `POST /d1/database/{source}/export` con `output_format=polling` y filtro a las dos tablas ficticias. La API devolvió estado **`complete`**, nombre de SQL y URL temporal de descarga. **No se descargó el archivo:** el entorno de herramientas rechazó el acceso a esa URL firmada, y no se copió ni registró la URL/credencial en el repositorio.
+
+**Reconstrucción del destino:** se leyó de la fuente el esquema SQLite y las filas ficticias vía `POST .../query`, se reprodujeron en la **segunda D1** mediante 11 sentencias SQL (tablas, filas e índice) y se compararon de nuevo las dos bases. Las 11 sentencias y todas las comprobaciones posteriores finalizaron correctamente. **Esto demuestra una reconstrucción lógica consistente por API, no una importación real del archivo SQL exportado.**
+
+**Limitación adicional:** Cloudflare rechazó `PRAGMA integrity_check` por `SQLITE_AUTH`; `quick_check` y `foreign_key_check` sí pudieron ejecutarse. `integrity_check` completo deberá hacerse sobre el SQLite exportado al descargarlo, no presentarse como realizado.
+
+### Estado de certificación
+
+- **Aprobado:** separación de dos D1 nuevas, fixtures ficticias, consulta/export API con estado completo, reconstrucción SQL por consultas, igualdad de tablas/índice/filas/totales/saldos, `quick_check` y claves foráneas.
+- **NO certificado:** descarga de los bytes del SQL exportado, SHA-256 del fichero real, cifrado/descifrado con `age` auténtico, restauración desde ese fichero mediante el importador remoto oficial D1, cotejo de hashes del archivo y copia privada en Drive. No se han realizado esas operaciones.
+- **Sin cambios:** D1 productiva, Worker, KV, Drive, Mac, Windows/WSL, claves privadas, credenciales y programaciones. No se generó ningún archivo para descargar al usuario.
+
+**Próximo paso bloqueado por el entorno:** usar un ejecutor autorizado que pueda **descargar la exportación SQL y cargar exactamente sus bytes a la D1 de destino**; podrá ser una sesión controlada en la Mac custodia, sin regenerar su clave. Verificar de nuevo el destino antes de importar (actualmente **ya contiene fixtures**; para una importación completa habría que utilizar una **tercera D1 vacía expresamente autorizada**, o autorizar una limpieza específica del destino antes de reimportar). No sobreescribir ni limpiar automáticamente la base ya construida. Repetir `quick_check`, `integrity_check` local, conteos y hashes. No ejecutar en `castano-facturas` ni reutilizar D1 de Finanzas.
