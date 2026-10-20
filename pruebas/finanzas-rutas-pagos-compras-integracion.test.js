@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { agendaPanel, asegurarEsquemaAgenda } from "../src/agenda.js";
 import { asegurarEsquemaCaja } from "../src/caja.js";
 import { asegurarEsquemaCuentas } from "../src/cuentas.js";
+import { leerArchivo } from "../src/fotos.js";
 
 const hoy=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
 const actor={email:"ensayo@invalid.example"};
@@ -30,7 +31,19 @@ function entorno() {
       db.exec("COMMIT");return out;
     }catch(err){db.exec("ROLLBACK");throw err}
   }};
-  const env={DB,FILES:{async get(k){return kv.get(k)||null},async put(k,v){kv.set(k,v)},async delete(k){kv.delete(k)}}};
+  const meta = new Map();
+  const env={DB,FILES:{
+    async get(k){return kv.get(k)||null},
+    async put(k,v,opts){kv.set(k,v);meta.set(k,opts?.metadata||null)},
+    async delete(k){kv.delete(k);meta.delete(k)},
+    async getWithMetadata(k){
+      const value=kv.get(k);
+      if(value == null)return {value:null,metadata:null};
+      const bytes=value instanceof ArrayBuffer ? value.slice(0) :
+        value instanceof Uint8Array ? value.slice().buffer : new TextEncoder().encode(String(value)).buffer;
+      return {value:bytes,metadata:meta.get(k)||null};
+    }
+  }};
   return {db,env};
 }
 async function iniciar(env) {
@@ -634,6 +647,7 @@ test("Pago eliminado no reaparece tras un reintento tardío del mismo UID",async
 
 test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el archivo vigente",async()=>{
   const {db,env}=shared;
+  const archivoVisible=async clave=>(await leerArchivo(env,clave)).value;
   const n=await post(env,"pagos/hecho",{
     uid:"cafe0000-0000-4000-8000-000000000245",fecha:hoy,importe:"22.15",
     titulo:"Comprobante sintético concurrente",forma:"EFECTIVO"
@@ -665,7 +679,7 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   const anterior=leer().comprobante;
   assert.match(anterior,/^pc:/);
   assert.equal(leer().comp_tipo,"image/png");
-  assert.ok(await env.FILES.get(anterior),"La foto original debe existir");
+  assert.ok(await archivoVisible(anterior),"La foto original debe existir");
 
   // Error de D1: el archivo anterior sigue vinculado y disponible.
   const originalBatch=env.DB.batch;
@@ -677,7 +691,7 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   try{
     await assert.rejects(()=>subir("d1-falla"),/Fallo sintético de D1/);
     assert.equal(leer().comprobante,anterior);
-    assert.ok(await env.FILES.get(anterior),"No borrar la versión válida antes de que D1 confirme");
+    assert.ok(await archivoVisible(anterior),"No borrar la versión válida antes de que D1 confirme");
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+1);
   }finally{env.DB.batch=originalBatch}
 
@@ -687,8 +701,8 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   assert.deepEqual([u1.status,u2.status].sort((a,b)=>a-b),[200,409],JSON.stringify([u1,u2]));
   const vigente=leer().comprobante;
   assert.notEqual(vigente,anterior);
-  assert.ok(await env.FILES.get(vigente),"Mantener archivo del ganador");
-  assert.equal(await env.FILES.get(anterior),null,"Eliminar archivo viejo tras confirmación");
+  assert.ok(await archivoVisible(vigente),"Mantener archivo del ganador");
+  assert.equal(await archivoVisible(anterior),null,"Eliminar archivo viejo tras confirmación");
   const fotosAntes=leer();
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+2);
   // Fallo en la eliminación: no cambiar base ni tocar bytes ni bitácora.
@@ -700,14 +714,14 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
   try{
     await assert.rejects(()=>post(env,"pagos/"+id+"/quitar-comprobante",{}),/D1 no pudo desvincular/);
     assert.deepEqual({...leer()},{...fotosAntes});
-    assert.ok(await env.FILES.get(vigente));
+    assert.ok(await archivoVisible(vigente));
     assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que = 'Comprobante de pago' AND ref = ?").get(id).n,antesAuditoria+2);
   }finally{env.DB.batch=originalBatch}
 
   const quitar=await post(env,"pagos/"+id+"/quitar-comprobante",{});
   assert.equal(quitar.status,200,JSON.stringify(quitar));
   assert.equal(leer().comprobante,null);
-  assert.equal(await env.FILES.get(vigente),null);
+  assert.equal(await archivoVisible(vigente),null);
   const repetir=await post(env,"pagos/"+id+"/quitar-comprobante",{});
   assert.equal(repetir.status,200);
   assert.equal(repetir.data.sin_cambios,true);
@@ -717,6 +731,7 @@ test("Comprobantes: reemplazos simultáneos, fallos y baja conservan siempre el 
 
 test("Borrado de pago con nueva foto concurrente: no deja comprobante huérfano",async()=>{
   const {db,env}=shared;
+  const archivoVisible=async clave=>(await leerArchivo(env,clave)).value;
   const pago=await post(env,"pagos/hecho",{
     uid:"cafe0000-0000-4000-8000-000000000289",
     fecha:hoy,importe:"18.93",titulo:"Pago de prueba con foto concurrente",forma:"EFECTIVO"
@@ -732,7 +747,7 @@ test("Borrado de pago con nueva foto concurrente: no deja comprobante huérfano"
   };
   assert.equal((await foto("primera")).status,200);
   const original=db.prepare("SELECT comprobante FROM agenda_pagos WHERE id=?").get(id).comprobante;
-  assert.ok(await env.FILES.get(original));
+  assert.ok(await archivoVisible(original));
   const dbBatch=env.DB.batch;
   let cambio=false;
   env.DB.batch=async sentencias=>{
@@ -752,11 +767,11 @@ test("Borrado de pago con nueva foto concurrente: no deja comprobante huérfano"
   const vigente=db.prepare("SELECT comprobante,gasto_id FROM agenda_pagos WHERE id=?").get(id);
   assert.ok(vigente?.gasto_id,"Pago y gasto no pueden quedar borrados por una versión obsoleta");
   assert.notEqual(vigente.comprobante,original);
-  assert.equal(await env.FILES.get(original),null);
-  assert.ok(await env.FILES.get(vigente.comprobante),"La nueva foto continúa disponible");
+  assert.equal(await archivoVisible(original),null);
+  assert.ok(await archivoVisible(vigente.comprobante),"La nueva foto continúa disponible");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE ref=? AND accion='borrar' AND que='Pago no programado'").get(id).n,0);
   const eliminarVigente=await post(env,"pagos/"+id+"/eliminar",{});
   assert.equal(eliminarVigente.status,200,JSON.stringify(eliminarVigente));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos WHERE id=?").get(id).n,0);
-  assert.equal(await env.FILES.get(vigente.comprobante),null);
+  assert.equal(await archivoVisible(vigente.comprobante),null);
 });

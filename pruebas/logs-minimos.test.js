@@ -25,9 +25,9 @@ test("A-11B: mensajes externos y stack no se copian a logs de solicitudes", () =
 });
 
 test("A-11B: los fallos de Drive no imprimen claves de archivos", () => {
-  assert.match(archivos, /console\.error\("archivos: Drive no disponible, se guarda en KV"\)/);
+  assert.match(archivos, /console\.error\("archivos: versión KV conservada; transferencia Drive pendiente"\)/);
   assert.match(archivos, /console\.error\("archivos: no se pudo leer de Drive"\)/);
-  assert.doesNotMatch(archivos, /console\.error\("archivos: Drive no disponible, se guarda en KV", llave/);
+  assert.doesNotMatch(archivos, /console\.error\("archivos: versión KV conservada; transferencia Drive pendiente",\s*(llave|e|error)/);
   assert.doesNotMatch(archivos, /console\.error\("archivos: no se pudo leer de Drive", llave/);
 });
 
