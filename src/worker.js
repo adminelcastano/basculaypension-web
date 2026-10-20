@@ -2,6 +2,7 @@ import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
+import { reconocerCsfImagen } from "./lectura-csf.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
 // Los datos del ticket ya no se leen con IA: el administrador los captura a mano viendo la foto.
 const REVISAR_FOTO_IA = true;
@@ -653,6 +654,47 @@ async function rutasPanel(request, env, url, usuario) {
           "Content-Security-Policy": "frame-ancestors 'self'"
         }
       });
+    }
+
+    // OCR de constancias exclusivo del panel protegido: no almacena la imagen procesada,
+    // no expone texto completo de documentos y NO guarda campos fiscales automáticamente.
+    if (partes[2] === "leer-csf-imagen" && partes.length === 3 && request.method === "POST") {
+      if (fila.modo !== "csf" || fila.archivos_borrados || ["facturada", "enviada"].includes(fila.estado))
+        return json({ ok: false, error: "Esta constancia no está disponible para revisión." }, 409);
+      if (!env.AI) return json({ ok: false, error: "La lectura asistida no está disponible. Captura los datos viendo la constancia." }, 503);
+      if (Number(request.headers.get("Content-Length") || 0) > 7 * 1024 * 1024)
+        return json({ ok: false, error: "La imagen de la constancia supera el límite de lectura." }, 413);
+      const cuerpo = await request.json().catch(() => null);
+      if (!cuerpo || typeof cuerpo !== "object" || Array.isArray(cuerpo))
+        return json({ ok: false, error: "Solicitud de lectura inválida." }, 422);
+      let bytes, tipo;
+      if (Object.hasOwn(cuerpo, "imagen")) {
+        // Imagen JPEG generada dentro del navegador a partir de PDF escaneado o HEIC.
+        const txt = cuerpo.imagen;
+        if (typeof txt !== "string" || txt.length > 6_500_000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(txt))
+          return json({ ok: false, error: "La página escaneada debe enviarse como imagen JPEG." }, 422);
+        try { bytes = Uint8Array.from(atob(txt.slice(txt.indexOf(",") + 1)), c => c.charCodeAt(0)); }
+        catch { return json({ ok: false, error: "Imagen codificada incorrectamente." }, 422); }
+        tipo = await tipoArchivo(new Blob([bytes]));
+        if (tipo !== "image/jpeg") return json({ ok: false, error: "El archivo no es una imagen JPEG válida." }, 422);
+      } else {
+        const archivo = await leerArchivo(env, "f:" + id + ":csf");
+        if (!archivo?.value) return json({ ok: false, error: "La constancia ya no está disponible." }, 404);
+        bytes = new Uint8Array(archivo.value);
+        tipo = await tipoArchivo(new Blob([bytes]));
+        if (!["image/jpeg", "image/png", "image/webp"].includes(tipo))
+          return json({ ok: false, error: "Este formato no admite lectura directa. Captura los datos o convierte la imagen a JPG." }, 422);
+      }
+      if (bytes.byteLength < 500 || bytes.byteLength > 5 * 1024 * 1024)
+        return json({ ok: false, error: "La imagen debe pesar entre 500 bytes y 5 MB para lectura asistida." }, 413);
+      try {
+        await aceptarLicenciaModelo(env);
+        const resultado = await reconocerCsfImagen(env, bytes, tipo);
+        return json({ ok: true, ...resultado });
+      } catch {
+        // La IA puede estar saturada o sin cupo; no registrar contenido personal en logs.
+        return json({ ok: false, error: "No se pudo leer la constancia automáticamente. Captura o revisa los datos manualmente." }, 503);
+      }
     }
 
     if (request.method === "POST" && partes.length === 3) {
