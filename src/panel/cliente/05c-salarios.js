@@ -19,7 +19,7 @@
           const vinc=p.vinculo,desfasado=vinc&&!p.vinculo_actual;
           const activo=x.habilitado&&!vinc?.sincronizado_en;
           return "<div class='aitem'><b class='tt'>"+esc(p.dia)+" · "+esc(p.concepto)+"</b>"+
-            "<span class='mm'><span>"+money(p.monto)+" · "+esc(p.origen==="admin"?"Administración":"Caja o turno")+"</span>"+
+            "<span class='mm'><span>"+money(p.monto)+" · "+esc(p.origen==="admin"?"Administración":"Caja o turno")+(p.forma?" · "+esc(p.forma):"")+(p.cuenta?" · "+esc(p.cuenta):"")+"</span>"+
             "<span>"+(desfasado?"Origen modificado: revisar antes de sincronizar":vinc?.sincronizado_en?"Reflejado en SALARIOS":vinc?"Vinculación pendiente de sincronizar":"Colaborador sin confirmar")+"</span></span>"+
             (activo?"<span class='acc'><label class='note'>Colaborador<select data-pago-id='"+esc(p.id)+"'><option value=''>Selecciona en SALARIOS</option>"+
               empleados.map(c=>"<option value='"+esc(c.id)+"' "+(vinc?.colaborador_id===c.id?"selected":"")+">"+esc(c.nombre)+"</option>").join("")+
