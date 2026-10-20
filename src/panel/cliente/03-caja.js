@@ -333,7 +333,7 @@
       b.disabled = true; $("#c-aerr").textContent = "";
       try {
         await api("caja/admin-movimientos", { method: "POST", body: JSON.stringify({
-          dia, turno, tipo: f.tipo.value, monto: f.monto.value.replace(/[$,\\s]/g, ""),
+          dia, turno, tipo: f.tipo.value, monto: f.monto.value.replace(/[$,\s]/g, ""),
           detalle: f.detalle.value, uid: f.dataset.uid || (f.dataset.uid = crypto.randomUUID())
         }) });
         toast("Movimiento de administración guardado"); await cargar(); await abrir(k);
