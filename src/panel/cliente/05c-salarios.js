@@ -3,16 +3,16 @@
 (() => {
   const $ = q=>document.querySelector(q), esc=EC.esc;
   const money=v=>"$"+Number(v||0).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
-  let busy=false;
+  let busy=false, recargarPendiente=false;
   async function cargar(){
-    if(busy)return;
+    if(busy){recargarPendiente=true;return;}
     busy=true;
     const div=$("#f-salarios-contenido");
     if(!div){busy=false;return;}
     try{
       const x=await EC.api("finanzas/salarios");
       const pagos=x.pagos||[], empleados=x.empleados||[];
-      div.innerHTML="<p class='note'>Los movimientos de Sueldos ya registrados se reflejarán aquí. Vincularlos a un colaborador no genera gastos nuevos. La sincronización privada permanece apagada hasta validar el Apps Script.</p>"+
+      div.innerHTML="<p class='note'>Los movimientos de Sueldos ya registrados se reflejarán aquí. Vincularlos a un colaborador no genera gastos nuevos. La conexión a SALARIOS exige una autorización y verificación adicionales.</p>"+
         (x.aviso?"<p class='note' role='status'>"+esc(x.aviso)+"</p>":"")+
         (x.fuentes_no_vinculadas?"<p class='note'>"+esc(x.fuentes_no_vinculadas)+"</p>":"")+
         (pagos.length?"<div class='alist'>"+pagos.map(p=>{
@@ -45,7 +45,7 @@
         finally{if(b.isConnected)b.disabled=false;}
       });
     }catch(e){if(e.message!=="sesion")div.innerHTML="<p class='note'>No se pudo consultar el puente SALARIOS: "+esc(e.message)+"</p>";}
-    finally{busy=false;}
+    finally{busy=false;if(recargarPendiente){recargarPendiente=false;queueMicrotask(cargar);}}
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
 })();
