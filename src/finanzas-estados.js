@@ -22,6 +22,41 @@ export function calcularEstado(e,tipo) {
   return {...e,saldo_calculado_centavos:calculado,diferencia_centavos:calculado==null?null:e.saldo_final-calculado,
     comprobacion:calculado==null?"incompleto":calculado===e.saldo_final?"cuadra":"revisar"};
 }
+// La comparación con el estado anterior solo procede si los periodos
+// son consecutivos, de la misma cuenta y ambos saldos están capturados.
+// No se imputan como movimientos las diferencias observadas.
+export function continuidadEstados(estados) {
+  const resultado=new Map(),porCuenta=new Map();
+  for(const e of estados) {
+    if(!porCuenta.has(e.cuenta))porCuenta.set(e.cuenta,[]);
+    porCuenta.get(e.cuenta).push(e);
+  }
+  for(const filas of porCuenta.values()) {
+    filas.sort((a,b)=>a.periodo_desde.localeCompare(b.periodo_desde)||a.id.localeCompare(b.id));
+    let previo=null;
+    for(const e of filas) {
+      let estado="sin_previo",diferencia=null,dias_sin_estado=null;
+      if(previo) {
+        const hasta=Date.parse(previo.periodo_hasta+"T12:00:00Z");
+        const desde=Date.parse(e.periodo_desde+"T12:00:00Z");
+        const dias=Math.round((desde-hasta)/86400000);
+        if(dias!==1) {
+          estado="intervalo";
+          dias_sin_estado=Math.max(0,dias-1);
+        }else if(!Number.isSafeInteger(previo.saldo_final)||!Number.isSafeInteger(e.saldo_inicial)) {
+          estado="incompleto";
+        }else{
+          diferencia=e.saldo_inicial-previo.saldo_final;
+          estado=diferencia===0?"cuadra":"revisar";
+        }
+      }
+      resultado.set(e.id,{continuidad:estado,continuidad_diferencia_centavos:diferencia,
+        continuidad_dias_sin_estado:dias_sin_estado,continuidad_previo_hasta:previo?.periodo_hasta||null});
+      previo=e;
+    }
+  }
+  return resultado;
+}
 export function validarEstado(c,cuenta) {
   if(!cuenta||!["credito","debito"].includes(cuenta.tipo))return{error:"Selecciona una cuenta o tarjeta válida."};
   if(!fechaReal(c.periodo_desde)||!fechaReal(c.periodo_hasta)||c.periodo_desde>c.periodo_hasta)
@@ -60,9 +95,11 @@ export async function estadosCuentaRuta(request,env,partes,usuario) {
       env.DB.prepare("SELECT * FROM fin_estados_cuenta ORDER BY periodo_hasta DESC,cuenta LIMIT 240").all()
     ]);
     const por=Object.fromEntries(accounts.results.map(x=>[x.id,x]));
+    const continuidad=continuidadEstados(list.results);
     return respuesta({ok:true,cuentas:accounts.results,estados:list.results.map(row=>{
-      const v=calcularEstado(row,por[row.cuenta]?.tipo||"debito");
-      return {...v,...Object.fromEntries(CAMPOS.map(k=>[k,pesos(v[k])])),saldo_calculado:pesos(v.saldo_calculado_centavos),diferencia:pesos(v.diferencia_centavos)};
+      const v=calcularEstado(row,por[row.cuenta]?.tipo||"debito"), c=continuidad.get(row.id);
+      return {...v,...c,continuidad_diferencia:pesos(c.continuidad_diferencia_centavos),
+        ...Object.fromEntries(CAMPOS.map(k=>[k,pesos(v[k])])),saldo_calculado:pesos(v.saldo_calculado_centavos),diferencia:pesos(v.diferencia_centavos)};
     })});
   }
   if(request.method!=="POST"||partes.length!==2)return respuesta({ok:false,error:"Operación no permitida."},405);
