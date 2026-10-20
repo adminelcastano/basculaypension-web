@@ -16,7 +16,7 @@ async function leerPagos(env){
   const vinculos=(await env.DB.prepare("SELECT gasto_id,colaborador_id,revisado_en,sincronizado_en,importe_centavos,fecha_fuente,concepto_fuente FROM fin_nomina_vinculos").all()).results;
   const por=Object.fromEntries(vinculos.map(x=>[x.gasto_id,x]));
   return datos.filter(validarPagoSalario).map(x=>({...x,vinculo:por[x.id]||null,
-    vinculo_actual:!por[x.id]||(!por[x.id].sincronizado_en&&por[x.id].importe_centavos===Math.round(x.monto*100)&&por[x.id].fecha_fuente===x.dia&&por[x.id].concepto_fuente===x.concepto)}));
+    vinculo_actual:!por[x.id]||(por[x.id].importe_centavos===Math.round(x.monto*100)&&por[x.id].fecha_fuente===x.dia&&por[x.id].concepto_fuente===x.concepto)}));
 }
 const activo=env=>env.SALARIOS_SYNC_ACTIVE==="SI"&&!!env.AVISO_URL&&!!env.AVISO_TOKEN;
 export async function rutaSalarios(request,env,partes,usuario){
