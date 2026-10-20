@@ -1690,13 +1690,14 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       return /^\d{1,9}(\.\d{1,2})?$/.test(limpio) ? Number(limpio) : NaN;
     };
     const num = v => importe(v) ?? 0;
-    const filaRetiro = (r = {}) => `<div class="retiro"><input class="t" data-r="concepto" maxlength="80" placeholder="Sueldo, taxi…" aria-label="Motivo del retiro al finalizar el turno" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" aria-label="Importe del retiro al finalizar el turno" value="${r.monto != null ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
+    const filaRetiro = (r = {}) => `<div class="retiro" data-retiro-id="${esc(r.id || crypto.randomUUID())}"><input class="t" data-r="concepto" maxlength="80" placeholder="Sueldo, taxi…" aria-label="Motivo del retiro al finalizar el turno" value="${esc(r.concepto || "")}" autocomplete="off"><input class="t" data-r="monto" inputmode="decimal" placeholder="$0.00" aria-label="Importe del retiro al finalizar el turno" value="${r.monto != null ? esc(r.monto) : ""}" autocomplete="off"><button class="x" type="button" data-quitar-retiro aria-label="Quitar retiro"><svg><use href="#i-basura"/></svg></button></div>`;
     // El borrador ya se aísla por persona, día y turno en esta tablet compartida.
     const llaveB = `turno:borrador:${E.persona}:${E.dia}:${E.turno}`;
     const b = leerLS(llaveB, null);
     if (b) for (const k of ["efectivo", "notas", "sobre", "cambio_sig"]) if (b[k] != null) f[k].value = b[k];
     $("#retiros").innerHTML = ((b && b.retiros) || (c && c.retiros) || []).map(filaRetiro).join("");
     const retiros = () => [...f.querySelectorAll(".retiro")].map(x => ({
+      id: x.dataset.retiroId,
       concepto: x.querySelector('[data-r="concepto"]').value.trim(),
       monto: x.querySelector('[data-r="monto"]').value.trim()
     })).filter(r => r.concepto || r.monto);

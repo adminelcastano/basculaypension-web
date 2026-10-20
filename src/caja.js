@@ -654,7 +654,7 @@ export function ponerCambioTurnos(cortes, conteos, inicios) {
 
 export function leerRetiros(v) {
   let l = v; if (typeof l === "string") { try { l = JSON.parse(l); } catch { l = []; } }
-  return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
+  return Array.isArray(l) ? l.filter(r => r && r.concepto && Number(r.monto) > 0).map(r => ({ ...(typeof r.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(r.id) ? { id: r.id } : {}), concepto: String(r.concepto).slice(0, 80), monto: Math.round(Number(r.monto) * 100) / 100 })) : [];
 }
 function conteo(x, c) {
   const r2 = v => Math.round(v * 100) / 100;

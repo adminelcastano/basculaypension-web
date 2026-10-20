@@ -1760,3 +1760,17 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 #mod-facturacion details .check input { width: 20px; height: 20px; flex: none; accent-color: var(--amber); }
 #mod-facturacion details > button { margin-top: 8px; }
 @media(max-width: 560px) { #mod-facturacion details .grid-form { grid-template-columns: minmax(0,1fr); } #mod-facturacion details > button { width: 100%; min-height: 48px; } }
+
+
+/* Periodos bancarios y pagos salariales: formularios cómodos en móvil y plegable cerrado. */
+#fb-estados .cform,#fb-salarios .cform{min-width:0}
+#fb-estados .cform label{display:grid;gap:6px;min-width:0}
+#fb-estados .cform input,#fb-estados .cform select,#fb-estados .cform textarea,#fb-salarios select{
+ width:100%;min-width:0;min-height:42px;border:1px solid var(--line);border-radius:11px;background:var(--bg-2);color:var(--fg);padding:9px 11px;font:inherit
+}
+#fb-estados .cform .wide{grid-column:1/-1}
+#fb-estados .cform .f-est-credito[hidden]{display:none}
+#fb-estados .aitem .tt,#fb-salarios .aitem .tt{overflow-wrap:anywhere}
+#fb-estados .aitem .acc,#fb-salarios .aitem .acc{max-width:100%;gap:8px}
+#fb-estados .aitem .mm,#fb-salarios .aitem .mm{font-variant-numeric:tabular-nums}
+@media(max-width:540px){#fb-estados .cform{grid-template-columns:minmax(0,1fr)}#fb-estados .cform button[type=submit],#fb-salarios #f-salarios-sync{width:100%;min-height:48px}}

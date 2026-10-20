@@ -18,6 +18,8 @@
   // Borrado diario de archivos con más de 90 días tras facturar o rechazar
   "triggers": { "crons": ["17 9 * * *", "47 14 * * *", "*/10 * * * *"] },
   "vars": {
+    // Bloqueo deliberado: esta publicación NO escribe pagos en SALARIOS.
+    "SALARIOS_SYNC_ACTIVE": "NO",
     "ADMIN_EMAILS": "administracion@basculaypension.com",
     // Cuenta de la tablet del encargado de turno (solo entra a /turno)
     "TURNO_EMAILS": "entrada@basculaypension.com",

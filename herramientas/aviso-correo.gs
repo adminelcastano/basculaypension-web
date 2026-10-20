@@ -20,6 +20,9 @@ function doPost(e) {
   try { datos = JSON.parse(e.postData.contents); } catch (err) { return respuesta('error'); }
   const tokenActual = TOKEN();
   if (!tokenActual || !datos.token || datos.token !== tokenActual) return respuesta('no autorizado');
+  if (datos.accion === 'salarios') {
+    try { return json(salariosPrivados(datos)); } catch (err) { return json({ ok:false, error:'SALARIOS no disponible o requiere revisión' }); }
+  }
   if (datos.accion === 'archivos') {
     try { return json(archivos(datos)); } catch (err) { return json({ ok: false, error: String(err && err.message || err).slice(0, 200) }); }
   }
@@ -331,4 +334,92 @@ function probar() {
     resultados.push('GOOGLE SHEETS: OK');
   } catch { resultados.push('GOOGLE SHEETS: ERROR'); }
   resultados.forEach(x => Logger.log(x));
+}
+
+
+// SALARIOS: programa de reflejo informativo de gastos de sueldo existentes.
+// NO IMPLEMENTAR: emisión de nómina, cambios en cuentas/egresos, ni importación bancaria.
+// DOBLE ACTIVACIÓN: la web debe tener SALARIOS_SYNC_ACTIVE=SI y este Apps Script
+// SALARIOS_SYNC_ACTIVE=SI, con SALARIOS_SHEET_ID exclusivamente en Script Properties.
+function salariosPrivados(d) {
+  const p=PropertiesService.getScriptProperties();
+  if(p.getProperty('SALARIOS_SYNC_ACTIVE')!=='SI')return{ok:false,error:'SALARIOS suspendido'};
+  const id=p.getProperty('SALARIOS_SHEET_ID');
+  if(!id)return{ok:false,error:'SALARIOS no configurado'};
+  const ss=SpreadsheetApp.openById(id);
+  const base=ss.getSheetByName('Hoja 1');
+  if(!base) return{ok:false,error:'Pestaña base SALARIOS no encontrada'};
+  const filas=base.getLastRow()>=3?base.getRange(3,1,base.getLastRow()-2,11).getValues():[];
+  const colaboradores=filas.filter(r=>/^[0-9]{3}_[A-Za-z0-9_]+$/.test(String(r[0]||'')))
+    .map(r=>({id:String(r[0]),nombre:String(r[1]||'').slice(0,120),salario_semanal:Number(r[10]||0)}));
+  if(d.op==='catalogo')return{ok:true,colaboradores:colaboradores.map(x=>({id:x.id,nombre:x.nombre}))};
+  if(d.op!=='pagos')return{ok:false,error:'Operación SALARIOS no permitida'};
+  if(!Array.isArray(d.filas)||d.filas.length<1||d.filas.length>40)return{ok:false,error:'Lote SALARIOS inválido'};
+  const vigentes=new Set(colaboradores.map(x=>x.id));
+  const pendientes=[];
+  const safe=t=>{const s=String(t||'').trim().replace(/[\r\n]+/g,' ').slice(0,120);return /^[=+\-@]/.test(s)?"'"+s:s;};
+  const vistos=new Set();
+  for(const f of d.filas){
+    const k=String(f.id||'');
+    const fecha=String(f.fecha||'');
+    const monto=Number(f.importe);
+    const colaborador=String(f.colaborador_id||'');
+    const forma=String(f.forma||'');
+    const cuenta=String(f.cuenta||'');
+    if(!/^[a-z0-9-]{8,64}$/i.test(k)||vistos.has(k)||!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||
+       !(monto>0)||monto>1000000||Math.abs(Math.round(monto*100)-monto*100)>0.000001||
+       !['caja_gastos','turno_cortes'].includes(String(f.origen||''))||!vigentes.has(colaborador)||
+       !['','EFECTIVO','TARJETA','TRANSFERENCIA'].includes(forma)||
+       (cuenta&&!/^[a-z0-9-]{2,64}$/i.test(cuenta)))
+      return{ok:false,error:'Revisar referencias de pagos antes de sincronizar'};
+    vistos.add(k);
+    pendientes.push([k,fecha.slice(0,7),fecha,String(f.origen),safe(f.concepto),monto,colaborador,'Registrado en web',new Date(),forma,cuenta]);
+  }
+  const lock=LockService.getScriptLock();
+  lock.waitLock(20000);
+  try{
+    let sh=ss.getSheetByName('PAGOS WEB');
+    if(!sh){
+      sh=ss.insertSheet('PAGOS WEB');
+      sh.getRange(1,1,1,11).setValues([['ID pago','Periodo','Fecha pago','Origen','Concepto','Importe MXN','ID colaborador','Estado','Reflejado en Sheets','Forma de pago','Cuenta interna']]);
+      sh.setFrozenRows(1);
+    } else if(sh.getRange(1,1).getValue()!=='ID pago')return{ok:false,error:'Pestaña PAGOS WEB no reconocida'};
+    const ult=sh.getLastRow(),registrados=new Map();
+    if(ult>1)sh.getRange(2,1,ult-1,11).getValues().forEach(row=>registrados.set(String(row[0]),row));
+    const agregar=[];
+    for(const row of pendientes){
+      const anterior=registrados.get(row[0]);
+      if(!anterior){agregar.push(row);continue;}
+      // Reintentar el mismo movimiento nunca modifica una fila existente.
+      if(String(anterior[2])!==String(row[2])||String(anterior[3])!==String(row[3])||String(anterior[4])!==String(row[4])||
+         Math.round(Number(anterior[5])*100)!==Math.round(row[5]*100)||String(anterior[6])!==String(row[6])||String(anterior[9])!==String(row[9])||String(anterior[10])!==String(row[10]))
+        return{ok:false,error:'El pago ya existe con datos distintos: necesita conciliación manual'};
+    }
+    if(agregar.length)sh.getRange(ult+1,1,agregar.length,11).setValues(agregar);
+    let resumen=ss.getSheetByName('RESUMEN SALARIAL');
+    if(!resumen){
+      resumen=ss.insertSheet('RESUMEN SALARIAL');
+      resumen.getRange('A1').setValue('RESUMEN SALARIAL · EL CASTAÑO (generado)');
+      resumen.getRange('J1').setValue('Mes a consultar (AAAA-MM)');
+      resumen.getRange('J2').setValue(Utilities.formatDate(new Date(),'America/Mexico_City','yyyy-MM'));
+      resumen.getRange(2,1,1,5).setValues([['ID colaborador','Colaborador','Sueldo semanal de referencia','Pagos del mes seleccionado','Pagos históricos reflejados']]);
+      resumen.setFrozenRows(2);
+    }
+    if(resumen.getRange('A1').getValue()!=='RESUMEN SALARIAL · EL CASTAÑO (generado)')
+      return{ok:false,error:'La pestaña RESUMEN SALARIAL requiere revisión'};
+    // Solo A3:E se regenera; J2 conserva el mes que el administrador eligió.
+    const resto=Math.max(0,resumen.getLastRow()-2);
+    if(resto)resumen.getRange(3,1,resto,5).clearContent();
+    if(colaboradores.length){
+      const resumenFilas=colaboradores.map((c,i)=>{
+        const n=i+3;
+        return[c.id,safe(c.nombre),c.salario_semanal,
+          "=SUMIFS('PAGOS WEB'!$F$2:$F,'PAGOS WEB'!$G$2:$G,$A"+n+",'PAGOS WEB'!$B$2:$B,$J$2)",
+          "=SUMIF('PAGOS WEB'!$G$2:$G,$A"+n+",'PAGOS WEB'!$F$2:$F)"];
+      });
+      resumen.getRange(3,1,resumenFilas.length,5).setValues(resumenFilas);
+    }
+    SpreadsheetApp.flush();
+    return{ok:true,aceptados:pendientes.map(x=>x[0]),agregados:agregar.length};
+  }finally{lock.releaseLock();}
 }
