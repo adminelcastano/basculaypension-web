@@ -1,5 +1,6 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
+import { asegurarEsquemaCfdis, listarCfdis, emitirMultiples, cancelarRegistro, sustituirRegistro } from "./facturas-registro.js";
 import { guardarArchivo, leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 import { reconocerCsfImagen } from "./lectura-csf.js";
@@ -163,7 +164,7 @@ async function asegurarEsquema(env) {
   // Columnas agregadas después de la primera versión
   const { results: cols } = await env.DB.prepare("PRAGMA table_info(solicitudes)").all();
   const existentes = new Set(cols.map(c => c.name));
-  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["forma_pago", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"], ["enviada_en", "TEXT"], ["aviso_version", "TEXT"]]) {
+  for (const [nombre, tipo] of [["importe", "TEXT"], ["placas", "TEXT"], ["descripcion", "TEXT"], ["tarifa", "TEXT"], ["anotacion", "TEXT"], ["cliente", "TEXT"], ["aviso_ticket", "TEXT"], ["forma_pago", "TEXT"], ["ticket_leido", "INTEGER NOT NULL DEFAULT 0"], ["enviada_en", "TEXT"], ["aviso_version", "TEXT"], ["facturas_solicitadas", "INTEGER NOT NULL DEFAULT 1"], ["facturas_motivo", "TEXT"], ["aviso_cancelacion_en", "TEXT"], ["aviso_cancelacion_por", "TEXT"]]) {
     if (!existentes.has(nombre)) await env.DB.prepare(`ALTER TABLE solicitudes ADD COLUMN ${nombre} ${tipo}`).run();
   }
   // Sólo retiene servicio y folio normalizado para prevenir un CFDI duplicado
@@ -172,6 +173,7 @@ async function asegurarEsquema(env) {
     servicio TEXT NOT NULL, folio_normalizado TEXT NOT NULL, solicitud_id TEXT NOT NULL,
     folio_factura TEXT NOT NULL, creado TEXT NOT NULL, vence TEXT NOT NULL,
     PRIMARY KEY (servicio, folio_normalizado))`).run();
+  await asegurarEsquemaCfdis(env);
   esquemaListo = true;
 }
 
@@ -214,11 +216,15 @@ async function crearSolicitud(request, env, ctx) {
   const email = texto(form, "email").toLowerCase();
   const telefono = texto(form, "telefono").replace(/\D/g, "").slice(-10);
   const comentario = texto(form, "comentario").slice(0, 500);
+  const facturasSolicitadas = texto(form, "facturas_solicitadas") || "1";
+  const facturasMotivo = texto(form, "facturas_motivo").slice(0, 300);
 
   if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
   if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
+  if (!["1", "2"].includes(facturasSolicitadas)) errores.facturas_solicitadas = "Elige una o dos facturas.";
+  if (texto(form, "facturas_motivo").length > 300) errores.facturas_motivo = "La aclaración es demasiado larga.";
   if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo electrónico válido para recibir tu factura.";
   if (telefono && telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
@@ -286,13 +292,13 @@ async function crearSolicitud(request, env, ctx) {
 
   try {
   await env.DB.prepare(`INSERT INTO solicitudes
-    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago, aviso_version)
-    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    (id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, regimen, cp, uso, email, telefono, comentario, ticket_tipo, csf_tipo, aviso_ticket, forma_pago, aviso_version, facturas_solicitadas, facturas_motivo)
+    VALUES (?, ?, ?, 'pendiente', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, folio, ahora, servicio, folioTicket || null, modo,
       rfc || null, modo === "manual" ? nombre : (nombre || null),
       modo === "manual" ? regimen : (REGIMENES[regimen] ? regimen : null),
       modo === "manual" ? cp : (RE_CP.test(cp) ? cp : null),
-      uso, email, telefono || null, comentario || null, tipoTicket, csfTipo, avisoTicket, formaPago, "2026-10-17")
+      uso, email, telefono || null, comentario || null, tipoTicket, csfTipo, avisoTicket, formaPago, "2026-10-17", Number(facturasSolicitadas), facturasSolicitadas === "2" ? facturasMotivo || null : null)
     .run();
   } catch (e) {
     // Base de datos no disponible (p. ej. límite diario): no dejar fotos huérfanas y avisar claro
@@ -419,7 +425,7 @@ async function enviarCorreoA(env, datos) {
 const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Fecha entrega manual", "Motivo rechazo", "Versión aviso de privacidad"];
 function filasExcel(results) {
   const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
-  const est = { pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada" };
+  const est = { pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada", cancelada: "CFDI cancelado" };
   const filas = [ENCABEZADOS];
   for (const r of results) {
     filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
@@ -562,10 +568,10 @@ async function rutasPanel(request, env, url, usuario) {
   }
 
   if (partes[0] === "solicitudes" && partes.length === 1 && request.method === "GET") {
-    const estado = ["pendiente", "facturada", "enviada", "rechazada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
+    const estado = ["pendiente", "facturada", "enviada", "rechazada", "cancelada", "historico"].includes(url.searchParams.get("estado")) ? url.searchParams.get("estado") : "pendiente";
     const q = (url.searchParams.get("q") || "").trim().slice(0, 60);
     const lim = limiteHistorico();
-    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en, importe, tarifa, cliente FROM solicitudes WHERE ";
+    let sql = "SELECT id, folio, creado, estado, servicio, folio_ticket, modo, rfc, nombre, email, folio_factura, resuelta_en, importe, tarifa, cliente, facturas_solicitadas FROM solicitudes WHERE ";
     const args = [];
     if (estado === "pendiente") sql += "estado IN ('pendiente','en_revision')";
     else if (estado === "historico") { sql += "estado IN ('facturada','enviada','rechazada') AND resuelta_en < ?"; args.push(lim); }
@@ -633,7 +639,7 @@ async function rutasPanel(request, env, url, usuario) {
           contraste = { encontrado: null, registros: [], advertencia: "No se pudo consultar ingresos. Verifica manualmente el folio del ticket." };
         }
       }
-      return json({ ok: true, solicitud: fila, duplicados, ya_facturado: yaFacturado, contraste, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS, formas_pago: FORMAS_PAGO });
+      return json({ ok: true, solicitud: fila, cfdis: await listarCfdis(env, fila), duplicados, ya_facturado: yaFacturado, contraste, regimenes: REGIMENES, usos: USOS, servicios: SERVICIOS, formas_pago: FORMAS_PAGO });
     }
 
     if (partes[2] === "archivo" && ["ticket", "csf"].includes(partes[3]) && request.method === "GET") {
@@ -701,6 +707,35 @@ async function rutasPanel(request, env, url, usuario) {
       const cuerpo = await request.json().catch(() => ({}));
       const ahora = new Date().toISOString();
 
+
+      // Registro administrativo, nunca emisión ni cancelación fiscal automática.
+      if (partes[2] === "facturas-multiples") {
+        const ft = String(cuerpo.folio_ticket ?? fila.folio_ticket ?? "").trim().slice(0, 40);
+        const faltan = faltantesParaFacturar({ ...fila, folio_ticket: ft }, { regimenes: REGIMENES, usos: USOS });
+        if (faltan.length) return json({ok:false,error:"Verifica los datos fiscales y el ticket: "+faltan.join(", ")+".",faltantes:faltan},422);
+        const n = normalizarFolioTicket(ft);
+        const reservado = await env.DB.prepare("SELECT solicitud_id FROM facturas_folios WHERE servicio=? AND folio_normalizado=?").bind(fila.servicio,n).first();
+        if(reservado) return json({ok:false,error:"Ese ticket ya está reservado. Consulta los CFDI existentes.",duplicado:true},409);
+        const anterior = await env.DB.prepare("SELECT id FROM solicitudes WHERE id!=? AND servicio=? AND estado IN ('facturada','enviada','cancelada') AND REPLACE(REPLACE(UPPER(TRIM(folio_ticket)),' ',''),'-','')=? LIMIT 1").bind(id,fila.servicio,n).first();
+        if(anterior)return json({ok:false,error:"El ticket figura facturado en otra solicitud.",duplicado:true},409);
+        const resultado=await emitirMultiples(env,fila,cuerpo,usuario?.email||"Administración",ahora,{normalizado:n,original:ft});
+        return json(resultado,resultado.status||200);
+      }
+      if (partes[2] === "cancelar-cfdi") {
+        const resultado=await cancelarRegistro(env,fila,cuerpo,usuario?.email||"Administración",ahora);
+        return json(resultado,resultado.status||200);
+      }
+      if (partes[2] === "sustituir-cfdi") {
+        const resultado=await sustituirRegistro(env,fila,cuerpo,usuario?.email||"Administración",ahora,normalizarFolioTicket(fila.folio_ticket));
+        return json(resultado,resultado.status||200);
+      }
+      if (partes[2] === "confirmar-aviso-cancelacion") {
+        const cfdis=await listarCfdis(env,fila);
+        if(!cfdis.some(x=>x.estado==="cancelada"))return json({ok:false,error:"No hay cancelación que avisar."},409);
+        if(cuerpo.confirmado!==true)return json({ok:false,error:"Confirma que avisaste al cliente fuera de esta web."},422);
+        await env.DB.prepare("UPDATE solicitudes SET aviso_cancelacion_en=?,aviso_cancelacion_por=? WHERE id=?").bind(ahora,usuario?.email||null,id).run();
+        return json({ok:true});
+      }
       if (partes[2] === "en-revision") {
         if (fila.estado !== "pendiente") return json({ ok: false, error: "Sólo puedes iniciar revisión de una solicitud recibida." }, 409);
         await env.DB.prepare("UPDATE solicitudes SET estado='en_revision' WHERE id=?").bind(id).run();

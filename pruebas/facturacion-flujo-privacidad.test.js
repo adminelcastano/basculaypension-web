@@ -56,7 +56,7 @@ test("Facturación exige correo y conserva WhatsApp como contacto opcional", () 
 });
 
 test("Panel diferencia revisión, factura emitida y entrega confirmada", () => {
-  assert.match(panel, /"enviada", "rechazada", "historico"/);
+  assert.match(panel, /"enviada", "rechazada", "cancelada", "historico"/);
   assert.match(panel, /Confirmar envío al cliente/);
   assert.match(panel, /Iniciar revisión/);
   assert.match(panel, /ya_facturado/);

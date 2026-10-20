@@ -10,7 +10,7 @@ const rules = readFileSync(new URL("../src/facturacion-reglas.js", import.meta.u
 const routeBody = worker.match(/async function rutasPanel\(request, env, url, usuario\) \{[\s\S]*?\n\}\n\nfunction cabecerasPanel/);
 const importeBody = worker.match(/function normalizarImporte\(v\) \{[\s\S]*?\n\}/);
 assert.ok(routeBody && importeBody, "Localizar las funciones existentes del Worker");
-const factory = new Function("asegurarEsquema", "json", "REGIMENES", "USOS", "SERVICIOS", "FORMAS_PAGO", "limiteHistorico", "DIAS_RETENCION",
+const factory = new Function("asegurarEsquema", "json", "REGIMENES", "USOS", "SERVICIOS", "FORMAS_PAGO", "limiteHistorico", "DIAS_RETENCION", "listarCfdis", "emitirMultiples", "cancelarRegistro", "sustituirRegistro",
   rules.replace(/^export /gm, "") + "\n" + importeBody[0] + "\n" +
   routeBody[0].replace(/\nfunction cabecerasPanel$/, "") + "\nreturn rutasPanel;");
 
@@ -65,7 +65,7 @@ function entorno(inicial, opciones = {}) {
     async batch(preparadas) { for (const p of preparadas) await p.run(); return []; }
   };
   const json = (body, status = 200) => ({ body, status });
-  const ruta = factory(async () => {}, json, catalogos.regimenes, catalogos.usos, { bascula: "Báscula", pension: "Pensión" }, {}, () => "2026-10-01T00:00:00.000Z", 90);
+  const ruta = factory(async () => {}, json, catalogos.regimenes, catalogos.usos, { bascula: "Báscula", pension: "Pensión" }, {}, () => "2026-10-01T00:00:00.000Z", 90, async()=>[], async()=>({ok:false,status:422}), async()=>({ok:false,status:422}), async()=>({ok:false,status:422}));
   const detalle = async id => ruta(
     { method: "GET" },
     { DB: db },
