@@ -1,6 +1,7 @@
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const estadoState = { estado: "pendiente", q: "", actual: null, cat: null };
+  const lecturasCsfAutomaticas = new Set();
   const fmt = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" });
   const fecha = iso => iso ? fmt.format(new Date(iso)) : "";
   const esc = EC.esc;
@@ -269,7 +270,7 @@
           <section class="card doc">
             <h3 class="fpaso"><span class="num">7</span>Constancia de Situación Fiscal</h3>
             ${docHtml("csf", s.csf_tipo, "Constancia de Situación Fiscal")}
-            ${!bloqueado && !s.archivos_borrados && s.csf_tipo === "application/pdf" ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Volver a leer los datos</button></div>` : ""}
+            ${!bloqueado && !s.archivos_borrados && s.csf_tipo ? `<div class="row"><button class="btn btn-line" id="leer-csf" type="button">Leer datos de constancia (PDF o imagen)</button><span class="note" id="csf-resultado">Las sugerencias deben verificarse antes de guardarlas.</span></div>` : ""}
           </section>` : ""}
       </div>`;
 
@@ -326,7 +327,7 @@
         await cargarLista();
       } catch (err) { if (err.message !== "sesion") toast(err.message); b.disabled = false; }
     });
-    if (!bloqueado) $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, false));
+    if (!bloqueado) $("#guardar-datos").addEventListener("click", e => guardarDatos(e.target, e.currentTarget.dataset.deCsf === "1"));
     if (!bloqueado) $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
     $("#editar-ticket")?.addEventListener("click", () => { $("#ticket-vista").hidden = true; $("#ticket-edicion").hidden = false; $("#t-ticket").focus(); });
     $("#cancelar-ticket")?.addEventListener("click", () => { $("#ticket-edicion").hidden = true; $("#ticket-vista").hidden = false; });
@@ -346,8 +347,10 @@
     waLink();
     $("#leer-csf")?.addEventListener("click", e => leerCsf(e.target, s, j.regimenes, false));
     d.querySelectorAll(".pdfview").forEach(c => mostrarPdf(c, archivo(c.dataset.pdf), s.id));
-    // Lectura automática: si llegó constancia en PDF y aún no hay datos tomados de ella
-    if (!bloqueado && s.modo === "csf" && s.csf_tipo === "application/pdf" && !s.archivos_borrados && !s.datos_de_csf && (!s.rfc || !s.nombre || !s.regimen || !s.cp)) {
+    // Leer una sola vez por sesión del panel, sin sobrescribir ni guardar datos por su cuenta.
+    if (!bloqueado && s.modo === "csf" && s.csf_tipo && !s.archivos_borrados && !s.datos_de_csf &&
+        (!s.rfc || !s.nombre || !s.regimen || !s.cp) && !lecturasCsfAutomaticas.has(s.id)) {
+      lecturasCsfAutomaticas.add(s.id);
       leerCsf($("#leer-csf"), s, j.regimenes, true);
     }
   }
@@ -453,38 +456,107 @@
   }
 
 
-  async function leerCsf(boton, s, regimenes, automatico) {
-    const estado = $("#csf-estado");
-    if (boton) boton.disabled = true;
-    estado.textContent = "Leyendo la constancia…";
-    try {
-      const pdf = await obtenerPdf(`/panel/api/solicitudes/${s.id}/archivo/csf`);
-      let textoPdf = "";
-      for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
-        const c = await (await pdf.getPage(i)).getTextContent();
-        textoPdf += " " + c.items.map(it => it.str).join(" ");
-      }
-      if (estadoState.actual !== s.id) return;
-      const d = extraerCsf(textoPdf.replace(/\s+/g, " "), regimenes);
-      if (!d.rfc && !d.nombre) { estado.textContent = "La constancia no tiene texto legible (puede ser un escaneo). Captura los datos viendo el documento."; if (boton) boton.disabled = false; return; }
-      if (d.rfc) $("#d-rfc").value = d.rfc;
-      if (d.nombre) $("#d-nombre").value = d.nombre;
-      if (d.cp) $("#d-cp").value = d.cp;
-      if (d.regimen) $("#d-regimen").value = d.regimen;
-      const varios = d.regimenes > 1;
-      if (automatico && !varios && d.rfc && d.nombre && d.cp && d.regimen) {
-        // Datos completos y sin ambigüedad: se guardan solos
-        await guardarDatos($("#guardar-datos"), true);
-        toast("Datos leídos de la constancia");
-        return;
-      }
-      estado.textContent = varios ? "Leído. La constancia tiene varios regímenes: elige el correcto y presiona Guardar datos." : "Leído. Revisa contra el documento y presiona Guardar datos.";
-      $("#guardar-datos").onclick = e => guardarDatos(e.target, true);
-      $("#d-regimen").focus();
-    } catch (e) { estado.textContent = "No se pudo leer: " + e.message; }
-    if (boton) boton.disabled = false;
+  // Las constancias pueden ser PDF con texto, PDF escaneado o fotografía.
+  // La imagen se analiza exclusivamente a través del Worker protegido por Access.
+  async function imagenCsfPdf(pdf) {
+    const pagina = await pdf.getPage(1), base = pagina.getViewport({ scale: 1 });
+    const vp = pagina.getViewport({ scale: Math.min(2.3, 1700 / Math.max(base.width, base.height)) });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+    await pagina.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    return canvas.toDataURL("image/jpeg", 0.86);
   }
-
+  async function imagenCsfHeic(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("No se pudo descargar la constancia HEIC");
+    const blob = await r.blob();
+    let imagen;
+    try { imagen = await createImageBitmap(blob); }
+    catch {
+      imagen = await new Promise((resolve, reject) => {
+        const enlace = URL.createObjectURL(blob), img = new Image();
+        img.onload = () => { URL.revokeObjectURL(enlace); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(enlace); reject(new Error("El navegador no puede convertir HEIC a JPG")); };
+        img.src = enlace;
+      });
+    }
+    const escala = Math.min(1, 1700 / Math.max(imagen.width, imagen.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(imagen.width * escala));
+    canvas.height = Math.max(1, Math.round(imagen.height * escala));
+    canvas.getContext("2d").drawImage(imagen, 0, 0, canvas.width, canvas.height);
+    if (imagen.close) imagen.close();
+    return canvas.toDataURL("image/jpeg", 0.86);
+  }
+  async function pedirLecturaCsf(id, imagen = null) {
+    return api("solicitudes/" + id + "/leer-csf-imagen",
+      { method: "POST", body: JSON.stringify(imagen ? { imagen } : {}) });
+  }
+  async function leerCsf(boton, solicitud, regimenes, automatico) {
+    const estado = $("#csf-estado"), resultado = $("#csf-resultado");
+    if (!estado || !boton) return;
+    const mensaje = texto => {
+      if (estadoState.actual !== solicitud.id) return;
+      if (estado.isConnected) estado.textContent = texto;
+      if (resultado?.isConnected) resultado.textContent = texto;
+    };
+    boton.disabled = true;
+    mensaje(automatico ? "Buscando datos en la constancia…" : "Leyendo la constancia…");
+    try {
+      let d = {}, varios = false, observacion = "";
+      const ruta = "/panel/api/solicitudes/" + solicitud.id + "/archivo/csf";
+      if (solicitud.csf_tipo === "application/pdf") {
+        const pdf = await obtenerPdf(ruta);
+        let textoPdf = "";
+        for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+          const texto = await (await pdf.getPage(i)).getTextContent();
+          textoPdf += " " + texto.items.map(x => x.str).join(" ");
+        }
+        d = extraerCsf(textoPdf.replace(/\s+/g, " "), regimenes);
+        varios = d.regimenes > 1;
+        if (varios) d.regimen = "";
+        if (!(d.rfc && d.nombre && d.cp && d.regimen)) {
+          try {
+            const j = await pedirLecturaCsf(solicitud.id, await imagenCsfPdf(pdf));
+            for (const clave of ["rfc", "nombre", "cp", "regimen"])
+              if (!d[clave] && j.datos?.[clave]) d[clave] = j.datos[clave];
+            if (j.varios_regimenes) { varios = true; d.regimen = ""; }
+          } catch (e) { observacion = e.message; }
+        }
+      } else if (solicitud.csf_tipo === "image/heic" || solicitud.csf_tipo === "image/heif") {
+        const j = await pedirLecturaCsf(solicitud.id, await imagenCsfHeic(ruta));
+        d = j.datos || {}; varios = !!j.varios_regimenes;
+      } else {
+        const j = await pedirLecturaCsf(solicitud.id);
+        d = j.datos || {}; varios = !!j.varios_regimenes;
+      }
+      if (estadoState.actual !== solicitud.id || !estado.isConnected) return;
+      const campos = {
+        rfc: ["#d-rfc", /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/],
+        nombre: ["#d-nombre", /^.{3,254}$/],
+        cp: ["#d-cp", /^\d{5}$/],
+        regimen: ["#d-regimen", null]
+      };
+      let sugeridos = 0;
+      for (const [clave, [selector, patron]] of Object.entries(campos)) {
+        const input = $(selector), valor = String(d[clave] || "").trim();
+        if (!input || !valor || (patron && !patron.test(valor))) continue;
+        if (clave === "regimen" && (!regimenes[valor] || varios)) continue;
+        if (!input.value.trim()) { input.value = valor; sugeridos++; }
+      }
+      if (sugeridos) $("#guardar-datos").dataset.deCsf = "1";
+      let aviso = sugeridos
+        ? "Datos sugeridos. Compara con la constancia, corrige y pulsa «Guardar datos»."
+        : "No se encontraron datos adicionales seguros. Captúralos viendo la constancia.";
+      if (varios) aviso += " Hay varios regímenes; elige el correcto.";
+      if (observacion) aviso += " El reconocimiento de imagen no estuvo disponible.";
+      mensaje(aviso);
+    } catch (e) {
+      mensaje("No se pudo leer automáticamente: " + (e.message || "verifica el documento") + ". Captura los datos manualmente.");
+    } finally {
+      if (boton.isConnected) boton.disabled = false;
+    }
+  }
 
   function extraerCsf(t, regimenes) {
     const etiquetas = ["RFC:", "CURP:", "Nombre \\(s\\):", "Nombre\\(s\\):", "Primer Apellido:", "Segundo Apellido:", "Fecha inicio de operaciones:", "Estatus en el padrón:", "Fecha de último cambio de estado:", "Nombre Comercial:", "Denominación/Razón Social:", "Régimen Capital:", "Datos del domicilio registrado", "Código Postal:", "Tipo de Vialidad:", "Nombre de Vialidad:", "Número Exterior:", "idCIF:", "Lugar y Fecha de Emisión"];
