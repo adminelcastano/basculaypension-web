@@ -18,14 +18,16 @@ function codigosRegimen(d) {
     typeof d.regimenes === "string" ? d.regimenes.split(/[,;]/) : [d.regimen || d.regimen_fiscal];
   const claves = new Set();
   for (const entrada of v) {
-    const raw = limpiar(entrada);
-    const codigo = raw.match(/(?:^|\s)(\d{3})(?:\s|$|[-·:])/);
-    if (codigo && Object.hasOwn(REGIMENES, codigo[1])) {
-      claves.add(codigo[1]); continue;
+    // El modelo a veces agrupa dos claves en un único elemento: no escoger una sola.
+    for (const raw of limpiar(entrada).split(/[,;]/)) {
+      const codigo = raw.match(/(?:^|\s)(\d{3})(?:\s|$|[-·:])/);
+      if (codigo && Object.hasOwn(REGIMENES, codigo[1])) {
+        claves.add(codigo[1]); continue;
+      }
+      const nombre = normalizar(raw);
+      for (const [key, label] of Object.entries(REGIMENES))
+        if (nombre === normalizar(label)) claves.add(key);
     }
-    const nombre = normalizar(raw);
-    for (const [key, label] of Object.entries(REGIMENES))
-      if (nombre === normalizar(label)) claves.add(key);
   }
   return [...claves];
 }
@@ -38,7 +40,7 @@ export function normalizarCsfSugerido(d) {
   const nombre = limpiar(d.nombre || d.razon_social).toLocaleUpperCase("es-MX").slice(0, 254);
   const regimenes = codigosRegimen(d);
   if (RFC.test(rfc)) datos.rfc = rfc;
-  if (nombre.length >= 3 && nombre.length <= 254) datos.nombre = nombre;
+  if (nombre.length >= 3 && nombre.length <= 254 && /[A-ZÁÉÍÓÚÑ]/.test(nombre)) datos.nombre = nombre;
   if (CP.test(cp)) datos.cp = cp;
   if (regimenes.length === 1) datos.regimen = regimenes[0];
   return { datos, varios_regimenes: regimenes.length > 1 };

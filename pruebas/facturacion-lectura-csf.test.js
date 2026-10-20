@@ -30,3 +30,12 @@ test("descarta datos de tipo objeto y admite regímenes en texto separado por co
   assert.equal("nombre" in r.datos, false);
   assert.equal(r.varios_regimenes, true);
 });
+
+test("una lista devuelta por IA con dos códigos en el mismo elemento exige elegir", () => {
+  const r = normalizarCsfSugerido({ regimenes: ["612, 626"] });
+  assert.equal(r.varios_regimenes, true);
+  assert.equal("regimen" in r.datos, false);
+});
+test("un nombre fiscal exclusivamente numérico no se sugiere", () => {
+  assert.deepEqual(normalizarCsfSugerido({ nombre: "12345" }).datos, {});
+});
