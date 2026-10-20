@@ -7,11 +7,19 @@ const source = readFileSync(new URL("../herramientas/aviso-correo.gs", import.me
 const body = source.split("function drive(d) {")[1]?.split("\nfunction respuesta(")[0]?.replace(/\n}\s*$/, "");
 assert.ok(body, "No se encontró el controlador de Drive");
 
-function ensayo({ fallaCarga = false, fallaIndice = false, existente = false, operacion = "a".repeat(64) } = {}) {
+function ensayo({ fallaCarga = false, fallaIndice = false, existente = false,
+  vigenteMasNuevo = false, operacion = "a".repeat(64) } = {}) {
   const acciones = [], properties = new Map([["f_01234567-89ab-4cde-8fab-0123456789ab_ine", "antiguo"]]);
   const marca = "castano-personal-v1:" + operacion;
-  const viejo = { getId: () => "antiguo", setTrashed() { acciones.push("borrar-anterior"); } };
-  const recuperado = { getId: () => "recuperado", isTrashed: () => false, getDescription: () => marca };
+  const viejo = {
+    getId: () => "antiguo", isTrashed: () => false,
+    getDateCreated: () => new Date(vigenteMasNuevo ? "2026-10-20T12:00:00Z" : "2026-10-18T12:00:00Z"),
+    setTrashed() { acciones.push("borrar-anterior"); }
+  };
+  const recuperado = {
+    getId: () => "recuperado", isTrashed: () => false, getDescription: () => marca,
+    getDateCreated: () => new Date("2026-10-19T12:00:00Z")
+  };
   const nuevo = {
     getId: () => "nuevo",
     setDescription(v) { acciones.push("marcar-nuevo"); assert.equal(v, marca); },
@@ -72,5 +80,13 @@ test("fallo del índice conserva el documento anterior y retira sólo la copia r
   assert.throws(x.run, /fallo-indice/);
   assert.ok(x.acciones.includes("retirar-nuevo"));
   assert.equal(x.properties.get("f_01234567-89ab-4cde-8fab-0123456789ab_ine"), "antiguo");
+  assert.ok(!x.acciones.includes("borrar-anterior"));
+});
+
+test("reintento antiguo no rebobina una versión más nueva", () => {
+  const x = ensayo({ existente: true, vigenteMasNuevo: true });
+  assert.equal(x.run(), "ok-drive");
+  assert.equal(x.properties.get("f_01234567-89ab-4cde-8fab-0123456789ab_ine"), "antiguo");
+  assert.ok(!x.acciones.includes("registrar-nuevo"));
   assert.ok(!x.acciones.includes("borrar-anterior"));
 });

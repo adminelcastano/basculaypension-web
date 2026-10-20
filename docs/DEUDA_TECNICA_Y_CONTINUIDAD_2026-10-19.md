@@ -62,7 +62,7 @@ Documentación de referencia: [Cloudflare D1 export](https://developers.cloudfla
 ## Fase 3. Google Apps Script y privacidad operativa
 
 - `herramientas/aviso-correo.gs`: token sólo en Propiedades del script, sin copiar secretos.
-- Las copias documentales del flujo `drive(d)` incorporan una marca SHA-256 determinista por persona, slot y contenido; los reintentos buscan esa marca en la misma carpeta. LockService serializa las sustituciones y se deja la versión anterior intacta hasta conciliación. Preparado en GitHub: Apps Script productivo SIN actualizar.
+- Las copias documentales del flujo `drive(d)` incorporan una marca SHA-256 determinista por persona, slot y contenido; los reintentos buscan esa marca en la misma carpeta. LockService serializa las sustituciones; al recuperar un archivo marcado compara su fecha de creación con el archivo actualmente indexado para no retroceder ante un reintento obsoleto. Se deja la versión anterior intacta hasta conciliación. Los uploads legados sin marca y la reintroducción intencional de bytes idénticos requieren validación. Preparado en GitHub: Apps Script productivo SIN actualizar.
 - Reemplazo de documento personal: si falla registrar la nueva referencia en Propiedades, retira sólo el nuevo archivo; conserva la referencia y el documento anterior.
 - Reporte mensual: `SpreadsheetApp.flush()` confirma celdas antes del traslado; si Google Drive rechaza enviar un reporte anterior a papelera, la generación nueva se considera terminada y registra `pendientes_archivar`, evitando repetir una generación ya completada.
 - Las subidas a archivos del panel usan la marca hash para evitar crear copias múltiples tras un timeout; no incorpora una red social pública, ni altera los destinatarios de CASTAGRAM.

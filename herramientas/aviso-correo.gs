@@ -126,6 +126,16 @@ function drive(d) {
       }
       archivo = creado;
     }
+    // Un reintento tardío puede encontrar una operación antigua después de que
+    // otra versión más nueva ya fue registrada. La fecha de creación en Drive
+    // (no la de modificación) impide retroceder el índice en ese escenario.
+    if (!creado && anterior && anterior !== archivo.getId()) {
+      const vigente = DriveApp.getFileById(anterior);
+      if (vigente.isTrashed()) throw new Error('La referencia vigente requiere conciliación');
+      if (vigente.getDateCreated().getTime() >= archivo.getDateCreated().getTime()) {
+        return 'ok-drive'; // reintento obsoleto, conservar referencia más reciente
+      }
+    }
     // No archivar aquí el anterior: la limpieza debe esperar la conciliación de copias.
     try {
       if (anterior !== archivo.getId()) props.setProperty(llaveArchivo, archivo.getId());
