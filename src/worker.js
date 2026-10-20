@@ -218,7 +218,7 @@ async function crearSolicitud(request, env, ctx) {
   if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
-  if (email && !RE_EMAIL.test(email)) errores.email = "Escribe un correo válido.";
+  if (!RE_EMAIL.test(email)) errores.email = "Escribe un correo electrónico válido para recibir tu factura.";
   if (telefono && telefono.length !== 10) errores.telefono = "Escribe tu WhatsApp a 10 dígitos para avisarte de tu factura.";
   if (texto(form, "aviso") !== "si") errores.aviso = "Debes aceptar el aviso de privacidad.";
 
@@ -724,10 +724,14 @@ async function rutasPanel(request, env, url, usuario) {
         if (![ "pendiente", "en_revision", "rechazada" ].includes(fila.estado)) return json({ ok: false, error: "Los datos de un CFDI ya emitido no se pueden alterar desde la solicitud." }, 409);
         const rfc = String(cuerpo.rfc || "").toUpperCase().replace(/[\s-]/g, "");
         const nombre = String(cuerpo.nombre || "").replace(/\s+/g, " ").trim().slice(0, 254);
+        // Solicitudes históricas pueden estar sin correo: permitir corregir otros datos
+        // mientras el administrador localiza el contacto, pero validar todo correo escrito.
+        const email = "email" in cuerpo ? String(cuerpo.email || "").trim().toLowerCase().slice(0, 254) : (fila.email || "");
         const regimen = String(cuerpo.regimen || "");
         const cp = String(cuerpo.cp || "").trim();
         const errores = {};
         if (rfc && !RE_RFC.test(rfc)) errores.rfc = "RFC con formato inválido.";
+        if (email && !RE_EMAIL.test(email)) errores.email = "Correo electrónico inválido.";
         if (regimen && !REGIMENES[regimen]) errores.regimen = "Régimen inválido.";
         if (cp && !RE_CP.test(cp)) errores.cp = "Código postal inválido.";
         const importe = "importe" in cuerpo ? normalizarImporte(cuerpo.importe) : (fila.importe || "");
@@ -744,8 +748,8 @@ async function rutasPanel(request, env, url, usuario) {
         if (formaPago && !FORMAS_PAGO[formaPago]) errores.forma_pago = "Forma de pago inválida.";
         const anotacion = "anotacion" in cuerpo ? String(cuerpo.anotacion || "").replace(/\s+/g, " ").trim().slice(0, 80) : (fila.anotacion || "");
         if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos.", errores }, 422);
-        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=?, forma_pago=? WHERE id=?")
-          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, formaPago || null, id).run();
+        await env.DB.prepare("UPDATE solicitudes SET rfc=?, nombre=?, regimen=?, cp=?, datos_de_csf=?, importe=?, telefono=?, folio_ticket=?, placas=?, descripcion=?, tarifa=?, anotacion=?, cliente=?, forma_pago=?, email=? WHERE id=?")
+          .bind(rfc || null, nombre || null, regimen || null, cp || null, cuerpo.de_csf ? 1 : 0, importe || null, telefono || null, folioTicket || null, placas || null, descripcion || null, tarifa || null, anotacion || null, cliente || null, formaPago || null, email, id).run();
         return json({ ok: true });
       }
     }

@@ -174,6 +174,7 @@
               <label>RFC<input id="d-rfc" value="${esc(s.rfc)}" autocomplete="off"></label>
               <label>Código postal<input id="d-cp" value="${esc(s.cp)}" inputmode="numeric" maxlength="5"></label>
               <label class="wide">Nombre o razón social<input id="d-nombre" value="${esc(s.nombre)}"></label>
+              <label class="wide">Correo para recibir la factura<input id="d-email" type="email" value="${esc(s.email)}" maxlength="254" autocomplete="email" inputmode="email" placeholder="cliente@ejemplo.com"></label>
               <label class="wide">Régimen fiscal<select id="d-regimen"><option value="">Elige…</option>${Object.entries(j.regimenes).map(([k, v]) => `<option value="${k}" ${s.regimen === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
               <label class="wide">Forma de pago<select id="d-pago"><option value="">Elige…</option>${Object.entries(j.formas_pago || {}).map(([k, v]) => `<option value="${k}" ${s.forma_pago === k ? "selected" : ""}>${k} · ${esc(v)}</option>`).join("")}</select></label>
             </div>
@@ -369,7 +370,7 @@
   }
 
   async function guardarDatos(boton, deCsf) {
-    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf, forma_pago: $("#d-pago").value,
+    const cuerpo = { rfc: $("#d-rfc").value, nombre: $("#d-nombre").value, email: $("#d-email").value.trim(), regimen: $("#d-regimen").value, cp: $("#d-cp").value, de_csf: deCsf, forma_pago: $("#d-pago").value,
       folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value, telefono: $("#t-tel").value, anotacion: $("#t-anot").value };
     for (const [clave, sel] of [["placas", "#t-placas"], ["descripcion", "#t-desc"], ["tarifa", "#t-tarifa"], ["cliente", "#t-cliente"]]) if ($(sel)) cuerpo[clave] = $(sel).value;
     boton.disabled = true;

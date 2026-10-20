@@ -251,8 +251,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 
       <fieldset>
         <legend><span class="paso">3</span>¿A dónde te la enviamos?</legend>
-        <label class="f" id="g-email">Correo para recibir la factura <span class="hint">Opcional; facilita la entrega del PDF y XML.</span>
-          <input type="email" name="email" maxlength="254" autocomplete="email" inputmode="email" spellcheck="false">
+        <label class="f" id="g-email">Correo electrónico para recibir la factura <span class="hint">Obligatorio. Aquí se enviarán tu PDF y XML.</span>
+          <input type="email" name="email" maxlength="254" autocomplete="email" inputmode="email" spellcheck="false" required aria-required="true">
           <span class="err" data-err="email"></span>
         </label>
         <label class="f" id="g-telefono">WhatsApp <span class="hint">Opcional; 10 dígitos para contactarte cuando tu factura esté lista.</span>
@@ -270,7 +270,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       </fieldset>
 
       <div class="alerta" id="alerta" role="alert"></div>
-      <p class="hint">El folio que recibirás identifica tu solicitud, no un CFDI emitido. Si no proporcionas correo ni WhatsApp, guarda el folio y comunícate con administración para recibir tu factura. Consulta también las <a href="/condiciones-de-uso/">condiciones de uso</a>.</p>
+      <p class="hint">El correo es indispensable para entregarte el PDF y XML de tu factura. El folio que recibirás identifica tu solicitud, no un CFDI emitido. Consulta también las <a href="/condiciones-de-uso/">condiciones de uso</a>.</p>
       <button class="btn btn-amber enviar" id="enviar" type="submit">Enviar datos para factura</button>
     </form>
   </div>
@@ -469,7 +469,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (!/^\d{5}$/.test(form.cp.value)) e.cp = "El código postal tiene 5 dígitos.";
       if (!form.regimen.value) e.regimen = "Elige tu régimen fiscal.";
     }
-    if (form.email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo válido.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo electrónico válido para recibir la factura.";
     const tel = form.telefono.value.replace(/\D/g, "");
     if (tel && tel.slice(-10).length !== 10) e.telefono = "Escribe tu WhatsApp a 10 dígitos.";
     if (!form.aviso.checked) e.aviso = "Acepta el aviso de privacidad para continuar.";
