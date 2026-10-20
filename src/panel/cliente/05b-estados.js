@@ -11,7 +11,7 @@
     ["intereses","Intereses incluidos en cargos (opcional)","0.00"],
     ["iva","IVA incluido en cargos (opcional)","0.00"]
   ];
-  const dinero = n => n == null ? "Sin capturar" : "$" + Number(n).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const dinero = n => n == null ? "Sin capturar" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
   let actual = null, todos = [], cuentas = [], cargando = false;
   function estadoTexto(r) {
     if (r.comprobacion==="incompleto") return "Datos parciales: faltan saldos o movimientos";
