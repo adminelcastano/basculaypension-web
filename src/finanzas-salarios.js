@@ -9,13 +9,14 @@ export const validarPagoSalario = (r) => r && r.id && /^\d{4}-\d{2}-\d{2}$/.test
   Number.isFinite(Number(r.monto)) && Number(r.monto)>0 && r.categoria==="Sueldos";
 export async function asegurarEsquemaSalarios(env){
   await asegurarEsquemaBitacora(env);
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_nomina_vinculos (gasto_id TEXT PRIMARY KEY,colaborador_id TEXT NOT NULL, revisado_en TEXT NOT NULL,revisado_por TEXT, sincronizado_en TEXT)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS fin_nomina_vinculos (gasto_id TEXT PRIMARY KEY,colaborador_id TEXT NOT NULL, revisado_en TEXT NOT NULL,revisado_por TEXT, importe_centavos INTEGER NOT NULL, fecha_fuente TEXT NOT NULL, concepto_fuente TEXT NOT NULL, sincronizado_en TEXT)").run();
 }
 async function leerPagos(env){
   const datos=(await env.DB.prepare("SELECT id,mes,dia,concepto,monto,origen,categoria FROM caja_gastos WHERE categoria='Sueldos' ORDER BY dia DESC,creado DESC LIMIT 400").all()).results;
-  const vinculos=(await env.DB.prepare("SELECT gasto_id,colaborador_id,revisado_en,sincronizado_en FROM fin_nomina_vinculos").all()).results;
+  const vinculos=(await env.DB.prepare("SELECT gasto_id,colaborador_id,revisado_en,sincronizado_en,importe_centavos,fecha_fuente,concepto_fuente FROM fin_nomina_vinculos").all()).results;
   const por=Object.fromEntries(vinculos.map(x=>[x.gasto_id,x]));
-  return datos.filter(validarPagoSalario).map(x=>({...x,vinculo:por[x.id]||null}));
+  return datos.filter(validarPagoSalario).map(x=>({...x,vinculo:por[x.id]||null,
+    vinculo_actual:!por[x.id]||(!por[x.id].sincronizado_en&&por[x.id].importe_centavos===Math.round(x.monto*100)&&por[x.id].fecha_fuente===x.dia&&por[x.id].concepto_fuente===x.concepto)}));
 }
 const activo=env=>env.SALARIOS_SYNC_ACTIVE==="SI"&&!!env.AVISO_URL&&!!env.AVISO_TOKEN;
 export async function rutaSalarios(request,env,partes,usuario){
@@ -39,7 +40,7 @@ export async function rutaSalarios(request,env,partes,usuario){
   if(partes[2]==="vincular"){
     const pagoId=String(c.gasto_id||""), colaborador=String(c.colaborador_id||"");
     if(!ID.test(pagoId)||!ID.test(colaborador))return json({ok:false,error:"Selecciona un pago y un colaborador válidos."},422);
-    const pago=await env.DB.prepare("SELECT id,dia,monto,categoria FROM caja_gastos WHERE id=?").bind(pagoId).first();
+    const pago=await env.DB.prepare("SELECT id,dia,monto,concepto,categoria FROM caja_gastos WHERE id=?").bind(pagoId).first();
     if(!validarPagoSalario(pago))return json({ok:false,error:"El movimiento ya no corresponde a Sueldos. Actualiza Finanzas."},409);
     // Verificar el ID contra la hoja privada. No comparar nombres por inferencia.
     const catalogo=await scriptArchivos(env,{accion:"salarios",op:"catalogo"},20000);
@@ -47,10 +48,11 @@ export async function rutaSalarios(request,env,partes,usuario){
       return json({ok:false,error:"El colaborador no figura en la hoja SALARIOS. Verifica el identificador."},409);
     const previa=await env.DB.prepare("SELECT * FROM fin_nomina_vinculos WHERE gasto_id=?").bind(pagoId).first();
     if(previa?.sincronizado_en)return json({ok:false,error:"Ya está en SALARIOS. No se puede reasignar silenciosamente: requiere procedimiento de corrección."},409);
-    if(previa?.colaborador_id===colaborador)return json({ok:true,sin_cambios:true});
+    const centavos=Math.round(Number(pago.monto)*100);
+    if(previa?.colaborador_id===colaborador&&previa.importe_centavos===centavos&&previa.fecha_fuente===pago.dia&&previa.concepto_fuente===pago.concepto)return json({ok:true,sin_cambios:true});
     const r=await env.DB.batch([
-      env.DB.prepare("INSERT INTO fin_nomina_vinculos(gasto_id,colaborador_id,revisado_en,revisado_por) VALUES(?,?,?,?) ON CONFLICT(gasto_id) DO UPDATE SET colaborador_id=excluded.colaborador_id,revisado_en=excluded.revisado_en,revisado_por=excluded.revisado_por WHERE fin_nomina_vinculos.sincronizado_en IS NULL")
-        .bind(pagoId,colaborador,ahora,quien),
+      env.DB.prepare("INSERT INTO fin_nomina_vinculos(gasto_id,colaborador_id,revisado_en,revisado_por,importe_centavos,fecha_fuente,concepto_fuente) VALUES(?,?,?,?,?,?,?) ON CONFLICT(gasto_id) DO UPDATE SET colaborador_id=excluded.colaborador_id,revisado_en=excluded.revisado_en,revisado_por=excluded.revisado_por,importe_centavos=excluded.importe_centavos,fecha_fuente=excluded.fecha_fuente,concepto_fuente=excluded.concepto_fuente WHERE fin_nomina_vinculos.sincronizado_en IS NULL")
+        .bind(pagoId,colaborador,ahora,quien,centavos,pago.dia,pago.concepto),
       stmtBitacoraSiCambio(env,{quien,accion:previa?"editar":"crear",que:"Vinculación de sueldo",ref:pagoId,mes:pago.dia.slice(0,7),detalle:{colaborador_id:colaborador}})
     ]);
     if(!r[0]?.meta?.changes)return json({ok:false,error:"El pago cambió de vinculación mientras guardabas."},409);
@@ -58,7 +60,10 @@ export async function rutaSalarios(request,env,partes,usuario){
   }
   if(partes[2]==="sincronizar"){
     if(c.confirmado!==true)return json({ok:false,error:"Confirma que revisaste los pagos y su colaborador."},422);
-    const pendientes=(await leerPagos(env)).filter(x=>x.vinculo&&!x.vinculo.sincronizado_en);
+    const todos=await leerPagos(env);
+    if(todos.some(x=>x.vinculo&&x.vinculo.sincronizado_en&&!x.vinculo_actual))return json({ok:false,error:'Un pago ya sincronizado fue modificado en su origen. Requiere conciliación manual.'},409);
+    const pendientes=todos.filter(x=>x.vinculo&&!x.vinculo.sincronizado_en);
+    if(pendientes.some(x=>!x.vinculo_actual))return json({ok:false,error:'Un sueldo fue modificado después de vincularlo. Revisa y confirma al colaborador nuevamente.'},409);
     if(!pendientes.length)return json({ok:true,sin_cambios:true});
     const lote=pendientes.slice(0,40);
     const filas=lote.map(x=>({id:x.id,fecha:x.dia,origen:"caja_gastos",concepto:x.concepto,
