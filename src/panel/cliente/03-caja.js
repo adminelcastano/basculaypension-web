@@ -25,6 +25,8 @@
   }
 
   const st = { datos: null, actual: null, cargado: false, vista: "cortes", desde: "", hasta: "", rapido: "mes" };
+  const fmtSync = s => s?.error ? "La última sincronización de ventas falló" : !s?.at ? "Ventas sin sincronización confirmada" :
+    "Ventas sincronizadas " + new Date(s.at).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" });
   const sumar = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const hoyMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
   const consulta = () => { const q = new URLSearchParams(); if (st.desde) q.set("desde", st.desde); if (st.hasta) q.set("hasta", st.hasta); const t = q.toString(); return t ? "?" + t : ""; };
@@ -181,6 +183,7 @@
     const estado = problemas.length ? "mal" : !k ? "esp" : k.admin ? "" : "ok";
     const fuera = Object.entries(c.fuera.formas).map(([f, v]) => `${f.toLowerCase()} ${dinero(v)}`).join(" · ");
     return `<section class="card cficha ${estado}"><h3>Corte</h3>
+      ${enCurso && !k ? `<div class="caja-admin-saldo">Efectivo esperado según registros: <b id="c-saldo-detalle">${dinero(c.efectivo_caja)}</b><span class="note" id="c-saldo-detalle-sync">${esc(fmtSync({ at: j.sync?.at, error: j.sync?.error && (!j.sync.at || j.sync.error_at > j.sync.at) }))}</span></div>` : ""}
       <div class="cf-res ${estado}">${k && k.admin && !problemas.length ? "Entrega capturada por la administración" : estado === "ok" ? "✓ Todo cuadra" : estado === "esp" ? (enCurso ? "Turno en curso" : "Sin corte") : "Revisar: " + esc(problemas.join(" · "))}</div>
       <ol class="cf">${pasos.join("")}</ol>
       <ol class="cf cf-aparte">${tj}</ol>
@@ -448,7 +451,8 @@
   function vistaCurso(j) {
     const a = turnoActual(), c = j.cortes.find(x => x.dia === a.dia && x.turno === a.turno);
     $("#c-curso").innerHTML = `<section class="card"><h3>Corte en curso · ${esc(TURNO_TXT[a.turno])} del ${esc(diaTxt(a.dia))}</h3>
-      ${c ? `<div class="ctot" style="margin:8px 0"><div class="k"><span>Tickets en efectivo</span><b>${dinero(c.efectivo)}</b></div><div class="k"><span>Tickets con tarjeta</span><b>${dinero(c.tarjeta)}</b></div><div class="k"><span>Cambio inicial</span><b>${dinero(c.cambio.importe)}</b></div><div class="k"><span>Ingresos extra</span><b>${dinero(c.extra.importe)}</b></div><div class="k"><span>Gastos de caja</span><b>${dinero(c.gastos.EFECTIVO)}</b></div><div class="k dest"><span>Efectivo en caja</span><b>${dinero(c.efectivo_caja)}</b></div></div>
+      ${c ? `<div class="ctot" style="margin:8px 0"><div class="k"><span>Tickets en efectivo</span><b>${dinero(c.efectivo)}</b></div><div class="k"><span>Tickets con tarjeta</span><b>${dinero(c.tarjeta)}</b></div><div class="k"><span>Cambio inicial</span><b>${dinero(c.cambio.importe)}</b></div><div class="k"><span>Ingresos extra</span><b>${dinero(c.extra.importe)}</b></div><div class="k"><span>Gastos de caja</span><b>${dinero(c.gastos.EFECTIVO)}</b></div><div class="k caja-admin-cifra"><span>+ Administración</span><b id="c-admin-entradas">${dinero(c.adminMovs?.entradas || 0)}</b></div><div class="k caja-admin-cifra"><span>− Administración</span><b id="c-admin-salidas">${dinero(c.adminMovs?.salidas || 0)}</b></div><div class="k dest"><span>Saldo esperado de caja</span><b id="c-saldo-vivo">${dinero(c.efectivo_caja)}</b></div></div>
+        <p class="note" id="c-saldo-sync">${esc(fmtSync({ at: j.sync?.at, error: j.sync?.error && (!j.sync.at || j.sync.error_at > j.sync.at) }))} · El saldo refleja registros recibidos, no un conteo físico.</p>
         <button class="btn btn-line" type="button" id="c-ver-curso">Ver el detalle del corte</button>` : `<p class="note">Todavía no hay registros en este turno.</p>`}</section>`;
     const v = $("#c-ver-curso"); if (v) v.addEventListener("click", () => abrirCorte(a.dia + "|" + a.turno));
     if (window.turnoVista) window.turnoVista("curso");
@@ -495,6 +499,36 @@
   document.addEventListener("modulo", e => { if (e.detail === "caja") cargar(); });
   document.addEventListener("recargar-todo", async () => { if (!$("#mod-caja").hidden) { await cargar(); if (st.actual) abrir(st.actual); } });
   if (EC.ruta().mod === "caja") cargar();
+
+  // Sólo se sondea el saldo del turno actual mientras Caja esté visible.
+  // D1 refleja entradas/salidas al confirmarse; los tickets dependen de Sheets.
+  let saldoSecuencia = 0;
+  async function refrescarSaldoActual() {
+    if ($("#mod-caja").hidden || document.hidden || !$("#c-saldo-vivo")) return;
+    const solicitud = ++saldoSecuencia, t = turnoActual();
+    try {
+      const d = await api("caja/saldo?dia=" + encodeURIComponent(t.dia) + "&turno=" + encodeURIComponent(t.turno));
+      if (solicitud !== saldoSecuencia || $("#mod-caja").hidden ||
+          !$("#c-saldo-vivo") || d.dia !== turnoActual().dia || d.turno !== turnoActual().turno) return;
+      $("#c-saldo-vivo").textContent = dinero(d.saldo);
+      if ($("#c-admin-entradas")) $("#c-admin-entradas").textContent = dinero(d.administracion.entradas);
+      if ($("#c-admin-salidas")) $("#c-admin-salidas").textContent = dinero(d.administracion.salidas);
+      const nota = fmtSync(d.sincronizacion);
+      if ($("#c-saldo-sync")) $("#c-saldo-sync").textContent = nota + " · Consultado " +
+        new Date(d.consultado_en).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }) +
+        " · No sustituye el conteo físico.";
+      if (st.actual === t.dia + "|" + t.turno && $("#c-saldo-detalle")) {
+        $("#c-saldo-detalle").textContent = dinero(d.saldo);
+        $("#c-saldo-detalle-sync").textContent = nota;
+      }
+      EC.bloqueInfo("caja", "curso", { valor: dinero(d.saldo), texto: "Saldo esperado · " + TURNO_TXT[t.turno] });
+    } catch (e) {
+      if ($("#c-saldo-sync") && e.message !== "sesion") $("#c-saldo-sync").textContent = "No se pudo actualizar el saldo. Consulta la conexión.";
+    }
+  }
+  setInterval(refrescarSaldoActual, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refrescarSaldoActual(); });
+
   // Mientras la sección está abierta, se actualiza sola cada 5 minutos
   setInterval(() => { if (!$("#mod-caja").hidden && !document.hidden) cargar(); }, 300000);
 })();
