@@ -260,23 +260,32 @@ export async function mantenerArchivos(env, max = 20) {
       if (await confirmarDrive(env, v, id)) subidos++;
     } catch (e) { return { subidos, vencidos, error: e.message }; }
   }
-  // Compatibilidad: conservar claves legadas y registrar el hash transferido para evitar
-  // retransmisiones de copias antiguas. Las versiones nuevas tienen precedencia en D1.
+  // Compatibilidad: revisar versiones legadas a lo sumo una vez al día por llave.
+  // Se acota el número de lecturas profundas por ejecución para evitar gasto KV excesivo.
+  const legacyConocidos = new Map((await env.DB.prepare("SELECT llave, hash, at FROM archivos_legacy").all()).results.map(x => [x.llave, x]));
+  const bloqueadas = new Set((await env.DB.prepare("SELECT llave FROM archivos_actual UNION SELECT llave FROM archivos_eliminados").all()).results.map(x => x.llave));
+  let revisadosLegacy = 0, detenerLegacy = false;
   for (const prefijo of ["f:", "tf:", "x:", "xa:"]) {
-    if (subidos >= max) break;
+    if (subidos >= max || detenerLegacy) break;
     let cursor = null, paginas = 0;
     do {
       const l = await env.FILES.list({ prefix: prefijo, limit: 500, ...(cursor ? { cursor } : {}) });
       cursor = l.list_complete ? null : l.cursor || null;
       for (const k of l.keys) {
         if (subidos >= max) break;
-        if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ? UNION SELECT 1 FROM archivos_eliminados WHERE llave = ? LIMIT 1").bind(k.name, k.name).first()) continue;
-        // Los escritores actuales usan versiones inmutables: la clave legada no cambia tras migrarse.
-        const procesado = await env.DB.prepare("SELECT hash FROM archivos_legacy WHERE llave = ?").bind(k.name).first();
-        if (procesado) continue;
+        if (bloqueadas.has(k.name)) continue;
+        const procesado = legacyConocidos.get(k.name);
+        if (procesado && Date.now() - Date.parse(procesado.at) < 864e5) continue;
+        if (revisadosLegacy >= Math.max(1, max)) { detenerLegacy = true; break; }
+        revisadosLegacy++;
         const r = await env.FILES.getWithMetadata(k.name, { type: "arrayBuffer" });
         if (!r?.value) continue;
         const hash = await idCarga(k.name, r.value);
+        if (procesado?.hash === hash) {
+          await env.DB.prepare("UPDATE archivos_legacy SET at = ? WHERE llave = ? AND hash = ?")
+            .bind(new Date().toISOString(), k.name, hash).run();
+          continue;
+        }
         let persona = null;
         if (prefijo === "x:" || prefijo === "xa:") {
           const f = await env.DB.prepare("SELECT nombre, num FROM colaboradores WHERE id = ?").bind(k.name.split(":")[1]).first().catch(() => null);
@@ -308,7 +317,7 @@ export async function mantenerArchivos(env, max = 20) {
         // Sin borrado por comprobación de contenido: KV no ofrece compare-and-delete.
       }
       paginas++;
-    } while (cursor && paginas < 5 && subidos < max);
+    } while (cursor && paginas < 5 && subidos < max && !detenerLegacy);
   }
   return { subidos, vencidos };
 }

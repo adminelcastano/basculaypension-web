@@ -21,6 +21,7 @@
 - **Sin garantía distribuida de visibilidad inmediata:** KV tiene consistencia eventual; una nueva copia podría no leerse desde otra región hasta que se propague. D1, KV y Drive siguen sin transacción única.
 - La retención de copias históricas es temporal mientras no exista una política probada de reconciliación, limpieza y recuperación. Vigilar crecimiento y almacenamiento antes de activar esta rama.
 - Eliminaciones explícitas registran una marca persistente en D1, evitando que una lectura eventual de KV resucite una clave legada. El índice conserva identificadores anteriores de Drive para conciliación y borrado explícito de las referencias conocidas.
+- Las claves legadas ya trasladadas se revisan periódicamente con límite de lecturas; no se asume que una lectura KV equivale a una transacción. No se eliminan de forma automática ni se prometen resultados hasta la validación conjunta.
 - **Estado:** cambios de código preparados en rama, sin pruebas de aplicación, sin instalación de Apps Script y sin publicación. La configuración Windows/WSL permanece suspendida a petición del administrador.
 
 ## Fase 2. Respaldo D1 restaurable

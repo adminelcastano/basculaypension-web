@@ -7,6 +7,9 @@ function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual =
   const eventos = [], claves = [];
   const DB = {
     async batch(stmts) {
+      // La creación del esquema es preparación, no una operación de escritura de archivos.
+      if (stmts.every(x => /^(CREATE |UPDATE archivos SET vence)/.test(x.sql)))
+        return stmts.map(() => ({ meta: { changes: 1 } }));
       eventos.push("d1-batch");
       if (fallaD1 && stmts.some(x => /INSERT INTO archivos_copias/.test(x.sql))) throw Error("fallo-d1");
       return stmts.map((_, i) => ({ meta: { changes: resultadoCaducado && stmts.length > 3 && i === 1 ? 0 : 1 } }));
