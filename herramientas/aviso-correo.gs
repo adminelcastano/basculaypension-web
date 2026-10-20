@@ -364,12 +364,16 @@ function salariosPrivados(d) {
     const fecha=String(f.fecha||'');
     const monto=Number(f.importe);
     const colaborador=String(f.colaborador_id||'');
+    const forma=String(f.forma||'');
+    const cuenta=String(f.cuenta||'');
     if(!/^[a-z0-9-]{8,64}$/i.test(k)||vistos.has(k)||!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||
        !(monto>0)||monto>1000000||Math.abs(Math.round(monto*100)-monto*100)>0.000001||
-       f.origen!=='caja_gastos'||!vigentes.has(colaborador))
+       f.origen!=='caja_gastos'||!vigentes.has(colaborador)||
+       !['','EFECTIVO','TARJETA','TRANSFERENCIA'].includes(forma)||
+       (cuenta&&!/^[a-z0-9-]{2,64}$/i.test(cuenta)))
       return{ok:false,error:'Revisar referencias de pagos antes de sincronizar'};
     vistos.add(k);
-    pendientes.push([k,fecha.slice(0,7),fecha,'caja_gastos',safe(f.concepto),monto,colaborador,'Registrado en web',new Date()]);
+    pendientes.push([k,fecha.slice(0,7),fecha,'caja_gastos',safe(f.concepto),monto,colaborador,'Registrado en web',new Date(),forma,cuenta]);
   }
   const lock=LockService.getScriptLock();
   lock.waitLock(20000);
@@ -377,21 +381,21 @@ function salariosPrivados(d) {
     let sh=ss.getSheetByName('PAGOS WEB');
     if(!sh){
       sh=ss.insertSheet('PAGOS WEB');
-      sh.getRange(1,1,1,9).setValues([['ID pago','Periodo','Fecha pago','Origen','Concepto','Importe MXN','ID colaborador','Estado','Reflejado en Sheets']]);
+      sh.getRange(1,1,1,11).setValues([['ID pago','Periodo','Fecha pago','Origen','Concepto','Importe MXN','ID colaborador','Estado','Reflejado en Sheets','Forma de pago','Cuenta interna']]);
       sh.setFrozenRows(1);
     } else if(sh.getRange(1,1).getValue()!=='ID pago')return{ok:false,error:'Pestaña PAGOS WEB no reconocida'};
     const ult=sh.getLastRow(),registrados=new Map();
-    if(ult>1)sh.getRange(2,1,ult-1,9).getValues().forEach(row=>registrados.set(String(row[0]),row));
+    if(ult>1)sh.getRange(2,1,ult-1,11).getValues().forEach(row=>registrados.set(String(row[0]),row));
     const agregar=[];
     for(const row of pendientes){
       const anterior=registrados.get(row[0]);
       if(!anterior){agregar.push(row);continue;}
       // Reintentar el mismo movimiento nunca modifica una fila existente.
       if(String(anterior[2])!==String(row[2])||String(anterior[4])!==String(row[4])||
-         Math.round(Number(anterior[5])*100)!==Math.round(row[5]*100)||String(anterior[6])!==String(row[6]))
+         Math.round(Number(anterior[5])*100)!==Math.round(row[5]*100)||String(anterior[6])!==String(row[6])||String(anterior[9])!==String(row[9])||String(anterior[10])!==String(row[10]))
         return{ok:false,error:'El pago ya existe con datos distintos: necesita conciliación manual'};
     }
-    if(agregar.length)sh.getRange(ult+1,1,agregar.length,9).setValues(agregar);
+    if(agregar.length)sh.getRange(ult+1,1,agregar.length,11).setValues(agregar);
     let resumen=ss.getSheetByName('RESUMEN SALARIAL');
     if(!resumen){
       resumen=ss.insertSheet('RESUMEN SALARIAL');
