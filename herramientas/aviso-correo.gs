@@ -368,12 +368,12 @@ function salariosPrivados(d) {
     const cuenta=String(f.cuenta||'');
     if(!/^[a-z0-9-]{8,64}$/i.test(k)||vistos.has(k)||!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||
        !(monto>0)||monto>1000000||Math.abs(Math.round(monto*100)-monto*100)>0.000001||
-       f.origen!=='caja_gastos'||!vigentes.has(colaborador)||
+       !['caja_gastos','turno_cortes'].includes(String(f.origen||''))||!vigentes.has(colaborador)||
        !['','EFECTIVO','TARJETA','TRANSFERENCIA'].includes(forma)||
        (cuenta&&!/^[a-z0-9-]{2,64}$/i.test(cuenta)))
       return{ok:false,error:'Revisar referencias de pagos antes de sincronizar'};
     vistos.add(k);
-    pendientes.push([k,fecha.slice(0,7),fecha,'caja_gastos',safe(f.concepto),monto,colaborador,'Registrado en web',new Date(),forma,cuenta]);
+    pendientes.push([k,fecha.slice(0,7),fecha,String(f.origen),safe(f.concepto),monto,colaborador,'Registrado en web',new Date(),forma,cuenta]);
   }
   const lock=LockService.getScriptLock();
   lock.waitLock(20000);
@@ -391,7 +391,7 @@ function salariosPrivados(d) {
       const anterior=registrados.get(row[0]);
       if(!anterior){agregar.push(row);continue;}
       // Reintentar el mismo movimiento nunca modifica una fila existente.
-      if(String(anterior[2])!==String(row[2])||String(anterior[4])!==String(row[4])||
+      if(String(anterior[2])!==String(row[2])||String(anterior[3])!==String(row[3])||String(anterior[4])!==String(row[4])||
          Math.round(Number(anterior[5])*100)!==Math.round(row[5]*100)||String(anterior[6])!==String(row[6])||String(anterior[9])!==String(row[9])||String(anterior[10])!==String(row[10]))
         return{ok:false,error:'El pago ya existe con datos distintos: necesita conciliación manual'};
     }
