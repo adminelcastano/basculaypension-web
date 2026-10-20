@@ -33,14 +33,19 @@ backup_verificar_sha256 "$archivo" || {
 
 for origen in "$archivo" "$archivo.sha256"; do
   nombre="$(basename "$origen")"
-  destino="${BACKUP_DRIVE_REMOTE}${nombre}"
-  # No reemplazar una copia remota preexistente: las versiones son inmutables.
-  if rclone lsf --files-only "$destino" 2>/dev/null | grep -Fxq "$nombre"; then
-    echo "Ya existe en Drive: $nombre; no se sobrescribe" >&2
-    exit 1
+  destino="$BACKUP_DRIVE_REMOTE$nombre"
+  esperado="$(backup_md5 "$origen")"
+  # Si ya existe la copia correcta, no sobrescribirla: retomar el manifiesto faltante.
+  recibido="$(rclone md5sum "$destino" 2>/dev/null | awk 'NR==1 {print $1}' || true)"
+  if [ -n "$recibido" ]; then
+    if [ "$recibido" != "$esperado" ]; then
+      echo "El remoto difiere del respaldo local: $nombre. No se sobrescribe." >&2
+      exit 1
+    fi
+    echo "Objeto remoto ya verificado: $nombre"
+    continue
   fi
   rclone copyto --immutable --checksum "$origen" "$destino"
-  esperado="$(backup_md5 "$origen")"
   recibido="$(rclone md5sum "$destino" | awk 'NR==1 {print $1}')"
   if [ -z "$recibido" ] || [ "$recibido" != "$esperado" ]; then
     echo "No se confirmó la integridad de la copia en Drive: $nombre" >&2
