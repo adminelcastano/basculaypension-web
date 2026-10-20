@@ -1,6 +1,6 @@
 # Respaldos cifrados D1 — Windows principal, macOS recuperación
 
-**Estado: preparado, no probado ni activado.** El usuario confirmó que **Windows permanece normalmente encendida**. Ningún archivo de D1 productiva se ha exportado ni hay tareas programadas por estos cambios.
+**Estado al 20 de octubre de 2026: preparado, no probado ni activado.** La instalación Windows/WSL está **suspendida** porque coincide con otro desarrollo de software. No está autorizada una exportación real de D1. La clave privada age y su copia cifrada USB ya existen; **no regenerarlas**.
 
 ## Arquitectura definitiva propuesta
 
@@ -10,37 +10,28 @@
 - **Separación de secretos**: Windows posee el token Cloudflare de exportación y **sólo la clave pública de cifrado**; macOS guarda la clave privada de recuperación. El remote rclone en Windows usa una autorización Google independiente guardada localmente. `root_folder_id` acota las rutas navegables por rclone, pero **no reduce por sí mismo el alcance del permiso OAuth**.
 - **Disponibilidad**: la tarea Windows usa el mismo usuario interactivo que protegió el token con DPAPI. Si la sesión se cierra, no se garantiza ejecución. Una tarea retrasada puede ejecutarse al volver a iniciar sesión, pero Windows debe estar encendida y WSL disponible.
 
-## Fase A — preparar Mac como custodio (requiere intervención del administrador)
+## Fase A — Mac como custodio (ya preparada, no repetir instalaciones)
 
-En Terminal macOS:
+**Verificado:** FileVault activo; Homebrew y age funcionando; clave privada ya
+existente bajo `~/Library/Application Support/ElCastano/Clave-D1/`, permisos
+`600`, y clave pública age obtenida. La copia `ElCastano-Clave-D1.age` en la
+USB `TRANSFERENC` se descifró y comparó localmente con el original: coinciden.
 
-```bash
-brew install age sqlite git
-git clone https://github.com/adminelcastano/basculaypension-web.git
-cd basculaypension-web
-git fetch origin deuda-tecnica/fases-1-4-20261019
-git switch --track origin/deuda-tecnica/fases-1-4-20261019
-```
+**NO repetir `age-keygen`, ni `herramientas/preparar-clave-respaldo-local.sh`
+en la Mac ya configurada.** Conservar la pareja de claves original y no
+compartir claves privadas ni contraseñas por chat.
 
-Habilitar FileVault si el equipo todavía no lo usa y elegir una carpeta **local cifrada, no sincronizada en la nube**. Crear la clave de recuperación **sólo en esa Mac**:
+**Pendiente de confirmación física:** contraseña custodiada por separado,
+USB expulsada correctamente y guardada fuera de la Mac. No darlo por hecho.
 
-```bash
-export AGE_KEY_DIR="$HOME/Library/Application Support/ElCastano/Clave-D1"
-bash herramientas/preparar-clave-respaldo-local.sh
-```
+La Mac es custodio de recuperación, no ejecutor diario. La restauración
+local se verificará con `herramientas/verificar-restauracion-d1-local.sh`
+cuando exista una exportación cifrada de ensayo y la validación sea autorizada.
+Actualmente no se ha generado ningún respaldo D1 real.
+## Fase B — Windows/Ubuntu WSL como ejecutor (SUSPENDIDA)
 
-El programa muestra la **clave pública** `age1...`; es la única cadena que se llevará a Windows. Custodiar el archivo de clave **privada** en macOS, con una segunda copia protegida fuera de ambos equipos. Si se pierde la clave privada, no podrán recuperarse los respaldos cifrados.
+No instalar ni modificar Ubuntu, WSL, credenciales, OAuth ni tareas mientras continúe la otra operación de desarrollo. Las instrucciones siguientes son solo referencia para la futura reanudación autorizada.
 
-Para probar una restauración **local** más adelante, con el archivo cifrado y su manifiesto ya descargados en la Mac:
-
-```bash
-export AGE_KEY_FILE="$HOME/Library/Application Support/ElCastano/Clave-D1/d1-elcastano-age-key.txt"
-bash herramientas/verificar-restauracion-d1-local.sh "/ruta/segura/d1-AAAAMMDDTHHMMSSZ.sql.age"
-```
-
-**No ejecutar aún:** todas las pruebas se harán juntas al finalizar las correcciones.
-
-## Fase B — preparar Windows/Ubuntu WSL como ejecutor
 
 En PowerShell, si todavía no hay Ubuntu WSL:
 
@@ -117,6 +108,6 @@ Cuando la exportación, envío e importación local independiente estén validad
 4. Comprobar que Windows/WSL está disponible en el horario elegido, y que DPAPI se descifra bajo el usuario de la tarea.
 5. Supervisar ausencia o deterioro de copias locales: desde Ubuntu/WSL, ejecutar `bash herramientas/verificar-estado-respaldo-wsl.sh` **después** de un primer respaldo válido. Esta consulta no usa secretos ni modifica datos, comprueba el SHA-256 y alerta si han transcurrido más de 36 horas (configurable localmente con `BACKUP_MAX_HOURS`). Para notificaciones automáticas, programar un control Windows separado tras las pruebas y decidir qué canal operativo recibirá las alertas. La comprobación local no certifica disponibilidad remota de Drive.
 6. Definir política de retención (sin borrado automático todavía) y custodia redundante de la clave privada.
-6. Sólo entonces habilitar programación diaria y vigilar el primer respaldo cifrado real.
+7. Sólo entonces habilitar programación diaria y vigilar el primer respaldo cifrado real.
 
 Referencias: [Microsoft WSLENV](https://learn.microsoft.com/windows/wsl/interop), [PowerShell DPAPI](https://learn.microsoft.com/powershell/module/microsoft.powershell.security/convertfrom-securestring), [rclone Drive](https://rclone.org/drive/), [Cloudflare D1 export](https://developers.cloudflare.com/workers/wrangler/commands/d1/), [age](https://github.com/FiloSottile/age).
