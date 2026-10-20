@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
-import {validarEstado,calcularEstado,fechaReal,dineroCentavos,estadosCuentaRuta} from "../src/finanzas-estados.js";
+import {validarEstado,calcularEstado,continuidadEstados,fechaReal,dineroCentavos,estadosCuentaRuta} from "../src/finanzas-estados.js";
 
 const base={
   cuenta:"cuenta-ficticia",periodo_desde:"2026-09-06",periodo_hasta:"2026-10-05",
@@ -87,5 +87,47 @@ test("No registra gastos ni saldo bancario en la captura del estado",async()=>{
   const tables=e.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name);
   assert.ok(!tables.includes("fin_movs")&&!tables.includes("caja_gastos")&&!tables.includes("fin_saldos_cuenta"));
   assert.ok(tables.includes("fin_estados_cuenta_hist"));
+ }finally{e.close();}
+});
+
+test("Continuidad: coteja solo periodos consecutivos, sin imputar movimientos",()=>{
+ const series=[
+  {id:"a",cuenta:"bbva",periodo_desde:"2026-08-06",periodo_hasta:"2026-09-05",saldo_inicial:20000,saldo_final:15000},
+  {id:"b",cuenta:"bbva",periodo_desde:"2026-09-06",periodo_hasta:"2026-10-05",saldo_inicial:15000,saldo_final:18000},
+  {id:"c",cuenta:"bbva",periodo_desde:"2026-10-06",periodo_hasta:"2026-11-05",saldo_inicial:18500,saldo_final:16000},
+  {id:"d",cuenta:"bbva",periodo_desde:"2026-12-06",periodo_hasta:"2027-01-05",saldo_inicial:16000,saldo_final:16000},
+  {id:"e",cuenta:"nu",periodo_desde:"2026-09-06",periodo_hasta:"2026-10-05",saldo_inicial:50000,saldo_final:45000},
+  {id:"f",cuenta:"nu",periodo_desde:"2026-10-06",periodo_hasta:"2026-11-05",saldo_inicial:null,saldo_final:40000}
+ ];
+ const copia=structuredClone(series);
+ const result=continuidadEstados(series.slice().reverse());
+ assert.equal(result.get("a").continuidad,"sin_previo");
+ assert.equal(result.get("b").continuidad,"cuadra");
+ assert.equal(result.get("b").continuidad_diferencia_centavos,0);
+ assert.equal(result.get("c").continuidad,"revisar");
+ assert.equal(result.get("c").continuidad_diferencia_centavos,500);
+ assert.equal(result.get("d").continuidad,"intervalo");
+ assert.equal(result.get("d").continuidad_dias_sin_estado,30);
+ assert.equal(result.get("e").continuidad,"sin_previo");
+ assert.equal(result.get("f").continuidad,"incompleto");
+ assert.deepEqual(series,copia,"La comparación no debe mutar los estados");
+});
+test("La API señala discrepancias entre dos estados reales ficticios del mismo banco",async()=>{
+ const e=entorno();
+ try{
+  const one=await e.post({
+    ...base,periodo_desde:"2026-08-06",periodo_hasta:"2026-09-05",fecha_corte:"2026-09-05",
+    saldo_inicial:"1000",abonos:"300",cargos:"100",saldo_final:"1200"
+  });
+  assert.equal(one.status,200);
+  const two=await e.post({...base,saldo_inicial:"1210",abonos:"800",cargos:"500",saldo_final:"1510"});
+  assert.equal(two.status,200);
+  const all=await e.list();
+  assert.equal(all.length,2);
+  const next=all.find(x=>x.periodo_desde==="2026-09-06");
+  assert.equal(next.continuidad,"revisar");
+  assert.equal(next.continuidad_diferencia,10);
+  assert.equal(next.comprobacion,"cuadra","Cada estado puede cuadrar internamente y no con el periodo previo");
+  assert.equal(e.db.prepare("SELECT count(*) n FROM fin_estados_cuenta_hist").get().n,2);
  }finally{e.close();}
 });
