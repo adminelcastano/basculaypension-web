@@ -344,7 +344,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     } catch { return file; }
   }
 
-  const eleccion = { ticket: 0, csf: 0 };
+  const eleccion = { ticket: 0, csf: 0 }, preparando = { ticket: false, csf: false };
   function mostrarPrev(prev, file, texto) {
     prev.hidden = false; prev.replaceChildren();
     if (file.type.startsWith("image/") && !/image\/hei[cf]/i.test(file.type)) {
@@ -361,7 +361,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   async function elegir(input, clave) {
     const turno = ++eleccion[clave], f = input.files && input.files[0];
     const prev = document.getElementById("prev-" + clave), rev = document.getElementById("rev-" + clave);
-    archivos[clave] = null; prev.hidden = true; error(clave, "");
+    archivos[clave] = null; preparando[clave] = false; prev.hidden = true; error(clave, "");
     if (rev) { rev.hidden = true; rev.replaceChildren(); }
     if (!f) return;
     // Algunos teléfonos no informan File.type; el servidor verificará la firma real.
@@ -370,8 +370,10 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       input.value = ""; error(clave, "Selecciona JPG, PNG, WebP, HEIC o PDF."); return;
     }
     mostrarPrev(prev, f, "Preparando archivo…");
+    preparando[clave] = true;
     const listo = await preparar(f);
     if (turno !== eleccion[clave]) return;
+    preparando[clave] = false;
     if (listo.size > 10 * 1024 * 1024) {
       prev.hidden = true; input.value = "";
       error(clave, "El archivo supera 10 MB. Elige una foto más ligera o un PDF menor.");
@@ -416,7 +418,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   form.addEventListener("submit", async ev => {
     ev.preventDefault();
     limpiar();
-    if (!archivos.ticket && document.getElementById("prev-ticket").textContent.includes("Preparando")) { document.getElementById("alerta").textContent = "Espera a que termine de prepararse tu foto."; return; }
+    if (preparando.ticket || preparando.csf) { document.getElementById("alerta").textContent = "Espera a que terminen de prepararse tus archivos."; return; }
     const errores = validar();
     if (Object.keys(errores).length) {
       for (const [k, v] of Object.entries(errores)) error(k, v);
