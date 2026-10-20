@@ -265,7 +265,21 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 @media(max-width:420px){.casta-visor-panel button {width:44px;height:44px}.casta-visor-centro img{max-width:calc(100vw - 100px)}.casta-visor-centro{gap:2px;padding:3px}}
 @media(prefers-reduced-motion:reduce){dialog.casta-visor *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
-/* Cambio inicial (pantalla de entrada al turno) */
+/* Movimiento administrativo: azul, con signo y texto (no sólo color). */
+.adm-caja { border: 1px solid var(--info); border-radius: 16px; background: var(--info-soft); padding: 14px; min-width: 0; }
+.adm-caja .ini-top { color: #c8e8ff; }
+.adm-caja .mov { border-color: #315a76; }
+.adm-caja .mov .m, .adm-caja .total { color: #8bd1ff; }
+.adm-caja .btn-admin, .btn-admin { background: var(--info); color: #071420; border-color: var(--info); }
+.adm-caja .btn-admin:hover, .btn-admin:hover { filter: brightness(1.12); }
+.adm-botones { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 12px 0; }
+.adm-botones .btn { min-width: 0; min-height: 48px; padding: 8px; white-space: normal; }
+.adm-form { border: 1px solid var(--info); border-radius: 14px; background: var(--info-soft); padding: 14px; }
+.adm-form .campo { margin: 10px 0; }
+.adm-form h2 { color: #c8e8ff; }
+.adm-anulado { opacity: .65; text-decoration: line-through; }
+@media(max-width:420px){.adm-botones{grid-template-columns:minmax(0,1fr)}}
+ /* Cambio inicial (pantalla de entrada al turno) */
 #app.sin-inicio .modulos { visibility: hidden; }
 .ci { max-width: 620px; margin: 4vh auto 0; }
 .ci .card { padding: 26px; }
@@ -719,7 +733,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const EST_INC = { abierta: "Abierta", en_proceso: "En proceso", resuelta: "Resuelta" };
 
   // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
-  const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|compras|avisos|corte|tareas|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
+  const COLA_RUTAS = /^(inicio|gastos|extras|admin-movimientos|incidencias|compras|avisos|corte|tareas|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
   // UUID nativo en navegadores compatibles; conservar el formato anterior en los demás.
   // Se asigna una sola vez antes de entrar a la cola y se reutiliza en cada reintento.
   const nuevoUid = () => typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -1040,7 +1054,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <label class="campo"><span>Dinero que agregaste al iniciar</span><input class="t monto" name="aumento" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${E.inicio ? esc(E.inicio.aumento || 0) : "0"}"></label>
        </div>
        <div class="ci-total" role="status" aria-live="polite"><span>Total de cambio en caja</span><b id="ci-total">—</b></div>
-       <p class="muted ci-ayuda">El aporte se transfiere automáticamente <b>de sobres a caja</b>; no es una venta. Si ya lo registraste en «Ingreso extra», deja este aporte en 0 para evitar duplicarlo. Los aumentos posteriores se registran desde «Agregar ingreso extra → Aumento de cambio».</p>
+       <p class="muted ci-ayuda">El dinero agregado al comenzar viene de administración, aumenta la caja y no es una venta. Los movimientos posteriores se registran con los botones azules «Ingreso de administración» y «Retiro de administración».</p>
       <p class="err" id="err-inicio" role="alert"></p>
       <button class="btn btn-primary" type="submit" style="width:100%">${corrigiendo ? "Guardar" : ya ? "Confirmar y empezar" : "Empezar turno"}</button>
       ${corrigiendo ? `<button class="btn btn-line" type="button" id="ci-cancelar" style="width:100%;margin-top:8px">Cancelar</button>` : ""}
@@ -1093,6 +1107,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
           <div class="acc-grid">
             <button type="button" class="accion" data-accion="gasto"><span class="ibadge" style="--c:#ff7a70"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
             <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
+            <button type="button" class="accion" data-accion="admin-salida"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-gasto"/></svg></span>Retiro de administración</button>
+            <button type="button" class="accion" data-accion="admin-entrada"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-mas"/></svg></span>Ingreso de administración</button>
             <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
             <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Publicar en Castagram${nuevos.length ? `<span class="casta-alertas" aria-label="${nuevos.length} novedades pendientes">${nuevos.length > 99 ? "99+" : nuevos.length}</span>` : ""}</button>
             <button type="button" class="accion" data-accion="compra"><span class="ibadge" style="--c:#bf5af2"><svg><use href="#i-carrito"/></svg></span>Compras</button>
@@ -1109,7 +1125,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
           <div class="ini-top"><span class="ibadge" style="--c:#2dd4bf"><svg><use href="#i-billete"/></svg></span><span class="ini-k">Corte del turno</span></div>
           <b class="ini-num">${c ? "Entregado" : "Pendiente"}</b>
           <span class="note">${c ? `${esc(hora12(c.actualizado))} · ${avi(c.persona, 1)}${esc(c.persona)}${c.veces > 1 ? ` · corregido ${c.veces - 1} ${c.veces === 2 ? "vez" : "veces"}` : ""}${c.cambios_despues ? ` · <b style="color:var(--warn)">hay movimientos después: vuelve a entregarlo</b>` : ""}` : "Al terminar, cuenta el efectivo y entrégalo."}</span>
-          <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.total ?? E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Sobre<b>${dinero(c.sobre)}</b></span>` : ""}</div>
+          <div class="fila"><span>Cambio inicial<b>${E.inicio ? dinero(E.inicio.total ?? E.inicio.cambio) : "—"}</b></span><span>Gastos<b>${dinero(sumar(E.gastos))}</b></span><span>Ingresos extra<b>${dinero(sumar(E.extras))}</b></span>${c && c.sobre != null ? `<span>Entregado a administración<b>${dinero(c.sobre)}</b></span>` : ""}</div>
         </div>
         <section class="ini-card cat-c s4" data-bloque="avisos">
           <div class="ini-top"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span><span class="ini-k">Novedades de Castagram</span><b class="ini-cta">${nuevos.length}</b><button class="btn btn-line btn-sm" type="button" data-ir="avisos" style="margin-left:auto">Ver Castagram (${E.avisos.length})</button></div>
@@ -1122,6 +1138,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <h2 class="sec-h cat-a grupo-h"><span class="pt" aria-hidden="true"></span><span>Movimientos del turno</span><span class="ln" aria-hidden="true"></span></h2>
         <section class="ini-card cat-a s2" data-bloque="gastos">${bloqueMovs("gastos")}</section>
         <section class="ini-card cat-a s2" data-bloque="extras">${bloqueMovs("extras")}</section>
+        <section class="ini-card cat-a s4" data-bloque="admin">${bloqueAdminMovs()}</section>
       </div>`;
     aplicarIndice();
   }
@@ -1138,7 +1155,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       ["corte", "i-billete", "#2dd4bf", "Corte del turno", null, c ? (c.cambios_despues ? "Hay movimientos después: vuelve a entregarlo" : `Entregado a las ${hora12(c.actualizado)}`) : "Pendiente: al terminar, cuenta el efectivo", !!(c && c.cambios_despues)],
       ["incidencias", "i-alerta", "#ff6961", "Incidencias abiertas", E.incidencias.length, graves ? `${graves} ${graves === 1 ? "grave" : "graves"}` : E.incidencias.length ? "De todos los turnos" : "Ninguna abierta", graves > 0],
       ["gastos", "i-gasto", "#ff7a70", "Gastos del turno", dinero(sumar(E.gastos)), E.gastos.length ? `${E.gastos.length} ${E.gastos.length === 1 ? "gasto" : "gastos"}` : "Sin gastos", false],
-      ["extras", "i-mas", "#30d158", "Ingresos extra", dinero(sumar(E.extras)), E.extras.length ? `${E.extras.length} ${E.extras.length === 1 ? "ingreso" : "ingresos"}` : "Sin ingresos extra", false]
+      ["extras", "i-mas", "#30d158", "Ingresos extra", dinero(sumar(E.extras)), E.extras.length ? `${E.extras.length} ${E.extras.length === 1 ? "ingreso" : "ingresos"}` : "Sin ingresos extra", false],
+      ["admin", "i-billete", "#64d2ff", "Movimientos de administración", (E.admin_movs || []).filter(x => !x.anulado).length, "Entradas y salidas internas · azul", false]
     ];
     return `<div class="t-idx" role="list" aria-label="Lo de tu turno">${T.map(([k, i, col, t, v, sub, u]) => `<button type="button" role="listitem" class="ti ${u ? "urg" : ""} ${v == null ? "sin-v" : ""}" data-hoy="${k}" style="--c:${col}">
         <span class="ti-i">${svg(i)}</span><svg class="ti-c" aria-hidden="true"><use href="#i-flecha"/></svg>
@@ -1167,6 +1185,22 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       ${l.length ? `<div>${l.map(x => `<div class="mov"><div><b>${esc(x.concepto)}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? ` · ${avi(x.persona, 1)}${esc(x.persona)}` : ""}${x.con_foto ? " · con foto" : ""}${tipo === "extras" && !x.ingreso ? " · solo caja" : ""}</div></div>
           <span class="m">${tipo === "gastos" ? "−" : "+"}${dinero(x.monto)}</span>${!cerrado && x.persona === E.persona && !(tipo === "extras" && x.id === "inicio-aumento:" + E.dia + ":" + E.turno) ? `<button class="x" type="button" data-borrar="${tipo}:${esc(x.id)}" aria-label="Borrar ${esc(x.concepto)} de ${dinero(x.monto)}"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>
         <div class="total"><span>Total</span><span>${dinero(sumar(l))}</span></div>` : `<p class="vacio" style="padding:4px 0 0">${tipo === "gastos" ? "Sin gastos en este turno." : "Sin ingresos extra en este turno."}</p>`}`;
+  }
+
+
+  // Transferencias de efectivo internas, separadas de compras y gastos.
+  function bloqueAdminMovs() {
+    const l = E.admin_movs || [], activos = l.filter(x => !x.anulado), cerrado = !!E.corte;
+    const ent = activos.filter(x => x.tipo === "entrada").reduce((a, x) => a + x.monto, 0);
+    const sal = activos.filter(x => x.tipo === "salida").reduce((a, x) => a + x.monto, 0);
+    return `<div class="adm-caja">
+      <div class="ini-top"><span class="ibadge" style="--c:#64d2ff">${svg("i-billete")}</span><span class="ini-k">Movimientos de administración</span></div>
+      <p class="note">Azul = dinero que entra desde administración o sale hacia ella. No es venta ni gasto. El saldo esperado se consulta desde el panel administrativo.</p>
+      ${!cerrado ? `<div class="adm-botones"><button class="btn btn-admin" type="button" data-accion="admin-entrada">+ Ingreso de administración</button><button class="btn btn-admin" type="button" data-accion="admin-salida">− Retiro de administración</button></div>` : ""}
+      ${l.length ? `<div>${l.map(x => `<div class="mov ${x.anulado ? "adm-anulado" : ""}"><div><b>${x.tipo === "entrada" ? "Ingreso de administración" : "Retiro de administración"}</b>${x.detalle ? ` <span class="muted">· ${esc(x.detalle)}</span>` : ""}<div class="note">${esc(hora12(x.creado))}${x.persona ? ` · ${avi(x.persona, 1)}${esc(x.persona)}` : ""}${x.anulado ? " · anulado" : ""}</div></div><span class="m">${x.tipo === "entrada" ? "+" : "−"}${dinero(x.monto)}</span>${!cerrado && !x.anulado && x.persona === E.persona ? `<button class="x" type="button" data-admin-anular="${esc(x.id)}" aria-label="Anular movimiento de administración"><svg><use href="#i-basura"/></svg></button>` : ""}</div>`).join("")}</div>`
+      : `<p class="vacio">Sin movimientos de administración en este turno.</p>`}
+      <div class="total"><span>Entradas ${dinero(ent)} · salidas ${dinero(sal)}</span><b>Neto ${dinero(ent - sal)}</b></div>
+    </div>`;
   }
 
   // ---------- Avisos: muro de publicaciones con conversación ----------
@@ -1612,18 +1646,18 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   function verCorte() {
     const c = E.corte, ci = E.inicio ? Number(E.inicio.total ?? E.inicio.cambio) || 0 : null;
     sec().innerHTML = titulo("Corte de turno.", "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
-      ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · sobre ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
+      ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · entregado a administración ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
         <form class="card" id="f-corte" novalidate>
           <section class="paso-c" id="pc1"><h2><span class="num">1</span>Cuenta el efectivo</h2>
-            <p class="guia">Cuenta <b>los billetes y monedas que tienes físicamente ahora</b>, incluido el cambio inicial. Hazlo <b>después de los gastos que ya pagaste durante el turno</b> y <b>antes de separar los retiros del cierre, el sobre y el cambio siguiente</b>. No incluyas vouchers ni pagos con tarjeta.</p>
+            <p class="guia">Cuenta <b>los billetes y monedas que tienes físicamente ahora</b>, incluido el cambio inicial. Hazlo <b>después de los gastos que ya pagaste durante el turno</b> y <b>antes de separar los retiros del cierre, la entrega a administración y el cambio siguiente</b>. No incluyas vouchers ni pagos con tarjeta.</p>
             <div class="cuenta"><div><span>Cambio inicial total</span><b>${ci == null ? "—" : dinero(ci)}</b>${E.inicio && E.inicio.aumento ? `<small>Recibido ${dinero(E.inicio.cambio)} + aporte ${dinero(E.inicio.aumento)}</small>` : ""}</div>${c ? "" : `<div><span></span><button class="lnk" type="button" id="ci-corregir" style="min-height:28px">Corregir cambio inicial</button></div>`}</div>
             <label class="campo"><span>Efectivo físico que contaste (con el cambio inicial)</span><input class="t monto" name="efectivo" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c ? esc(c.efectivo) : ""}"></label>
           </section>
           <section class="paso-c" id="pc2"><h2><span class="num">2</span>Distribuye lo que contaste</h2>
-            <p class="guia">Ahora decide qué parte del efectivo contado <b>va a administración (sobre)</b>, qué parte <b>retiras al terminar</b> y qué parte queda <b>para el siguiente turno</b>. Las tres deben sumar exactamente el conteo del paso 1.</p>
-            <label class="campo"><span>a) Sobre: dinero que recibirá la administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre != null ? esc(c.sobre) : ""}"></label>
+            <p class="guia">Ahora decide qué parte del efectivo contado <b>va a administración</b>, qué parte <b>retiras al terminar</b> y qué parte queda <b>para el siguiente turno</b>. Las tres deben sumar exactamente el conteo del paso 1.</p>
+            <label class="campo"><span>a) Efectivo que recibirá administración</span><input class="t monto" name="sobre" inputmode="decimal" placeholder="$0.00" autocomplete="off" value="${c && c.sobre != null ? esc(c.sobre) : ""}"></label>
             <div class="retiros-box"><div class="rt-h">${svg("i-alerta")}b) Retiros hechos al repartir el corte</div>
               <p>Ejemplo: sueldo o taxi que se aparta <b>ahora, del dinero que acabas de contar</b>. <b>No vuelvas a incluir gastos que ya pagaste y registraste durante el turno.</b> Si no retiras nada, deja esta lista vacía.</p>
               <div id="retiros"></div>
@@ -1633,8 +1667,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
             <div id="aviso-duplicado" role="alert"></div>
           </section>
           <section class="paso-c" id="pc3"><h2><span class="num">3</span>Revisa y entrega</h2>
-            <p class="guia">Revisa los <b>${E.gastos.length} gastos del turno</b> y <b>${E.extras.length} ingresos extra</b> que aparecen debajo o junto al formulario. Esos movimientos ocurrieron <b>antes del conteo</b>. Verifica que no repitas el mismo pago entre gastos y retiros del paso 2.</p>
-            <label class="confirmacion-corte"><input type="checkbox" id="revisado-corte"><span>Revisé los movimientos anteriores al conteo. El sobre es exactamente lo que entregaré a administración y los retiros son del dinero ya contado.</span></label>
+            <p class="guia">Revisa los <b>${E.gastos.length} gastos del turno</b>, <b>${E.extras.length} ingresos extra</b> y <b>${(E.admin_movs || []).filter(x => !x.anulado).length} movimientos de administración</b> que aparecen debajo o junto al formulario. Esos movimientos ocurrieron <b>antes del conteo</b>. Verifica que no repitas el mismo pago entre gastos y retiros del paso 2.</p>
+            <label class="confirmacion-corte"><input type="checkbox" id="revisado-corte"><span>Revisé los movimientos anteriores al conteo. El efectivo indicado es exactamente lo que entregaré a administración y los retiros son del dinero ya contado.</span></label>
             <label class="campo"><span>Notas (opcional)</span><textarea class="t" name="notas" maxlength="500" placeholder="Algo que la administración deba saber">${c ? esc(c.notas || "") : ""}</textarea></label>
             <p class="err" id="err-corte" role="alert"></p>
             <button class="btn btn-primary" type="submit" style="width:100%">${c ? "Corregir corte" : "Entregar corte"}</button>
@@ -1643,6 +1677,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         <div>
           <section class="card">${bloqueMovs("gastos")}</section>
           <section class="card">${bloqueMovs("extras")}</section>
+          <section class="card">${bloqueAdminMovs()}</section>
         </div>
       </div>`;
     const f = $("#f-corte");
@@ -1700,7 +1735,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       if (efectivo === null) { el.textContent = "Primero escribe cuánto efectivo físico contaste (paso 1)."; return dif; }
       if (!Number.isFinite(efectivo) || efectivo < 0) { el.textContent = "El efectivo contado no es un importe válido."; return dif; }
       if (sobre === null || cambio === null) {
-        el.textContent = "Completa sobre y cambio para el siguiente turno. Escribe 0 cuando no corresponda.";
+        el.textContent = "Completa la entrega a administración y el cambio para el siguiente turno. Escribe 0 cuando no corresponda.";
         return dif;
       }
       if (!validos || !retiroValido) {
@@ -1712,7 +1747,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
         return dif;
       }
       el.className = "reparto " + (Math.abs(dif) < 0.01 ? "ok" : "mal");
-      el.innerHTML = `<span><b>Contaste ${dinero(efectivo)}</b> y distribuiste: <b>sobre para administración ${dinero(sobre)}</b> + retiros finales <b>${dinero(importesRet.reduce((a, v) => a + v, 0))}</b> + cambio siguiente <b>${dinero(cambio)}</b> = <b>${dinero(rep)}</b>.</span>
+      el.innerHTML = `<span><b>Contaste ${dinero(efectivo)}</b> y distribuiste: <b>entrega a administración ${dinero(sobre)}</b> + retiros finales <b>${dinero(importesRet.reduce((a, v) => a + v, 0))}</b> + cambio siguiente <b>${dinero(cambio)}</b> = <b>${dinero(rep)}</b>.</span>
         <span>${Math.abs(dif) < 0.01 ? "✓ Distribución completa: no falta ni sobra dinero" :
           dif > 0 ? `Faltan ${dinero(dif)} por distribuir` : `Distribuiste ${dinero(-dif)} de más`}</span>`;
       return dif;
@@ -1760,7 +1795,7 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       }
       const sob = importe(f.sobre.value), sig = importe(f.cambio_sig.value);
       if (![sob, sig].every(x => Number.isFinite(x) && x >= 0 && x <= 1000000)) {
-        $("#err-corte").textContent = "Indica cuánto entregas en sobre y cuánto dejas de cambio. Escribe 0 si no hay.";
+        $("#err-corte").textContent = "Indica cuánto entregas a administración y cuánto dejas de cambio. Escribe 0 si no hay.";
         (sob === null || !Number.isFinite(sob) ? f.sobre : f.cambio_sig).focus(); return;
       }
       const rts = retiros();
@@ -1775,16 +1810,16 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       }
       if (Math.abs(dif) >= 0.01) {
         $("#err-corte").textContent = dif > 0
-          ? `Faltan ${dinero(dif)} por distribuir entre sobre, retiros finales o cambio.`
+          ? `Faltan ${dinero(dif)} por distribuir entre administración, retiros finales o cambio.`
           : `Distribuiste ${dinero(-dif)} de más. Revisa las cantidades.`;
         $("#reparto").scrollIntoView({ behavior: "smooth", block: "center" }); return;
       }
       if (!$("#revisado-corte").checked) {
-        $("#err-corte").textContent = "Antes de entregar, confirma que revisaste los gastos, los retiros y lo que va al sobre.";
+        $("#err-corte").textContent = "Antes de entregar, confirma que revisaste los gastos, los retiros y lo que entregas a administración.";
         $("#revisado-corte").focus(); return;
       }
       const aviso = "";
-      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Sobre: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
+      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Entrega a administración: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
       b.disabled = true; $("#err-corte").textContent = "";
       try {
         const r = await api("corte", { efectivo: f.efectivo.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts, pagos_distintos_confirmados: !!$("#dup-confirmo")?.checked });
@@ -1893,6 +1928,20 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   const chips = (id, ops, sel, multi) => `<div class="chips" id="${id}"${multi ? ' data-multi="1"' : ""}>${ops.map(([v, t]) => `<button type="button" class="chip" data-v="${esc(v)}" aria-pressed="${Array.isArray(sel) ? sel.includes(v) : v === sel}">${t}</button>`).join("")}</div>`;
   const marcados = id => [...document.querySelectorAll(`#${id} .chip[aria-pressed="true"]`)].map(b => b.dataset.v);
 
+
+  function hojaAdminMovimiento(tipo) {
+    const entrada = tipo === "entrada", titulo = entrada ? "Ingreso de administración" : "Retiro de administración";
+    hoja(`<div class="adm-form"><h2>${titulo}</h2><p class="note"> ${entrada ? "Dinero que administración entrega a caja." : "Dinero que sale de caja hacia administración."} No es una venta ni un gasto del negocio.</p>
+       <label class="campo"><span>Monto del movimiento</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off" required></label>
+       <label class="campo"><span>Nota (opcional)</span><input class="t" name="detalle" maxlength="120" placeholder="Motivo o referencia" autocomplete="off"></label></div>`,
+      async f => {
+        const r = await api("admin-movimientos", { tipo, monto: f.monto.value, detalle: f.detalle.value });
+        toast(r.enCola ? "Sin internet: movimiento pendiente, aún no incluido en el saldo." : "Movimiento de administración registrado.");
+        await refrescar();
+      });
+    const f = $("#dlg-form"), b = f.querySelector('button[type="submit"]');
+    if (b) { b.classList.add("btn-admin"); b.textContent = entrada ? "Registrar ingreso" : "Registrar retiro"; }
+  }
   function hojaGasto() {
     let foto = null;
     hoja(`<h2>Agregar gasto</h2><p class="muted" style="margin:0 0 14px">Dinero que salió de la caja en este turno.</p>
@@ -1906,12 +1955,12 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
   }
   function hojaExtra() {
     let foto = null;
-    hoja(`<h2>Agregar ingreso extra</h2><p class="muted" style="margin:0 0 14px">Efectivo que entra a la caja sin ticket: rentas, dinero de la administración para el cambio, etc.</p>
-      <div class="campo"><span class="lb">¿Qué es?</span>${chips("x-conc", E.conceptos_extra.map(c => [c, esc(c)]), "Renta")}</div>
+    hoja(`<h2>Agregar ingreso extra</h2><p class="muted" style="margin:0 0 14px">Efectivo que entra a caja sin ticket como renta u otro ingreso real. Las transferencias desde administración van en azul.</p>
+      <div class="campo"><span class="lb">¿Qué es?</span>${chips("x-conc", E.conceptos_extra.filter(c => c !== "Aumento de cambio").map(c => [c, esc(c)]), "Renta")}</div>
       <label class="campo"><span>¿De quién o de qué? <span class="muted" style="font-weight:400">(ej. señor de la ropa, restaurante)</span></span><input class="t" name="detalle" maxlength="120" autocomplete="off"></label>
       <label class="campo"><span>Monto</span><input class="t monto" name="monto" inputmode="decimal" placeholder="$0.00" autocomplete="off"></label>
       <div class="campo"><span class="lb">Foto (opcional)</span>${campoFoto("x-foto", "Tomar foto")}</div>
-      <p class="note" style="margin:0">Todo «Aumento de cambio» proviene de <b>efectivo de sobres</b>: suma a la caja, se descuenta automáticamente de sobres y no cuenta como ingreso del negocio. Registra solo aportes nuevos, no los ya capturados al iniciar.</p>`,
+      <p class="note" style="margin:0">Los ingresos procedentes de administración se registran con el botón azul «Ingreso de administración». Aquí registra solamente rentas u otros ingresos reales.</p>`,
       async f => { const r = await api("extras", { concepto: marcados("x-conc")[0], detalle: f.detalle.value, monto: f.monto.value, foto }); toast(r.enCola ? "Sin internet: se guardó y se enviará después." : "Ingreso registrado."); await refrescar(); });
     activarFoto("x-foto", x => { foto = x; });
     elegirChip("#x-conc", () => {});
@@ -2111,10 +2160,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
     if (et) { const f = et.closest("form"), h = hilos[f.dataset.av]; h.etq = h.etq || []; const k = et.dataset.etq; h.etq = h.etq.includes(k) ? h.etq.filter(x => x !== k) : [...h.etq, k]; et.setAttribute("aria-pressed", h.etq.includes(k)); return; }
     if (sf) { const f = sf.closest("form"), h = hilos[f.dataset.av]; if (h.responderA) return; h.foto = null; h.borrador = f.texto.value; repintarPost(f.dataset.av); return; }
     const ac = e.target.closest("[data-accion]"), irA = e.target.closest("[data-ir]");
-    const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), bo = e.target.closest("[data-borrar]");
+    const en = e.target.closest("[data-enterado]"), rp = e.target.closest("[data-reportar]"), bo = e.target.closest("[data-borrar]"), an = e.target.closest("[data-admin-anular]");
     if (ac) {
       const a = ac.dataset.accion;
-      if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
+      if (a === "gasto") hojaGasto(); else if (a === "extra") hojaExtra(); else if (a === "admin-entrada") hojaAdminMovimiento("entrada"); else if (a === "admin-salida") hojaAdminMovimiento("salida"); else if (a === "incidencia") hojaIncidencia(); else if (a === "aviso") hojaAviso(); else if (a === "compra") hojaCompra(); else if (a === "corte") ir("corte");
     } else if (en) {
       en.disabled = true;
       try {
@@ -2129,6 +2178,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
       } catch (er) { toast(er.message, true); en.disabled = false; }
     } else if (rp) {
       const t = E.tareas.find(x => x.id === rp.dataset.reportar) || (E.calendario || []).find(x => x.id === rp.dataset.reportar); if (t) hojaReporte(t);
+    } else if (an) {
+      if (!(await confirmar("¿Anular movimiento de administración?", "El movimiento quedará en el historial, pero no contará en el saldo.", "Anular"))) return;
+      try { await api("admin-movimientos/" + encodeURIComponent(an.dataset.adminAnular) + "/anular", {}, { cola: false }); toast("Movimiento anulado."); await refrescar(); }
+      catch (er) { toast(er.message, true); }
     } else if (bo) {
       const [tipo, id] = bo.dataset.borrar.split(":");
       if (!(await confirmar(tipo === "gastos" ? "¿Borrar este gasto?" : "¿Borrar este ingreso?", "Se quitará de este turno.", "Borrar"))) return;
