@@ -52,6 +52,19 @@ test("Centavos exactos, campos vacíos distinguibles de cero, crédito con signo
   assert.equal(calcularEstado({saldo_inicial:null,abonos:80000,cargos:50000,saldo_final:120000},"credito").comprobacion,"incompleto");
   assert.ok(validarEstado({...base,pago_minimo:"100"},debito).error);
 });
+test("Saldo deudor y saldo a favor se conservan con signo sin aceptar abonos negativos",()=>{
+  assert.equal(dineroCentavos("-1,234.56",{permitirNegativo:true}),-123456);
+  assert.ok(Number.isNaN(dineroCentavos("-12.00")));
+  assert.equal(validarEstado({...base,saldo_inicial:"-200.00",saldo_final:"100.00"},debito).error,undefined);
+  assert.ok(validarEstado({...base,cargos:"-1.00"},debito).error);
+  const creditoConSaldoFavor={
+    ...base,cuenta:credito.id,saldo_inicial:"-200.00",cargos:"400.00",abonos:"100.00",saldo_final:"100.00"
+  };
+  const v=validarEstado(creditoConSaldoFavor,credito);
+  assert.equal(v.error,undefined);
+  const calculo=calcularEstado(v.datos,credito.tipo);
+  assert.equal(calculo.comprobacion,"cuadra");
+});
 test("Captura bancaria en D1 ficticia, lectura, diferencias e historial de correcciones",async()=>{
  const e=entorno();
  try{
