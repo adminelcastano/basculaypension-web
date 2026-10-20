@@ -63,7 +63,7 @@ const fakeAge = [
 function escenario() {
   const base = mkdtempSync(join(tmpdir(), "castano-d1-fase2-"));
   const bin = join(base, "bin"), salida = join(base, "privada");
-  mkdirSync(bin); mkdirSync(salida);
+  mkdirSync(bin); mkdirSync(salida); chmodSync(salida, 0o700);
   const ejecutable = (nombre, contenido) => {
     const p = join(bin, nombre); writeFileSync(p, contenido); chmodSync(p, 0o755); return p;
   };
@@ -124,7 +124,8 @@ test("Configuración Wrangler exacta; rechaza alias, prod, symlink y bindings ex
       { ...e.conf, d1_databases:[{binding:"DB",database_name:testDb,database_id:idProd}] },
       { ...e.conf, d1_databases:[...e.conf.d1_databases,...e.conf.d1_databases] },
       { ...e.conf, name:"basculaypension-web" },
-      { ...e.conf, kv_namespaces:[{binding:"FILES",id:"invalido"}] }
+      { ...e.conf, kv_namespaces:[{binding:"FILES",id:"invalido"}] },
+      { ...e.conf, vars:{MODE:"produccion"} }
     ]) {
       writeFileSync(e.config, JSON.stringify(c));
       assert.notEqual(e.run(exportar).status,0);
@@ -148,6 +149,16 @@ test("No crea respaldo dentro del código ni acepta destinatario age incorrecto"
     assert.notEqual(e.run(exportar, [], {AGE_RECIPIENT:"clave_privada"}).status,0);
     assert.equal(existsSync(e.llamado),false);
   } finally { rmSync(dentro,{recursive:true,force:true}); e.limpiar(); }
+});
+test("Destino con permisos de grupo u otro usuario se rechaza antes de exportar", () => {
+  const e=escenario();
+  try {
+    chmodSync(e.salida,0o755);
+    const r=e.run(exportar);
+    assert.notEqual(r.status,0);
+    assert.match(r.stderr,/permisos 700/);
+    assert.equal(existsSync(e.llamado),false);
+  } finally { e.limpiar(); }
 });
 test("Fallo de exportación o cifrado no publica archivo ni manifiesto", () => {
   const e=escenario();
