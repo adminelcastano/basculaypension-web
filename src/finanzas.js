@@ -116,7 +116,7 @@ export function resumenSueldos(gastosCaja, retiros, admin) {
 // Registros de dinero de varios meses (para los saldos encadenados), agrupados por mes
 async function leerFlujos(env, meses, cuentas) {
   const q = meses.map(() => "?").join(","), todos = sql => env.DB.prepare(sql).bind(...meses).all().then(r => r.results);
-  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs, hojaCaja, cobrosAdmin] = await Promise.all([
+  const [tarjeta, ticketsTransf, transf, admin, sobres, cambio, movs, hojaCaja, cobrosAdmin, adminCaja] = await Promise.all([
     todos(`SELECT mes, dia, importe FROM caja_mov WHERE tipo = 'ticket' AND forma = 'TARJETA' AND mes IN (${q})`),
     todos(`SELECT mes, dia, fecha, servicio, folio, importe, forma, tipo FROM caja_mov WHERE tipo = 'ticket' AND forma LIKE 'TRANSF%' AND mes IN (${q})`),
     todos(`SELECT * FROM caja_transf WHERE mes IN (${q})`),
@@ -127,7 +127,8 @@ async function leerFlujos(env, meses, cuentas) {
     todos(`SELECT mes, dia, turno, fecha, folio, cliente, matricula, forma, importe, tipo FROM caja_mov WHERE tipo = 'caja' AND mes IN (${q})`),
     todos(`SELECT a.mes, a.fecha_pago AS dia, a.monto, a.forma, a.creado, a.por, p.servicio, p.folio
       FROM caja_cobros_admin a JOIN caja_pendientes p ON p.id = a.pendiente_id
-      WHERE a.anulado = 0 AND p.origen_activo = 1 AND a.mes IN (${q})`)
+      WHERE a.anulado = 0 AND p.origen_activo = 1 AND a.mes IN (${q})`),
+    todos(`SELECT mes, dia, turno, tipo, monto, detalle, persona, creado, anulado FROM caja_admin_movs WHERE mes IN (${q})`)
   ]);
   const defTransf = (cuentas.find(c => c.def_transf && c.activa) || cuentas.find(c => c.def_transf) || {}).id || null;
   const por = {};
@@ -140,7 +141,7 @@ async function leerFlujos(env, meses, cuentas) {
         ...delMes(cobrosAdmin).filter(x => x.forma === "TRANSFERENCIA")
           .map(x => ({ fecha: x.dia, importe: x.monto, cuenta: defTransf }))],
       cobrosAdmin: delMes(cobrosAdmin).filter(x => x.forma === "EFECTIVO"),
-      admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), movs: delMes(movs),
+      admin: delMes(admin), sobres: delMes(sobres), cambio: delMes(cambio), adminCaja: delMes(adminCaja), movs: delMes(movs),
       hojaAdmin: renglonesHoja(delMes(hojaCaja)).admin
     };
   }
@@ -159,11 +160,11 @@ export function transfConCuenta(ticketsHoja, transf, defTransf) {
 
 export async function datosFinanzas(env, mes) {
   await asegurarEsquemaFinanzas(env);
-  const { movs, gastos, gastosAdmin, transf, conteos, extras, inicios } = await leerMes(env, [mes]);
+  const { movs, gastos, gastosAdmin, transf, conteos, extras, inicios, adminMovs } = await leerMes(env, [mes]);
   // Corte del turno anterior al primero del mes (para comparar el cambio que dejó)
   const pAnt = turnoAnterior(mes + "-01", "MAÑANA");
   const conteoAnt = (await env.DB.prepare("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?").bind(pAnt.dia, pAnt.turno).all()).results;
-  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos);
+  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos);
   const tr = transferenciasMes(movs, transf);
   const t = totalesMes(cortes, tr.contadas);
   const cobrosAdmin = await leerCobrosAdmin(env, { mes });
