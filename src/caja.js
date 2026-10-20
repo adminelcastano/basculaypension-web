@@ -1359,6 +1359,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     if (!diaValido(dia)) errores.dia = "Elige un día del mes actual (no futuro).";
     if (!turno) errores.turno = "Elige el turno.";
     if (!concepto) errores.concepto = "Elige el concepto.";
+    if (concepto === "Aumento de cambio") errores.concepto = "Registra este traspaso como Ingreso de administración (azul), no como ingreso extra.";
     if (!(monto > 0) || monto > 1000000) errores.monto = "Escribe un monto válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
     const quien = usuario && usuario.email || null;
