@@ -458,8 +458,8 @@
 
   // Las constancias pueden ser PDF con texto, PDF escaneado o fotografía.
   // La imagen se analiza exclusivamente a través del Worker protegido por Access.
-  async function imagenCsfPdf(pdf) {
-    const pagina = await pdf.getPage(1), base = pagina.getViewport({ scale: 1 });
+  async function imagenCsfPdf(pdf, numero = 1) {
+    const pagina = await pdf.getPage(numero), base = pagina.getViewport({ scale: 1 });
     const vp = pagina.getViewport({ scale: Math.min(2.3, 1700 / Math.max(base.width, base.height)) });
     const canvas = document.createElement("canvas");
     canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
@@ -515,13 +515,14 @@
         d = extraerCsf(textoPdf.replace(/\s+/g, " "), regimenes);
         varios = d.regimenes > 1;
         if (varios) d.regimen = "";
-        if (!(d.rfc && d.nombre && d.cp && d.regimen)) {
+        // Hasta dos páginas: el régimen puede aparecer después de los datos generales.
+        for (let numero = 1; numero <= Math.min(pdf.numPages, 2) && !(d.rfc && d.nombre && d.cp && d.regimen); numero++) {
           try {
-            const j = await pedirLecturaCsf(solicitud.id, await imagenCsfPdf(pdf));
+            const j = await pedirLecturaCsf(solicitud.id, await imagenCsfPdf(pdf, numero));
             for (const clave of ["rfc", "nombre", "cp", "regimen"])
               if (!d[clave] && j.datos?.[clave]) d[clave] = j.datos[clave];
             if (j.varios_regimenes) { varios = true; d.regimen = ""; }
-          } catch (e) { observacion = e.message; }
+          } catch (e) { observacion = e.message; break; }
         }
       } else if (solicitud.csf_tipo === "image/heic" || solicitud.csf_tipo === "image/heif") {
         const j = await pedirLecturaCsf(solicitud.id, await imagenCsfHeic(ruta));

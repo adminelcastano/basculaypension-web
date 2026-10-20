@@ -339,12 +339,12 @@ function archivo(form, nombre) {
 // La firma real evita rechazar fotos móviles sin MIME y aceptar un archivo disfrazado.
 async function tipoArchivo(f) {
   if (!f) return null;
-  const a = new Uint8Array(await f.slice(0, 24).arrayBuffer());
+  const a = new Uint8Array(await f.slice(0, 1024).arrayBuffer());
   const ascii = (i, j) => String.fromCharCode(...a.slice(i, j));
   if (a.length >= 3 && a[0] === 255 && a[1] === 216 && a[2] === 255) return "image/jpeg";
   if (a.length >= 8 && a.slice(0, 8).every((v, i) => v === [137, 80, 78, 71, 13, 10, 26, 10][i])) return "image/png";
   if (a.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
-  if (a.length >= 5 && ascii(0, 24).includes("%PDF-")) return "application/pdf";
+  if (a.length >= 5 && ascii(0, 1024).includes("%PDF-")) return "application/pdf";
   if (a.length >= 12 && ascii(4, 8) === "ftyp" && /^(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1)$/.test(ascii(8, 12))) return "image/heic";
   return null;
 }

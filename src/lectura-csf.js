@@ -7,13 +7,15 @@ const MODELO = "@cf/meta/llama-3.2-11b-vision-instruct";
 const RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
 const CP = /^\d{5}$/;
 const limpiar = x => {
-  const v = String(x ?? "").replace(/\s+/g, " ").trim();
+  if (typeof x !== "string" && typeof x !== "number") return "";
+  const v = String(x).replace(/\s+/g, " ").trim();
   return /^(null|undefined|desconocido|no legible|n\/a)$/i.test(v) ? "" : v;
 };
 const normalizar = s => limpiar(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
 function codigosRegimen(d) {
-  const v = Array.isArray(d.regimenes) ? d.regimenes : [d.regimen || d.regimen_fiscal];
+  const v = Array.isArray(d.regimenes) ? d.regimenes :
+    typeof d.regimenes === "string" ? d.regimenes.split(/[,;]/) : [d.regimen || d.regimen_fiscal];
   const claves = new Set();
   for (const entrada of v) {
     const raw = limpiar(entrada);

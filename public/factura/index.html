@@ -295,6 +295,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   const form = document.getElementById("form");
   const $ = s => form.querySelector(s);
   const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+  const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
   const archivos = { ticket: null, csf: null };
 
   function modo() { return form.modo.value; }
@@ -409,7 +410,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       if (!/^\d{5}$/.test(form.cp.value)) e.cp = "El código postal tiene 5 dígitos.";
       if (!form.regimen.value) e.regimen = "Elige tu régimen fiscal.";
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.value.trim())) e.email = "Escribe un correo electrónico válido para recibir la factura.";
+    if (!RE_EMAIL.test(form.email.value.trim())) e.email = "Escribe un correo electrónico válido para recibir la factura.";
     const tel = form.telefono.value.replace(/\D/g, "");
     if (tel && tel.slice(-10).length !== 10) e.telefono = "Escribe tu WhatsApp a 10 dígitos.";
     if (!form.aviso.checked) e.aviso = "Acepta el aviso de privacidad para continuar.";

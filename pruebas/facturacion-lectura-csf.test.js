@@ -23,3 +23,10 @@ test("preserva Ñ en RFC y acentos en el nombre", () => {
   assert.equal(r.datos.rfc,"MUÑA760831R8A");
   assert.equal(r.datos.nombre,"RAZÓN DE PRUEBA");
 });
+
+test("descarta datos de tipo objeto y admite regímenes en texto separado por comas", () => {
+  const r = normalizarCsfSugerido({ rfc: { hack: true }, nombre: {texto:"falso"}, cp:"72100", regimenes:"612,626" });
+  assert.equal("rfc" in r.datos, false);
+  assert.equal("nombre" in r.datos, false);
+  assert.equal(r.varios_regimenes, true);
+});

@@ -42,7 +42,7 @@ test("Servidor bloquea duplicidad con clave única; permite advertencia sin bloq
 });
 
 test("Facturación exige correo y conserva WhatsApp como contacto opcional", () => {
-  assert.match(publico, /if \(!\/\^\[\^\\s@\]/);
+  assert.match(publico, /if \(!RE_EMAIL\.test\(form\.email\.value\.trim\(\)\)\)/);
   assert.match(publico, /name="email"[^>]*required/);
   assert.match(worker, /if \(!RE_EMAIL\.test\(email\)\)/);
   assert.match(panel, /id="d-email"/);
