@@ -346,7 +346,16 @@
       const folio = $("#folio-factura").value.trim();
       if (!folio) { toast("Escribe el folio de la factura"); $("#folio-factura").focus(); return; }
       if (faltan || !$("#t-importe").value.trim() || !$("#t-ticket").value.trim()) { toast("Verifica los datos fiscales, el folio y el importe antes de facturar."); return; }
-      await accion(e.target, "facturar", { folio_factura: folio, folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value }, "Marcada como facturada");
+      if ($("#importe-factura-1")) {
+        const segunda = $("#folio-factura-2")?.value.trim() || "";
+        const fcs = [{ folio, importe: $("#importe-factura-1").value }];
+        if (segunda || $("#importe-factura-2")?.value.trim()) fcs.push({ folio: segunda, importe: $("#importe-factura-2").value });
+        if (!$("#cfdi-emitido-externo").checked) { toast("Confirma que ya emitiste los CFDI en Facturador."); return; }
+        await accion(e.target, "facturas-multiples", { facturas: fcs, importe_ticket: $("#t-importe").value,
+          folio_ticket: $("#t-ticket").value, confirmado_facturador: true }, "CFDI registrados sin emitir nada desde la web");
+      } else {
+        await accion(e.target, "facturar", { folio_factura: folio, folio_ticket: $("#t-ticket").value, importe: $("#t-importe").value }, "Marcada como facturada");
+      }
     });
     $("#rechazar")?.addEventListener("click", e => {
       const motivo = $("#motivo").value.trim();
@@ -371,6 +380,29 @@
     if (!bloqueado) $("#guardar-ticket").addEventListener("click", e => guardarDatos(e.target, !!s.datos_de_csf));
     $("#editar-ticket")?.addEventListener("click", () => { $("#ticket-vista").hidden = true; $("#ticket-edicion").hidden = false; $("#t-ticket").focus(); });
     $("#cancelar-ticket")?.addEventListener("click", () => { $("#ticket-edicion").hidden = true; $("#ticket-vista").hidden = false; });
+
+    $("#registrar-cancelacion")?.addEventListener("click", async e => {
+      const motivo = $("#cfdi-cancelar-motivo")?.value.trim();
+      if (!motivo || motivo.length < 5) { toast("Describe el motivo de la cancelación."); return; }
+      if (!$("#cfdi-cancelacion-confirmada")?.checked) { toast("Primero confirma el estado real en Facturador."); return; }
+      if (!window.confirm("¿Confirmas que este CFDI YA ESTÁ CANCELADO en Facturador? Aquí solo guardarás el registro histórico.")) return;
+      await accion(e.currentTarget,"cancelar-cfdi",{cfdi_id:$("#cfdi-cancelar-id").value,motivo,confirmado_facturador:true},"Cancelación registrada, CFDI original conservado");
+    });
+    $("#registrar-sustitutos")?.addEventListener("click", async e => {
+      const folio = $("#cfdi-sustituir-folio-1").value.trim();
+      const imp = $("#cfdi-sustituir-importe-1").value.trim();
+      const segundo = $("#cfdi-sustituir-folio-2").value.trim();
+      const imp2 = $("#cfdi-sustituir-importe-2").value.trim();
+      if (!folio || !imp || (segundo && !imp2) || (!segundo && imp2)) { toast("Completa cada folio y su importe."); return; }
+      if (!$("#cfdi-sustitucion-confirmada").checked) { toast("Confirma que ya emitiste los sustitutos en Facturador."); return; }
+      const facturas = [{folio,importe:imp}];
+      if (segundo) facturas.push({folio:segundo,importe:imp2});
+      await accion(e.currentTarget,"sustituir-cfdi",{cfdi_cancelado_id:$("#cfdi-sustituir-id").value,facturas,confirmado_facturador:true},"Sustitutos registrados para informar al cliente");
+    });
+    $("#confirmar-aviso-cancelacion")?.addEventListener("click", async e => {
+      if(!window.confirm("¿Ya avisaste realmente al cliente por correo, WhatsApp u otro medio? Este botón no envía mensajes."))return;
+      await accion(e.currentTarget,"confirmar-aviso-cancelacion",{confirmado:true},"Constancia de aviso registrada");
+    });
     const waLink = () => {
       const num = $("#t-tel").value.replace(/\D/g, "").slice(-10);
       const a = $("#wa-enviar");
@@ -378,7 +410,20 @@
       a.removeAttribute("aria-disabled"); a.style.opacity = ""; $("#wa-aviso").textContent = "";
       a.href = `https://wa.me/52${num}?text=${encodeURIComponent($("#wa-texto").value)}`;
     };
+    const correoLink = () => {
+      const a = $("#correo-preparar");
+      if (!a) return;
+      if (!s.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email)) {
+        a.removeAttribute("href"); a.setAttribute("aria-disabled","true"); return;
+      }
+      a.removeAttribute("aria-disabled");
+      a.href = "mailto:" + encodeURIComponent(s.email) + "?subject=" +
+        encodeURIComponent("Información de tu factura · " + s.folio) + "&body=" +
+        encodeURIComponent($("#wa-texto").value);
+    };
     $("#t-tel").addEventListener("input", waLink);
+    $("#wa-texto").addEventListener("input", correoLink);
+    correoLink();
     $("#wa-texto").addEventListener("input", waLink);
     $("#wa-enviar").addEventListener("click", e => { waLink(); if (e.currentTarget.getAttribute("aria-disabled")) { e.preventDefault(); $("#t-tel").focus(); } });
     $("#wa-copiar").addEventListener("click", async e => {
