@@ -20,6 +20,8 @@ const fallo = (error, status = 422) => ({ ok: false, error, status });
 export async function asegurarEsquemaCfdis(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS facturas_cfdis (id TEXT PRIMARY KEY, solicitud_id TEXT NOT NULL, folio TEXT NOT NULL, importe TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'vigente' CHECK(estado IN ('vigente','cancelada')), sustituye_id TEXT, creado TEXT NOT NULL, creado_por TEXT, cancelado_en TEXT, cancelado_por TEXT, cancelacion_motivo TEXT, UNIQUE(solicitud_id,folio))").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS facturas_cfdis_solicitud ON facturas_cfdis(solicitud_id,creado)").run();
+  // La restricción reside en SQLite, no sólo en el formulario: protege dos sesiones concurrentes.
+  await env.DB.prepare("CREATE TRIGGER IF NOT EXISTS facturas_cfdis_max_dos BEFORE INSERT ON facturas_cfdis WHEN NEW.estado='vigente' AND (SELECT COUNT(*) FROM facturas_cfdis WHERE solicitud_id=NEW.solicitud_id AND estado='vigente') >= 2 BEGIN SELECT RAISE(ABORT,'LIMITE_DOS_CFDI'); END").run();
 }
 export async function listarCfdis(env, s) {
   const l = (await env.DB.prepare("SELECT * FROM facturas_cfdis WHERE solicitud_id=? ORDER BY creado,id").bind(s.id).all()).results;
