@@ -1,5 +1,7 @@
 # Revisión Fase 3 — Personal y reportes seguros
 
+> **Actualización histórica:** PR #38 se fusionó como `723e0e2` y Cloudflare publicó el Worker 158 al 100 %. La administración confirmó una nueva versión del Apps Script existente con URL conservada y `probar()` satisfactorio. Las frases de «versión candidata / no desplegada» describen el estado anterior al merge; no certifican aún las sustituciones reales con Drive.
+
 Fecha de corte: 20 de octubre de 2026. Rama `integracion/personal-drive-reportes-20261020`, nacida de `main@a221c77e26f7fa331abce6903ea5dab4db92359d` (Worker 157).
 
 ## Alcance

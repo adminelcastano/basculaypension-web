@@ -582,7 +582,7 @@ async function borrarDeDrive(env, fila, slot) {
   await llamarDrive(env, { op: "borrar", ...carpetaDrive(fila), slot });
 }
 function enSegundoPlano(ctx, promesa) {
-  const p = promesa.catch(e => console.error("drive", e && e.message));
+  const p = promesa.catch(e => console.error("drive: sincronización pendiente; revisar estado"));
   if (ctx && ctx.waitUntil) ctx.waitUntil(p); return p;
 }
 // Si cambió el folio (nombre o fecha de ingreso), renombra su carpeta de Drive
@@ -1030,7 +1030,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     await guardarArchivo(env, `xa:${id}:${docId}`, bytes, { tipo, nombre: nombreArchivo.slice(0, 120), soloKV: true });
     lista.push({ id: docId, descripcion, fecha, tipo, nombre: nombreArchivo.slice(0, 120), tamano: bytes.byteLength, subido: new Date().toISOString() });
     let drive = null;
-    try { drive = await aDrive(env, fila, "a:" + docId, bytes, tipo, nombreAdmin({ fecha, descripcion })); } catch (e) { console.error("drive", e && e.message); drive = "error"; }
+    try { drive = await aDrive(env, fila, "a:" + docId, bytes, tipo, nombreAdmin({ fecha, descripcion })); } catch (e) { console.error("drive: sincronización pendiente; revisar estado"); drive = "error"; }
     await env.DB.prepare("UPDATE colaboradores SET admin_docs = ?, actualizado = ? WHERE id = ?").bind(JSON.stringify(lista), new Date().toISOString(), id).run();
     return json({ ok: true, admin_docs: lista, drive });
   }
@@ -1043,7 +1043,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const nueva = lista.filter(d => d.id !== cuerpo.doc);
     if (nueva.length === lista.length) return json({ ok: false, error: "No existe ese documento." }, 404);
     await borrarArchivo(env, `xa:${id}:${cuerpo.doc}`);
-    try { await borrarDeDrive(env, fila, "a:" + cuerpo.doc); } catch (e) { console.error("drive", e && e.message); }
+    try { await borrarDeDrive(env, fila, "a:" + cuerpo.doc); } catch (e) { console.error("drive: sincronización pendiente; revisar estado"); }
     await env.DB.prepare("UPDATE colaboradores SET admin_docs = ? WHERE id = ?").bind(JSON.stringify(nueva), id).run();
     return json({ ok: true, admin_docs: nueva });
   }
@@ -1140,12 +1140,12 @@ export async function personalPanel(request, env, url, partes, enviar) {
     for (const [clave, d] of Object.entries(docs)) for (const a of Object.keys((d && d.fotos) || {})) {
       const { value, metadata } = await leerArchivo(env, `x:${id}:${a}`);
       if (!value) continue;
-      try { await aDrive(env, fila, "d:" + a, value, (metadata && metadata.tipo) || "application/octet-stream", NOMBRE_ARCHIVO[a] || a); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
+      try { await aDrive(env, fila, "d:" + a, value, (metadata && metadata.tipo) || "application/octet-stream", NOMBRE_ARCHIVO[a] || a); n++; } catch (e) { fallas++; console.error("drive: sincronización pendiente; revisar estado"); }
     }
     for (const d of JSON.parse(fila.admin_docs || "[]")) {
       const { value } = await leerArchivo(env, `xa:${id}:${d.id}`);
       if (!value) continue;
-      try { await aDrive(env, fila, "a:" + d.id, value, d.tipo, nombreAdmin(d)); n++; } catch (e) { fallas++; console.error("drive", e && e.message); }
+      try { await aDrive(env, fila, "a:" + d.id, value, d.tipo, nombreAdmin(d)); n++; } catch (e) { fallas++; console.error("drive: sincronización pendiente; revisar estado"); }
     }
     if (fallas) return json({ ok: false, error: `Se copiaron ${n} archivos y fallaron ${fallas}. Intenta de nuevo.` }, 502);
     return json({ ok: true, copiados: n });

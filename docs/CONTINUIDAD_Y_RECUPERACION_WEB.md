@@ -1,5 +1,7 @@
 # BASCULAYPENSION WEB — continuidad y recuperación verificada
 
+> **Estado posterior verificado (20/10/2026):** La rama productiva llegó a `main@723e0e267daac3e26ebcb978840f83a1cc3f7931`, Worker **158**, antes del lote de cierre administrativo. La Fase 1 y la Fase 3 ya fueron publicadas, con las limitaciones de pruebas remotas explicitadas; no interpretar los encabezados históricos de «sin publicar» como estado actual. La automatización Windows/WSL continúa suspendida. El documento `docs/ESTADO_AUDITORIA_Y_PENDIENTES_2026-10-20.md` registra el estado y las tareas restantes, sujeto a nuevos despliegues.
+
 > **Estado actualizado (20 de octubre de 2026).** Este documento conserva evidencias históricas del 19 de octubre, pero no las presenta como verificaciones actuales. La versión productiva verificada es Cloudflare Worker **156**, despliegue `09ec9e9d-a972-4f14-b3c6-50cf08d7cf98`, publicado desde `main@78fbc77f3a486b06e9bf577cdc08966386cb9a49` mediante PR #36. En GitHub Actions, 376/376 pruebas sintéticas terminaron correctamente. **La restauración completa en una segunda D1 aislada sigue pendiente.** No ejecutar Time Travel ni restauraciones en la base productiva; no reutilizar la D1 de ensayo de Finanzas.
 
 **Alcance:** repositorio `adminelcastano/basculaypension-web`; no corresponde a la SQLite de BASCULAYPENSION local. No ejecutar procedimientos destructivos sobre producción sin autorización y ventana operativa.
