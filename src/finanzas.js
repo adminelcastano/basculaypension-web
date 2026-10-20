@@ -11,6 +11,7 @@ import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from ".
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES } from "./bitacora.js";
 import { centavosIguales } from "./finanzas-idempotencia.js";
+import { estadosCuentaRuta } from "./finanzas-estados.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -300,6 +301,7 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     d.abiertos = await mesesAbiertos(env);
     return json({ ok: true, meses, ...d });
   }
+  if (partes[1] === "estados-cuenta") return await estadosCuentaRuta(request,env,partes,usuario);
   if (partes[1] === "bitacora" && request.method === "GET") return json({ ok: true, bitacora: await listaBitacora(env, 150), acciones: ACCIONES });
   if (request.method !== "POST") return json({ ok: false, error: "Ruta no encontrada." }, 404);
   if (["cuenta", "saldo-cuenta", "mov"].includes(partes[1])) return await cuentasRutas(request, env, partes, usuario, meses);
