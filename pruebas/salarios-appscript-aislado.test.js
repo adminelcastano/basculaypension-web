@@ -65,7 +65,7 @@ function entorno({enabled=true, sheetId="SIMULACION_SALARIOS",missingBase=false}
 }
 const pago=(id="pago-202610-001",data={})=>({
   id,fecha:"2026-10-17",origen:"caja_gastos",concepto:"Pago de sueldo",
-  importe:1200.50,colaborador_id:"001_FICTICIO_A",...data
+  importe:1200.50,colaborador_id:"001_FICTICIO_A",forma:"TRANSFERENCIA",cuenta:"bbva-pyme",...data
 });
 test("SALARIOS apagado: no abre Drive, no crea hojas y rechaza la operación",()=>{
   const x=entorno({enabled:false});
@@ -84,6 +84,8 @@ test("Primer reflejo, reintentos y totales: una fila por ID sin afectar Hoja 1",
   assert.equal(r.ok,true);assert.equal(r.agregados,1);
   assert.equal(x.hojas.get("PAGOS WEB").getLastRow(),2);
   assert.equal(x.hojas.get("PAGOS WEB").get(2,6),1200.50);
+  assert.equal(x.hojas.get("PAGOS WEB").get(2,10),"TRANSFERENCIA");
+  assert.equal(x.hojas.get("PAGOS WEB").get(2,11),"bbva-pyme");
   assert.match(x.hojas.get("RESUMEN SALARIAL").get(3,4),/^=SUMIFS\(/);
   assert.equal(x.hojas.get("RESUMEN SALARIAL").get(3,3),1200);
   assert.equal(x.ejecutar({op:"pagos",filas:[pago()]}).agregados,0);
@@ -101,6 +103,8 @@ test("ID repetido con importe o colaborador diferente detiene sin sobrescribir",
   const a=x.hojas.get("PAGOS WEB").get(2,6);
   assert.equal(x.ejecutar({op:"pagos",filas:[pago("pago-202610-001",{importe:999})]}).ok,false);
   assert.equal(x.ejecutar({op:"pagos",filas:[pago("pago-202610-001",{colaborador_id:"002_FICTICIO_B"})]}).ok,false);
+  assert.equal(x.ejecutar({op:"pagos",filas:[pago("pago-202610-001",{cuenta:"otra-cuenta"})]}).ok,false);
+  assert.equal(x.ejecutar({op:"pagos",filas:[pago("pago-202610-001",{forma:"EFECTIVO"})]}).ok,false);
   assert.equal(x.hojas.get("PAGOS WEB").get(2,6),a);
   assert.equal(x.hojas.get("PAGOS WEB").getLastRow(),2);
 });
