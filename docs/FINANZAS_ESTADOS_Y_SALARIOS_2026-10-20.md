@@ -46,3 +46,35 @@ Se prepararon dos pestañas **que aún NO se han creado en el original**:
 - No hacer importación automática de PDFs bancarios, ni incorporar titulares, números de cuenta, CLABE o nombres de empleados al código público. Los estados del 6 en adelante son referencias para la captura manual, no una fecha de creación automática.
 
 **Se mantienen separados** BASCULAYPENSION WEB (D1, Drive) y BASCULAYPENSION local (SQLite).
+
+## Avance de validación aislada — continuación 20/10/2026
+
+Se añadió una **prueba ejecutable del código real** de `salariosPrivados` (no una copia reescrita de su lógica), usando un libro de Google Sheets ficticio dentro de un simulador Node, sin acceso de red ni creación de archivos en Drive. `pruebas/salarios-appscript-aislado.test.js` verificó:
+
+- Protección del doble interruptor: con Apps Script apagado no abre ningún libro.
+- Lectura del catálogo de dos colaboradores **ficticios**, sin alterar la pestaña salarial base.
+- Primera creación de `PAGOS WEB` y `RESUMEN SALARIAL`, fórmulas de sumas por mes y conservación del periodo elegido.
+- Reintentos con el mismo ID: no duplican pagos ni sobrescriben filas previas; los cambios de importe, origen o colaborador se rechazan.
+- Intentos de fórmula en concepto: se tratan como texto. Identificadores de colaborador desconocidos o importes inválidos: no escriben.
+
+**Límite:** este es un ensayo simulado de Apps Script, **no** una ejecución de Apps Script desplegado contra un Google Sheet de prueba real. Tampoco crea pestañas en el documento original SALARIOS.
+
+### Identificación sin sumar dos veces sueldos
+
+La sección SALARIOS ahora también **lista exclusivamente para revisión**:
+
+- Retiros de `turno_cortes.retiros` cuyo concepto menciona explícitamente sueldo, salario o nómina.
+- Renglones tipo gasto de la hoja de caja con esos conceptos.
+- Posibles duplicados cuando comparten fecha e importe con otro candidato o con un gasto ya registrado.
+
+No asigna colaboradores a estos candidatos, **no crea pagos nuevos**, no los refleja en `PAGOS WEB` y no los acumula de nuevo. Estas fuentes pueden cambiar durante correcciones de cortes o reimportación: carecen todavía de un identificador inmutable por movimiento individual. Para incorporarlas a la sincronización habrá que asignar un ID persistente en su flujo original y conciliar cada caso, sin reutilizar posiciones de renglón como identidad.
+
+Se reforzó el puente ya preparado para detectar **cambios de importe, fecha, concepto o categoría en cualquier pago previamente vinculado**, incluso si no figura entre los 400 pagos recientes del listado. Un pago borrado o reclasificado se señala y detiene la sincronización, no se altera la hoja automáticamente.
+
+### Revisión de UI y pruebas
+
+Los nuevos scripts `05b-estados.js` y `05c-salarios.js` se validan sintácticamente con Node, junto con la presencia de campos de periodo bancario, campos de crédito, estados parciales y adaptación CSS para pantallas estrechas. Se corrigió la actualización de la lista tras confirmar un vínculo salarial; una recarga solicitada durante otra carga se atiende al terminar.
+
+**Pruebas verificadas en el commit `220bbd7a6d27e9e94b747203afd4842d42a8a67f`: 425/425 aprobadas, 0 fallidas, ambas compilaciones Wrangler `--dry-run` correctas.** Al incorporarse únicamente esta documentación después, se repetirá la CI del nuevo SHA.
+
+**Pendiente:** prueba con navegador/teléfono/tablet reales, ensayo de Apps Script desplegado contra Sheet *nuevo* y totalmente ficticio, diseño del ID inmutable para retiros de corte y autorización explícita antes de modificar código productivo y activar el puente SALARIOS.
