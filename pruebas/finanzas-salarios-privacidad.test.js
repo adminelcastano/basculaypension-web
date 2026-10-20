@@ -84,6 +84,19 @@ test("Retiros repetidos o del mismo monto que un gasto se marcan ambiguos",()=>{
   assert.ok(v.every(x=>x.solo_revision&&x.posible_duplicado));
   assert.deepEqual(v.map(x=>x.monto),[200,200,200]);
 });
+test("Cambio de importe posterior a la vinculación se detecta aunque siga siendo Sueldos",async()=>{
+  const e=envFake();
+  try{
+    await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    e.sqlite.prepare("INSERT INTO fin_nomina_vinculos(gasto_id,colaborador_id,revisado_en,importe_centavos,fecha_fuente,concepto_fuente) VALUES(?,?,?,?,?,?)")
+      .run("sueldo-prueba-001","001_FICTICIO_202610","2026-10-20",220000,"2026-10-18","Sueldo turno");
+    e.sqlite.prepare("UPDATE caja_gastos SET monto=2210 WHERE id='sueldo-prueba-001'").run();
+    const r=await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    const z=await r.json();
+    assert.equal(z.huerfanos,1);
+    assert.equal(z.pagos[0].vinculo_actual,false);
+  }finally{e.close();}
+});
 test("La integración Sheets queda separada de identidades, tokens y datos bancarios",()=>{
   const script=readFileSync(new URL("../herramientas/aviso-correo.gs",import.meta.url),"utf8");
   const bridge=readFileSync(new URL("../src/finanzas-salarios.js",import.meta.url),"utf8");
