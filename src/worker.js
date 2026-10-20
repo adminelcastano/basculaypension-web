@@ -1,6 +1,6 @@
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
-import { leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
+import { guardarArchivo, leerArchivo, borrarArchivo, mantenerArchivos, estadoArchivos, scriptArchivos } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // La IA solo revisa la foto del cliente (que sea un ticket de El Castaño, legible y el de salida en pensión).
 // Los datos del ticket ya no se leen con IA: el administrador los captura a mano viendo la foto.
@@ -278,11 +278,11 @@ async function crearSolicitud(request, env, ctx) {
   // El cliente envió la foto aunque la revisión de su teléfono dijo que no se ve bien
   const calidad = texto(form, "aviso_calidad").slice(0, 300);
   if (calidad) avisoTicket = [avisoTicket, "El cliente envió la foto aunque la revisión de calidad marcó: " + calidad].filter(Boolean).join(" ");
-  await env.FILES.put(`f:${id}:ticket`, ticketBuf, { metadata: { tipo: ticket.type } });
+  await guardarArchivo(env, `f:${id}:ticket`, ticketBuf, { tipo: ticket.type, soloKV: true });
   let csfTipo = null;
   if (modo === "csf" && csf) {
     const csfBuf = await csf.arrayBuffer();
-    await env.FILES.put(`f:${id}:csf`, csfBuf, { metadata: { tipo: csf.type } });
+    await guardarArchivo(env, `f:${id}:csf`, csfBuf, { tipo: csf.type, soloKV: true });
     csfTipo = csf.type;
   }
 

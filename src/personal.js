@@ -1,4 +1,4 @@
-import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { correrIA } from "./neuronas.js";
 // ---------------------------------------------------------------------------
 // Personal: expediente laboral de colaboradores
@@ -333,7 +333,7 @@ async function subirFoto(request, env, fila, archivo, ctx) {
   if (!bytes.byteLength) return json({ ok: false, error: "El archivo llegó vacío. Intenta de nuevo." }, 400);
   if (bytes.byteLength > MAX_FOTO) return json({ ok: false, error: "El archivo pesa más de 10 MB." }, 413);
   const ahora = new Date().toISOString();
-  await env.FILES.put(`x:${fila.id}:${archivo}`, bytes, { metadata: { tipo, subido: ahora } });
+  await guardarArchivo(env, `x:${fila.id}:${archivo}`, bytes, { tipo, metadata: { subido: ahora }, soloKV: true });
   enSegundoPlano(ctx, aDrive(env, fila, "d:" + archivo, bytes, tipo, NOMBRE_ARCHIVO[archivo] || archivo));
   const docs = parse(fila.docs);
   const d = docs[clave] || {};
@@ -1014,7 +1014,7 @@ export async function personalPanel(request, env, url, partes, enviar) {
     const docId = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, "0")).join("");
     const lista = JSON.parse(fila.admin_docs || "[]");
     if (lista.length >= 60) return json({ ok: false, error: "Este colaborador ya tiene 60 documentos administrativos." }, 409);
-    await env.FILES.put(`xa:${id}:${docId}`, bytes, { metadata: { tipo, nombre: nombreArchivo.slice(0, 120) } });
+    await guardarArchivo(env, `xa:${id}:${docId}`, bytes, { tipo, nombre: nombreArchivo.slice(0, 120), soloKV: true });
     lista.push({ id: docId, descripcion, fecha, tipo, nombre: nombreArchivo.slice(0, 120), tamano: bytes.byteLength, subido: new Date().toISOString() });
     let drive = null;
     try { drive = await aDrive(env, fila, "a:" + docId, bytes, tipo, nombreAdmin({ fecha, descripcion })); } catch (e) { console.error("drive", e && e.message); drive = "error"; }

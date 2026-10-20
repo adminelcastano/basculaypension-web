@@ -193,9 +193,10 @@
       else lineas.push("Todavía no hay lectura del consumo (se revisa cada hora).");
       if (e && e.errores && e.errores.length) lineas.push(`<span style="color:#ff9f0a">No se pudo leer: ${esc(e.errores.join("; ").slice(0, 160))}</span>`);
       if (a.error) lineas.push(`Archivos: ${esc(a.error)}`);
-      else lineas.push(`Archivos en Google Drive: <b>${(a.en_drive || 0).toLocaleString("es-MX")}</b>${a.en_kv ? ` · <b>${a.en_kv}</b> esperando para subir${a.script ? "" : " (falta el script de Google)"}` : " · todo subido"}.`);
+      else lineas.push(`Archivos en Google Drive: <b>${(a.en_drive || 0).toLocaleString("es-MX")}</b> · copias KV conservadas: <b>${Number(a.en_kv || 0).toLocaleString("es-MX")}</b>${a.script ? "" : " (sin enlace a Google Drive)"}.`);
+      if (Number(a.versiones_pendientes) > 0) lineas.push(`<span style="color:#ff9f0a"><b>${Number(a.versiones_pendientes).toLocaleString("es-MX")}</b> versión(es) por confirmar en Drive, sin eliminar su copia KV.</span>`);
       if (a.en_kv_truncado) lineas.push("Hay más de 5 000 archivos KV en alguna categoría; el contador mostrado es un mínimo.");
-      if (Number(a.pendientes_borrar) > 0) lineas.push(`<span style="color:#ff9f0a"><b>${Number(a.pendientes_borrar).toLocaleString("es-MX")}</b> archivo(s) pendientes de enviar a papelera; se reintentará automáticamente.</span>`);
+      if (Number(a.pendientes_borrar) > 0) lineas.push(`<span style="color:#ff9f0a"><b>${Number(a.pendientes_borrar).toLocaleString("es-MX")}</b> archivo(s) con eliminación pendiente; se reintentará con comprobación de referencias.</span>`);
       el.innerHTML = lineas.map(x => `<p style="margin:0 0 6px">${x}</p>`).join("");
       if (EC.bloqueInfo) EC.bloqueInfo("config", "sistema", { valor: top ? (Math.round(top.fraccion * 100)) + " %" : null, texto: c.ahorro ? "Modo ahorro activo" : top ? "del plan incluido" : "Consumo y archivos" });
     } catch (e) { if (e.message !== "sesion") el.textContent = "No se pudo leer el consumo: " + e.message; }

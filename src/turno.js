@@ -1,4 +1,4 @@
-import { leerArchivo, borrarArchivo } from "./fotos.js";
+import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
 import AV2 from "./avatares/a2.webp";
@@ -209,7 +209,7 @@ async function guardarFoto(env, dataUrl, prefijo) {
   const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const llave = `tf:${prefijo}:${crypto.randomUUID()}`;
   // Sin vencimiento: la foto vive lo mismo que su registro (incidencia, tarea, gasto) y se borra con él
-  await env.FILES.put(llave, bytes, { metadata: { tipo: "image/" + m[1] } });
+  await guardarArchivo(env, llave, bytes, { tipo: "image/" + m[1], soloKV: true });
   return llave;
 }
 export async function servirFoto(env, llave) {

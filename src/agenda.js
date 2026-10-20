@@ -289,7 +289,7 @@ async function guardarFotosInc(env, lista, titulo) {
     const bytes = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
     const llave = `tf:inc:${crypto.randomUUID()}`;
     // Igual que las fotos de la tablet: primero en KV; la tarea programada las pasa a Drive
-    await env.FILES.put(llave, bytes, { metadata: { tipo: "image/" + m[1], nombre: `Incidencia ${String(titulo || "").slice(0, 60)} ${i + 1}.${m[1] === "jpeg" ? "jpg" : m[1]}` } });
+    await guardarArchivo(env, llave, bytes, { tipo: "image/" + m[1], nombre: `Incidencia ${String(titulo || "").slice(0, 60)} ${i + 1}.${m[1] === "jpeg" ? "jpg" : m[1]}`, soloKV: true });
     llaves.push(llave);
   }
   return llaves;
