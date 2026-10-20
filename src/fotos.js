@@ -29,6 +29,9 @@ async function esquema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_legacy (llave TEXT PRIMARY KEY, hash TEXT NOT NULL, drive_id TEXT NOT NULL, at TEXT NOT NULL)"),
     // Impide que una lectura KV atrasada reabra un registro eliminado.
     env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_eliminados (llave TEXT PRIMARY KEY, at TEXT NOT NULL)"),
+    // Descubrimiento conservador: registrar versiones físicas que quedaron sin índice por fallo D1.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_huerfanos (kv_llave TEXT PRIMARY KEY, llave TEXT NOT NULL, detectado TEXT NOT NULL)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_recorrido (nombre TEXT PRIMARY KEY, cursor TEXT, actualizado TEXT NOT NULL)"),
     // Las fotos de la tablet ya no vencen: viven lo mismo que su registro
     env.DB.prepare("UPDATE archivos SET vence = NULL WHERE llave LIKE 'tf:%' AND vence IS NOT NULL")
   ]);
@@ -259,12 +262,56 @@ async function mandarAPapelera(env, id) {
   }
 }
 
+// Escaneo progresivo y acotado: tras KV.put puede fallar D1 y quedar una copia
+// recuperable que no figura en archivos_actual ni archivos_copias.
+// NUNCA vuelve a publicarla, la copia ni la elimina: solo registra la evidencia.
+// El cursor evita recorrer siempre el comienzo cuando aumenta el volumen.
+export async function reconciliarVersionesKV(env, limite = 40) {
+  await esquema(env);
+  const estado = await env.DB.prepare("SELECT cursor FROM archivos_recorrido WHERE nombre = ?").bind("versiones-fv").first();
+  const cursor = estado?.cursor || null;
+  let listado;
+  try {
+    listado = await env.FILES.list({ prefix: "fv:", limit: Math.max(1, Math.min(100, limite)),
+      ...(cursor ? { cursor } : {}) });
+  } catch (e) {
+    if (!cursor) throw e;
+    // Si KV invalida un cursor, recomenzar sin perder ninguna copia.
+    listado = await env.FILES.list({ prefix: "fv:", limit: Math.max(1, Math.min(100, limite)) });
+  }
+  let nuevos = 0;
+  for (const item of listado.keys || []) {
+    // No confiar en metadatos de KV ni leer contenido personal.
+    const m = /^fv:((?:f|tf|x|xa|pc):.+):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(item.name);
+    if (!m) continue;
+    const r = await env.DB.prepare(`INSERT OR IGNORE INTO archivos_huerfanos (kv_llave, llave, detectado)
+      SELECT ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM archivos_copias WHERE kv_llave = ?)
+        AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE kv_llave = ?)
+        AND NOT EXISTS (SELECT 1 FROM archivos_eliminados WHERE llave = ?)`)
+      .bind(item.name, m[1], new Date().toISOString(), item.name, item.name, m[1]).run();
+    nuevos += Number(r.meta?.changes || 0);
+  }
+  // Solo avanzar después de registrar todos los elementos de la página.
+  await env.DB.prepare(`INSERT INTO archivos_recorrido (nombre, cursor, actualizado)
+    VALUES (?, ?, ?) ON CONFLICT(nombre) DO UPDATE SET cursor=excluded.cursor, actualizado=excluded.actualizado`)
+    .bind("versiones-fv", listado.list_complete ? null : (listado.cursor || null), new Date().toISOString()).run();
+  return { revisados: (listado.keys || []).length, nuevos, vuelta_completa: !!listado.list_complete };
+}
+
 // Tarea programada: se migran primero las versiones actuales y después las claves KV legadas.
 // No borrar KV ni la versión anterior de Drive al reemplazar; conciliación antes de purgar.
 export async function mantenerArchivos(env, max = 20) {
   await esquema(env);
-  if (!conScript(env)) return { sin_script: true };
-  try { await script(env, { op: "probar", raiz: RAIZ }, 20000); } catch (e) { return { error: e.message }; }
+  let huerfanosDetectados = 0;
+  try {
+    huerfanosDetectados = (await reconciliarVersionesKV(env)).nuevos;
+  } catch {
+    // Una incidencia en la enumeración no interrumpe la migración de archivos vigentes.
+    console.error("archivos: recorrido de recuperación pendiente");
+  }
+  if (!conScript(env)) return { sin_script: true, huerfanosDetectados };
+  try { await script(env, { op: "probar", raiz: RAIZ }, 20000); } catch (e) { return { error: e.message, huerfanosDetectados }; }
   let subidos = 0, vencidos = 0;
   const viejos = (await env.DB.prepare("SELECT llave FROM archivos WHERE vence IS NOT NULL AND vence < ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = archivos.llave AND drive_id IS NULL) LIMIT 20")
     .bind(new Date().toISOString()).all()).results;
@@ -355,7 +402,7 @@ export async function mantenerArchivos(env, max = 20) {
       paginas++;
     } while (cursor && paginas < 5 && subidos < max && !detenerLegacy);
   }
-  return { subidos, vencidos };
+  return { subidos, vencidos, huerfanosDetectados };
 }
 
 // Para el panel: Drive, respaldo KV y copias pendientes sin purga automática.
@@ -364,6 +411,11 @@ export async function estadoArchivos(env) {
   const n = await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first();
   const versiones = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_copias WHERE kv_llave LIKE 'fv:%'").first();
   const porSubir = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_actual WHERE drive_id IS NULL").first();
+  // Descontar huérfanos que luego fueron indexados correctamente.
+  const hu = await env.DB.prepare(`SELECT COUNT(*) n FROM archivos_huerfanos h
+    WHERE NOT EXISTS (SELECT 1 FROM archivos_copias c WHERE c.kv_llave = h.kv_llave)
+      AND NOT EXISTS (SELECT 1 FROM archivos_actual a WHERE a.kv_llave = h.kv_llave)
+      AND NOT EXISTS (SELECT 1 FROM archivos_eliminados e WHERE e.llave = h.llave)`).first();
   let enKv = 0, kvTruncado = false;
   for (const p of ["x:", "xa:", "tf:", "f:"]) {
     let cursor = null, paginas = 0;
@@ -380,5 +432,6 @@ export async function estadoArchivos(env) {
     en_kv_truncado: kvTruncado,
     versiones_pendientes: Number(porSubir?.n || 0),
     versiones_conservadas: Number(versiones?.n || 0),
+    versiones_sin_indice: Number(hu?.n || 0),
     pendientes_borrar: Number(pendientes?.n || 0), script: conScript(env) };
 }

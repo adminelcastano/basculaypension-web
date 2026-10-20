@@ -37,3 +37,9 @@ No se fusionó `deuda-tecnica/fases-1-4-20261019`; sus cambios de reportes, UI, 
 - El envío a papelera y el reintento de limpieza consultan también `archivos_copias`, evitando descartar una referencia histórica todavía registrada bajo otra llave.
 - Se agregaron contratos sintéticos para esta protección, **preparados y no ejecutados**, según la reserva vigente de pruebas.
 - Continúan pendientes ensayos de concurrencia real, restauración de copias sin índice y conciliación entre D1, KV y Drive. La revisión estática no garantiza transacciones distribuidas.
+
+## Recuperación de versiones sin índice (código preparado)
+
+El nuevo recorrido `reconciliarVersionesKV` enumera de forma paginada (40 entradas por ejecución) únicamente claves físicas `fv:`, mantiene un cursor en D1 y registra en `archivos_huerfanos` las que no aparecen en `archivos_copias` ni `archivos_actual`. Respeta marcas de eliminación. No inspecciona bytes ni metadatos privados, no publica archivos huérfanos y **no borra datos**. `estadoArchivos` expone el contador `versiones_sin_indice` para conciliación administrativa. El recorrido se ejecutaría durante el mantenimiento programado existente únicamente después de la publicación autorizada. La tabla guarda evidencias, no restaura versiones automáticamente.
+
+Se incorporó una prueba con SQLite en memoria y KV falso para comprobar fallo D1 tras guardado KV, idempotencia del recorrido, sustitución concurrente y marca de borrado. La prueba no conecta servicios reales. Estado de ejecución: pendiente de GitHub Actions del PR #36.
