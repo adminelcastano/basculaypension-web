@@ -8,6 +8,7 @@ import { asegurarEsquemaCaja, calcularCortes, unirConteos, totalesMes, leerRetir
 import { asegurarEsquemaAgenda } from "./agenda.js";
 import { asegurarEsquemaPersonal, resumenFila } from "./personal.js";
 import { datosFinanzas, CAT_TXT, FORMA_ADMIN } from "./finanzas.js";
+import { asegurarEsquemaCfdis } from "./facturas-registro.js";
 import { etiquetasCategorias } from "./categorias.js";
 import { listaBitacora, ACCIONES } from "./bitacora.js";
 
@@ -143,8 +144,13 @@ async function hojasFinanzas(env, mes) {
 
 // ---------------- Facturación ----------------
 async function hojasFacturacion(env, mes, filasFacturas) {
+  await asegurarEsquemaCfdis(env);
   const facturas = (await q(env, "SELECT * FROM solicitudes ORDER BY creado")).filter(s => mesLocal(s.creado) === mes || (s.resuelta_en && mesLocal(s.resuelta_en) === mes));
   const n = f => facturas.filter(f).length;
+  // Documentación de todos los CFDI asociados (también los cancelados).
+  // No altera el PDF/XML externo ni los comprobantes de Facturador.
+  const registros = await q(env, "SELECT c.*, s.folio AS folio_solicitud FROM facturas_cfdis c LEFT JOIN solicitudes s ON s.id=c.solicitud_id ORDER BY c.creado");
+  const cfdisMes = registros.filter(x => (x.creado || "").slice(0,7) === mes || (x.cancelado_en || "").slice(0,7) === mes);
   return [
     hoja("Resumen", ["Concepto", "Valor"], [
       ["Mes", nombreMes(mes)], ["Generado", local(new Date().toISOString())],
@@ -153,7 +159,8 @@ async function hojasFacturacion(env, mes, filasFacturas) {
       ["Rechazadas en el mes", n(s => s.estado === "rechazada" && s.resuelta_en && mesLocal(s.resuelta_en) === mes)],
       ["Pendientes al generar", n(s => ["pendiente", "en_revision"].includes(s.estado))]
     ]),
-    { nombre: "Facturas", filas: filasFacturas(facturas).map(f => f.map(celda)) }
+    { nombre: "Facturas", filas: filasFacturas(facturas).map(f => f.map(celda)) },
+    hoja("CFDI registrados", ["Solicitud", "Folio CFDI", "Importe", "Estado", "Sustituye registro", "Emisión registrada", "Cancelación registrada", "Motivo cancelación"], cfdisMes.map(x => [x.folio_solicitud || "Archivo histórico", x.folio, x.importe, x.estado, x.sustituye_id || "", local(x.creado), local(x.cancelado_en), x.cancelacion_motivo || ""]))
   ];
 }
 
