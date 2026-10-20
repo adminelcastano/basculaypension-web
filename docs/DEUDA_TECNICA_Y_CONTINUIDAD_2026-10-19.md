@@ -26,7 +26,7 @@
 
 ### Estado de custodia (20 de octubre de 2026)
 
-- Mac: FileVault y `age` instalados; clave privada ya creada y validada localmente, sin compartirla ni reemplazarla. La copia cifrada con contraseña en USB `TRANSFERENC` fue descifrada y comparada con el original exitosamente. Queda bajo custodia física del administrador, separada de la Mac y con su contraseña resguardada por separado.
+- Mac: FileVault y `age` instalados; clave privada ya creada y validada localmente, sin compartirla ni reemplazarla. La copia cifrada con contraseña en USB `TRANSFERENC` fue descifrada y comparada con el original exitosamente. **Pendiente de confirmar:** la expulsión y custodia física de la USB, separada de la Mac, y el resguardo independiente de la contraseña. No se solicita ni comparte esa contraseña en el chat.
 - Windows/Ubuntu WSL: instalación y automatización **suspendidas expresamente** porque interfieren con otra operación de desarrollo. WSL aún no estaba instalado al suspender. No instalar, configurar credenciales ni activar tareas hasta instrucción de reanudación. `BACKUP_ACTIVE=NO` continúa obligatorio.
 - Respaldo D1 real cifrado y transferido a Drive: **pendiente**, sin ejecución ni pruebas. No confundir la copia cifrada de la **llave privada** en USB con un respaldo de la base D1.
 
