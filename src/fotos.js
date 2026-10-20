@@ -150,6 +150,9 @@ async function confirmarDrive(env, version, id) {
 export async function leerArchivo(env, llave) {
   await esquema(env);
   const actual = await env.DB.prepare("SELECT * FROM archivos_actual WHERE llave = ?").bind(llave).first();
+  const eliminado = await env.DB.prepare("SELECT 1 FROM archivos_eliminados WHERE llave = ?").bind(llave).first();
+  // El borrado en D1 prevalece sobre una lectura KV retrasada en otra región.
+  if (eliminado && !actual) return { value: null, metadata: null };
   if (actual) {
     try {
       const k = await env.FILES.getWithMetadata(actual.kv_llave, { type: "arrayBuffer" });
@@ -158,7 +161,7 @@ export async function leerArchivo(env, llave) {
   }
   // Mientras una versión nueva se propaga por KV, aún es recuperable el archivo anterior.
   // Si la versión nueva ya tiene Drive confirmado, NO dejar que KV legado la eclipse.
-  if (!actual || !actual.drive_id) {
+  if (!eliminado && (!actual || !actual.drive_id)) {
     try {
       const legado = await env.FILES.getWithMetadata(llave, { type: "arrayBuffer" });
       if (legado?.value) return legado;
@@ -166,7 +169,7 @@ export async function leerArchivo(env, llave) {
   }
   const fila = actual?.drive_id
     ? { drive_id: actual.drive_id, tipo: actual.tipo, nombre: actual.nombre }
-    : await env.DB.prepare("SELECT * FROM archivos WHERE llave = ?").bind(llave).first();
+    : eliminado ? null : await env.DB.prepare("SELECT * FROM archivos WHERE llave = ?").bind(llave).first();
   if (fila) {
     const clave = new Request("https://archivos.basculaypension.com/" + encodeURIComponent(fila.drive_id));
     const cache = typeof caches !== "undefined" ? caches.default : null;

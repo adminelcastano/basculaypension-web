@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { guardarArchivo, leerArchivo } from "../src/fotos.js";
 
-function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual = null, resultadoCaducado = false } = {}) {
+function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual = null, resultadoCaducado = false, eliminado = false } = {}) {
   const eventos = [], claves = [];
   const DB = {
     async batch(stmts) {
@@ -20,6 +20,7 @@ function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual =
         bind(...args) { this.args = args; return this; },
         async first() {
           if (/FROM archivos_actual/.test(sql)) return actual;
+          if (/FROM archivos_eliminados/.test(sql)) return eliminado ? { existe: 1 } : null;
           if (/FROM archivos WHERE/.test(sql)) return { drive_id: "drive-anterior", tipo: "image/jpeg", nombre: "foto.jpg" };
           return null;
         },
@@ -112,4 +113,11 @@ test("sin nuevo puntero sigue leyendo archivos legados", async () => {
   const x = entorno();
   const r = await leerArchivo(x.env, "f:ensayo:ticket");
   assert.deepEqual([...new Uint8Array(r.value)], [1, 2]);
+});
+
+test("un archivo eliminado no reaparece desde KV legado por consistencia eventual", async () => {
+  const x = entorno({ eliminado: true });
+  const r = await leerArchivo(x.env, "f:ensayo:ticket");
+  assert.equal(r.value, null);
+  assert.ok(!x.eventos.includes("kv-get:f:ensayo:ticket"));
 });
