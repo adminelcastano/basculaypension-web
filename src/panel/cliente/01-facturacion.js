@@ -21,8 +21,9 @@
     const vigentes = cfdis.filter(x => x.estado === "vigente");
     if (cancelados.length) {
       const originales = cancelados.map(x => x.folio).join(", ");
-      const nuevos = vigentes.map(x => x.folio).join(", ");
-      return `Hola, te saluda Báscula y Pensión El Castaño. Te informamos que ${cancelados.length === 1 ? "la factura" : "las facturas"} ${originales} ${cancelados.length === 1 ? "fue cancelada" : "fueron canceladas"} en Facturador. ${nuevos ? "Los nuevos comprobantes registrados son: " + nuevos + ". Te haremos llegar sus PDF y XML por el medio acordado." : "Estamos revisando cómo corresponde continuar y te avisaremos cuando haya nuevos comprobantes."} Tu solicitud es ${s.folio}. Si tienes dudas, responde este mensaje.`;
+      const nuevos = vigentes.filter(x => x.sustituye_id).map(x => x.folio).join(", ");
+      const otros = vigentes.filter(x => !x.sustituye_id).map(x => x.folio).join(", ");
+      return `Hola, te saluda Báscula y Pensión El Castaño. Te informamos que ${cancelados.length === 1 ? "la factura" : "las facturas"} ${originales} ${cancelados.length === 1 ? "fue cancelada" : "fueron canceladas"} en Facturador. ${nuevos ? "Los CFDI sustitutos registrados son: " + nuevos + ". Coordinaremos la entrega de sus PDF y XML." : "Estamos revisando si corresponde emitir sustitutos; te avisaremos cuando haya novedades."} ${otros ? "Otros CFDI vigentes de tu solicitud: " + otros + "." : ""} Tu solicitud es ${s.folio}. Si tienes dudas, responde este mensaje.`;
     }
     if (vigentes.length > 1)
       return `Hola, te saluda Báscula y Pensión El Castaño. Para tu solicitud ${s.folio}, registramos dos facturas: ${vigentes.map(x => x.folio + " (" + dinero(x.importe) + ")").join(" y ")}. Coordinaremos contigo la entrega de los documentos PDF y XML. Gracias por tu preferencia.`;
