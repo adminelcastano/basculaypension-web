@@ -319,7 +319,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   // Comprimir sin recortar ni alterar datos del ticket; cuando es posible, convertir HEIC/HEIF a JPEG.
   async function preparar(file) {
     const heic = /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
-    if (!file.type.startsWith("image/") && !heic) return file;
+    const foto = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "");
+    if (!foto && !heic) return file;
     if (!heic && file.size < 1.2 * 1024 * 1024) return file;
     try {
       let imagen;
@@ -366,7 +367,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (!f) return;
     // Algunos teléfonos no informan File.type; el servidor verificará la firma real.
     const extension = /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name || "");
-    if (!TIPOS_VISIBLES.includes(f.type) && !(extension && (!f.type || f.type === "application/octet-stream"))) {
+    if (!TIPOS_VISIBLES.includes(f.type) && !extension) {
       input.value = ""; error(clave, "Selecciona JPG, PNG, WebP, HEIC o PDF."); return;
     }
     mostrarPrev(prev, f, "Preparando archivo…");

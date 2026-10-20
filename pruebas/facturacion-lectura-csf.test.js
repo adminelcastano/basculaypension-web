@@ -17,3 +17,9 @@ test("no inventa ni conserva RFC/CP/regímenes inválidos", () => {
   const r = normalizarCsfSugerido({ rfc:"INVÁLIDO", cp:"123", nombre:null, regimenes:["999"] });
   assert.deepEqual(r.datos, {});
 });
+
+test("preserva Ñ en RFC y acentos en el nombre", () => {
+  const r = normalizarCsfSugerido({ rfc:"MUÑ A760831R8A", nombre:"RAZÓN DE PRUEBA", cp:"30710", regimenes:["626"] });
+  assert.equal(r.datos.rfc,"MUÑA760831R8A");
+  assert.equal(r.datos.nombre,"RAZÓN DE PRUEBA");
+});

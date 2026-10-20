@@ -31,9 +31,9 @@ function codigosRegimen(d) {
 export function normalizarCsfSugerido(d) {
   if (!d || typeof d !== "object" || Array.isArray(d)) return { datos: {}, varios_regimenes: false };
   const datos = {};
-  const rfc = normalizar(d.rfc).replace(/[\s-]/g, "");
+  const rfc = limpiar(d.rfc).toUpperCase().replace(/[\s-]/g, "");
   const cp = limpiar(d.cp ?? d.codigo_postal).replace(/\s/g, "");
-  const nombre = normalizar(d.nombre || d.razon_social).slice(0, 254);
+  const nombre = limpiar(d.nombre || d.razon_social).toLocaleUpperCase("es-MX").slice(0, 254);
   const regimenes = codigosRegimen(d);
   if (RFC.test(rfc)) datos.rfc = rfc;
   if (nombre.length >= 3 && nombre.length <= 254) datos.nombre = nombre;
