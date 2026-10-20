@@ -6,11 +6,11 @@ import {rutaSalarios,validarPagoSalario,candidatosSalariales} from "../src/finan
 
 function envFake(){
   const sqlite=new DatabaseSync(":memory:");
-  sqlite.exec("CREATE TABLE caja_gastos(id TEXT PRIMARY KEY,mes TEXT,dia TEXT,concepto TEXT,monto REAL,origen TEXT,categoria TEXT,creado TEXT);");
+  sqlite.exec("CREATE TABLE caja_gastos(id TEXT PRIMARY KEY,mes TEXT,dia TEXT,concepto TEXT,monto REAL,origen TEXT,forma TEXT,cuenta TEXT,categoria TEXT,creado TEXT);");
   sqlite.exec("CREATE TABLE turno_cortes(dia TEXT,turno TEXT,retiros TEXT); CREATE TABLE caja_mov(dia TEXT,turno TEXT,tipo TEXT,folio TEXT,cliente TEXT,matricula TEXT,importe REAL);");
   sqlite.exec("CREATE TABLE fin_bitacora(id INTEGER PRIMARY KEY AUTOINCREMENT,cuando TEXT,quien TEXT,accion TEXT,que TEXT,ref TEXT,mes TEXT,detalle TEXT)");
-  sqlite.prepare("INSERT INTO caja_gastos VALUES(?,?,?,?,?,?,?,?)").run("sueldo-prueba-001","2026-10","2026-10-18","Sueldo turno",2200,"admin","Sueldos","2026-10-18T01:00:00Z");
-  sqlite.prepare("INSERT INTO caja_gastos VALUES(?,?,?,?,?,?,?,?)").run("gasto-prueba-002","2026-10","2026-10-18","Gasolina",500,"admin","Transporte","2026-10-18T02:00:00Z");
+  sqlite.prepare("INSERT INTO caja_gastos VALUES(?,?,?,?,?,?,?,?,?,?)").run("sueldo-prueba-001","2026-10","2026-10-18","Sueldo turno",2200,"admin","TRANSFERENCIA","bbva-pyme","Sueldos","2026-10-18T01:00:00Z");
+  sqlite.prepare("INSERT INTO caja_gastos VALUES(?,?,?,?,?,?,?,?,?,?)").run("gasto-prueba-002","2026-10","2026-10-18","Gasolina",500,"admin","EFECTIVO",null,"Transporte","2026-10-18T02:00:00Z");
   const prep=sql=>{
     let args=[];
     return {sql,get args(){return args;},bind(...p){args=p;return this;},
@@ -95,6 +95,21 @@ test("Cambio de importe posterior a la vinculación se detecta aunque siga siend
     const z=await r.json();
     assert.equal(z.huerfanos,1);
     assert.equal(z.pagos[0].vinculo_actual,false);
+  }finally{e.close();}
+});
+test("Cambio de cuenta de origen también obliga a revisar un sueldo ya vinculado",async()=>{
+  const e=envFake();
+  try{
+    await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    e.sqlite.prepare("INSERT INTO fin_nomina_vinculos(gasto_id,colaborador_id,revisado_en,importe_centavos,fecha_fuente,concepto_fuente,origen_fuente,forma_fuente,cuenta_fuente) VALUES(?,?,?,?,?,?,?,?,?)")
+      .run("sueldo-prueba-001","001_FICTICIO_202610","2026-10-20",220000,"2026-10-18","Sueldo turno","admin","TRANSFERENCIA","bbva-pyme");
+    const primero=await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    assert.equal((await primero.json()).huerfanos,0);
+    e.sqlite.prepare("UPDATE caja_gastos SET cuenta='otra-cuenta' WHERE id='sueldo-prueba-001'").run();
+    const r=await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    const x=await r.json();
+    assert.equal(x.huerfanos,1);
+    assert.equal(x.pagos[0].vinculo_actual,false);
   }finally{e.close();}
 });
 test("La integración Sheets queda separada de identidades, tokens y datos bancarios",()=>{
