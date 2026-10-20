@@ -25,7 +25,7 @@ export async function listarCfdis(env, s) {
   const l = (await env.DB.prepare("SELECT * FROM facturas_cfdis WHERE solicitud_id=? ORDER BY creado,id").bind(s.id).all()).results;
   if (!l.length && ["facturada", "enviada"].includes(s.estado) && s.folio_factura)
     return [{ id: "legacy:" + s.id, solicitud_id: s.id, folio: s.folio_factura, importe: s.importe || "",
-      estado: "vigente", creado: s.resuelta_en || s.creado, legacy: true, sustituye_id: null }];
+      estado: "vigente", creado: s.resuelta_en || s.creado || new Date().toISOString(), legacy: true, sustituye_id: null }];
   return l;
 }
 export async function emitirMultiples(env, s, d, quien, ahora, ticket) {
