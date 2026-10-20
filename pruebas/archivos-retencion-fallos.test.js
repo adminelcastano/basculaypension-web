@@ -145,3 +145,35 @@ test("si una eliminación gana la carrera, una carga anterior no la puede reabri
   );
   assert.ok(!x.eventos.includes("kv-delete"));
 });
+
+
+// Guardas de concurrencia D1 y retención de referencias históricas. Preparadas, NO ejecutadas.
+test("un borrado compara el puntero antes de publicar la marca de eliminación", async () => {
+  const x = entorno({ actual: { kv_llave: "fv:f:ensayo:ticket:nuevo", drive_id: null } });
+  const sentencias = [];
+  const lote = x.env.DB.batch;
+  x.env.DB.batch = async stmts => {
+    if (stmts.some(s => /INSERT INTO archivos_eliminados/.test(s.sql))) sentencias.push(...stmts);
+    return lote(stmts);
+  };
+  const { borrarArchivo } = await import("../src/fotos.js");
+  await borrarArchivo(x.env, "f:ensayo:ticket");
+  const marca = sentencias.find(s => /INSERT INTO archivos_eliminados/.test(s.sql));
+  assert.ok(marca, "debe registrar una marca en D1");
+  assert.match(marca.sql, /COALESCE\(\(SELECT kv_llave FROM archivos_actual/);
+  assert.equal(marca.args[3], "fv:f:ensayo:ticket:nuevo");
+  assert.match(marca.args[1], /^\d{4}-\d{2}-\d{2}T.*#[0-9a-f-]{36}$/);
+});
+
+test("no manda Drive a papelera si otra referencia histórica aún lo conserva", async () => {
+  const x = entorno();
+  const consultas = [];
+  const preparar = x.env.DB.prepare;
+  x.env.DB.prepare = sql => {
+    consultas.push(sql);
+    return preparar(sql);
+  };
+  const { borrarArchivo } = await import("../src/fotos.js");
+  await borrarArchivo(x.env, "f:ensayo:ticket");
+  assert.ok(consultas.some(sql => /UNION SELECT 1 FROM archivos_copias WHERE drive_id = \?/.test(sql)));
+});

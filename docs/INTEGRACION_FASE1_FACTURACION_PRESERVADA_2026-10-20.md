@@ -29,3 +29,11 @@ No se fusionó `deuda-tecnica/fases-1-4-20261019`; sus cambios de reportes, UI, 
 4. Verificar contrato y despliegue existente de Apps Script antes de activar idempotencia.
 5. Ensayar la lectura y retención de tickets, constancias fiscales, documentos, fotos de tablet y CASTAGRAM con servicios aislados.
 6. Solo después evaluar integración y publicación con autorización expresa.
+
+## Ajuste de seguridad estática posterior (20 de octubre)
+
+- Se detectó que `borrarArchivo` escribía la marca de eliminación sin verificar en la misma transacción que su puntero inicial no hubiese sido reemplazado. Se condicionó su escritura al puntero leído y se detiene la purga física cuando el borrado resulta obsoleto.
+- La marca de borrado incorpora un UUID junto a la fecha para impedir que dos operaciones con idéntico milisegundo aparenten ser la misma generación lógica.
+- El envío a papelera y el reintento de limpieza consultan también `archivos_copias`, evitando descartar una referencia histórica todavía registrada bajo otra llave.
+- Se agregaron contratos sintéticos para esta protección, **preparados y no ejecutados**, según la reserva vigente de pruebas.
+- Continúan pendientes ensayos de concurrencia real, restauración de copias sin índice y conciliación entre D1, KV y Drive. La revisión estática no garantiza transacciones distribuidas.

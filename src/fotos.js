@@ -220,13 +220,24 @@ export async function borrarArchivo(env, llave) {
   const actual = await env.DB.prepare("SELECT kv_llave FROM archivos_actual WHERE llave = ?").bind(llave).first();
   const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
   const copias = (await env.DB.prepare("SELECT kv_llave, drive_id FROM archivos_copias WHERE llave = ?").bind(llave).all()).results;
-  await env.DB.batch([
-    env.DB.prepare("INSERT INTO archivos_eliminados (llave, at) VALUES (?, ?) ON CONFLICT(llave) DO UPDATE SET at = excluded.at").bind(llave, new Date().toISOString()),
-    env.DB.prepare("DELETE FROM archivos_actual WHERE llave = ? AND kv_llave = ?").bind(llave, actual?.kv_llave || ""),
+  // La marca de borrado está condicionada al puntero leído al iniciar.
+  // Si otra operación lo sustituyó, no se borra ni se invalida esa versión nueva.
+  // El UUID diferencia dos eliminaciones ocurridas en el mismo milisegundo.
+  const versionInicial = actual?.kv_llave || "";
+  const marcaBorrado = new Date().toISOString() + "#" + crypto.randomUUID();
+  const resultado = await env.DB.batch([
+    env.DB.prepare(`INSERT INTO archivos_eliminados (llave, at)
+      SELECT ?, ? WHERE COALESCE((SELECT kv_llave FROM archivos_actual WHERE llave = ?), '') = ?
+      ON CONFLICT(llave) DO UPDATE SET at = excluded.at
+      WHERE COALESCE((SELECT kv_llave FROM archivos_actual WHERE llave = ?), '') = ?`)
+      .bind(llave, marcaBorrado, llave, versionInicial, llave, versionInicial),
+    env.DB.prepare("DELETE FROM archivos_actual WHERE llave = ? AND kv_llave = ?").bind(llave, versionInicial),
     env.DB.prepare("DELETE FROM archivos WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
     env.DB.prepare("DELETE FROM archivos_copias WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
     env.DB.prepare("DELETE FROM archivos_legacy WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave)
   ]);
+  // Una eliminación obsoleta no puede purgar datos ni dejar marcas de borrado.
+  if (!resultado[0]?.meta?.changes) return;
   // Verificar otra vez el puntero antes de limpiar físicamente una versión antigua.
   if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ?").bind(llave).first()) return;
   for (const copia of copias) if (copia.kv_llave.startsWith("fv:")) await env.FILES.delete(copia.kv_llave).catch(() => {});
@@ -237,9 +248,9 @@ export async function borrarArchivo(env, llave) {
 }
 async function mandarAPapelera(env, id) {
   if (!id) return;
-  // Nunca borrar un ID que sea la copia vigente de otro registro.
-  const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? LIMIT 1")
-    .bind(id, id).first();
+  // No enviar a papelera IDs vigentes ni copias históricas de otros registros.
+  const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? UNION SELECT 1 FROM archivos_copias WHERE drive_id = ? LIMIT 1")
+    .bind(id, id, id).first();
   if (activo) return;
   try { if (!conScript(env)) throw new Error("sin script"); await script(env, { op: "borrar", id }, 20000); }
   catch {
@@ -262,7 +273,7 @@ export async function mantenerArchivos(env, max = 20) {
   const hasta = new Date(Date.now() - 24 * 3600e3).toISOString();
   const pendientesBorrar = (await env.DB.prepare("SELECT drive_id FROM archivos_borrar WHERE creado <= ? LIMIT 20").bind(hasta).all()).results;
   for (const p of pendientesBorrar) {
-    const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? LIMIT 1").bind(p.drive_id, p.drive_id).first();
+    const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? UNION SELECT 1 FROM archivos_copias WHERE drive_id = ? LIMIT 1").bind(p.drive_id, p.drive_id, p.drive_id).first();
     if (activo) continue;
     try {
       await script(env, { op: "borrar", id: p.drive_id }, 20000);
