@@ -27,6 +27,8 @@ async function esquema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_copias (kv_llave TEXT PRIMARY KEY, llave TEXT NOT NULL, drive_id TEXT, creado TEXT NOT NULL)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS archivos_copias_llave ON archivos_copias (llave)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_legacy (llave TEXT PRIMARY KEY, hash TEXT NOT NULL, drive_id TEXT NOT NULL, at TEXT NOT NULL)"),
+    // Impide que una lectura KV atrasada reabra un registro eliminado.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_eliminados (llave TEXT PRIMARY KEY, at TEXT NOT NULL)"),
     // Las fotos de la tablet ya no vencen: viven lo mismo que su registro
     env.DB.prepare("UPDATE archivos SET vence = NULL WHERE llave LIKE 'tf:%' AND vence IS NOT NULL")
   ]);
@@ -111,7 +113,8 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
     env.DB.prepare("INSERT INTO archivos_copias (kv_llave, llave, creado) VALUES (?, ?, ?)")
       .bind(kvLlave, llave, creado),
     env.DB.prepare("INSERT INTO archivos_actual (llave, kv_llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?) ON CONFLICT(llave) DO UPDATE SET kv_llave=excluded.kv_llave, drive_id=NULL, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
-      .bind(llave, kvLlave, tipo, nombre, bytes.byteLength, JSON.stringify(carpeta), creado, vence)
+      .bind(llave, kvLlave, tipo, nombre, bytes.byteLength, JSON.stringify(carpeta), creado, vence),
+    env.DB.prepare("DELETE FROM archivos_eliminados WHERE llave = ?").bind(llave)
   ]);
   if (!conScript(env) || op.soloKV) return { drive: false };
   // El envío directo a Drive es optativo: D1 conserva una versión KV recuperable si falla.
@@ -135,8 +138,10 @@ async function confirmarDrive(env, version, id) {
       .bind(id, version.kv_llave, version.llave),
     env.DB.prepare("UPDATE archivos_actual SET drive_id = ? WHERE llave = ? AND kv_llave = ? AND drive_id IS NULL")
       .bind(id, version.llave, version.kv_llave),
-    env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0 ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
-      .bind(version.llave, id, version.tipo, version.nombre, version.tam, carpeta.join("/"), version.creado, version.vence)
+    // Guardar también el ID legado que el nuevo índice va a sustituir.
+    env.DB.prepare("INSERT OR IGNORE INTO archivos_copias (kv_llave, llave, drive_id, creado) SELECT 'legacy-drive:' || drive_id, llave, drive_id, creado FROM archivos WHERE llave = ? AND drive_id <> ?").bind(version.llave, id),
+    env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ? AND kv_llave = ? AND drive_id = ?) ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
+      .bind(version.llave, id, version.tipo, version.nombre, version.tam, carpeta.join("/"), version.creado, version.vence, version.llave, version.kv_llave, id)
   ]);
   return !!r[1]?.meta?.changes;
 }
@@ -191,6 +196,7 @@ export async function borrarArchivo(env, llave) {
   const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
   const copias = (await env.DB.prepare("SELECT kv_llave, drive_id FROM archivos_copias WHERE llave = ?").bind(llave).all()).results;
   await env.DB.batch([
+    env.DB.prepare("INSERT INTO archivos_eliminados (llave, at) VALUES (?, ?) ON CONFLICT(llave) DO UPDATE SET at = excluded.at").bind(llave, new Date().toISOString()),
     env.DB.prepare("DELETE FROM archivos_actual WHERE llave = ? AND kv_llave = ?").bind(llave, actual?.kv_llave || ""),
     env.DB.prepare("DELETE FROM archivos WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
     env.DB.prepare("DELETE FROM archivos_copias WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
@@ -198,7 +204,7 @@ export async function borrarArchivo(env, llave) {
   ]);
   // Verificar otra vez el puntero antes de limpiar físicamente una versión antigua.
   if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ?").bind(llave).first()) return;
-  for (const copia of copias) await env.FILES.delete(copia.kv_llave).catch(() => {});
+  for (const copia of copias) if (copia.kv_llave.startsWith("fv:")) await env.FILES.delete(copia.kv_llave).catch(() => {});
   await env.FILES.delete(llave).catch(() => {});
   for (const id of new Set([anterior?.drive_id, ...copias.map(c => c.drive_id)].filter(Boolean))) {
     await mandarAPapelera(env, id);
@@ -264,12 +270,13 @@ export async function mantenerArchivos(env, max = 20) {
       cursor = l.list_complete ? null : l.cursor || null;
       for (const k of l.keys) {
         if (subidos >= max) break;
-        if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ?").bind(k.name).first()) continue;
+        if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ? UNION SELECT 1 FROM archivos_eliminados WHERE llave = ? LIMIT 1").bind(k.name, k.name).first()) continue;
+        // Los escritores actuales usan versiones inmutables: la clave legada no cambia tras migrarse.
+        const procesado = await env.DB.prepare("SELECT hash FROM archivos_legacy WHERE llave = ?").bind(k.name).first();
+        if (procesado) continue;
         const r = await env.FILES.getWithMetadata(k.name, { type: "arrayBuffer" });
         if (!r?.value) continue;
         const hash = await idCarga(k.name, r.value);
-        const procesado = await env.DB.prepare("SELECT hash FROM archivos_legacy WHERE llave = ?").bind(k.name).first();
-        if (procesado?.hash === hash) continue;
         let persona = null;
         if (prefijo === "x:" || prefijo === "xa:") {
           const f = await env.DB.prepare("SELECT nombre, num FROM colaboradores WHERE id = ?").bind(k.name.split(":")[1]).first().catch(() => null);
@@ -291,12 +298,13 @@ export async function mantenerArchivos(env, max = 20) {
         const vence = k.expiration && !k.name.startsWith("tf:")
           ? new Date(k.expiration * 1000).toISOString() : null;
         const resultado = await env.DB.batch([
-          env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?) ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
-            .bind(k.name, id, tipo, nombre, r.value.byteLength, carpeta.join("/"), new Date().toISOString(), vence, k.name),
-          env.DB.prepare("INSERT INTO archivos_legacy (llave, hash, drive_id, at) SELECT ?, ?, ?, ? WHERE changes() > 0 ON CONFLICT(llave) DO UPDATE SET hash=excluded.hash, drive_id=excluded.drive_id, at=excluded.at")
-            .bind(k.name, hash, id, new Date().toISOString())
+          env.DB.prepare("INSERT OR IGNORE INTO archivos_copias (kv_llave, llave, drive_id, creado) SELECT 'legacy-drive:' || drive_id, llave, drive_id, creado FROM archivos WHERE llave = ? AND drive_id <> ?").bind(k.name, id),
+          env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?) AND NOT EXISTS (SELECT 1 FROM archivos_eliminados WHERE llave = ?) ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
+            .bind(k.name, id, tipo, nombre, r.value.byteLength, carpeta.join("/"), new Date().toISOString(), vence, k.name, k.name),
+          env.DB.prepare("INSERT INTO archivos_legacy (llave, hash, drive_id, at) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM archivos WHERE llave = ? AND drive_id = ?) AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?) ON CONFLICT(llave) DO UPDATE SET hash=excluded.hash, drive_id=excluded.drive_id, at=excluded.at")
+            .bind(k.name, hash, id, new Date().toISOString(), k.name, id, k.name)
         ]);
-        if (resultado[0]?.meta?.changes) subidos++;
+        if (resultado[1]?.meta?.changes) subidos++;
         // Sin borrado por comprobación de contenido: KV no ofrece compare-and-delete.
       }
       paginas++;
@@ -309,7 +317,7 @@ export async function mantenerArchivos(env, max = 20) {
 export async function estadoArchivos(env) {
   await esquema(env);
   const n = await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first();
-  const versiones = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_copias").first();
+  const versiones = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_copias WHERE kv_llave LIKE 'fv:%'").first();
   const porSubir = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_actual WHERE drive_id IS NULL").first();
   let enKv = 0, kvTruncado = false;
   for (const p of ["x:", "xa:", "tf:", "f:"]) {

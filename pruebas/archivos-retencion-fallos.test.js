@@ -1,50 +1,112 @@
-// Contratos de persistencia. Preparados para la pasada de pruebas final; no ejecutados todavía.
+// Contratos de persistencia con datos ficticios. Preparados, NO ejecutados.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guardarArchivo } from "../src/fotos.js";
+import { guardarArchivo, leerArchivo } from "../src/fotos.js";
 
-function entorno({ anterior = "drive-previo", fallaKV = false, fallaD1 = false, conGoogle = false } = {}) {
-  const acciones = [];
-  const db = {
-    batch: async () => {},
+function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual = null, resultadoCaducado = false } = {}) {
+  const eventos = [], claves = [];
+  const DB = {
+    async batch(stmts) {
+      eventos.push("d1-batch");
+      if (fallaD1 && stmts.some(x => /INSERT INTO archivos_copias/.test(x.sql))) throw Error("fallo-d1");
+      return stmts.map((_, i) => ({ meta: { changes: resultadoCaducado && stmts.length > 3 && i === 1 ? 0 : 1 } }));
+    },
     prepare(sql) {
       return {
-        bind(...params) { this.params = params; return this; },
-        async first() { return sql.startsWith("SELECT drive_id FROM archivos")
-          ? (anterior ? { drive_id: anterior } : null) : null; },
-        async run() {
-          if (sql.includes("INSERT INTO archivos")) {
-            acciones.push("registrar-drive");
-            if (fallaD1) throw Error("fallo-d1");
-          } else if (sql.includes("DELETE FROM archivos")) acciones.push("borrar-referencia-anterior");
-        }
+        sql,
+        bind(...args) { this.args = args; return this; },
+        async first() {
+          if (/FROM archivos_actual/.test(sql)) return actual;
+          if (/FROM archivos WHERE/.test(sql)) return { drive_id: "drive-anterior", tipo: "image/jpeg", nombre: "foto.jpg" };
+          return null;
+        },
+        async all() { return { results: [] }; },
+        async run() { return { meta: { changes: 1 } }; }
       };
     }
   };
-  const files = {
-    async put() { acciones.push("guardar-kv"); if (fallaKV) throw Error("fallo-kv"); },
-    async delete() { acciones.push("borrar-kv"); }
+  const FILES = {
+    async put(llave, bytes, opts) {
+      eventos.push("kv-put");
+      if (fallaKV) throw Error("fallo-kv");
+      claves.push({ llave, bytes, opts });
+    },
+    async delete() { eventos.push("kv-delete"); },
+    async getWithMetadata(llave) {
+      eventos.push("kv-get:" + llave);
+      if (actual && llave === actual.kv_llave) return { value: new Uint8Array([9, 8]).buffer, metadata: { tipo: "image/jpeg" } };
+      if (llave === "f:ensayo:ticket") return { value: new Uint8Array([1, 2]).buffer, metadata: { tipo: "image/jpeg" } };
+      return { value: null, metadata: null };
+    }
   };
-  return { env: { DB: db, FILES: files, ...(conGoogle ? {AVISO_URL:"https://ejemplo.invalid/exec",AVISO_TOKEN:"simulado"} : {}) }, acciones };
+  const env = { DB, FILES, ...(conGoogle ? { AVISO_URL: "https://ejemplo.invalid/exec", AVISO_TOKEN: "simulado" } : {}) };
+  return { env, eventos, claves };
 }
-test("respaldo: si KV falla conserva referencia y no manda Drive antiguo a papelera", async () => {
-  const {env,acciones}=entorno({fallaKV:true});
-  await assert.rejects(guardarArchivo(env,"f:ensayo:ticket",new Uint8Array([1,2,3])),/fallo-kv/);
-  assert.deepEqual(acciones,["guardar-kv"]);
+
+test("un fallo de KV no publica otra versión ni retira Drive anterior", async () => {
+  const x = entorno({ fallaKV: true });
+  await assert.rejects(guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { soloKV: true }), /fallo-kv/);
+  assert.deepEqual(x.eventos, ["kv-put"]);
 });
-test("respaldo: confirmar KV mantiene la referencia anterior hasta la migración", async () => {
-  const {env,acciones}=entorno();
-  const r=await guardarArchivo(env,"f:ensayo:ticket",new Uint8Array([1,2,3]));
-  assert.equal(r.drive,false);
-  assert.deepEqual(acciones,["guardar-kv"]);
+
+test("un fallo de D1 conserva la copia inmutable recién escrita en KV", async () => {
+  const x = entorno({ fallaD1: true });
+  await assert.rejects(guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { soloKV: true }), /fallo-d1/);
+  assert.deepEqual(x.eventos, ["kv-put", "d1-batch"]);
+  assert.match(x.claves[0].llave, /^fv:f:ensayo:ticket:/);
+  assert.ok(!x.eventos.includes("kv-delete"));
 });
-test("respaldo: fallo de índice tras subir a Drive no retira copia anterior", async () => {
-  const {env,acciones}=entorno({fallaD1:true,conGoogle:true});
-  const anteriorFetch=globalThis.fetch;
-  globalThis.fetch=async()=>({text:async()=>JSON.stringify({ok:true,id:"drive-nuevo"})});
+
+test("dos escrituras de la misma llave lógica generan versiones físicas distintas", async () => {
+  const x = entorno();
+  const a = await guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { soloKV: true });
+  const b = await guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([4, 5, 6]), { soloKV: true });
+  assert.equal(a.drive, false);
+  assert.equal(b.drive, false);
+  assert.notEqual(x.claves[0].llave, x.claves[1].llave);
+  assert.deepEqual(x.eventos, ["kv-put", "d1-batch", "kv-put", "d1-batch"]);
+});
+
+test("KV no vence una copia pendiente de subir a Drive", async () => {
+  const x = entorno();
+  await guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { ttlDias: 1, soloKV: true });
+  assert.equal(x.claves[0].opts.expirationTtl, undefined);
+});
+
+test("Drive puede confirmar sin borrar KV ni Drive anterior", async () => {
+  const x = entorno({ conGoogle: true });
+  const anterior = globalThis.fetch;
+  globalThis.fetch = async () => ({ text: async () => JSON.stringify({ ok: true, id: "drive-nuevo" }) });
   try {
-    const r=await guardarArchivo(env,"f:ensayo:ticket",new Uint8Array([1,2,3]));
-    assert.equal(r.drive,false);
-    assert.deepEqual(acciones,["registrar-drive","guardar-kv"]);
-  } finally { globalThis.fetch=anteriorFetch; }
+    const r = await guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]));
+    assert.equal(r.drive, true);
+    assert.deepEqual(x.eventos, ["kv-put", "d1-batch", "d1-batch"]);
+    assert.ok(!x.eventos.includes("kv-delete"));
+  } finally { globalThis.fetch = anterior; }
+});
+
+test("un reintento viejo no confirma una versión desplazada por otra", async () => {
+  const x = entorno({ conGoogle: true, resultadoCaducado: true });
+  const anterior = globalThis.fetch;
+  globalThis.fetch = async () => ({ text: async () => JSON.stringify({ ok: true, id: "drive-viejo" }) });
+  try {
+    const r = await guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]));
+    assert.equal(r.drive, false);
+    assert.ok(!x.eventos.includes("kv-delete"));
+  } finally { globalThis.fetch = anterior; }
+});
+
+test("leer prioriza el puntero de versión D1 frente a KV legado", async () => {
+  const version = { kv_llave: "fv:f:ensayo:ticket:vigente", drive_id: null, tipo: "image/jpeg", nombre: "vigente.jpg" };
+  const x = entorno({ actual: version });
+  const r = await leerArchivo(x.env, "f:ensayo:ticket");
+  assert.deepEqual([...new Uint8Array(r.value)], [9, 8]);
+  assert.equal(r.metadata.nombre, "vigente.jpg");
+  assert.ok(!x.eventos.includes("kv-get:f:ensayo:ticket"));
+});
+
+test("sin nuevo puntero sigue leyendo archivos legados", async () => {
+  const x = entorno();
+  const r = await leerArchivo(x.env, "f:ensayo:ticket");
+  assert.deepEqual([...new Uint8Array(r.value)], [1, 2]);
 });
