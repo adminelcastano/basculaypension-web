@@ -149,12 +149,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
               <li>Busca <b>buena luz</b>, sin sombras ni reflejos. Si está oscuro, activa el flash.</li>
               <li>Toca la pantalla sobre el ticket para <b>enfocar</b> y no muevas el teléfono al tomarla.</li>
             </ul>
-            <span class="hint">Revisamos la foto antes de enviarla: si no se lee bien te pediremos otra.</span>
+            <span class="hint">Tu foto se adjunta sin rechazos automáticos por nitidez. Administración revisará que el ticket se lea y corresponda al servicio.</span>
             <label class="btn btn-line" for="ticket">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
               Tomar o elegir foto
             </label>
-            <input type="file" id="ticket" name="ticket" accept="image/*,application/pdf">
+            <input type="file" id="ticket" name="ticket" accept="image/*,application/pdf,.heic,.heif">
             <div class="preview" id="prev-ticket" hidden></div>
             <div class="revision" id="rev-ticket" hidden></div>
           </div>
@@ -181,7 +181,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6M9 14l3-3 3 3"/></svg>
                 Adjuntar constancia
               </label>
-              <input type="file" id="csf" name="csf" accept="application/pdf,image/*">
+              <input type="file" id="csf" name="csf" accept="application/pdf,image/*,.heic,.heif">
               <div class="preview" id="prev-csf" hidden></div>
             </div>
             <span class="err" data-err="csf"></span>
@@ -290,13 +290,11 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 </main>
 <footer class="wrap">© 2026 Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a> · <a href="/condiciones-de-uso/">Condiciones de uso</a></footer>
 
-<script src="/factura/foto.js"></script>
 <script>
 (() => {
   const form = document.getElementById("form");
   const $ = s => form.querySelector(s);
   const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
-  const TIPOS = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
   const archivos = { ticket: null, csf: null };
 
   function modo() { return form.modo.value; }
@@ -318,151 +316,90 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   form.rfc.addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[\s-]/g, ""); });
   form.cp.addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5); });
 
-  // Reduce fotos grandes antes de enviarlas (menos datos móviles y envío más rápido)
+  // Comprimir sin recortar ni alterar datos del ticket; cuando es posible, convertir HEIC/HEIF a JPEG.
   async function preparar(file) {
-    if (!file.type.startsWith("image/") || file.size < 1.2 * 1024 * 1024) return file;
+    const heic = /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name || "");
+    if (!file.type.startsWith("image/") && !heic) return file;
+    if (!heic && file.size < 1.2 * 1024 * 1024) return file;
     try {
-      const bmp = await createImageBitmap(file);
-      const escala = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(bmp.width * escala); c.height = Math.round(bmp.height * escala);
-      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-      const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
-      if (!blob || blob.size >= file.size) return file;
-      return new File([blob], (file.name || "foto").replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+      let imagen;
+      try { imagen = await createImageBitmap(file); }
+      catch {
+        imagen = await new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(file), img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("imagen")); };
+          img.src = url;
+        });
+      }
+      const escala = Math.min(1, 2000 / Math.max(imagen.width, imagen.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(imagen.width * escala));
+      canvas.height = Math.max(1, Math.round(imagen.height * escala));
+      canvas.getContext("2d").drawImage(imagen, 0, 0, canvas.width, canvas.height);
+      if (imagen.close) imagen.close();
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.84));
+      if (!blob || (!heic && blob.size >= file.size)) return file;
+      return new File([blob], (file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
     } catch { return file; }
   }
 
-  let intentosBorrosos = 0;
+  const eleccion = { ticket: 0, csf: 0 };
   function mostrarPrev(prev, file, texto) {
-    prev.hidden = false; prev.textContent = "";
-    if (file.type.startsWith("image/")) { const img = document.createElement("img"); img.alt = ""; img.src = URL.createObjectURL(file); prev.appendChild(img); }
-    const s = document.createElement("span"); s.textContent = texto; prev.appendChild(s);
+    prev.hidden = false; prev.replaceChildren();
+    if (file.type.startsWith("image/") && !/image\/hei[cf]/i.test(file.type)) {
+      const img = document.createElement("img");
+      img.alt = "Vista previa del archivo seleccionado";
+      const url = URL.createObjectURL(file);
+      img.onload = () => URL.revokeObjectURL(url);
+      img.onerror = () => URL.revokeObjectURL(url);
+      img.src = url; prev.appendChild(img);
+    }
+    const span = document.createElement("span"); span.textContent = texto; prev.appendChild(span);
   }
-
+  const TIPOS_VISIBLES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
   async function elegir(input, clave) {
-    const f = input.files && input.files[0];
-    const prev = document.getElementById("prev-" + clave);
-    const rev = document.getElementById("rev-" + clave);
-    error(clave, "");
-    if (rev) { rev.hidden = true; rev.textContent = ""; }
-    if (!f) { archivos[clave] = null; prev.hidden = true; return; }
-    if (!TIPOS.includes(f.type)) { error(clave, "Usa una foto (JPG o PNG) o un PDF."); input.value = ""; return; }
-
-    // Ticket en foto: revisar enfoque, luz y tamaño; si está bien, mejorarla
-    if (clave === "ticket" && f.type.startsWith("image/") && window.FotoTicket) {
-      archivos.ticket = null;
-      mostrarPrev(prev, f, "Revisando la foto…");
-      let analisis = null;
-      try { analisis = await FotoTicket.analizar(f); } catch { analisis = null; }
-      if (analisis && !analisis.ok) {
-        intentosBorrosos++;
-        rechazarFoto(f, "Esta foto no se lee bien. Toma otra:", analisis.problemas,
-          intentosBorrosos >= 2 ? ["Mi ticket así se ve, enviar esta foto", () => { avisoCalidad = analisis.problemas.join(" "); return usarTicket(f, prev, "Foto enviada como está"); }] : null,
-          "Toma una foto más clara del ticket.");
-        return;
-      }
-      intentosBorrosos = 0; avisoCalidad = "";
-      await usarTicket(f, prev, analisis ? "Foto revisada y mejorada ✓" : (f.name || "Foto") + " ✓");
+    const turno = ++eleccion[clave], f = input.files && input.files[0];
+    const prev = document.getElementById("prev-" + clave), rev = document.getElementById("rev-" + clave);
+    archivos[clave] = null; prev.hidden = true; error(clave, "");
+    if (rev) { rev.hidden = true; rev.replaceChildren(); }
+    if (!f) return;
+    // Algunos teléfonos no informan File.type; el servidor verificará la firma real.
+    const extension = /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name || "");
+    if (!TIPOS_VISIBLES.includes(f.type) && !(extension && (!f.type || f.type === "application/octet-stream"))) {
+      input.value = ""; error(clave, "Selecciona JPG, PNG, WebP, HEIC o PDF."); return;
+    }
+    mostrarPrev(prev, f, "Preparando archivo…");
+    const listo = await preparar(f);
+    if (turno !== eleccion[clave]) return;
+    if (listo.size > 10 * 1024 * 1024) {
+      prev.hidden = true; input.value = "";
+      error(clave, "El archivo supera 10 MB. Elige una foto más ligera o un PDF menor.");
       return;
     }
-
-    const listo = await preparar(f);
-    if (listo.size > 10 * 1024 * 1024) { error(clave, "El archivo pesa más de 10 MB. Toma una foto nueva o usa un PDF más ligero."); input.value = ""; return; }
     archivos[clave] = listo;
-    mostrarPrev(prev, listo, (f.name || "Archivo") + " ✓");
-  }
-
-  // Caja de foto rechazada con motivo, botón para tomar otra y, a veces, opción de enviarla así
-  function rechazarFoto(f, titulo, problemas, forzar, mensaje) {
-    const prev = document.getElementById("prev-ticket"), rev = document.getElementById("rev-ticket");
-    archivos.ticket = null;
-    prev.hidden = true; rev.hidden = false; rev.innerHTML = "";
-    const img = document.createElement("img"); img.alt = "Foto rechazada"; img.src = URL.createObjectURL(f);
-    const caja = document.createElement("div");
-    const t = document.createElement("b"); t.textContent = titulo;
-    caja.appendChild(t);
-    if (problemas && problemas.length) { const ul = document.createElement("ul"); for (const p of problemas) { const li = document.createElement("li"); li.textContent = p; ul.appendChild(li); } caja.appendChild(ul); }
-    const otra = document.createElement("label"); otra.className = "btn btn-amber"; otra.htmlFor = "ticket"; otra.textContent = "Tomar otra foto";
-    caja.appendChild(otra);
-    if (forzar) {
-      const b = document.createElement("button"); b.type = "button"; b.className = "link"; b.textContent = forzar[0];
-      b.addEventListener("click", async () => { rev.hidden = true; await forzar[1](); });
-      caja.appendChild(b);
-    }
-    rev.append(img, caja);
-    document.getElementById("ticket").value = "";
-    error("ticket", mensaje);
-  }
-
-  const NOMBRE_SERVICIO = { bascula: "báscula", pension: "pensión" };
-  let intentosNoTicket = 0, forzarTicket = false, revisandoTicket = null, avisoCalidad = "";
-  function avisoServicio(msg) { const a = document.getElementById("aviso-servicio"); a.textContent = msg || ""; a.hidden = !msg; }
-
-  // Pregunta al servidor qué ticket es (pensión, báscula o no es ticket)
-  async function revisarTicketServidor(listo) {
-    try {
-      const d = new FormData(); d.append("ticket", listo); d.append("servicio", form.servicio.value);
-      const r = await fetch("/api/revisar-ticket", { method: "POST", body: d });
-      const j = await r.json();
-      return j && j.ok ? j : null;
-    } catch { return null; }
-  }
-
-  async function usarTicket(f, prev, texto, sinRevision = false) {
-    let listo = f;
-    try { listo = await FotoTicket.mejorar(f); } catch { listo = await preparar(f); }
-    if (listo.size > 10 * 1024 * 1024) { error("ticket", "La foto pesa más de 10 MB. Toma una nueva."); return; }
-    error("ticket", ""); avisoServicio("");
-    forzarTicket = sinRevision;
-    let detectado = null;
-    if (!sinRevision) {
-      mostrarPrev(prev, listo, "Revisando tu ticket…");
-      revisandoTicket = revisarTicketServidor(listo);
-      const j = await revisandoTicket; revisandoTicket = null;
-      if (j && j.clase === "otro") {
-        intentosNoTicket++;
-        rechazarFoto(f, "No pudimos leer un ticket de Báscula y Pensión El Castaño en esta foto.", ["Toma la foto del ticket que te entregaron en la báscula o en la pensión.", "Acércate hasta que el ticket llene casi toda la pantalla (a unos 20 cm).", "Busca buena luz, sin sombras ni reflejos, y que se lean el folio y el total."],
-          intentosNoTicket >= 2 ? ["Sí es mi ticket, enviar esta foto", () => usarTicket(f, prev, "Foto enviada como está", true)] : null,
-          "Esta foto no parece un ticket. Toma la foto de tu ticket.");
-        return;
-      }
-      intentosNoTicket = 0;
-      if (j && j.entrada) {
-        rechazarFoto(f, "Este es el ticket de ENTRADA de la pensión.", ["Para facturar necesitamos el ticket de SALIDA: el que te dan al salir y trae el TOTAL."], null,
-          "Toma la foto del ticket de salida (el que tiene el total).");
-        return;
-      }
-      if (j && NOMBRE_SERVICIO[j.clase]) detectado = j.clase;
-      if (detectado && form.servicio.value !== detectado) {
-        const antes = form.servicio.value;
-        form.querySelector(`input[name="servicio"][value="${j.clase}"]`).checked = true;
-        mostrarServicio(); error("servicio", "");
-        avisoServicio(antes ? `Tu ticket es de ${NOMBRE_SERVICIO[j.clase]}: cambiamos el servicio a ${NOMBRE_SERVICIO[j.clase][0].toUpperCase() + NOMBRE_SERVICIO[j.clase].slice(1)}.` : `Detectamos un ticket de ${NOMBRE_SERVICIO[j.clase]}.`);
-      }
-    }
-    archivos.ticket = listo;
-    const cl = detectado ? ` · Ticket de ${NOMBRE_SERVICIO[detectado]}` : "";
-    mostrarPrev(prev, listo, texto + cl);
+    mostrarPrev(prev, listo, (f.name || "Archivo") + " · listo para enviar ✓");
   }
   document.getElementById("ticket").addEventListener("change", e => elegir(e.target, "ticket"));
   document.getElementById("csf").addEventListener("change", e => elegir(e.target, "csf"));
 
   function error(campo, msg) {
-    const el = form.querySelector(`[data-err="${campo}"]`);
+    const el = form.querySelector('[data-err="' + campo + '"]');
     if (el) el.textContent = msg || "";
-    const g = document.getElementById("g-" + campo);
-    if (g) g.classList.toggle("has-err", !!msg);
+    const grupo = document.getElementById("g-" + campo);
+    if (grupo) grupo.classList.toggle("has-err", !!msg);
   }
-  function limpiar() { form.querySelectorAll("[data-err]").forEach(e => error(e.dataset.err, "")); document.getElementById("alerta").textContent = ""; }
-
+  function limpiar() {
+    form.querySelectorAll("[data-err]").forEach(el => error(el.dataset.err, ""));
+    document.getElementById("alerta").textContent = "";
+  }
   function validar() {
     const e = {};
     if (!form.servicio.value) e.servicio = "Elige el servicio.";
     if (form.folio_ticket.value.trim() && !/^\d+$/.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "El folio debe contener sólo números.";
     if (!form.forma_pago.value) e.forma_pago = "Elige cómo pagaste.";
-    if (!archivos.ticket) e.ticket = "Agrega la foto del ticket.";
-    if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia, o elige \"Escribir mis datos\".";
+    if (!archivos.ticket) e.ticket = "Adjunta la foto completa del ticket.";
+    if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia o elige «Escribir mis datos».";
     if (modo() === "manual") {
       if (!RE_RFC.test(form.rfc.value)) e.rfc = "Revisa el RFC: son 12 caracteres para empresas y 13 para personas.";
       if (form.nombre.value.trim().length < 3) e.nombre = "Escribe tu nombre o razón social.";
@@ -479,7 +416,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   form.addEventListener("submit", async ev => {
     ev.preventDefault();
     limpiar();
-    if (revisandoTicket) { document.getElementById("alerta").textContent = "Espera un momento, estamos revisando tu ticket…"; await revisandoTicket; await new Promise(r => setTimeout(r, 50)); document.getElementById("alerta").textContent = ""; }
+    if (!archivos.ticket && document.getElementById("prev-ticket").textContent.includes("Preparando")) { document.getElementById("alerta").textContent = "Espera a que termine de prepararse tu foto."; return; }
     const errores = validar();
     if (Object.keys(errores).length) {
       for (const [k, v] of Object.entries(errores)) error(k, v);
@@ -497,12 +434,10 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
-    if (forzarTicket) datos.append("forzar_ticket", "1");
-    if (avisoCalidad) datos.append("aviso_calidad", avisoCalidad);
     if (modo() === "csf") datos.append("csf", archivos.csf);
 
     const boton = document.getElementById("enviar");
-    boton.disabled = true; boton.textContent = "Enviando y revisando tu ticket…";
+    boton.disabled = true; boton.textContent = "Enviando tu solicitud…";
     try {
       const r = await fetch("/api/solicitud", { method: "POST", body: datos });
       const j = await r.json().catch(() => ({ ok: false, error: "No pudimos confirmar el envío. Intenta de nuevo." }));
@@ -510,12 +445,8 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         if (j.errores) for (const [k, v] of Object.entries(j.errores)) error(k, v);
         document.getElementById("alerta").textContent = j.error || "No se pudo enviar. Intenta de nuevo.";
         boton.disabled = false; boton.textContent = "Enviar datos para factura";
-        if (j.errores && j.errores.ticket) {
-          archivos.ticket = null;
-          document.getElementById("prev-ticket").hidden = true;
-          document.getElementById("ticket").value = "";
-          document.getElementById("g-ticket").scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+        // Un fallo del servidor no obliga a tomar otra foto.
+        if (j.errores && j.errores.ticket) document.getElementById("g-ticket").scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
       document.getElementById("folio").textContent = j.folio;
