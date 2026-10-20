@@ -267,12 +267,38 @@
                 ""}`}
           </section>
           <section class="card">
+            <h3>Historial de CFDI de esta solicitud</h3>
+            <p class="note">Solo es un registro de lo hecho en Facturador. Cancelar aquí no cancela ante el SAT. No se borran facturas anteriores ni se libera el ticket.</p>
+            ${cfdis.length ? `<div class="cfdi-historial">${cfdis.map(x => `<div class="cfdi-fila" style="padding:10px 0;border-bottom:1px solid var(--line)"><b>${esc(x.folio)}</b> · ${x.importe ? dinero(x.importe) : "Importe pendiente"} <span class="pill ${x.estado === "cancelada" ? "rechazada" : "facturada"}">${x.estado === "cancelada" ? "Cancelada" : "Registrada"}</span>${x.sustituye_id ? `<p class="note">Sustituye una factura cancelada</p>` : ""}${x.cancelacion_motivo ? `<p class="note">Motivo: ${esc(x.cancelacion_motivo)}</p>` : ""}</div>`).join("")}</div>` : `<p class="note">Todavía no se ha registrado ningún CFDI.</p>`}
+            ${vigentes.length ? `<details><summary style="cursor:pointer;font-weight:600">Gestionar cancelación de una factura emitida</summary>
+              <p class="note">Primero realiza y confirma la cancelación en Facturador. Aquí solo registras lo sucedido.</p>
+              <label class="f">Factura<select id="cfdi-cancelar-id">${vigentes.map(x => `<option value="${esc(x.id)}">${esc(x.folio)}</option>`).join("")}</select></label>
+              <label class="f">Motivo de la cancelación<textarea id="cfdi-cancelar-motivo" maxlength="300" rows="2" placeholder="Explica por qué se canceló la factura"></textarea></label>
+              <label class="check"><input type="checkbox" id="cfdi-cancelacion-confirmada"><span>Confirmé en Facturador que la cancelación quedó efectivamente realizada.</span></label>
+              <button class="btn btn-bad" type="button" id="registrar-cancelacion">Registrar cancelación confirmada</button>
+            </details>` : ""}
+            ${cancelados.length ? `<details><summary style="cursor:pointer;font-weight:600">Registrar folios sustitutos ya emitidos</summary>
+              <p class="note">Captura hasta dos comprobantes que ya emitiste fuera de la web. No dividiremos importes ni emitiremos CFDI.</p>
+              <label class="f">Factura cancelada<select id="cfdi-sustituir-id">${cancelados.map(x => `<option value="${esc(x.id)}">${esc(x.folio)}</option>`).join("")}</select></label>
+              <div class="grid-form">
+                <label>Nuevo folio/UUID 1<input id="cfdi-sustituir-folio-1" maxlength="60" autocomplete="off"></label>
+                <label>Importe 1<input id="cfdi-sustituir-importe-1" inputmode="decimal" placeholder="0.00"></label>
+                <label>Nuevo folio/UUID 2 (opcional)<input id="cfdi-sustituir-folio-2" maxlength="60" autocomplete="off"></label>
+                <label>Importe 2<input id="cfdi-sustituir-importe-2" inputmode="decimal" placeholder="0.00"></label>
+              </div>
+              <label class="check"><input type="checkbox" id="cfdi-sustitucion-confirmada"><span>Los CFDI sustitutos ya fueron emitidos en Facturador y comprobé sus datos.</span></label>
+              <button class="btn btn-primary" type="button" id="registrar-sustitutos">Registrar sustitutos</button>
+            </details>` : ""}
+          </section>
+          <section class="card">
             <h3 class="fpaso"><span class="num">5</span>Avisa al cliente</h3>
             <p class="note">${{ pendiente: "Confirma recepción.", en_revision: "Confirma que está en revisión.", facturada: "CFDI emitido, pendiente de confirmar entrega.", enviada: "Entrega registrada por administración.", rechazada: "Explica el rechazo.", cancelada: "Avisa de la cancelación confirmada y de la sustitución, si existe." }[s.estado]} Puedes editar el texto antes de enviarlo.</p>
             <textarea id="wa-texto" aria-label="Mensaje de WhatsApp para el cliente" rows="6" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#0b0b0c;resize:vertical;font-family:inherit">${esc(mensajeCliente(s, j.servicios, cfdis))}</textarea>
             <div class="row">
               <a class="btn btn-primary" id="wa-enviar" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
               <button class="btn btn-line" id="wa-copiar" type="button">Copiar mensaje</button>
+              <a class="btn btn-line" id="correo-preparar" href="#" target="_blank" rel="noopener">Preparar correo</a>
+              ${cancelados.length ? `<button class="btn btn-line" id="confirmar-aviso-cancelacion" type="button" ${s.aviso_cancelacion_en ? "disabled" : ""}>${s.aviso_cancelacion_en ? "Aviso confirmado " + fecha(s.aviso_cancelacion_en) : "Confirmar que avisé al cliente"}</button>` : ""}
               <span class="note" id="wa-aviso"></span>
             </div>
           </section>
