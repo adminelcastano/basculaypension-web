@@ -35,7 +35,7 @@ Workers AI (lectura de documentos del expediente; la IA solo revisa la foto del 
 
 ## Archivos (fotos y PDFs)
 
-Se guardan en Google Drive, en la carpeta dedicada **"El Castaño · Archivos del panel"** de administracion@ (subcarpetas: Facturas, Expedientes del personal, Tablet de turno; por mes o por persona). Cada archivo entra primero a KV (rápido para quien lo sube) y la tarea de cada 10 minutos lo pasa a Drive por medio de `herramientas/aviso-correo.gs` (acción `archivos`); la tabla `archivos` de D1 dice dónde vive cada uno. Al verlo, el Worker lo trae de Drive y lo guarda en la caché de Cloudflare. Si Drive no responde, nada se pierde: el archivo se queda en KV y se reintenta. Borrar en el panel manda el archivo de Drive a la papelera. Código en `src/fotos.js`.
+La carpeta dedicada de Google Drive **"El Castaño · Archivos del panel"** recibe facturas, expedientes y fotografías de tablet. En la rama de deuda técnica, las nuevas cargas tienen una clave física KV independiente por versión (`fv:`); D1 (`archivos_actual`) indica cuál corresponde a la clave lógica existente y la tarea de mantenimiento intenta trasladarla a Drive. Las versiones legadas continúan siendo accesibles. Si falla Drive, se conserva la copia KV pendiente, pero **KV tiene consistencia eventual** y aún falta validar los casos de concurrencia, recuperación y limpieza. Las versiones antiguas no se purgan automáticamente durante esta fase; vigilar el uso de espacio. El código está en `src/fotos.js` y **estos cambios de rama no están publicados**.
 
 ## Organización del panel (desde el 15 oct 2026)
 

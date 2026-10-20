@@ -24,6 +24,12 @@
 - Las claves legadas ya trasladadas se revisan periódicamente con límite de lecturas; no se asume que una lectura KV equivale a una transacción. No se eliminan de forma automática ni se prometen resultados hasta la validación conjunta.
 - **Estado:** cambios de código preparados en rama, sin pruebas de aplicación, sin instalación de Apps Script y sin publicación. La configuración Windows/WSL permanece suspendida a petición del administrador.
 
+### Estado de custodia (20 de octubre de 2026)
+
+- Mac: FileVault y `age` instalados; clave privada ya creada y validada localmente, sin compartirla ni reemplazarla. La copia cifrada con contraseña en USB `TRANSFERENC` fue descifrada y comparada con el original exitosamente. Queda bajo custodia física del administrador, separada de la Mac y con su contraseña resguardada por separado.
+- Windows/Ubuntu WSL: instalación y automatización **suspendidas expresamente** porque interfieren con otra operación de desarrollo. WSL aún no estaba instalado al suspender. No instalar, configurar credenciales ni activar tareas hasta instrucción de reanudación. `BACKUP_ACTIVE=NO` continúa obligatorio.
+- Respaldo D1 real cifrado y transferido a Drive: **pendiente**, sin ejecución ni pruebas. No confundir la copia cifrada de la **llave privada** en USB con un respaldo de la base D1.
+
 ## Fase 2. Respaldo D1 restaurable
 
 - `herramientas/respaldo-d1-cifrado.sh` prepara un respaldo externo cifrado con `age`, usando Wrangler **4.151.2**, comprueba que el SQL exportado restaura en SQLite local y exige `PRAGMA quick_check=ok` **antes** del cifrado.
