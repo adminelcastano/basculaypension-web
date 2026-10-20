@@ -32,7 +32,7 @@ Se prepararon dos pestañas **que aún NO se han creado en el original**:
 4. Solo se ofrecen como candidatos automáticos los registros de `caja_gastos` con categoría **Sueldos** y referencia fuente estable. Se mantiene el gasto original: **ninguna acción genera otro egreso ni pago en la web**.
 5. Administración selecciona el colaborador desde el catálogo real de SALARIOS. No se asigna por coincidencia del nombre, creador del gasto o encargado del turno.
 6. Si un pago cambia de fecha, concepto o monto después de vincularlo, la sincronización se bloquea hasta nueva confirmación. Si un ID ya llegó a la hoja, un reintento con datos iguales no lo duplica; si el contenido cambió, Apps Script detiene el lote y solicita conciliación.
-7. **Pendiente para cobertura integral:** retiros de sueldo integrados en `turno_cortes.retiros` y renglones de caja importados desde Sheets aún necesitan una referencia inmutable y una conciliación individual. No se enviarán silenciosamente a SALARIOS porque podrían duplicar movimientos o atribuirlos al colaborador equivocado.
+7. **Cobertura delimitada:** los retiros nuevos de `turno_cortes.retiros` cuentan con ID propio, y pueden vincularse a un colaborador tras revisión explícita. Los retiros antiguos sin identificador y los renglones de caja importados desde Sheets siguen sujetos a conciliación individual y **no se sincronizan** porque podrían duplicar pagos o atribuirlos al colaborador equivocado.
 8. Al no estar activada la integración, el panel muestra la lista de pagos candidatos y que SALARIOS está suspendido. No crea pestañas ni ejecuta llamadas externas de nómina.
 9. La actualización del proyecto Google Apps Script remoto tampoco ha sido realizada. El archivo `herramientas/aviso-correo.gs` en GitHub **no es** por sí mismo la versión desplegada.
 
@@ -67,7 +67,7 @@ La sección SALARIOS ahora también **lista exclusivamente para revisión**:
 - Renglones tipo gasto de la hoja de caja con esos conceptos.
 - Posibles duplicados cuando comparten fecha e importe con otro candidato o con un gasto ya registrado.
 
-No asigna colaboradores a estos candidatos, **no crea pagos nuevos**, no los refleja en `PAGOS WEB` y no los acumula de nuevo. Estas fuentes pueden cambiar durante correcciones de cortes o reimportación: carecen todavía de un identificador inmutable por movimiento individual. Para incorporarlas a la sincronización habrá que asignar un ID persistente en su flujo original y conciliar cada caso, sin reutilizar posiciones de renglón como identidad.
+Los candidatos sólo se acumulan en SALARIOS después de revisión y vínculo explícito cuando tienen UUID individual. Los retiros históricos sin ID y la hoja importada siguen **sin vinculación automática**. Ninguna fuente se suma dos veces: se preserva el movimiento original y se detectan cambios o posibles duplicados sin usar posiciones de renglón como identidad.
 
 Se reforzó el puente ya preparado para detectar **cambios de importe, fecha, concepto, categoría, origen, forma de pago o cuenta interna en cualquier pago previamente vinculado**, incluso si no figura entre los 400 pagos recientes del listado. `PAGOS WEB` conserva ahora columnas adicionales de forma de pago y código interno de cuenta, sin números bancarios completos. Un pago borrado o reclasificado se señala y detiene la sincronización, no se altera la hoja automáticamente.
 
@@ -77,7 +77,7 @@ Los nuevos scripts `05b-estados.js` y `05c-salarios.js` se validan sintácticame
 
 **Pruebas verificadas en el commit `7364d2135a9bc745bc0f59fd8ac186982795ca4d`: 426/426 aprobadas, 0 fallidas, ambas compilaciones Wrangler `--dry-run` correctas.** Se repetirá CI tras este último ajuste de documentación.
 
-**Pendiente:** prueba con navegador/teléfono/tablet reales, ensayo de Apps Script desplegado contra Sheet *nuevo* y totalmente ficticio, diseño del ID inmutable para retiros de corte y autorización explícita antes de modificar código productivo y activar el puente SALARIOS.
+**Pendiente:** prueba con navegador/teléfono/tablet reales, ensayo de Apps Script desplegado contra Sheet *nuevo* y totalmente ficticio, conciliación de retiros antiguos sin identificador y autorización explícita antes de modificar código productivo y activar el puente SALARIOS.
 
 ## Identidad estable para retiros nuevos y vinculación salarial (20/10/2026)
 
