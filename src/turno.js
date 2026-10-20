@@ -681,6 +681,7 @@ export async function turnoRuta(request, env, url, h) {
     const concepto = CONCEPTOS_EXTRA.includes(c.concepto) ? c.concepto : "", detalle = texto(c.detalle, 120), monto = numero(c.monto);
     const errores = {};
     if (!concepto) errores.concepto = "Elige qué tipo de ingreso es.";
+    if (concepto === "Aumento de cambio") errores.concepto = "Los ingresos de administración se registran en la sección azul. No se duplicó este movimiento.";
     if (concepto !== "Aumento de cambio" && detalle.length < 2) errores.detalle = "Escribe de quién o de qué es.";
     if (!(monto > 0) || monto > 200000) errores.monto = "Escribe un monto válido.";
     if (Object.keys(errores).length) return json({ ok: false, error: "Revisa los datos del ingreso.", errores }, 422);
