@@ -720,7 +720,10 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
 
   // ---- Envíos: cada uno lleva un uid (el servidor no lo registra dos veces) y, sin internet, se guarda en una cola ----
   const COLA_RUTAS = /^(inicio|gastos|extras|incidencias|compras|avisos|corte|tareas|avisos\/[^/]+\/enterado|tareas\/[^/]+\/reporte)$/;
-  const nuevoUid = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  // UUID nativo en navegadores compatibles; conservar el formato anterior en los demás.
+  // Se asigna una sola vez antes de entrar a la cola y se reutiliza en cada reintento.
+  const nuevoUid = () => typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   const leerLS = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
   const guardarLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
   // Identidad + turno + día: evita reenviar operaciones de otra sesión en tablets compartidas.

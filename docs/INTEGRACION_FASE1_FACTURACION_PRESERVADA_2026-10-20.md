@@ -1,5 +1,7 @@
 # Integración aislada — Fase 1 de archivos y Facturación
 
+> **Actualización histórica:** este documento registra una rama que inicialmente no estaba publicada. La Fase 1 se integró mediante PR #36 y se publicó en Worker 156; las referencias a «sin ejecutar» o «no publicado» describen el estado al preparar la rama, no su situación actual. Las pruebas operativas remotas siguen pendientes.
+
 **Fecha:** 20 de octubre de 2026.
 **Rama:** `integracion/fase1-archivos-facturacion-20261020`.
 **Base:** `main@4613ec3112106ef56c0d1f808931828654e03833`, incluye la reparación de Facturación del PR #35.
