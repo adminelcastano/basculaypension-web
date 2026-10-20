@@ -84,35 +84,60 @@ function drive(d) {
   if (d.op === 'probar') { DriveApp.getFolderById(CARPETA_COLABORADORES).getName(); DriveApp.getFolderById(CARPETA_EXTERNOS).getName(); return 'ok-drive'; }
   if (!d.id || !/^[0-9a-f-]{36}$/.test(d.id)) return 'error drive: id';
   if (d.op === 'carpeta' || d.op === 'borrar-carpeta') return 'ok-drive'; // la oficina administra las carpetas
+  if (d.op !== 'subir' && d.op !== 'borrar') return 'error drive: operación';
   const llaveArchivo = 'f_' + d.id + '_' + String(d.slot || '');
-  const anterior = props.getProperty(llaveArchivo);
-  if (d.op === 'borrar') {
-    if (anterior) {
-      DriveApp.getFileById(anterior).setTrashed(true);
-      props.deleteProperty(llaveArchivo);
+  // Serializa el índice de PropertiesService y las sustituciones del mismo despliegue.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    const anterior = props.getProperty(llaveArchivo);
+    if (d.op === 'borrar') {
+      if (anterior) {
+        DriveApp.getFileById(anterior).setTrashed(true);
+        props.deleteProperty(llaveArchivo);
+      }
+      return 'ok-drive';
     }
-    return 'ok-drive';
-  }
-  if (d.op === 'subir') {
+    const operacion = String(d.operacion || '');
+    if (operacion && !/^[0-9a-f]{64}$/.test(operacion)) return 'error drive: operación inválida';
+    const marca = operacion ? 'castano-personal-v1:' + operacion : '';
     const carpeta = carpetaDePersona(d);
-    const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'documento'));
-    // Conservar el documento anterior si falla la carga o la actualización del índice.
-    const archivo = carpeta.createFile(blob);
+    const nombre = String(d.nombre || 'documento');
+    let archivo = null, creado = null;
+    if (marca) {
+      // Si la respuesta de la carga anterior se perdió, reutilizar el archivo ya marcado.
+      const encontrados = carpeta.getFilesByName(nombre);
+      while (encontrados.hasNext()) {
+        const previo = encontrados.next();
+        if (!previo.isTrashed() && previo.getDescription() === marca) {
+          archivo = previo;
+          break;
+        }
+      }
+    }
+    if (!archivo) {
+      const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', nombre);
+      creado = carpeta.createFile(blob);
+      try {
+        if (marca) creado.setDescription(marca);
+      } catch (err) {
+        try { creado.setTrashed(true); } catch (limpiezaErr) {}
+        throw err;
+      }
+      archivo = creado;
+    }
+    // No archivar aquí el anterior: la limpieza debe esperar la conciliación de copias.
     try {
-      props.setProperty(llaveArchivo, archivo.getId());
+      if (anterior !== archivo.getId()) props.setProperty(llaveArchivo, archivo.getId());
     } catch (err) {
-      // Si falla el índice, conservar la referencia antigua y retirar sólo
-      // el archivo recién creado; nunca tocar el documento anterior.
-      try { archivo.setTrashed(true); } catch (limpiezaErr) {}
+      // Conserva el índice anterior. Si la limpieza falla, la marca permite recuperar.
+      if (creado) try { creado.setTrashed(true); } catch (limpiezaErr) {}
       throw err;
     }
-    if (anterior && anterior !== archivo.getId()) {
-      // La copia nueva ya quedó registrada: si falla la papelera, conservar ambas copias.
-      try { DriveApp.getFileById(anterior).setTrashed(true); } catch (err) {}
-    }
     return 'ok-drive';
+  } finally {
+    lock.releaseLock();
   }
-  return 'error drive: operación';
 }
 
 function respuesta(t) { return ContentService.createTextOutput(t); }
