@@ -90,7 +90,12 @@ export async function sustituirRegistro(env,s,d,quien,ahora,ticketNormalizado) {
     return fallo("No pueden quedar más de dos CFDI vigentes por solicitud.");
   const historicos=new Set(items.map(x=>x.folio.toUpperCase()));
   if(v.facturas.some(x=>historicos.has(x.folio.toUpperCase()))) return fallo("Utiliza folios nuevos, distintos de los históricos.",409);
+  if (!ticketNormalizado) return fallo("Se necesita el folio del ticket original.",422);
+  const reservado=await env.DB.prepare("SELECT solicitud_id FROM facturas_folios WHERE servicio=? AND folio_normalizado=?").bind(s.servicio,ticketNormalizado).first();
+  if (reservado && reservado.solicitud_id !== s.id) return fallo("El ticket está reservado por otra solicitud. No se registraron sustitutos.",409);
+  const vence=new Date(ahora); vence.setFullYear(vence.getFullYear()+5);
   const statements=[
+    ...(!reservado ? [env.DB.prepare("INSERT INTO facturas_folios(servicio,folio_normalizado,solicitud_id,folio_factura,creado,vence) VALUES (?,?,?,?,?,?)").bind(s.servicio,ticketNormalizado,s.id,v.facturas[0].folio,ahora,vence.toISOString())] : []),
     ...v.facturas.map(f=>env.DB.prepare("INSERT INTO facturas_cfdis(id,solicitud_id,folio,importe,estado,sustituye_id,creado,creado_por) VALUES(?,?,?,?,'vigente',?,?,?)")
       .bind(crypto.randomUUID(),s.id,f.folio,f.importe,orig.id,ahora,quien)),
     env.DB.prepare("UPDATE solicitudes SET estado='facturada',folio_factura=?,resuelta_en=?,enviada_en=NULL,aviso_cancelacion_en=NULL WHERE id=? AND estado IN ('facturada','enviada','cancelada')")
