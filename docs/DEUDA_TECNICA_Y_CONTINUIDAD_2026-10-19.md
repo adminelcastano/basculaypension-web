@@ -15,7 +15,7 @@
 ### Revisión de Fase 1 — versiones de archivos (20 de octubre, solo rama de trabajo)
 
 - Preparado un índice aditivo de versiones vigentes en D1 (archivos_actual), con copias físicas independientes por operación en KV (prefijo fv:) y un registro de copias para conciliación. Las rutas públicas y las claves lógicas de fotografías/documentos permanecen iguales.
-- El flujo nuevo exige confirmar la escritura de la copia inmutable en KV **antes** de señalarla en D1; una falla de KV/D1 no retira la versión anterior. Los reintentos de Drive confirman el índice solo si la versión sigue vigente.
+- El flujo nuevo exige confirmar la escritura de la copia inmutable en KV **antes** de señalarla en D1. La publicación del puntero emplea compare-and-swap condicionado al estado leído al iniciar: otra sustitución o eliminación concurrente impide que la solicitud atrasada lo sobreescriba, conservando la copia KV huérfana para conciliación. Una falla de KV/D1 no retira la versión anterior. Los reintentos de Drive confirman el índice solo si la versión sigue vigente.
 - La migración conserva y reconoce las claves KV antiguas; no las borra automáticamente. Se retienen también versiones de Drive sustituidas. Las eliminaciones expresas siguen siendo posibles, con controles de referencias.
 - Facturas, fotografías de tablet y CASTAGRAM, incidencias, expedientes y documentos administrativos usan ahora el mismo flujo versionado. Los demás usos de KV (PIN, sesiones, preferencias, límites y configuración) no son archivos y mantienen sus rutas y semántica.
 - **Sin garantía distribuida de visibilidad inmediata:** KV tiene consistencia eventual; una nueva copia podría no leerse desde otra región hasta que se propague. D1, KV y Drive siguen sin transacción única.

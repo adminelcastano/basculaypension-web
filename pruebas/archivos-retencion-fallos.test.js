@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { guardarArchivo, leerArchivo } from "../src/fotos.js";
 
-function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual = null, resultadoCaducado = false, eliminado = false } = {}) {
+function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual = null,
+  resultadoCaducado = false, eliminado = false, publicacionRechazada = false } = {}) {
   const eventos = [], claves = [];
   const DB = {
     async batch(stmts) {
@@ -12,13 +13,17 @@ function entorno({ fallaKV = false, fallaD1 = false, conGoogle = false, actual =
         return stmts.map(() => ({ meta: { changes: 1 } }));
       eventos.push("d1-batch");
       if (fallaD1 && stmts.some(x => /INSERT INTO archivos_copias/.test(x.sql))) throw Error("fallo-d1");
-      return stmts.map((_, i) => ({ meta: { changes: resultadoCaducado && stmts.length > 3 && i === 1 ? 0 : 1 } }));
+      return stmts.map((_, i) => ({ meta: { changes:
+        i === 1 && ((resultadoCaducado && stmts.length > 3) || (publicacionRechazada && stmts.length === 3)) ? 0 : 1
+      } }));
     },
     prepare(sql) {
       return {
         sql,
         bind(...args) { this.args = args; return this; },
         async first() {
+          if (/AS kv_llave/.test(sql) && /AS eliminado_at/.test(sql))
+            return { kv_llave: actual?.kv_llave || null, eliminado_at: eliminado ? "2026-10-19T00:00:00Z" : null };
           if (/FROM archivos_actual/.test(sql)) return actual;
           if (/FROM archivos_eliminados/.test(sql)) return eliminado ? { existe: 1 } : null;
           if (/FROM archivos WHERE/.test(sql)) return { drive_id: "drive-anterior", tipo: "image/jpeg", nombre: "foto.jpg" };
@@ -120,4 +125,23 @@ test("un archivo eliminado no reaparece desde KV legado por consistencia eventua
   const r = await leerArchivo(x.env, "f:ensayo:ticket");
   assert.equal(r.value, null);
   assert.ok(!x.eventos.includes("kv-get:f:ensayo:ticket"));
+});
+
+test("una carga obsoleta rechaza publicar su puntero sin borrar la copia KV", async () => {
+  const x = entorno({ publicacionRechazada: true });
+  await assert.rejects(
+    guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { soloKV: true }),
+    /Otra operación modificó/
+  );
+  assert.equal(x.claves.length, 1);
+  assert.ok(!x.eventos.includes("kv-delete"));
+});
+
+test("si una eliminación gana la carrera, una carga anterior no la puede reabrir", async () => {
+  const x = entorno({ eliminado: true, publicacionRechazada: true });
+  await assert.rejects(
+    guardarArchivo(x.env, "f:ensayo:ticket", new Uint8Array([1, 2, 3]), { soloKV: true }),
+    /Otra operación modificó/
+  );
+  assert.ok(!x.eventos.includes("kv-delete"));
 });

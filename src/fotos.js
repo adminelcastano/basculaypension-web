@@ -105,17 +105,39 @@ export async function guardarArchivo(env, llave, bytes, op = {}) {
   const nombre = String(op.nombre || llave.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
   const creado = new Date().toISOString();
   const vence = op.ttlDias ? new Date(Date.now() + op.ttlDias * 864e5).toISOString() : null;
+  // Capturar el estado inicial: una operación atrasada no debe pisar un reemplazo
+  // ni resucitar un borrado que terminó durante la transferencia a KV.
+  const estadoInicial = await env.DB.prepare(`SELECT
+    (SELECT kv_llave FROM archivos_actual WHERE llave = ?) AS kv_llave,
+    (SELECT at FROM archivos_eliminados WHERE llave = ?) AS eliminado_at`
+  ).bind(llave, llave).first();
+  const previo = estadoInicial?.kv_llave || "";
+  const borradoAlIniciar = estadoInicial?.eliminado_at || "";
   const kvLlave = "fv:" + llave + ":" + crypto.randomUUID();
   // No aplicar expirationTtl al respaldo pendiente: podría vencer antes de pasar a Drive.
   await env.FILES.put(kvLlave, bytes, { metadata: { ...(op.metadata || {}), tipo, nombre } });
   // batch es una transacción D1: nunca apuntar a bytes que no se pudieron guardar en KV.
-  await env.DB.batch([
+  const publicado = await env.DB.batch([
     env.DB.prepare("INSERT INTO archivos_copias (kv_llave, llave, creado) VALUES (?, ?, ?)")
       .bind(kvLlave, llave, creado),
-    env.DB.prepare("INSERT INTO archivos_actual (llave, kv_llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?) ON CONFLICT(llave) DO UPDATE SET kv_llave=excluded.kv_llave, drive_id=NULL, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
-      .bind(llave, kvLlave, tipo, nombre, bytes.byteLength, JSON.stringify(carpeta), creado, vence),
-    env.DB.prepare("DELETE FROM archivos_eliminados WHERE llave = ?").bind(llave)
+    env.DB.prepare(`INSERT INTO archivos_actual (llave, kv_llave, drive_id, tipo, nombre, tam, carpeta, creado, vence)
+      SELECT ?, ?, NULL, ?, ?, ?, ?, ?, ?
+      WHERE COALESCE((SELECT at FROM archivos_eliminados WHERE llave = ?), '') = ?
+      ON CONFLICT(llave) DO UPDATE SET
+        kv_llave=excluded.kv_llave, drive_id=NULL, tipo=excluded.tipo,
+        nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta,
+        creado=excluded.creado, vence=excluded.vence
+      WHERE archivos_actual.kv_llave = ?`)
+      .bind(llave, kvLlave, tipo, nombre, bytes.byteLength, JSON.stringify(carpeta), creado, vence,
+        llave, borradoAlIniciar, previo),
+    env.DB.prepare(`DELETE FROM archivos_eliminados WHERE llave = ?
+      AND EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ? AND kv_llave = ?)`)
+      .bind(llave, llave, kvLlave)
   ]);
+  if (!publicado[1]?.meta?.changes) {
+    // No descartar la copia huérfana: conservarla para conciliación técnica.
+    throw new Error("Otra operación modificó este archivo mientras se guardaba. Actualiza la información y vuelve a intentarlo.");
+  }
   if (!conScript(env) || op.soloKV) return { drive: false };
   // El envío directo a Drive es optativo: D1 conserva una versión KV recuperable si falla.
   try {
