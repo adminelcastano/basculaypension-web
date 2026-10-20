@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { leerMes } from "../src/caja.js";
 import { hoyPanel } from "../src/hoy.js";
 
-test("Caja consulta sus seis fuentes independientes sin bloquearse entre sí", async () => {
+test("Caja consulta sus siete fuentes independientes sin bloquearse entre sí", async () => {
   const abiertas = [];
   const env = {
     DB: {
@@ -23,7 +23,7 @@ test("Caja consulta sus seis fuentes independientes sin bloquearse entre sí", a
   };
   const promesa = leerMes(env, ["2026-10"], { desde: "2026-10-01", hasta: "2026-10-17" });
   // Si las peticiones fueran secuenciales, aquí sólo habría una iniciada.
-  assert.equal(abiertas.length, 6);
+  assert.equal(abiertas.length, 7);
   for (const p of abiertas) {
     assert.deepEqual(p.args, ["2026-10-01", "2026-10-17"]);
     p.resolve({ results: p.sql.includes("caja_gastos") ?
@@ -34,7 +34,7 @@ test("Caja consulta sus seis fuentes independientes sin bloquearse entre sí", a
   assert.equal(d.gastosAdmin.length, 1);
   assert.equal(d.gastos[0].monto, 10);
   assert.equal(d.gastosAdmin[0].monto, 25);
-  for (const k of ["movs", "transf", "conteos", "extras", "inicios"]) assert.deepEqual(d[k], []);
+  for (const k of ["movs", "transf", "conteos", "extras", "inicios", "adminMovs"]) assert.deepEqual(d[k], []);
 });
 
 test("Hoy pide calendario al mismo tiempo que sus otras fuentes", async () => {

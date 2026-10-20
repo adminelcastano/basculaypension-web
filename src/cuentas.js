@@ -133,6 +133,17 @@ export function flujosMes(d, cuentas) {
   });
   // Renglones de la hoja: efectivo que la administración tomó de la caja antes del corte (entra) o puso en ella (sale)
   for (const x of d.hojaAdmin || []) ef.push({ dia: x.dia, orden: x.dia + ({ "MAÑANA": "1", TARDE: "2", NOCHE: "3" }[x.turno] || "4") + "0", tipo: x.clase === "a_admin" ? "llevo" : "cambio", concepto: `${x.concepto} (turno de la ${({ "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" })[x.turno] || x.turno}, hoja)`, persona: null, entrada: x.clase === "a_admin" ? r2(x.monto) : 0, salida: x.clase === "de_admin" ? r2(x.monto) : 0 });
+  // Traspasos internos durante el turno: salida de caja = entrada a
+  // administración; entrada en caja = salida de administración. No son egresos.
+  for (const x of d.adminCaja || []) {
+    if (x.anulado) continue;
+    ef.push({ dia: x.dia, orden: x.dia + "1" + x.creado,
+      tipo: x.tipo === "salida" ? "caja-a-administracion" : "administracion-a-caja",
+      concepto: (x.tipo === "salida" ? "Retiro de administración" : "Ingreso de administración") +
+        (x.detalle ? " · " + x.detalle : ""), persona: x.persona || null,
+      entrada: x.tipo === "salida" ? r2(x.monto) : 0,
+      salida: x.tipo === "entrada" ? r2(x.monto) : 0 });
+  }
   for (const x of d.cambio || []) ef.push({ dia: x.dia, orden: x.dia + "0" + (x.creado || ""), tipo: "cambio", concepto: `Aumento de cambio a la caja (turno de la ${({ "MAÑANA": "mañana", TARDE: "tarde", NOCHE: "noche" })[x.turno] || x.turno})`, persona: x.persona || null, entrada: 0, salida: r2(x.monto) });
   const nom = id => (cuentas.find(c => c.id === id) || { nombre: id }).nombre;
   for (const m of d.movs || []) {

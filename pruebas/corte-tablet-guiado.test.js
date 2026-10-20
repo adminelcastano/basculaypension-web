@@ -18,7 +18,7 @@ test("Corte tablet: guía diferencia conteo, distribución y entrega", () => {
     "Cuenta el efectivo", "Distribuye lo que contaste", "Revisa y entrega",
     "después de los gastos que ya pagaste durante el turno",
     "antes de separar los retiros del cierre",
-    "Sobre: dinero que recibirá la administración",
+    "Efectivo que recibirá administración",
     "Retiros hechos al repartir el corte",
     "No vuelvas a incluir gastos que ya pagaste y registraste durante el turno",
     "Cambio que quedará físicamente en caja para el siguiente turno"
@@ -58,8 +58,8 @@ test("Corte tablet: cuando coincide un gasto y un retiro se pide aclaración", (
   assert.match(ui, /if \(!Number\.isFinite\(dif\)\)/);
 });
 
-test("Corte tablet: confirmar entrega muestra el sobre y conserva cola y borradores por identidad", () => {
-  assert.match(ui, /Sobre: \$\{dinero\(num\(f\.sobre\.value\)\)\}/);
+test("Corte tablet: confirma la entrega a administración y conserva cola y borradores por identidad", () => {
+  assert.match(ui, /Entrega a administración: \$\{dinero\(num\(f\.sobre\.value\)\)\}/);
   assert.match(ui, /turno:borrador:\$\{E\.persona\}:\$\{E\.dia\}:\$\{E\.turno\}/);
   assert.match(ui, /guardarLS\(llaveB, null\)/);
   assert.match(ui, /r\.enCola/);

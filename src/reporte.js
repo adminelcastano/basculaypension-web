@@ -17,7 +17,7 @@ const local = iso => iso ? new Date(new Date(iso).getTime() + TZ_HORAS * 3600e3)
 const mesLocal = iso => local(iso).slice(0, 7);
 const TURNO = { "MAÑANA": "Mañana", TARDE: "Tarde", NOCHE: "Noche" };
 const nombreMes = mes => new Date(mes + "-15T12:00:00Z").toLocaleDateString("es-MX", { month: "long", year: "numeric", timeZone: "UTC" });
-const TIPO_MOV = { gasto: "Gasto de caja", ingreso: "Ingreso extra", retiro: "Retiro en el corte", hoja: "Renglón de la hoja" };
+const TIPO_MOV = { gasto: "Gasto de caja", ingreso: "Ingreso extra", admin: "Administración ↔ caja", retiro: "Retiro en el corte", hoja: "Renglón de la hoja" };
 
 // Texto que Sheets podría tomar como fórmula (=, +, -, @) se guarda como texto
 function celda(v) {
@@ -33,12 +33,12 @@ const q = (env, sql, ...a) => env.DB.prepare(sql).bind(...a).all().then(r => r.r
 // ---------------- Turnos ----------------
 async function hojasTurnos(env, mes) {
   await asegurarEsquemaCaja(env); await asegurarEsquemaAgenda(env); await asegurarEsquemaPersonal(env);
-  const { movs, gastos, conteos, extras, inicios } = await leerMes(env, [mes]);
+  const { movs, gastos, conteos, extras, inicios, adminMovs } = await leerMes(env, [mes]);
   const et = await etiquetasCategorias(env);
   const hist = await q(env, "SELECT * FROM turno_cortes_hist WHERE mes = ? ORDER BY creado", mes);
-  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos).slice().reverse();
+  const cortes = unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos).slice().reverse();
   const t = totalesMes(cortes, []);
-  const lista = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
+  const lista = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos, adminMovs }));
   const folio = Object.fromEntries(lista.map(x => [x.ref, x.folio]));
 
   // Folio de los renglones de la hoja sin ticket (mismo orden que movimientosCaja)
@@ -63,6 +63,8 @@ async function hojasTurnos(env, mes) {
       ["Tickets en efectivo", t.efectivo], ["Tickets con tarjeta", t.tarjeta], ["Tickets por transferencia (hoja)", t.transf_hoja], ["Báscula", t.bascula], ["Pensión", t.pension],
       ["Ingresos extra (incluye aumento de cambio)", t.extras], ["Otros ingresos (rentas)", t.otros],
       ["Gastos de caja", t.gastos], ["Renglones de caja de la hoja", t.caja],
+      ["Ingreso de administración (interno)", adminMovs.filter(x => !x.anulado && x.tipo === "entrada").reduce((a, x) => a + x.monto, 0)],
+      ["Retiro de administración (interno)", adminMovs.filter(x => !x.anulado && x.tipo === "salida").reduce((a, x) => a + x.monto, 0)],
       ["Cortes de turno con datos", cortes.length], ["Cortes entregados en la tablet", conteos.length],
       ["Suma de diferencias de efectivo (contado − sistema)", cortes.reduce((a, c) => a + (c.conteo && c.conteo.dif_efectivo != null ? c.conteo.dif_efectivo : 0), 0)],
       ["Sobres entregados a la administración", sobres], ["Retiros en el corte", retiros],
@@ -70,12 +72,12 @@ async function hojasTurnos(env, mes) {
       ["Incidencias reportadas", de("incidencia").filter(i => mesLocal(i.creado) === mes).length],
       ["Tareas cerradas", de("tarea").filter(i => i.estado === "hecho" && i.cerrado && mesLocal(i.cerrado) === mes).length]
     ]),
-    hoja("Cortes", ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos de caja", "Cambio inicial", "Ingresos extra", "Renglones de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta", "Efectivo en sobre", "Retiros", "Cambio para el siguiente turno"],
+    hoja("Cortes", ["Día", "Turno", "Báscula efectivo", "Báscula tarjeta", "Pensión efectivo", "Pensión tarjeta", "Total efectivo", "Total tarjeta", "Gastos de caja", "Cambio inicial", "Ingresos extra", "Renglones de caja", "Efectivo en caja", "Prepago y otros (no suman)", "Entregó", "Efectivo contado", "Diferencia efectivo", "Tarjeta (vouchers)", "Diferencia tarjeta", "Efectivo en sobre", "Retiros", "Cambio para el siguiente turno", "Ingreso de administración", "Retiro de administración"],
       cortes.map(c => [c.dia, TURNO[c.turno] || c.turno, c.bascula.EFECTIVO, c.bascula.TARJETA, c.pension.EFECTIVO, c.pension.TARJETA, c.efectivo, c.tarjeta, c.gastos_total, c.cambio.importe, c.extra.importe, c.caja.importe, c.efectivo_caja, c.fuera.importe,
         c.conteo ? c.conteo.persona : "", c.conteo ? c.conteo.efectivo : "", c.conteo ? c.conteo.dif_efectivo : "", c.conteo && c.conteo.tarjeta != null ? c.conteo.tarjeta : "", c.conteo && c.conteo.dif_tarjeta != null ? c.conteo.dif_tarjeta : "",
-        c.conteo && c.conteo.sobre != null ? c.conteo.sobre : "", c.conteo ? c.conteo.retiros.reduce((a, r) => a + r.monto, 0) || "" : "", c.conteo && c.conteo.cambio_sig != null ? c.conteo.cambio_sig : ""])),
-    hoja("Movimientos de caja", ["Folio", "Día", "Turno", "Hora", "Tipo", "Concepto", "Detalle", "Monto", "Quién", "Foto"],
-      lista.slice().reverse().map(x => [x.folio || "", x.dia, TURNO[x.turno] || x.turno, String(x.cuando || "").slice(11, 16), TIPO_MOV[x.tipo], x.concepto, x.detalle || "", x.monto, x.persona ? x.persona + " (tablet)" : x.por || "", x.foto ? "Sí" : ""])),
+        c.conteo && c.conteo.sobre != null ? c.conteo.sobre : "", c.conteo ? c.conteo.retiros.reduce((a, r) => a + r.monto, 0) || "" : "", c.conteo && c.conteo.cambio_sig != null ? c.conteo.cambio_sig : "", c.adminMovs.entradas, c.adminMovs.salidas])),
+    hoja("Movimientos de caja", ["Folio", "Día", "Turno", "Hora", "Tipo", "Concepto", "Detalle", "Monto", "Quién", "Foto", "Estado", "Monto original"],
+      lista.slice().reverse().map(x => [x.folio || "", x.dia, TURNO[x.turno] || x.turno, String(x.cuando || "").slice(11, 16), TIPO_MOV[x.tipo], x.concepto, x.detalle || "", x.monto, x.persona ? x.persona + " (tablet)" : x.por || "", x.foto ? "Sí" : "", x.anulado ? "Anulado" : "Vigente", x.original ?? x.monto])),
     ...["bascula", "pension"].map(sv => hoja(sv === "bascula" ? "Báscula" : "Pensión", ["Fecha y hora", "Día del corte", "Turno", "Folio", "Matrícula", "Cliente", sv === "bascula" ? "Tarifa" : "Recibido", "Forma de pago", "En el corte", "Folio de movimiento"],
       movs.filter(m => m.servicio === sv).slice().reverse().map(m => [String(m.fecha).replace("T", " "), m.dia, TURNO[m.turno] || m.turno, m.folio, m.matricula, m.cliente, m.importe, m.forma, m.tipo === "caja" ? (esCambio(m) ? "Cambio inicial" : "Movimiento de caja") : FORMAS_CONTADAS.includes(m.forma) ? "Sí" : "No", m.folio_mc || ""]))),
     hoja("Gastos de caja", ["Folio", "Día", "Turno", "Categoría", "Concepto", "Monto", "Capturado por", "Foto"], gastos.slice().reverse().map(g => [folio["g:" + g.id] || "", g.dia, TURNO[g.turno] || g.turno, et(g.categoria) || "", g.concepto, g.monto, g.persona ? g.persona + " (tablet)" : g.creado_por || "", g.foto ? "Sí" : ""])),
