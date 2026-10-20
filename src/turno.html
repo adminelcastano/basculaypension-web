@@ -1107,8 +1107,8 @@ dialog.casta-sheet::backdrop { background:rgba(0,0,0,.72); }
           <div class="acc-grid">
             <button type="button" class="accion" data-accion="gasto"><span class="ibadge" style="--c:#ff7a70"><svg><use href="#i-gasto"/></svg></span>Agregar gasto</button>
             <button type="button" class="accion" data-accion="extra"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-mas"/></svg></span>Agregar ingreso extra</button>
-            <button type="button" class="accion" data-accion="admin-salida"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-gasto"/></svg></span>Retiro de administración</button>
-            <button type="button" class="accion" data-accion="admin-entrada"><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-mas"/></svg></span>Ingreso de administración</button>
+            <button type="button" class="accion" data-accion="admin-salida" ${c ? "disabled" : ""}><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-gasto"/></svg></span>Retiro de administración</button>
+            <button type="button" class="accion" data-accion="admin-entrada" ${c ? "disabled" : ""}><span class="ibadge" style="--c:#64d2ff"><svg><use href="#i-mas"/></svg></span>Ingreso de administración</button>
             <button type="button" class="accion" data-accion="incidencia"><span class="ibadge" style="--c:#ff6961"><svg><use href="#i-alerta"/></svg></span>Reportar incidencia</button>
             <button type="button" class="accion" data-accion="aviso"><span class="ibadge" style="--c:#ffcc00"><svg><use href="#i-aviso"/></svg></span>Publicar en Castagram${nuevos.length ? `<span class="casta-alertas" aria-label="${nuevos.length} novedades pendientes">${nuevos.length > 99 ? "99+" : nuevos.length}</span>` : ""}</button>
             <button type="button" class="accion" data-accion="compra"><span class="ibadge" style="--c:#bf5af2"><svg><use href="#i-carrito"/></svg></span>Compras</button>
