@@ -970,7 +970,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     ]);
     const c = calcularCortes(movs, gastos, extras, inicios, adminMovs)[0];
     return json({ ok: true, dia, turno, saldo: c ? Math.round(c.efectivo_caja * 100) / 100 : 0,
-      ventas_efectivo: c?.efectivo || 0, cambio: c?.cambio.importe || 0,
+      ventas_efectivo: c?.efectivo || 0, ventas_tarjeta: c?.tarjeta || 0, cambio: c?.cambio.importe || 0,
+      ingresos_extra: c?.extra.importe || 0, gastos: c?.gastos.EFECTIVO || 0,
       administracion: c?.adminMovs || { n: 0, entradas: 0, salidas: 0 },
       cerrado: conteos.length > 0, sincronizacion: { at: sync?.at || null,
         error: !!(sync?.error && (!sync.at || sync.error_at > sync.at)) }, consultado_en: new Date().toISOString() });
