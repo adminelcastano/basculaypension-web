@@ -22,6 +22,7 @@ const FORMAS_GASTO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"];
 // administración para aumentar el cambio, etc. Todos suman al efectivo del turno; el "Aumento de cambio"
 // no cuenta como ingreso del negocio.
 export const CONCEPTOS_EXTRA = ["Renta", "Aumento de cambio", "Otro ingreso"];
+export const TIPOS_MOV_ADMIN_CAJA = ["entrada", "salida"]; // Desde administración a caja, o desde caja a administración.
 export const cuentaComoIngreso = concepto => concepto !== "Aumento de cambio";
  
 // Aporte de Administración hecho AL INICIAR un turno. ID fijo: una corrección o reenvío
@@ -192,6 +193,58 @@ export const numero = v => {
 export const montoUsuario = v => { const t = String(v ?? "").replace(/[$,\s]/g, ""); return /^\d{1,9}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
 const texto = (v, n = 80) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
+
+// Movimientos internos caja ↔ administración; el UID es obligatorio para que un
+// reintento de tableta o panel no pueda mover dos veces el efectivo.
+const errorMovimientoAdmin = (mensaje, code = "MOV_ADMIN_INVALIDO") => Object.assign(new Error(mensaje), { code });
+export async function guardarMovimientoAdminCaja(env, { dia, turno, tipo, monto, detalle = "", persona = null, quien, uid }, ahora = new Date().toISOString()) {
+  if (!fechaCalendarioCaja(dia) || !TURNOS.includes(turno) || !TIPOS_MOV_ADMIN_CAJA.includes(tipo) ||
+      !Number.isFinite(monto) || monto <= 0 || monto > 1000000 || !Number.isInteger(Math.round(monto * 100)) ||
+      typeof uid !== "string" || !/^[a-z0-9-]{8,64}$/i.test(uid) || !quien)
+    throw errorMovimientoAdmin("Movimiento de administración inválido.");
+  detalle = texto(detalle, 120);
+  const id = await idFinanciero("traspaso-admin-caja", uid, quien, dia + "|" + turno);
+  const repetido = async () => {
+    const x = await env.DB.prepare("SELECT dia, turno, tipo, monto, detalle, anulado FROM caja_admin_movs WHERE id = ?").bind(id).first();
+    if (!x) return null;
+    if (x.anulado) throw errorMovimientoAdmin("El movimiento fue anulado; no se puede volver a registrar.", "MOV_ADMIN_CONFLICTO");
+    if (x.dia === dia && x.turno === turno && x.tipo === tipo &&
+        centavosIguales(x.monto, monto) && (x.detalle || "") === detalle) return { id, repetido: true };
+    throw errorMovimientoAdmin("El identificador ya corresponde a un movimiento diferente.", "MOV_ADMIN_CONFLICTO");
+  };
+  const previo = await repetido();
+  if (previo) return previo;
+  let resultado;
+  try {
+    resultado = await env.DB.batch([
+      env.DB.prepare("INSERT INTO caja_admin_movs (id, mes, dia, turno, tipo, monto, detalle, persona, creado, creado_por) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)")
+        .bind(id, dia.slice(0, 7), dia, turno, tipo, monto, detalle || null, persona, ahora, quien, dia, turno),
+      stmtBitacoraSiCambio(env, { quien, accion: "crear", que: "Movimiento entre caja y administración", ref: id, mes: dia.slice(0, 7), detalle: { dia, turno, tipo, monto } })
+    ]);
+  } catch (e) {
+    const r = await repetido();
+    if (r) return r;
+    throw e;
+  }
+  if (!resultado[0]?.meta?.changes) throw errorMovimientoAdmin("El corte ya fue entregado. No se registró el movimiento.", "MOV_ADMIN_CERRADO");
+  return { id, repetido: false };
+}
+export async function anularMovimientoAdminCaja(env, { id, dia, turno, persona = null, quien }, ahora = new Date().toISOString()) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || "")) || !fechaCalendarioCaja(dia) || !TURNOS.includes(turno) || !quien)
+    throw errorMovimientoAdmin("Movimiento no válido.");
+  const x = await env.DB.prepare("SELECT id, anulado, persona, monto, tipo FROM caja_admin_movs WHERE id = ? AND dia = ? AND turno = ?").bind(id, dia, turno).first();
+  if (!x || (persona && x.persona !== persona))
+    throw errorMovimientoAdmin("No existe un movimiento de tu turno con ese identificador.", "MOV_ADMIN_NO_ENCONTRADO");
+  if (x.anulado) return { id, repetido: true };
+  const res = await env.DB.batch([
+    env.DB.prepare("UPDATE caja_admin_movs SET anulado = 1, anulado_por = ?, anulado_en = ? WHERE id = ? AND dia = ? AND turno = ? AND anulado = 0 AND NOT EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?)")
+      .bind(quien, ahora, id, dia, turno, dia, turno),
+    stmtBitacoraSiCambio(env, { quien, accion: "borrar", que: "Movimiento entre caja y administración", ref: id, mes: dia.slice(0, 7), detalle: { dia, turno, tipo: x.tipo, monto: x.monto } })
+  ]);
+  if (!res[0]?.meta?.changes) throw errorMovimientoAdmin("El movimiento cambió o el corte ya fue entregado. Actualiza la pantalla.", "MOV_ADMIN_CERRADO");
+  return { id, repetido: false };
+}
+
 let esquemaListo = false;
 export async function asegurarEsquemaCaja(env) {
   if (esquemaListo) return;
@@ -215,6 +268,10 @@ export async function asegurarEsquemaCaja(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS caja_extra (
       id TEXT PRIMARY KEY, mes TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, concepto TEXT NOT NULL, detalle TEXT,
       monto REAL NOT NULL, ingreso INTEGER NOT NULL DEFAULT 1, foto TEXT, persona TEXT, creado TEXT NOT NULL, creado_por TEXT)`).run();
+  // Traspasos internos: no son ventas, ingresos extra ni gastos del negocio.
+  // Anular conserva la evidencia y el folio; no se borran importes históricos.
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_admin_movs (id TEXT PRIMARY KEY, mes TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, tipo TEXT NOT NULL CHECK (tipo IN ('entrada','salida')), monto REAL NOT NULL CHECK (monto > 0), detalle TEXT, persona TEXT, creado TEXT NOT NULL, creado_por TEXT NOT NULL, anulado INTEGER NOT NULL DEFAULT 0, anulado_por TEXT, anulado_en TEXT)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_admin_movs_mes ON caja_admin_movs (mes, dia, turno, creado)").run();
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(caja_gastos)").all()).results.map(r => r.name));
   for (const c of ["foto", "persona"]) if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE caja_gastos ADD COLUMN ${c} TEXT`).run();
   // Desde el 14 oct 2026 el encargado cuenta el efectivo físico CON el cambio inicial (con_cambio = 1)
@@ -467,13 +524,13 @@ export async function leerCobrosAdmin(env, { mes = "", desde = "", hasta = "" } 
     .bind(...bind).all()).results;
 }
 
-export function calcularCortes(movs, gastos, extras = [], inicios = []) {
+export function calcularCortes(movs, gastos, extras = [], inicios = [], adminMovs = []) {
   const cortes = new Map();
   const corte = (dia, turno) => {
     const k = dia + "|" + turno;
     if (!cortes.has(k)) cortes.set(k, {
       dia, turno, bascula: { EFECTIVO: 0, TARJETA: 0 }, pension: { EFECTIVO: 0, TARJETA: 0 },
-      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, extra: { n: 0, importe: 0, ingreso: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
+      fuera: { n: 0, importe: 0, formas: {} }, caja: { n: 0, importe: 0 }, cambio: { n: 0, importe: 0 }, extra: { n: 0, importe: 0, ingreso: 0 }, adminMovs: { n: 0, entradas: 0, salidas: 0 }, gastos: { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 }, registros: 0, n_gastos: 0
     });
     return cortes.get(k);
   };
@@ -487,12 +544,19 @@ export function calcularCortes(movs, gastos, extras = [], inicios = []) {
   }
   for (const g of gastos) { const c = corte(g.dia, g.turno); c.gastos[g.forma] = (c.gastos[g.forma] || 0) + g.monto; c.n_gastos++; }
   for (const x of extras) { const c = corte(x.dia, x.turno); c.extra.n++; c.extra.importe += x.monto; if (x.ingreso) c.extra.ingreso += x.monto; }
+  for (const x of adminMovs) {
+    const c = corte(x.dia, x.turno);
+    if (x.anulado) continue;
+    c.adminMovs.n++;
+    if (x.tipo === "entrada") c.adminMovs.entradas += x.monto;
+    else if (x.tipo === "salida") c.adminMovs.salidas += x.monto;
+  }
   // El cambio inicial capturado en la tablet manda sobre el "cambio" de la hoja (no se suman los dos)
   for (const i of inicios) { const c = corte(i.dia, i.turno); c.cambio = { n: 1, importe: Number(i.cambio) || 0, fuente: "tablet", persona: i.persona, desde: i.creado || null, hoja: c.cambio.importe }; }
   const orden = t => TURNOS.indexOf(t) < 0 ? 9 : TURNOS.indexOf(t);
   return [...cortes.values()].map(c => {
     const efectivo = c.bascula.EFECTIVO + c.pension.EFECTIVO, tarjeta = c.bascula.TARJETA + c.pension.TARJETA;
-    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.cambio.importe + c.extra.importe + c.caja.importe - c.gastos.EFECTIVO };
+    return { ...c, efectivo, tarjeta, ingresos: efectivo + tarjeta, gastos_total: c.gastos.EFECTIVO + c.gastos.TARJETA + c.gastos.TRANSFERENCIA, efectivo_caja: efectivo + c.cambio.importe + c.extra.importe + c.caja.importe + c.adminMovs.entradas - c.adminMovs.salidas - c.gastos.EFECTIVO };
   }).sort((a, b) => b.dia.localeCompare(a.dia) || orden(b.turno) - orden(a.turno));
 }
 
@@ -610,10 +674,15 @@ function conteo(x, c) {
 // retiros del corte ciego y renglones de la hoja sin folio de ticket. El folio se asigna una sola vez
 // (por orden de llegada) y no cambia; si el movimiento se borra, su número no se vuelve a usar.
 const horaLocal = iso => { const d = new Date(Date.parse(iso) - 6 * 3600e3); return isNaN(d) ? "" : d.toISOString().slice(0, 16); };
-export function movimientosCaja({ movs = [], gastos = [], extras = [], conteos = [] }) {
+export function movimientosCaja({ movs = [], gastos = [], extras = [], conteos = [], adminMovs = [] }) {
   const lista = [];
   for (const g of gastos) if (esDeCaja(g)) lista.push({ ref: "g:" + g.id, tipo: "gasto", id: g.id, mes: g.mes, dia: g.dia, turno: g.turno, cuando: horaLocal(g.creado), concepto: g.concepto, categoria: g.categoria || null, detalle: "", monto: -g.monto, forma: g.forma, persona: g.persona || null, por: g.persona ? null : g.creado_por || null, foto: g.foto || null });
   for (const x of extras) lista.push({ ref: "x:" + x.id, tipo: "ingreso", id: x.id, mes: x.mes, dia: x.dia, turno: x.turno, cuando: horaLocal(x.creado), concepto: x.concepto, detalle: x.detalle || "", monto: x.monto, forma: "EFECTIVO", persona: x.persona || null, por: x.persona ? null : x.creado_por || null, foto: x.foto || null, ingreso: !!x.ingreso });
+  for (const x of adminMovs) lista.push({ ref: "a:" + x.id, tipo: "admin", id: x.id, mes: x.mes, dia: x.dia, turno: x.turno,
+    cuando: horaLocal(x.creado), concepto: x.tipo === "entrada" ? "Ingreso de administración" : "Retiro de administración",
+    detalle: x.detalle || "", monto: x.anulado ? 0 : (x.tipo === "entrada" ? x.monto : -x.monto),
+    original: x.tipo === "entrada" ? x.monto : -x.monto, anulado: !!x.anulado, persona: x.persona || null,
+    por: x.persona ? null : x.creado_por || null, foto: null });
   for (const c of conteos) leerRetiros(c.retiros).forEach((r, i) => lista.push({ ref: `r:${c.dia}|${c.turno}|${i}`, tipo: "retiro", mes: c.mes, dia: c.dia, turno: c.turno, cuando: horaLocal(c.actualizado), concepto: r.concepto, detalle: "Retiro en el corte", monto: -r.monto, forma: "EFECTIVO", persona: c.persona, foto: null }));
   // Renglones de la hoja sin folio de ticket (retiros, sueldos, compras); el cambio inicial no lleva folio
   const vistos = new Map();
@@ -675,16 +744,17 @@ export async function leerMes(env, meses, { desde = "", hasta = "" } = {}) {
   // Son lecturas independientes; no hay que esperar a que termine cada consulta
   // para iniciar las demás. Conservamos exactamente las mismas filas y filtros.
   const consultar = sql => env.DB.prepare(sql).bind(...args).all().then(r => r.results);
-  const [movs, todos, transf, conteos, extras, inicios] = await Promise.all([
+  const [movs, todos, transf, conteos, extras, inicios, adminMovs] = await Promise.all([
     consultar(`SELECT * FROM caja_mov WHERE ${enMes}${rango("dia")} ORDER BY fecha DESC`),
     consultar(`SELECT * FROM caja_gastos WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
     consultar(`SELECT * FROM caja_transf WHERE ${enMes}${rango("fecha")} ORDER BY fecha DESC, creado DESC`),
     consultar(`SELECT * FROM turno_cortes WHERE ${enMes}${rango("dia")}`),
     consultar(`SELECT * FROM caja_extra WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`),
-    consultar(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`)
+    consultar(`SELECT * FROM turno_inicio WHERE ${enMes}${rango("dia")}`),
+    consultar(`SELECT * FROM caja_admin_movs WHERE ${enMes}${rango("dia")} ORDER BY dia DESC, creado DESC`)
   ]);
   const gastos = todos.filter(esDeCaja), gastosAdmin = todos.filter(g => !esDeCaja(g));
-  return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios };
+  return { movs, gastos, gastosAdmin, transf, conteos, extras, inicios, adminMovs };
 }
 
 // Cambio de mes: el mes anterior se deja en la base tal como quedó en la hoja y se crean sus reportes
@@ -1061,7 +1131,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const esResumenHoy = url.searchParams.get("resumen") === "1";
     // Las fuentes son independientes: no encadenar lecturas de D1, KV y
     // categorías cuando todas pueden comenzar juntas.
-    const [{ movs, gastos, transf, conteos, extras, inicios }, sync, pendientes, cobros, categorias] = await Promise.all([
+    const [{ movs, gastos, transf, conteos, extras, inicios, adminMovs }, sync, pendientes, cobros, categorias] = await Promise.all([
       leerMes(env, meses, periodo),
       env.FILES.get("caja:sync", { type: "json" }),
       env.DB.prepare(`SELECT p.id, p.servicio, p.fecha, p.dia, p.turno, p.folio, p.cliente, p.monto, p.forma, p.origen_activo,
@@ -1072,7 +1142,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       leerCobrosAdmin(env, periodo.desde || periodo.hasta ? periodo : { desde: mes + "-01", hasta: mes + "-31" }),
       esResumenHoy ? Promise.resolve(null) : listaCategorias(env)
     ]);
-    const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos), conteos, inicios);
+    const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos), conteos, inicios);
     const tr = transferenciasMes(movs, transf);
     // El camino ligero evita numeraciones de folios, escrituras y catálogos.
     // Conserva todas las fuentes en vivo que utiliza Hoy y sus alertas.
@@ -1086,7 +1156,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         transferencias: transf, transf_hoja: tr.hoja, gastos_recientes: gastosRecientes,
         conectado: !!(env.INGRESOS_URL && env.INGRESOS_TOKEN) });
     }
-    const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos }));
+    const movimientos = await conFolios(env, movimientosCaja({ movs, gastos, extras, conteos, adminMovs }));
     // Gastos sueltos de hoy y ayer (para el Inicio: quién los capturó y cuánto)
     const ayer = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(Date.now() - 86400e3));
     const gastosRecientes = gastos.filter(g => g.dia >= ayer).map(g => ({ dia: g.dia, turno: g.turno, concepto: g.concepto, monto: g.monto, forma: g.forma, persona: g.persona || null, creado: g.creado }));
@@ -1106,7 +1176,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const dia = url.searchParams.get("dia") || "", turno = url.searchParams.get("turno") || "";
     const ant = turnoAnterior(dia, turno), sig = turnoSiguiente(dia, turno);
     const get = (sql, ...params) => env.DB.prepare(sql).bind(...params).all().then(r => r.results);
-    const [movs, gastos, pendientes, conteos, extras, inicios, conteoAnt, inicioSig, historialFilas] = await Promise.all([
+    const [movs, gastos, pendientes, conteos, extras, inicios, conteoAnt, inicioSig, historialFilas, adminMovs] = await Promise.all([
       get("SELECT * FROM caja_mov WHERE dia = ? AND turno = ? ORDER BY fecha ASC", dia, turno),
       get(`SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND ${DE_CAJA} ORDER BY creado ASC`, dia, turno),
       get("SELECT * FROM caja_pendientes WHERE dia = ? AND turno = ? ORDER BY fecha ASC", dia, turno),
@@ -1115,7 +1185,8 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       get("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?", dia, turno),
       ant ? get("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?", ant.dia, ant.turno) : Promise.resolve([]),
       sig ? get("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?", sig.dia, sig.turno) : Promise.resolve([]),
-      get("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC", dia, turno)
+      get("SELECT * FROM turno_cortes_hist WHERE dia = ? AND turno = ? ORDER BY creado ASC", dia, turno),
+      get("SELECT * FROM caja_admin_movs WHERE dia = ? AND turno = ? ORDER BY creado ASC", dia, turno)
     ]);
     // Las consultas de abonos también son independientes entre pendientes.
     await Promise.all(pendientes.map(async p => {
@@ -1123,20 +1194,21 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
         FROM caja_cobros_admin WHERE pendiente_id = ? ORDER BY creado ASC`, p.id);
       p.abonado = Math.round(p.abonos.filter(x => !x.anulado).reduce((a, x) => a + x.monto, 0) * 100) / 100;
     }));
-    const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios), conteos)[0] || null;
+    const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos)[0] || null;
     if (corte) {
       corte.cambio_turno = cambiosEntreTurnos(conteoAnt, inicios).get(dia + "|" + turno) || null;
       corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
     }
     const historial = historialFilas.map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
     // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
-    const folios = Object.fromEntries((await conFolios(env, movimientosCaja({ movs: movs.map(m => ({ ...m, mes: m.mes || dia.slice(0, 7) })), gastos, extras, conteos }))).map(x => [x.ref, x.folio]));
+    const folios = Object.fromEntries((await conFolios(env, movimientosCaja({ movs: movs.map(m => ({ ...m, mes: m.mes || dia.slice(0, 7) })), gastos, extras, conteos, adminMovs }))).map(x => [x.ref, x.folio]));
     const vistos = new Map();
     for (const m of movs.filter(m => m.tipo === "caja" && !esCambio(m)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || (a.id || 0) - (b.id || 0))) { const f = firmaMov(m), k = vistos.get(f) || 0; vistos.set(f, k + 1); m.folio_mc = folios["m:" + f + "#" + k] || null; }
     for (const g of gastos) g.folio_mc = folios["g:" + g.id] || null;
     for (const x of extras) x.folio_mc = folios["x:" + x.id] || null;
+    for (const x of adminMovs) x.folio_mc = folios["a:" + x.id] || null;
     const folRet = conteos[0] ? leerRetiros(conteos[0].retiros).map((r, i) => folios[`r:${dia}|${turno}|${i}`] || null) : [];
-    return json({ ok: true, corte, movs, pendientes, gastos, extras, historial, folios_retiros: folRet, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA });
+    return json({ ok: true, corte, movs, pendientes, gastos, extras, admin_movs: adminMovs, historial, folios_retiros: folRet, formas_contadas: FORMAS_CONTADAS, conceptos_extra: CONCEPTOS_EXTRA, sync: await env.FILES.get("caja:sync", { type: "json" }) });
   }
 
   if (partes[1] === "sincronizar" && request.method === "POST") {
