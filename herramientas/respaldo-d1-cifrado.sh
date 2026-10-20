@@ -22,7 +22,7 @@ umask 077
 id_regex='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 [[ "$BACKUP_TEST_DATABASE_ID" =~ $id_regex ]] &&
 [[ "$BACKUP_PRODUCTION_DATABASE_ID" =~ $id_regex ]] &&
-[ "${BACKUP_TEST_DATABASE_ID,,}" != "${BACKUP_PRODUCTION_DATABASE_ID,,}" ] || {
+[ "$(printf '%s' "$BACKUP_TEST_DATABASE_ID" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$BACKUP_PRODUCTION_DATABASE_ID" | tr '[:upper:]' '[:lower:]')" ] || {
   echo "UUID inválido o coincidente con producción: exportación denegada" >&2; exit 2;
 }
 [[ "$AGE_RECIPIENT" =~ ^age1[a-z0-9]{20,}$ ]] || {
@@ -58,7 +58,6 @@ if (cfg?.name !== "castano-respaldo-ensayo" ||
 }
 NODE
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # shellcheck source=respaldo-portable.sh
 source "$root/herramientas/respaldo-portable.sh"
 [ -d "$BACKUP_DEST" ] && [ -w "$BACKUP_DEST" ] || {
