@@ -3,6 +3,7 @@
 // antes de enviar filas al Sheet privado SALARIOS mediante Apps Script.
 import { asegurarEsquemaBitacora,stmtBitacoraSiCambio } from "./bitacora.js";
 import { scriptArchivos } from "./fotos.js";
+import { leerRetiros, claseHoja, conceptoHoja } from "./caja.js";
 const json=(x,s=200)=>new Response(JSON.stringify(x),{status:s,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
 const ID=/^[a-z0-9][a-z0-9_:-]{2,79}$/i;
 export const validarPagoSalario = (r) => r && r.id && /^\d{4}-\d{2}-\d{2}$/.test(r.dia||"") &&
@@ -18,21 +19,60 @@ async function leerPagos(env){
   return datos.filter(validarPagoSalario).map(x=>({...x,vinculo:por[x.id]||null,
     vinculo_actual:!por[x.id]||(por[x.id].importe_centavos===Math.round(x.monto*100)&&por[x.id].fecha_fuente===x.dia&&por[x.id].concepto_fuente===x.concepto)}));
 }
+// Un corte o un renglón importado NO equivale a un pago individual verificado.
+// Sólo se muestran candidatos con palabras explícitas; no se crean IDs persistentes
+// ni vínculos de colaborador porque el origen puede editarse/reimportarse.
+const esConceptoSueldo=t=>/(sueldo|salario|n[oó]mina)/i.test(String(t||""));
+export function candidatosSalariales(cortes,hoja,gastos) {
+  const candidatos=[];
+  for(const c of cortes||[]) {
+    const retiros=leerRetiros(c.retiros);
+    retiros.forEach((r,i)=>{
+      if(!esConceptoSueldo(r.concepto))return;
+      candidatos.push({origen:"Retiro de corte",dia:c.dia,turno:c.turno||"",concepto:r.concepto,
+        monto:r.monto,orden:i+1});
+    });
+  }
+  for(const m of hoja||[]) {
+    if(claseHoja(m)!=="gasto")continue;
+    const concepto=conceptoHoja(m);
+    if(!esConceptoSueldo(concepto))continue;
+    candidatos.push({origen:"Hoja de caja",dia:m.dia,turno:m.turno||"",concepto,
+      monto:Math.round(-Number(m.importe)*100)/100});
+  }
+  for(const c of candidatos) {
+    const empates=(gastos||[]).filter(g=>g.dia===c.dia&&Math.round(g.monto*100)===Math.round(c.monto*100));
+    const otros=candidatos.filter(x=>x!==c&&x.dia===c.dia&&Math.round(x.monto*100)===Math.round(c.monto*100));
+    c.posible_duplicado=empates.length>0||otros.length>0;
+    c.solo_revision=true;
+  }
+  return candidatos.sort((a,b)=>b.dia.localeCompare(a.dia)).slice(0,120);
+}
+async function buscarCandidatos(env,gastos) {
+  // Ventana acotada, ningún dato de un periodo histórico se reescribe.
+  const limite=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const [cortes,hoja]=await Promise.all([
+    env.DB.prepare("SELECT dia,turno,retiros FROM turno_cortes WHERE dia>=? AND retiros IS NOT NULL ORDER BY dia DESC,turno LIMIT 300").bind(limite).all(),
+    env.DB.prepare("SELECT dia,turno,tipo,folio,cliente,matricula,importe FROM caja_mov WHERE tipo='caja' AND dia>=? ORDER BY dia DESC LIMIT 500").bind(limite).all()
+  ]);
+  return candidatosSalariales(cortes.results,hoja.results,gastos);
+}
 const activo=env=>env.SALARIOS_SYNC_ACTIVE==="SI"&&!!env.AVISO_URL&&!!env.AVISO_TOKEN;
 export async function rutaSalarios(request,env,partes,usuario){
   await asegurarEsquemaSalarios(env);
   const habilitado=activo(env);
   if(request.method==="GET"&&partes.length===2){
     const pagos=await leerPagos(env);
+    const candidatos=await buscarCandidatos(env,pagos);
     const huerfanos=(await env.DB.prepare("SELECT v.gasto_id FROM fin_nomina_vinculos v LEFT JOIN caja_gastos g ON g.id=v.gasto_id WHERE g.id IS NULL OR g.categoria!='Sueldos'").all()).results.length;
     let empleados=[],aviso=null;
     if(habilitado)try{
       const r=await scriptArchivos(env,{accion:"salarios",op:"catalogo"},20000);
       empleados=r.colaboradores||[];
     }catch{aviso="La conexión privada SALARIOS no está disponible. No se enviaron pagos.";}
-    return json({ok:true,habilitado,empleados,pagos,huerfanos,
+    return json({ok:true,habilitado,empleados,pagos,candidatos,huerfanos,
       aviso:huerfanos?String(huerfanos)+" referencia(s) salariales sin origen vigente. Conciliar antes de sincronizar.":aviso||(!habilitado?"Sincronización SALARIOS suspendida; puedes consultar pagos ya registrados sin duplicarlos.":"Los pagos sin colaborador confirmado no se sincronizan."),
-      fuentes_no_vinculadas:"Los retiros incluidos en cortes y los renglones de la hoja necesitan conciliación individual antes de habilitar su reflejo."});
+      fuentes_no_vinculadas:"Los retiros de cortes y renglones de hoja se muestran como candidatos, no como pagos confirmados. No se sincronizan con SALARIOS."});
   }
   if(request.method!=="POST"||partes.length!==3)return json({ok:false,error:"Operación no permitida."},405);
   if(!habilitado)return json({ok:false,error:"La conexión de SALARIOS está suspendida. Ningún dato se escribió en Google Sheets."},409);
