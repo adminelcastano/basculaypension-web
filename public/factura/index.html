@@ -163,6 +163,21 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
         <label class="f">Número de folio del ticket <span class="hint">Opcional. Escríbelo tal como aparece en el ticket.</span>
           <input type="text" name="folio_ticket" maxlength="40" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Ej. 17372">
         </label>
+        <div class="f" id="g-facturas_solicitadas" style="margin-top:18px">
+          <strong>¿Cuántas facturas necesitas solicitar?</strong>
+          <p class="hint">Puedes pedir una o consultar la posibilidad de recibir dos. Administración revisará tu ticket antes de emitirlas.</p>
+          <div class="opciones" role="radiogroup" aria-label="Cantidad de facturas solicitadas">
+            <label class="opcion"><input type="radio" name="facturas_solicitadas" value="1" checked><span><b>Una factura</b><small>Por el importe completo del ticket.</small></span></label>
+            <label class="opcion"><input type="radio" name="facturas_solicitadas" value="2"><span><b>Solicitar dos facturas</b><small>Administración revisará si corresponde.</small></span></label>
+          </div>
+          <span class="err" data-err="facturas_solicitadas"></span>
+          <div id="dos-facturas" hidden style="margin-top:12px">
+            <label class="f">¿Por qué necesitas dos facturas? <span class="hint">Opcional. Puedes explicar qué servicios o conceptos corresponden a cada una.</span>
+              <textarea name="facturas_motivo" maxlength="300" rows="3" placeholder="Describe brevemente tu solicitud…"></textarea>
+            </label>
+            <p class="hint">No es necesario calcular importes ni llenar los datos fiscales dos veces. Pedir dos facturas no garantiza su emisión: te confirmaremos cómo procede.</p>
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -299,12 +314,13 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   const archivos = { ticket: null, csf: null };
 
   function modo() { return form.modo.value; }
+  function mostrarDosFacturas() { document.getElementById("dos-facturas").hidden = form.facturas_solicitadas.value !== "2"; }
   function mostrarModo() {
     const m = modo();
     document.getElementById("bloque-csf").hidden = m !== "csf";
     document.getElementById("bloque-manual").hidden = m !== "manual";
   }
-  form.addEventListener("change", e => { if (e.target.name === "modo") mostrarModo(); if (e.target.name === "servicio") mostrarServicio(); });
+  form.addEventListener("change", e => { if (e.target.name === "modo") mostrarModo(); if (e.target.name === "servicio") mostrarServicio(); if (e.target.name === "facturas_solicitadas") mostrarDosFacturas(); });
   // Instrucciones del ticket según el servicio
   function mostrarServicio() {
     const sv = form.servicio.value || "ninguno";
@@ -313,6 +329,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   }
   mostrarServicio();
   mostrarModo();
+  mostrarDosFacturas();
 
   form.rfc.addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[\s-]/g, ""); });
   form.cp.addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5); });
@@ -402,6 +419,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     if (!form.servicio.value) e.servicio = "Elige el servicio.";
     if (form.folio_ticket.value.trim() && !/^\d+$/.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "El folio debe contener sólo números.";
     if (!form.forma_pago.value) e.forma_pago = "Elige cómo pagaste.";
+    if (!["1","2"].includes(form.facturas_solicitadas.value)) e.facturas_solicitadas = "Elige una o dos facturas.";
     if (!archivos.ticket) e.ticket = "Adjunta la foto completa del ticket.";
     if (modo() === "csf" && !archivos.csf) e.csf = "Adjunta tu constancia o elige «Escribir mis datos».";
     if (modo() === "manual") {
@@ -434,7 +452,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       return;
     }
     const datos = new FormData();
-    for (const n of ["servicio", "folio_ticket", "modo", "uso", "forma_pago", "email", "telefono", "comentario", "sitio"]) datos.append(n, form[n].value);
+    for (const n of ["servicio", "folio_ticket", "modo", "uso", "forma_pago", "email", "telefono", "comentario", "facturas_solicitadas", "facturas_motivo", "sitio"]) datos.append(n, form[n].value);
     if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
@@ -456,7 +474,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       document.getElementById("folio").textContent = j.folio;
       const correo = form.email.value.trim(), telefono = form.telefono.value.replace(/\D/g, "");
       document.getElementById("hecho-entrega").textContent = correo
-        ? "La administración enviará tu factura al correo " + correo + " cuando esté emitida."
+        ? (form.facturas_solicitadas.value === "2" ? "Revisaremos tu petición de dos facturas y coordinaremos la entrega al correo " + correo + " si procede." : "La administración enviará tu factura al correo " + correo + " cuando esté emitida.")
         : telefono ? "La administración podrá comunicarse contigo por WhatsApp para coordinar la entrega."
         : "Para recibir tu factura comunícate directamente con administración indicando este folio.";
       document.getElementById("hecho-wa").href = "https://wa.me/529625642170?text=" + encodeURIComponent("Hola, envié mis datos para factura con el folio " + j.folio + ".");
