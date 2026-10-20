@@ -21,7 +21,7 @@ import { permisoFotoTurno } from "./foto-acceso-turno.js";
 import AGENDA_JS from "./panel/cliente/07-agenda.js";
 const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGENDA_JS.indexOf("// </interpretar>"));
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
-import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio } from "./caja.js";
+import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio, guardarMovimientoAdminCaja, anularMovimientoAdminCaja } from "./caja.js";
 
 const TZ = "America/Mexico_City";
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
@@ -277,6 +277,7 @@ async function estado(env, s) {
     WHERE tipo = 'incidencia' AND ${ABIERTO} ORDER BY CASE gravedad WHEN 'grave' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, creado DESC LIMIT 100`).all()).results;
   const gastos = (await env.DB.prepare("SELECT id, concepto, monto, persona, creado, foto IS NOT NULL AS con_foto FROM caja_gastos WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja' ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const extras = (await env.DB.prepare("SELECT id, concepto, detalle, monto, ingreso, persona, creado, foto IS NOT NULL AS con_foto FROM caja_extra WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
+  const admin_movs = (await env.DB.prepare("SELECT id, tipo, monto, detalle, persona, creado, anulado FROM caja_admin_movs WHERE dia = ? AND turno = ? ORDER BY creado").bind(s.dia, s.turno).all()).results;
   const corte = await env.DB.prepare("SELECT persona, efectivo, tarjeta, notas, actualizado, veces, con_cambio, sobre, cambio_sig, retiros FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
   const inicio = await env.DB.prepare("SELECT cambio, persona, actualizado FROM turno_inicio WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
   // Referencia del turno cronológicamente anterior, también al corregir el inicio.
@@ -301,7 +302,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, admin_movs, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -610,6 +611,39 @@ export async function turnoRuta(request, env, url, h) {
       try { await h.llamarScript(env, correoIncidencia(d, s)); avisado = true; } catch (err) { console.error("incidencia: correo", err && err.message); }
     }
     return recordar(json({ ok: true, id, avisado }));
+  }
+
+  // Traspaso caja ↔ administración: azul en la interfaz, no se contabiliza
+  // como ingreso del negocio ni como gasto. Se guarda sólo antes del corte.
+  if (partes[0] === "admin-movimientos" && partes.length === 1 && request.method === "POST") {
+    const tipo = String(c.tipo || ""), monto = numero(c.monto), detalle = texto(c.detalle, 120);
+    if (!["entrada", "salida"].includes(tipo) || !(monto > 0) || monto > 200000 ||
+        !/^\d{1,9}(\.\d{1,2})?$/.test(String(c.monto || "").replace(/[$,\s]/g, "")) ||
+        String(c.detalle || "").length > 120)
+      return json({ ok: false, error: "Revisa la entrada o salida de administración y su importe." }, 422);
+    try {
+      const resultado = await guardarMovimientoAdminCaja(env, { dia: s.dia, turno: s.turno, tipo,
+        monto, detalle, persona: s.persona, quien: "tablet:" + s.persona, uid: c.uid }, ahora);
+      return recordar(json({ ok: true, ...resultado }));
+    } catch (e) {
+      if (e.code === "MOV_ADMIN_CERRADO" || e.code === "MOV_ADMIN_CONFLICTO")
+        return json({ ok: false, error: e.message }, 409);
+      if (e.code === "MOV_ADMIN_INVALIDO") return json({ ok: false, error: e.message }, 422);
+      throw e;
+    }
+  }
+  if (partes[0] === "admin-movimientos" && partes[2] === "anular" && request.method === "POST") {
+    try {
+      const resultado = await anularMovimientoAdminCaja(env, { id: partes[1], dia: s.dia,
+        turno: s.turno, persona: s.persona, quien: "tablet:" + s.persona }, ahora);
+      return json({ ok: true, ...resultado });
+    } catch (e) {
+      if (e.code === "MOV_ADMIN_CERRADO" || e.code === "MOV_ADMIN_CONFLICTO")
+        return json({ ok: false, error: e.message }, 409);
+      if (e.code === "MOV_ADMIN_NO_ENCONTRADO") return json({ ok: false, error: e.message }, 404);
+      if (e.code === "MOV_ADMIN_INVALIDO") return json({ ok: false, error: e.message }, 422);
+      throw e;
+    }
   }
 
   // ---- Gasto de caja (en efectivo; la foto del comprobante es opcional) ----
