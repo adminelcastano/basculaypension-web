@@ -20,6 +20,13 @@ async function esquema(env) {
     env.DB.prepare("CREATE INDEX IF NOT EXISTS archivos_vence ON archivos (vence)"),
     // Archivos de Drive que no se pudieron mandar a la papelera: se reintenta después
     env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_borrar (drive_id TEXT PRIMARY KEY, creado TEXT NOT NULL)"),
+    // Versiones inmutables: D1 decide cuál es vigente; KV nunca se sobreescribe por sustitución.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_actual (llave TEXT PRIMARY KEY, kv_llave TEXT NOT NULL, drive_id TEXT, tipo TEXT, nombre TEXT, tam INTEGER, carpeta TEXT, creado TEXT NOT NULL, vence TEXT)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS archivos_actual_pend ON archivos_actual (drive_id, creado)"),
+    // Registro de copias para conciliación y borrado explícito; no purgar versiones al reemplazar.
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_copias (kv_llave TEXT PRIMARY KEY, llave TEXT NOT NULL, drive_id TEXT, creado TEXT NOT NULL)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS archivos_copias_llave ON archivos_copias (llave)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS archivos_legacy (llave TEXT PRIMARY KEY, hash TEXT NOT NULL, drive_id TEXT NOT NULL, at TEXT NOT NULL)"),
     // Las fotos de la tablet ya no vencen: viven lo mismo que su registro
     env.DB.prepare("UPDATE archivos SET vence = NULL WHERE llave LIKE 'tf:%' AND vence IS NOT NULL")
   ]);
@@ -86,67 +93,75 @@ function carpetaPorLlave(llave, extra) {
   return ["Otros"];
 }
 
-// Guarda un archivo. opciones: { tipo, nombre, carpeta: [..] (opcional), ttlDias (opcional), metadata (para KV) }
+// Guarda una versión nueva en una clave KV inmutable y después publica su puntero en D1.
+// Si KV o D1 falla, la referencia anterior permanece intacta. No borrar versiones sustituidas.
+// opciones: { tipo, nombre, carpeta, carpetaPersona, metadata, ttlDias, soloKV }
 export async function guardarArchivo(env, llave, bytes, op = {}) {
   await esquema(env);
   const tipo = op.tipo || "application/octet-stream";
+  const carpeta = Array.isArray(op.carpeta) ? op.carpeta : carpetaPorLlave(llave, op.carpetaPersona);
+  const nombre = String(op.nombre || llave.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
+  const creado = new Date().toISOString();
   const vence = op.ttlDias ? new Date(Date.now() + op.ttlDias * 864e5).toISOString() : null;
-  const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
-  // Una carga a Drive solo cuenta como confirmada después de guardar su índice en D1.
-  // Ningún error de limpieza posterior debe activar la ruta KV y retirar el archivo nuevo.
-  let driveNuevo = null;
-  let driveConfirmado = false;
-  if (conScript(env)) {
-    try {
-      const carpeta = op.carpeta || carpetaPorLlave(llave, op.carpetaPersona);
-      const nombre = String(op.nombre || llave.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
-      const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
-        operacion: await idCarga(llave, bytes), base64: aBase64(bytes) });
-      if (!r.id || typeof r.id !== "string") throw new Error("Drive no devolvió un identificador");
-      driveNuevo = r.id;
-      await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (llave) DO UPDATE SET drive_id = excluded.drive_id, tipo = excluded.tipo, nombre = excluded.nombre, tam = excluded.tam, carpeta = excluded.carpeta, creado = excluded.creado, vence = excluded.vence`)
-        .bind(llave, r.id, tipo, nombre, bytes.byteLength, carpeta.join("/"), new Date().toISOString(), vence).run();
-      driveConfirmado = true;
-    } catch {
-      // Si Drive escribió pero D1 no confirmó, se preserva el archivo remoto:
-      // no se sabe si D1 llegó a confirmar la escritura al fallar la respuesta.
-      console.error("archivos: Drive/D1 no confirmó la carga; conservando referencia anterior");
-    }
+  const kvLlave = "fv:" + llave + ":" + crypto.randomUUID();
+  // No aplicar expirationTtl al respaldo pendiente: podría vencer antes de pasar a Drive.
+  await env.FILES.put(kvLlave, bytes, { metadata: { ...(op.metadata || {}), tipo, nombre } });
+  // batch es una transacción D1: nunca apuntar a bytes que no se pudieron guardar en KV.
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO archivos_copias (kv_llave, llave, creado) VALUES (?, ?, ?)")
+      .bind(kvLlave, llave, creado),
+    env.DB.prepare("INSERT INTO archivos_actual (llave, kv_llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?) ON CONFLICT(llave) DO UPDATE SET kv_llave=excluded.kv_llave, drive_id=NULL, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
+      .bind(llave, kvLlave, tipo, nombre, bytes.byteLength, JSON.stringify(carpeta), creado, vence)
+  ]);
+  if (!conScript(env) || op.soloKV) return { drive: false };
+  // El envío directo a Drive es optativo: D1 conserva una versión KV recuperable si falla.
+  try {
+    const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
+      operacion: await idCarga(llave, bytes), base64: aBase64(bytes) });
+    if (!r.id || typeof r.id !== "string") throw new Error("Drive no devolvió un identificador");
+    return { drive: await confirmarDrive(env, { llave, kv_llave: kvLlave, tipo, nombre, tam: bytes.byteLength, carpeta: JSON.stringify(carpeta), creado, vence }, r.id) };
+  } catch {
+    console.error("archivos: versión KV conservada; transferencia Drive pendiente");
+    return { drive: false };
   }
-  if (driveConfirmado) {
-    // No borrar una sustitución que otra solicitud pudiera haber dejado en KV.
-    try {
-      const pendiente = await env.FILES.get(llave, { type: "arrayBuffer" });
-      if (pendiente && mismosBytes(pendiente, bytes)) await env.FILES.delete(llave);
-    } catch {}
-    if (anterior && anterior.drive_id !== driveNuevo) {
-      await mandarAPapelera(env, anterior.drive_id).catch(() => {});
-    }
-    return { drive: true };
-  }
-  // Fallback conservador: escribir KV y confirmar el éxito ANTES de modificar D1
-  // o de enviar el documento anterior a papelera. Si KV falla, el anterior sigue vivo.
-  await env.FILES.put(llave, bytes, {
-    metadata: { tipo, ...(op.metadata || {}),
-      ...(op.nombre ? { nombre: String(op.nombre).slice(0, 120) } : {}),
-      ...(Array.isArray(op.carpeta) ? { carpeta: op.carpeta } : {}),
-      ...(op.carpetaPersona ? { carpetaPersona: String(op.carpetaPersona).slice(0, 120) } : {}) },
-    ...(op.ttlDias ? { expirationTtl: op.ttlDias * 86400 } : {})
-  });
-  // Conservar también la referencia y el documento Drive anterior mientras KV
-  // se propaga. La tarea programada reemplazará el índice D1 y sólo entonces
-  // archivará Drive. De esta manera un lector en otra región no queda sin copia.
-  return { drive: false };
 }
 
-// Lee un archivo: { value: ArrayBuffer, metadata: { tipo, nombre } } (value null si no existe)
+// Confirmación atómica: un envío tardío NO puede reemplazar una versión más nueva.
+// La primera sentencia conserva incluso el ID de una carga que perdió la carrera.
+async function confirmarDrive(env, version, id) {
+  const carpeta = JSON.parse(version.carpeta || "[]");
+  const r = await env.DB.batch([
+    env.DB.prepare("UPDATE archivos_copias SET drive_id = ? WHERE kv_llave = ? AND llave = ?")
+      .bind(id, version.kv_llave, version.llave),
+    env.DB.prepare("UPDATE archivos_actual SET drive_id = ? WHERE llave = ? AND kv_llave = ? AND drive_id IS NULL")
+      .bind(id, version.llave, version.kv_llave),
+    env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0 ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
+      .bind(version.llave, id, version.tipo, version.nombre, version.tam, carpeta.join("/"), version.creado, version.vence)
+  ]);
+  return !!r[1]?.meta?.changes;
+}
+
+// Lee la versión señalada por D1. El esquema previo sigue sirviendo los archivos legados.
 export async function leerArchivo(env, llave) {
   await esquema(env);
-  // Primero KV: ahí está lo recién subido (o reemplazado) mientras la tarea programada lo pasa a Drive
-  const k = await env.FILES.getWithMetadata(llave, { type: "arrayBuffer" });
-  if (k && k.value) return k;
-  const fila = await env.DB.prepare("SELECT * FROM archivos WHERE llave = ?").bind(llave).first();
+  const actual = await env.DB.prepare("SELECT * FROM archivos_actual WHERE llave = ?").bind(llave).first();
+  if (actual) {
+    try {
+      const k = await env.FILES.getWithMetadata(actual.kv_llave, { type: "arrayBuffer" });
+      if (k?.value) return { value: k.value, metadata: { ...(k.metadata || {}), tipo: actual.tipo, nombre: actual.nombre } };
+    } catch { console.error("archivos: lectura de versión KV no disponible"); }
+  }
+  // Mientras una versión nueva se propaga por KV, aún es recuperable el archivo anterior.
+  // Si la versión nueva ya tiene Drive confirmado, NO dejar que KV legado la eclipse.
+  if (!actual || !actual.drive_id) {
+    try {
+      const legado = await env.FILES.getWithMetadata(llave, { type: "arrayBuffer" });
+      if (legado?.value) return legado;
+    } catch { console.error("archivos: lectura KV legada no disponible"); }
+  }
+  const fila = actual?.drive_id
+    ? { drive_id: actual.drive_id, tipo: actual.tipo, nombre: actual.nombre }
+    : await env.DB.prepare("SELECT * FROM archivos WHERE llave = ?").bind(llave).first();
   if (fila) {
     const clave = new Request("https://archivos.basculaypension.com/" + encodeURIComponent(fila.drive_id));
     const cache = typeof caches !== "undefined" ? caches.default : null;
@@ -158,93 +173,144 @@ export async function leerArchivo(env, llave) {
       try {
         const r = await script(env, { op: "leer", id: fila.drive_id });
         const value = deBase64(r.base64);
-        if (cache) { try { await cache.put(clave, new Response(value.slice(0), { headers: { "Content-Type": fila.tipo || "application/octet-stream", "Cache-Control": "max-age=604800" } })); } catch {} }
+        if (cache) {
+          try { await cache.put(clave, new Response(value.slice(0), { headers: { "Content-Type": fila.tipo || "application/octet-stream", "Cache-Control": "max-age=604800" } })); } catch {}
+        }
         return { value, metadata: { tipo: fila.tipo || r.tipo, nombre: fila.nombre } };
-      } catch (e) { console.error("archivos: no se pudo leer de Drive"); }
+      } catch { console.error("archivos: no se pudo leer de Drive"); }
     }
   }
   return { value: null, metadata: null };
 }
 
+// Eliminación solicitada por un flujo del negocio, nunca por sustitución automática.
+// Si alguien guardó otra versión simultáneamente, el borrado obsoleto no la toca.
 export async function borrarArchivo(env, llave) {
   await esquema(env);
-  const fila = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
-  if (fila) {
-    await env.DB.prepare("DELETE FROM archivos WHERE llave = ?").bind(llave).run();
-    await mandarAPapelera(env, fila.drive_id);
-  }
+  const actual = await env.DB.prepare("SELECT kv_llave FROM archivos_actual WHERE llave = ?").bind(llave).first();
+  const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(llave).first();
+  const copias = (await env.DB.prepare("SELECT kv_llave, drive_id FROM archivos_copias WHERE llave = ?").bind(llave).all()).results;
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM archivos_actual WHERE llave = ? AND kv_llave = ?").bind(llave, actual?.kv_llave || ""),
+    env.DB.prepare("DELETE FROM archivos WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
+    env.DB.prepare("DELETE FROM archivos_copias WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave),
+    env.DB.prepare("DELETE FROM archivos_legacy WHERE llave = ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?)").bind(llave, llave)
+  ]);
+  // Verificar otra vez el puntero antes de limpiar físicamente una versión antigua.
+  if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ?").bind(llave).first()) return;
+  for (const copia of copias) await env.FILES.delete(copia.kv_llave).catch(() => {});
   await env.FILES.delete(llave).catch(() => {});
+  for (const id of new Set([anterior?.drive_id, ...copias.map(c => c.drive_id)].filter(Boolean))) {
+    await mandarAPapelera(env, id);
+  }
 }
 async function mandarAPapelera(env, id) {
+  if (!id) return;
+  // Nunca borrar un ID que sea la copia vigente de otro registro.
+  const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? LIMIT 1")
+    .bind(id, id).first();
+  if (activo) return;
   try { if (!conScript(env)) throw new Error("sin script"); await script(env, { op: "borrar", id }, 20000); }
-  catch { await env.DB.prepare("INSERT OR IGNORE INTO archivos_borrar (drive_id, creado) VALUES (?, ?)").bind(id, new Date().toISOString()).run(); }
+  catch {
+    await env.DB.prepare("INSERT OR IGNORE INTO archivos_borrar (drive_id, creado) VALUES (?, ?)")
+      .bind(id, new Date().toISOString()).run();
+  }
 }
 
-// Tarea programada: sube a Drive lo que quedó en KV, borra lo vencido y reintenta la papelera.
-// Pocos archivos por vuelta para no pasar los límites de tiempo.
+// Tarea programada: se migran primero las versiones actuales y después las claves KV legadas.
+// No borrar KV ni la versión anterior de Drive al reemplazar; conciliación antes de purgar.
 export async function mantenerArchivos(env, max = 20) {
   await esquema(env);
   if (!conScript(env)) return { sin_script: true };
   try { await script(env, { op: "probar", raiz: RAIZ }, 20000); } catch (e) { return { error: e.message }; }
   let subidos = 0, vencidos = 0;
-  // Vencidos (fotos de la tablet: 100 días)
-  const viejos = (await env.DB.prepare("SELECT llave FROM archivos WHERE vence IS NOT NULL AND vence < ? LIMIT 20").bind(new Date().toISOString()).all()).results;
+  const viejos = (await env.DB.prepare("SELECT llave FROM archivos WHERE vence IS NOT NULL AND vence < ? AND NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = archivos.llave AND drive_id IS NULL) LIMIT 20")
+    .bind(new Date().toISOString()).all()).results;
   for (const v of viejos) { await borrarArchivo(env, v.llave); vencidos++; }
-  const pend = (await env.DB.prepare("SELECT drive_id FROM archivos_borrar LIMIT 20").all()).results;
-  for (const p of pend) {
-    try { await script(env, { op: "borrar", id: p.drive_id }, 20000); await env.DB.prepare("DELETE FROM archivos_borrar WHERE drive_id = ?").bind(p.drive_id).run(); } catch {}
+  // Borrados explícitos fallidos: esperar propagación y confirmar que el ID no esté vigente.
+  const hasta = new Date(Date.now() - 24 * 3600e3).toISOString();
+  const pendientesBorrar = (await env.DB.prepare("SELECT drive_id FROM archivos_borrar WHERE creado <= ? LIMIT 20").bind(hasta).all()).results;
+  for (const p of pendientesBorrar) {
+    const activo = await env.DB.prepare("SELECT 1 FROM archivos WHERE drive_id = ? UNION SELECT 1 FROM archivos_actual WHERE drive_id = ? LIMIT 1").bind(p.drive_id, p.drive_id).first();
+    if (activo) continue;
+    try {
+      await script(env, { op: "borrar", id: p.drive_id }, 20000);
+      await env.DB.prepare("DELETE FROM archivos_borrar WHERE drive_id = ?").bind(p.drive_id).run();
+    } catch {}
   }
-  // Todo archivo nuevo entra primero a KV (rápido para quien lo sube) y aquí pasa a Drive
+  const pendientes = (await env.DB.prepare("SELECT * FROM archivos_actual WHERE drive_id IS NULL ORDER BY creado LIMIT ?")
+    .bind(Math.max(1, Math.min(max, 50))).all()).results;
+  for (const v of pendientes) {
+    if (subidos >= max) break;
+    const kv = await env.FILES.getWithMetadata(v.kv_llave, { type: "arrayBuffer" });
+    if (!kv?.value) continue; // propagación eventual: dejar intacto para la siguiente vuelta
+    let id;
+    try {
+      const carpeta = JSON.parse(v.carpeta || "[]");
+      const r = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre: v.nombre, tipoArchivo: v.tipo,
+        operacion: await idCarga(v.llave, kv.value), base64: aBase64(kv.value) });
+      id = r.id;
+      if (!id || typeof id !== "string") throw new Error("Drive no devolvió identificador");
+      if (await confirmarDrive(env, v, id)) subidos++;
+    } catch (e) { return { subidos, vencidos, error: e.message }; }
+  }
+  // Compatibilidad: conservar claves legadas y registrar el hash transferido para evitar
+  // retransmisiones de copias antiguas. Las versiones nuevas tienen precedencia en D1.
   for (const prefijo of ["f:", "tf:", "x:", "xa:"]) {
     if (subidos >= max) break;
-    const l = await env.FILES.list({ prefix: prefijo, limit: 50 });
-    for (const k of l.keys) {
-      if (subidos >= max) break;
-      const r = await env.FILES.getWithMetadata(k.name, { type: "arrayBuffer" });
-      if (!r || !r.value) continue;
-      let persona = null;
-      if (prefijo === "x:" || prefijo === "xa:") {
-        const f = await env.DB.prepare("SELECT nombre, num FROM colaboradores WHERE id = ?").bind(k.name.split(":")[1]).first().catch(() => null);
-        persona = f ? `${String(f.num || 0).padStart(3, "0")} ${f.nombre}`.replace(/[\\/:*?"<>|]/g, "").slice(0, 100) : null;
+    let cursor = null, paginas = 0;
+    do {
+      const l = await env.FILES.list({ prefix: prefijo, limit: 500, ...(cursor ? { cursor } : {}) });
+      cursor = l.list_complete ? null : l.cursor || null;
+      for (const k of l.keys) {
+        if (subidos >= max) break;
+        if (await env.DB.prepare("SELECT 1 FROM archivos_actual WHERE llave = ?").bind(k.name).first()) continue;
+        const r = await env.FILES.getWithMetadata(k.name, { type: "arrayBuffer" });
+        if (!r?.value) continue;
+        const hash = await idCarga(k.name, r.value);
+        const procesado = await env.DB.prepare("SELECT hash FROM archivos_legacy WHERE llave = ?").bind(k.name).first();
+        if (procesado?.hash === hash) continue;
+        let persona = null;
+        if (prefijo === "x:" || prefijo === "xa:") {
+          const f = await env.DB.prepare("SELECT nombre, num FROM colaboradores WHERE id = ?").bind(k.name.split(":")[1]).first().catch(() => null);
+          persona = f ? (String(f.num || 0).padStart(3, "0") + " " + f.nombre).replace(/[\\/:*?"<>|]/g, "").slice(0, 100) : null;
+        }
+        const tipo = r.metadata?.tipo || "application/octet-stream";
+        const carpeta = Array.isArray(r.metadata?.carpeta)
+          ? r.metadata.carpeta : carpetaPorLlave(k.name, r.metadata?.carpetaPersona || persona);
+        const nombre = String(r.metadata?.nombre || k.name.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
+        let id;
+        try {
+          const res = await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
+            operacion: hash, base64: aBase64(r.value) });
+          id = res.id;
+          if (!id || typeof id !== "string") throw new Error("Drive no devolvió identificador");
+        } catch (e) { return { subidos, vencidos, error: e.message }; }
+        const sigue = await env.FILES.get(k.name, { type: "arrayBuffer" });
+        if (!sigue || !mismosBytes(r.value, sigue)) continue; // nueva escritura: reintentar más adelante
+        const vence = k.expiration && !k.name.startsWith("tf:")
+          ? new Date(k.expiration * 1000).toISOString() : null;
+        const resultado = await env.DB.batch([
+          env.DB.prepare("INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM archivos_actual WHERE llave = ?) ON CONFLICT(llave) DO UPDATE SET drive_id=excluded.drive_id, tipo=excluded.tipo, nombre=excluded.nombre, tam=excluded.tam, carpeta=excluded.carpeta, creado=excluded.creado, vence=excluded.vence")
+            .bind(k.name, id, tipo, nombre, r.value.byteLength, carpeta.join("/"), new Date().toISOString(), vence, k.name),
+          env.DB.prepare("INSERT INTO archivos_legacy (llave, hash, drive_id, at) SELECT ?, ?, ?, ? WHERE changes() > 0 ON CONFLICT(llave) DO UPDATE SET hash=excluded.hash, drive_id=excluded.drive_id, at=excluded.at")
+            .bind(k.name, hash, id, new Date().toISOString())
+        ]);
+        if (resultado[0]?.meta?.changes) subidos++;
+        // Sin borrado por comprobación de contenido: KV no ofrece compare-and-delete.
       }
-      const tipo = (r.metadata && r.metadata.tipo) || "application/octet-stream";
-      // Conservar la misma carpeta elegida por la carga original para que un
-      // reintento idéntico encuentre su marca y no cree un duplicado en otra ruta.
-      const carpeta = Array.isArray(r.metadata?.carpeta)
-        ? r.metadata.carpeta : carpetaPorLlave(k.name, r.metadata?.carpetaPersona || persona);
-      const nombre = String((r.metadata && r.metadata.nombre) || k.name.replace(/[:]/g, "_")).replace(/[\\/:*?"<>|]/g, "").slice(0, 120);
-      let id;
-      try { id = (await script(env, { op: "guardar", raiz: RAIZ, carpeta, nombre, tipoArchivo: tipo,
-        operacion: await idCarga(k.name, r.value), base64: aBase64(r.value) })).id; }
-      catch (e) { return { subidos, vencidos, error: e.message }; }
-      // Si lo borraron mientras subía, se manda a la papelera y no se registra
-      const sigue = await env.FILES.get(k.name, { type: "arrayBuffer" });
-      if (!sigue || !mismosBytes(r.value, sigue)) {
-        // El archivo se borró o se reemplazó durante la subida: nunca
-        // vincular una versión antigua ni borrar la sustitución más reciente.
-        await mandarAPapelera(env, id);
-        continue;
-      }
-      const vence = k.expiration && !k.name.startsWith("tf:") ? new Date(k.expiration * 1000).toISOString() : null;
-      const anterior = await env.DB.prepare("SELECT drive_id FROM archivos WHERE llave = ?").bind(k.name).first();
-      await env.DB.prepare(`INSERT INTO archivos (llave, drive_id, tipo, nombre, tam, carpeta, creado, vence) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (llave) DO UPDATE SET drive_id = excluded.drive_id, tipo = excluded.tipo, nombre = excluded.nombre, tam = excluded.tam, carpeta = excluded.carpeta, creado = excluded.creado, vence = excluded.vence`)
-        .bind(k.name, id, tipo, nombre, r.value.byteLength, carpeta.join("/"), new Date().toISOString(), vence).run();
-      if (anterior && anterior.drive_id !== id) await mandarAPapelera(env, anterior.drive_id);
-      // KV no ofrece compare-and-delete atómico. Comprobación conservadora
-      // de versión: no retirar un reemplazo con contenido diferente.
-      const actual = await env.FILES.get(k.name, { type: "arrayBuffer" });
-      if (actual && mismosBytes(r.value, actual)) await env.FILES.delete(k.name);
-      subidos++;
-    }
+      paginas++;
+    } while (cursor && paginas < 5 && subidos < max);
   }
   return { subidos, vencidos };
 }
 
-// Para el panel: cuántos archivos hay en Drive y cuántos esperan en KV
+// Para el panel: Drive, respaldo KV y copias pendientes sin purga automática.
 export async function estadoArchivos(env) {
   await esquema(env);
-  const n = (await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first());
+  const n = await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(tam), 0) b FROM archivos").first();
+  const versiones = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_copias").first();
+  const porSubir = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_actual WHERE drive_id IS NULL").first();
   let enKv = 0, kvTruncado = false;
   for (const p of ["x:", "xa:", "tf:", "f:"]) {
     let cursor = null, paginas = 0;
@@ -257,7 +323,9 @@ export async function estadoArchivos(env) {
     if (cursor) kvTruncado = true;
   }
   const pendientes = await env.DB.prepare("SELECT COUNT(*) n FROM archivos_borrar").first();
-  return { en_drive: n.n, bytes_drive: n.b, en_kv: enKv,
+  return { en_drive: n.n, bytes_drive: n.b, en_kv: enKv + Number(versiones?.n || 0),
     en_kv_truncado: kvTruncado,
+    versiones_pendientes: Number(porSubir?.n || 0),
+    versiones_conservadas: Number(versiones?.n || 0),
     pendientes_borrar: Number(pendientes?.n || 0), script: conScript(env) };
 }

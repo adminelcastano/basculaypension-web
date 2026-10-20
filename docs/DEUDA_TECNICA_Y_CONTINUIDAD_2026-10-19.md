@@ -12,6 +12,15 @@
 - **Límite que requiere validación:** D1, KV y Drive no soportan transacciones distribuidas. KV tampoco soporta borrado condicional por versión. La comparación de contenido mitiga carreras pero no garantiza atomicidad si dos escrituras simultáneas pasan entre comprobación y borrado. No prometer seguridad absoluta hasta los ensayos de concurrencia.
 - **Criterio de aceptación final:** fallas de Drive, de KV, de índice D1, reintentos idénticos, sustituciones simultáneas, recarga de tablet y lectura desde diferentes ubicaciones, sin perder la última copia confirmada.
 
+### Revisión de Fase 1 — versiones de archivos (20 de octubre, solo rama de trabajo)
+
+- Preparado un índice aditivo de versiones vigentes en D1 (archivos_actual), con copias físicas independientes por operación en KV (prefijo fv:) y un registro de copias para conciliación. Las rutas públicas y las claves lógicas de fotografías/documentos permanecen iguales.
+- El flujo nuevo exige confirmar la escritura de la copia inmutable en KV **antes** de señalarla en D1; una falla de KV/D1 no retira la versión anterior. Los reintentos de Drive confirman el índice solo si la versión sigue vigente.
+- La migración conserva y reconoce las claves KV antiguas; no las borra automáticamente. Se retienen también versiones de Drive sustituidas. Las eliminaciones expresas siguen siendo posibles, con controles de referencias.
+- **Sin garantía distribuida de visibilidad inmediata:** KV tiene consistencia eventual; una nueva copia podría no leerse desde otra región hasta que se propague. D1, KV y Drive siguen sin transacción única.
+- La retención de copias históricas es temporal mientras no exista una política probada de reconciliación, limpieza y recuperación. Vigilar crecimiento y almacenamiento antes de activar esta rama.
+- **Estado:** cambios de código preparados en rama, sin pruebas de aplicación, sin instalación de Apps Script y sin publicación. La configuración Windows/WSL permanece suspendida a petición del administrador.
+
 ## Fase 2. Respaldo D1 restaurable
 
 - `herramientas/respaldo-d1-cifrado.sh` prepara un respaldo externo cifrado con `age`, usando Wrangler **4.151.2**, comprueba que el SQL exportado restaura en SQLite local y exige `PRAGMA quick_check=ok` **antes** del cifrado.
