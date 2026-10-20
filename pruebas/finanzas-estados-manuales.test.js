@@ -14,6 +14,9 @@ const credito={id:"credito-ficticio",tipo:"credito"};
 const entorno=()=>{
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE fin_cuentas(id TEXT PRIMARY KEY,nombre TEXT,tipo TEXT,activa INTEGER,orden INTEGER);");
+  // El Worker inicializa la bitácora una vez por instancia; cada SQLite ficticia
+  // requiere su propia tabla aunque el módulo conserve su indicador en memoria.
+  db.exec("CREATE TABLE fin_bitacora (id INTEGER PRIMARY KEY AUTOINCREMENT,cuando TEXT,quien TEXT,accion TEXT,que TEXT,ref TEXT,mes TEXT,detalle TEXT);");
   db.prepare("INSERT INTO fin_cuentas VALUES(?,?,?,?,?)").run(debito.id,"CUENTA DE PRUEBA","debito",1,1);
   db.prepare("INSERT INTO fin_cuentas VALUES(?,?,?,?,?)").run(credito.id,"CRÉDITO DE PRUEBA","credito",1,2);
   const prepare=(sql)=>{
