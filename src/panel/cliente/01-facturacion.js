@@ -538,17 +538,19 @@
         cp: ["#d-cp", /^\d{5}$/],
         regimen: ["#d-regimen", null]
       };
-      let sugeridos = 0;
+      let sugeridos = 0, diferencias = 0;
       for (const [clave, [selector, patron]] of Object.entries(campos)) {
         const input = $(selector), valor = String(d[clave] || "").trim();
         if (!input || !valor || (patron && !patron.test(valor))) continue;
         if (clave === "regimen" && (!regimenes[valor] || varios)) continue;
         if (!input.value.trim()) { input.value = valor; sugeridos++; }
+        else if (input.value.trim().toLocaleUpperCase("es-MX") !== valor.toLocaleUpperCase("es-MX")) diferencias++;
       }
       if (sugeridos) $("#guardar-datos").dataset.deCsf = "1";
       let aviso = sugeridos
         ? "Datos sugeridos. Compara con la constancia, corrige y pulsa «Guardar datos»."
         : "No se encontraron datos adicionales seguros. Captúralos viendo la constancia.";
+      if (diferencias) aviso += " La lectura difiere de " + diferencias + " dato(s) ya escritos. Revisa la constancia; no se cambiaron.";
       if (varios) aviso += " Hay varios regímenes; elige el correcto.";
       if (observacion) aviso += " El reconocimiento de imagen no estuvo disponible.";
       mensaje(aviso);

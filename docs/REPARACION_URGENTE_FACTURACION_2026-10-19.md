@@ -18,6 +18,7 @@
 - Archivos adjuntos conservados en la interfaz ante errores de conexión o respuestas del servidor; selección asíncrona protegida frente a carreras.
 - Extracción de datos de CSF desde imagen con el modelo de visión Workers AI ya conectado; PDF con texto sigue extrayéndose localmente y PDF escaneado puede analizar hasta dos páginas rasterizadas. Ningún servicio externo nuevo.
 - OCR restringido por Cloudflare Access y `X-Panel`, validación de tamaño/tipo, sin devolución de la imagen completa o texto del documento y sin registrar contenido fiscal en logs.
+- Si el OCR propone un valor distinto de uno ya capturado, el panel muestra una advertencia y conserva intacto el valor escrito por administración.
 - RFC, nombre, CP y régimen solo como sugerencias; no autoguardar. Varios regímenes exigen selección humana. El resultado anterior nunca pisa valores ya escritos por administración.
 
 ## Validación pendiente antes de fusionar
