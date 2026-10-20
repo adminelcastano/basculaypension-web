@@ -163,8 +163,17 @@ export async function reporteArea(env, tipo, mes, h) {
   if (!r || !r.ok) throw new Error((r && r.error) || "El script de Google no creó la hoja");
   // El script anterior no conoce las carpetas por área: dejaría el archivo en otra carpeta
   if (r.destino !== tipo) throw new Error("Actualiza el script de Google (versión con carpetas de Turnos, Finanzas y Facturación).");
-  const info = { tipo, mes, url: r.url, id: r.id, at: new Date().toISOString(), hojas: hojas.length };
-  await env.FILES.put(`rep:${tipo}:${mes}`, JSON.stringify(info));
+  // La hoja ya fue creada por Apps Script. Un fallo posterior del índice KV
+  // no debe presentarse como si hubiera fallado la creación: reintentar podría
+  // sustituir un reporte correcto o enviar versiones anteriores a papelera.
+  const info = { tipo, mes, url: r.url, id: r.id, at: new Date().toISOString(),
+    hojas: hojas.length, pendientes_archivar: Math.max(0, Number(r.pendientes_archivar) || 0) };
+  try {
+    await env.FILES.put(`rep:${tipo}:${mes}`, JSON.stringify(info));
+  } catch {
+    info.indice_pendiente = true;
+    console.error("reportes: creado en Sheets; índice KV sin confirmar");
+  }
   return info;
 }
 // Los tres reportes del mes (al cerrarlo): si alguno falla, se avisa con el error

@@ -193,7 +193,18 @@
       else lineas.push("Todavía no hay lectura del consumo (se revisa cada hora).");
       if (e && e.errores && e.errores.length) lineas.push(`<span style="color:#ff9f0a">No se pudo leer: ${esc(e.errores.join("; ").slice(0, 160))}</span>`);
       if (a.error) lineas.push(`Archivos: ${esc(a.error)}`);
-      else lineas.push(`Archivos en Google Drive: <b>${(a.en_drive || 0).toLocaleString("es-MX")}</b>${a.en_kv ? ` · <b>${a.en_kv}</b> esperando para subir${a.script ? "" : " (falta el script de Google)"}` : " · todo subido"}.`);
+      else {
+        const cantidad = v => Math.max(0, Number(v) || 0).toLocaleString("es-MX");
+        lineas.push(`Archivos en Google Drive: <b>${cantidad(a.en_drive)}</b> · versiones KV registradas: <b>${cantidad(a.versiones_conservadas)}</b>.`);
+        if (Number(a.versiones_pendientes) > 0)
+          lineas.push(`<span style="color:#ff9f0a"><b>${cantidad(a.versiones_pendientes)}</b> versiones vigentes pendientes de transferir a Drive.</span>`);
+        if (Number(a.versiones_sin_indice) > 0)
+          lineas.push(`<span style="color:#ff9f0a"><b>${cantidad(a.versiones_sin_indice)}</b> copias KV sin índice D1, conservadas para conciliación; no se eliminan automáticamente.</span>`);
+        if (Number(a.pendientes_borrar) > 0)
+          lineas.push(`<span style="color:#ff9f0a"><b>${cantidad(a.pendientes_borrar)}</b> solicitudes de limpieza de Drive pendientes de verificación.</span>`);
+        if (a.en_kv_truncado) lineas.push("El recuento de archivos KV está limitado por paginación.");
+        if (!a.script) lineas.push('<span style="color:#ff9f0a">La conexión con Google Apps Script no está configurada.</span>');
+      }
       el.innerHTML = lineas.map(x => `<p style="margin:0 0 6px">${x}</p>`).join("");
       if (EC.bloqueInfo) EC.bloqueInfo("config", "sistema", { valor: top ? (Math.round(top.fraccion * 100)) + " %" : null, texto: c.ahorro ? "Modo ahorro activo" : top ? "del plan incluido" : "Consumo y archivos" });
     } catch (e) { if (e.message !== "sesion") el.textContent = "No se pudo leer el consumo: " + e.message; }
