@@ -52,7 +52,7 @@ if (cfg?.name !== "castano-respaldo-ensayo" ||
     db[0]?.binding !== "DB" || db[0]?.database_name !== name ||
     String(db[0]?.database_id || "").toLowerCase() !== id.toLowerCase() ||
     id.toLowerCase() === prod.toLowerCase() ||
-    ["env", "kv_namespaces", "triggers", "routes", "assets"].some(k => k in cfg)) {
+    Object.keys(cfg).some(k => !["name", "d1_databases", "compatibility_date", "$schema"].includes(k))) {
   console.error("El archivo Wrangler no representa una única D1 sintética aislada");
   process.exit(2);
 }
@@ -64,6 +64,12 @@ source "$root/herramientas/respaldo-portable.sh"
   echo "El directorio privado de destino debe existir previamente" >&2; exit 2;
 }
 dest="$(backup_directorio_real "$BACKUP_DEST")"
+# Nombres y metadatos de respaldos también son privados; no confiar en umask de otra aplicación.
+permisos="$(stat -c "%a" "$dest" 2>/dev/null || stat -f "%Lp" "$dest")"
+propietario="$(stat -c "%u" "$dest" 2>/dev/null || stat -f "%u" "$dest")"
+[ "$permisos" = "700" ] && [ "$propietario" = "$(id -u)" ] || {
+  echo "El destino debe pertenecer al usuario actual y tener permisos 700" >&2; exit 2;
+}
 [ "$dest" != "$root" ] && [[ "$dest/" != "$root/"* ]] || {
   echo "No guardar respaldos dentro del repositorio" >&2; exit 2;
 }
