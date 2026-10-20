@@ -57,3 +57,22 @@ Se preparó **solamente** la función `archivos(d)` del Apps Script existente: e
 ## Protección de reintentos simultáneos en Apps Script
 
 Se agregó `LockService.getScriptLock().waitLock(15000)` exclusivamente a cargas con marca de operación. Se mantiene el bloqueo desde la selección de carpeta hasta la comprobación, creación y marcado del archivo, liberándolo en `finally` también al fallar. Así dos reintentos paralelos del mismo mensaje no deben crear dos archivos diferentes por una carrera entre búsqueda y escritura. Si el bloqueo caduca, la solicitud falla y el Worker conserva la versión KV ya confirmada para reintentar después. Los clientes anteriores sin marca conservan su comportamiento previo. Se agregaron pruebas sintéticas del orden de bloqueo, liberación y fallo de adquisición. La marca y el bloqueo no convierten Drive y D1 en una transacción distribuida.
+
+## Verificación automatizada realizada (20 de octubre de 2026)
+
+- GitHub Actions sobre `a34bee07`, ejecución [39384948692](https://github.com/adminelcastano/basculaypension-web/actions/runs/39384948692): **376 pruebas correctas, 0 fallos, 0 omitidas**.
+- Compilación sin despliegue: `wrangler@4.151.2 deploy --dry-run` del Worker principal y del Worker de Finanzas ensayo: **ambas correctas**.
+- Pruebas de SQLite en memoria y KV sintético: fallos D1 después de KV, retención de copia vigente, clasificación de huérfanos, carrera de sustitución, tombstone de borrado; pruebas sintéticas de repetición y bloqueo de Apps Script.
+- El diff de la rama procede de `main@4613ec3`; Facturación del PR #35 se mantiene, sin merge de los demás 75 commits de deuda técnica.
+- **Sin probar todavía:** interoperabilidad con una D1 y KV aisladas de Cloudflare, Apps Script real en carpeta de ensayo, respuesta desde distintas regiones de KV, y dispositivos físicos con HEIC/conectividad deficiente. No certificar estas áreas por la suite verde.
+- **Sin publicar:** Worker, Apps Script, D1 productiva, KV, Drive y datos reales permanecen intactos.
+
+## Orden de publicación controlada, sujeto a autorización
+
+1. Volver a comprobar SHA de `main`, versión Cloudflare activa y resultados CI definitivos.
+2. Revisar el contrato en un ensayo real de Apps Script con archivos ficticios y sin documentos productivos; mantener el mismo proyecto `Correo Panel`, identificador de despliegue y URL. No publicar un Apps Script duplicado.
+3. Actualizar primero la función `archivos(d)` del proyecto Apps Script existente, con sus permisos actuales; comprobar que las otras acciones (`leer`, `borrar`, `hoja`, y servicios de correo) continúan operativas.
+4. Con el script compatible y la autorización expresa, fusionar únicamente el PR #36 mediante el flujo protegido de `main`; desplegar el Worker desde el commit resultante.
+5. Confirmar versión activa y ejecutar pruebas operativas autorizadas. Ante problemas, detener operaciones que puedan borrar archivos; conservar índices, copias y datos para recuperación. No automatizar purgas ni borrar respaldo alguno.
+
+El código revisado está listo para la **decisión de autorización de puesta en marcha controlada**, no para afirmar que ya pasó las pruebas remotas y de dispositivos.
