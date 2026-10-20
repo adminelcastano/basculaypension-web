@@ -758,12 +758,14 @@ export async function turnoRuta(request, env, url, h) {
     const opcional = v => v === "" || v == null ? 0 : numero(v);
     const sobre = opcional(c.sobre), cambioSig = opcional(c.cambio_sig);
     const sinRecortar = Array.isArray(c.retiros) ? c.retiros : [];
-    const retiros = sinRecortar.slice(0, 20).map(r => ({ concepto: texto(r && r.concepto, 80), monto: numero(r && r.monto) }));
+    const retiros = sinRecortar.slice(0, 20).map(r => ({ id: r && r.id != null ? String(r.id) : crypto.randomUUID(), concepto: texto(r && r.concepto, 80), monto: numero(r && r.monto) }));
     const errores = {};
     if (!(efectivo >= 0) || efectivo > 1000000) errores.efectivo = "Escribe el efectivo que contaste.";
     if (tarjeta !== null && (!(tarjeta >= 0) || tarjeta > 1000000)) errores.tarjeta = "Monto inválido.";
     if (!(sobre >= 0) || sobre > 1000000) errores.sobre = "Monto del sobre inválido.";
     if (!(cambioSig >= 0) || cambioSig > 1000000) errores.cambio_sig = "Monto del cambio inválido.";
+    const retiroIDs = retiros.map(r => r.id);
+    if (retiroIDs.some(x => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x)) || new Set(retiroIDs).size !== retiroIDs.length) errores.retiros = "Los retiros del corte tienen identificadores inválidos o repetidos. Actualiza antes de guardar.";
     if (sinRecortar.length > 20) errores.retiros = "Máximo 20 retiros en un corte; no se omitirá ninguno silenciosamente.";
     else if (retiros.some(r => r.concepto.length < 2 || !(r.monto > 0) || r.monto > 1000000))
       errores.retiros = "Cada retiro necesita concepto y monto válido.";
