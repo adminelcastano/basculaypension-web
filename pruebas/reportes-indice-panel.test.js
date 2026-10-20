@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { reporteArea } from "../src/reporte.js";
+// Extraer la función real sin importar HTML empaquetado por Wrangler en Node.
+const fuente = readFileSync(new URL("../src/reporte.js", import.meta.url), "utf8");
+const cuerpo = fuente.split("export async function reporteArea(env, tipo, mes, h) {")[1]
+  ?.split("\n// Los tres reportes")[0]?.replace(/\n}\s*$/, "");
+assert.ok(cuerpo, "No se encontró reporteArea");
+const reporteArea = new Function("TIPOS_REPORTE", "hojasTurnos", "hojasFinanzas", "hojasFacturacion",
+  "return async function reporteArea(env, tipo, mes, h) {" + cuerpo + "\n}")(
+    {facturacion:"Facturación"},
+    async()=>[], async()=>[], async()=>[{nombre:"Resumen",filas:[["dato"]]}]
+  );
 
 const panel = readFileSync(new URL("../src/panel/cliente/06-inicio.js", import.meta.url), "utf8");
 
