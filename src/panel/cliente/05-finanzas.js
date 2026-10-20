@@ -131,8 +131,8 @@
           ${df.lista.map(x => `<tr><td>${esc(diaTxt(x.dia))}</td><td>${esc(TURNO_TXT[x.turno] || x.turno)}</td><td>${x.persona ? avP(x.persona) + esc(x.persona) : ""}</td><td>${esc(x.concepto)}</td><td class="n"><b style="color:${x.dif < 0 ? "#ff8a80" : "#7ee2a0"}">${D(x.dif)}</b></td></tr>`).join("")}
         </tbody></table></div>` : `<p class="note">Todos los cortes entregados cuadran.</p>`}
       </section>`,
-      sueldos: () => `      <section class="card"><h3>Sueldos del mes</h3>
-        <details class="f-guia-saldos"><summary>¿Qué incluyen los sueldos del mes?</summary><p class="note" data-nl="1">Se suman los sueldos cobrados en los turnos (gastos de caja y retiros del corte con categoría Sueldos) y los pagos de administración desde sobres o bancos. Para consultar por persona, escribe su nombre en el concepto.</p></details>
+      sueldos: () => `      <section class="card"><h3>Sueldos del mes · registros operativos</h3>
+        <details class="f-guia-saldos"><summary>¿Qué incluyen los sueldos del mes?</summary><p class="note" data-nl="1">Se suman los sueldos cobrados en los turnos (gastos de caja y retiros del corte con categoría Sueldos) y los pagos de administración desde sobres o bancos. Este resumen agrupa salidas de dinero, pero el nombre del encargado o quien registró el gasto no comprueba quién recibió el sueldo. Usa la sección Salarios · Google Sheets para confirmar cada colaborador antes de reflejarlo.</p></details>
         <div class="ctot" style="margin:0 0 10px"><div class="k"><span>Cobrado del turno</span><b>${D(su.total_caja)}</b></div><div class="k"><span>Pagado por ti</span><b>${D(su.total_admin)}</b></div><div class="k dest"><span>Total</span><b>${D(su.total)}</b></div></div>
         ${su.caja.length || su.admin.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Sueldos"><table class="cmovs"><thead><tr><th>Quién o concepto</th><th>De dónde</th><th class="n">Pagos</th><th class="n">Total</th></tr></thead><tbody>
           ${su.caja.map(x => `<tr><td>${avP(x.persona)}${esc(x.persona)}</td><td>Del turno</td><td class="n">${x.n}</td><td class="n">${D(x.total)}</td></tr>`).join("")}
