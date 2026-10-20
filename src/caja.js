@@ -199,7 +199,7 @@ const texto = (v, n = 80) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0
 const errorMovimientoAdmin = (mensaje, code = "MOV_ADMIN_INVALIDO") => Object.assign(new Error(mensaje), { code });
 export async function guardarMovimientoAdminCaja(env, { dia, turno, tipo, monto, detalle = "", persona = null, quien, uid }, ahora = new Date().toISOString()) {
   if (!fechaCalendarioCaja(dia) || !TURNOS.includes(turno) || !TIPOS_MOV_ADMIN_CAJA.includes(tipo) ||
-      !Number.isFinite(monto) || monto <= 0 || monto > 1000000 || !Number.isInteger(Math.round(monto * 100)) ||
+      !Number.isFinite(monto) || monto <= 0 || monto > 1000000 || Math.abs(monto * 100 - Math.round(monto * 100)) > 0.000001 ||
       typeof uid !== "string" || !/^[a-z0-9-]{8,64}$/i.test(uid) || !quien)
     throw errorMovimientoAdmin("Movimiento de administración inválido.");
   detalle = texto(detalle, 120);
@@ -721,7 +721,8 @@ export async function numerarMovimientos(env, meses) {
     movs: await leer("SELECT * FROM caja_mov WHERE tipo = 'caja' AND mes IN (?)"),
     gastos: await leer(`SELECT * FROM caja_gastos WHERE ${DE_CAJA} AND mes IN (?)`),
     extras: await leer("SELECT * FROM caja_extra WHERE mes IN (?)"),
-    conteos: await leer("SELECT * FROM turno_cortes WHERE mes IN (?)")
+    conteos: await leer("SELECT * FROM turno_cortes WHERE mes IN (?)"),
+    adminMovs: await leer("SELECT * FROM caja_admin_movs WHERE mes IN (?)")
   });
   await conFolios(env, lista);
   return lista.length;
@@ -950,6 +951,61 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
   const diaValido = d => fechaCalendarioCaja(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
+
+
+  // Saldo de Caja para administración: sólo lectura, mismo cálculo del corte;
+  // no modifica folios y declara cuándo se sincronizaron las ventas externas.
+  if (partes[1] === "saldo" && partes.length === 2 && request.method === "GET") {
+    const dia = String(url.searchParams.get("dia") || ""), turno = normTurno(url.searchParams.get("turno"));
+    if (!fechaCalendarioCaja(dia) || !turno) return json({ ok: false, error: "Turno inválido." }, 422);
+    const leer = (sql) => env.DB.prepare(sql).bind(dia, turno).all().then(x => x.results);
+    const [movs, gastos, extras, inicios, adminMovs, conteos, sync] = await Promise.all([
+      leer("SELECT * FROM caja_mov WHERE dia = ? AND turno = ?"),
+      leer("SELECT * FROM caja_gastos WHERE dia = ? AND turno = ? AND COALESCE(origen, 'caja') = 'caja'"),
+      leer("SELECT * FROM caja_extra WHERE dia = ? AND turno = ?"),
+      leer("SELECT * FROM turno_inicio WHERE dia = ? AND turno = ?"),
+      leer("SELECT * FROM caja_admin_movs WHERE dia = ? AND turno = ?"),
+      leer("SELECT * FROM turno_cortes WHERE dia = ? AND turno = ?"),
+      env.FILES.get("caja:sync", { type: "json" })
+    ]);
+    const c = calcularCortes(movs, gastos, extras, inicios, adminMovs)[0];
+    return json({ ok: true, dia, turno, saldo: c ? Math.round(c.efectivo_caja * 100) / 100 : 0,
+      ventas_efectivo: c?.efectivo || 0, cambio: c?.cambio.importe || 0,
+      administracion: c?.adminMovs || { n: 0, entradas: 0, salidas: 0 },
+      cerrado: conteos.length > 0, sincronizacion: { at: sync?.at || null,
+        error: !!(sync?.error && (!sync.at || sync.error_at > sync.at)) }, consultado_en: new Date().toISOString() });
+  }
+
+  if (partes[1] === "admin-movimientos" && partes.length === 2 && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), tipo = String(c.tipo || ""),
+      monto = montoUsuario(c.monto), detalle = texto(c.detalle, 120), quien = usuario?.email || null;
+    if (!diaValido(dia) || !turno || !TIPOS_MOV_ADMIN_CAJA.includes(tipo) ||
+        !Number.isFinite(monto) || monto <= 0 || monto > 1000000 || String(c.detalle || "").length > 120)
+      return json({ ok: false, error: "Revisa el día, turno, tipo e importe del movimiento." }, 422);
+    try {
+      const guardado = await guardarMovimientoAdminCaja(env, { dia, turno, tipo, monto, detalle, quien, uid: c.uid });
+      return json({ ok: true, ...guardado });
+    } catch (e) {
+      if (e.code === "MOV_ADMIN_CERRADO" || e.code === "MOV_ADMIN_CONFLICTO") return json({ ok: false, error: e.message }, 409);
+      if (e.code === "MOV_ADMIN_INVALIDO") return json({ ok: false, error: e.message }, 422);
+      throw e;
+    }
+  }
+  if (partes[1] === "admin-movimientos" && partes[3] === "anular" && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const dia = String(c.dia || ""), turno = normTurno(c.turno), quien = usuario?.email || null;
+    if (!diaValido(dia) || !turno) return json({ ok: false, error: "Turno inválido." }, 422);
+    try {
+      const res = await anularMovimientoAdminCaja(env, { id: partes[2], dia, turno, quien });
+      return json({ ok: true, ...res });
+    } catch (e) {
+      if (e.code === "MOV_ADMIN_CERRADO" || e.code === "MOV_ADMIN_CONFLICTO") return json({ ok: false, error: e.message }, 409);
+      if (e.code === "MOV_ADMIN_NO_ENCONTRADO") return json({ ok: false, error: e.message }, 404);
+      if (e.code === "MOV_ADMIN_INVALIDO") return json({ ok: false, error: e.message }, 422);
+      throw e;
+    }
+  }
 
   if (partes[1] === "pendiente" && partes[2] && partes[3] === "resolver" && request.method === "POST") {
     const id = decodeURIComponent(partes[2]);
