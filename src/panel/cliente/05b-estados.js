@@ -18,6 +18,13 @@
     if (r.comprobacion==="cuadra") return "Las cifras de este estado cuadran entre sí";
     return "Diferencia interna por revisar: " + dinero(r.diferencia);
   }
+  function continuidadTexto(r) {
+    if(r.continuidad==="sin_previo")return "Sin estado anterior para comparar.";
+    if(r.continuidad==="intervalo")return "Hay "+r.continuidad_dias_sin_estado+" día(s) sin estado entre los periodos. No se compara saldo.";
+    if(r.continuidad==="incompleto")return "Faltan saldos del estado anterior o de este periodo.";
+    if(r.continuidad==="cuadra")return "Continuidad correcta: saldo inicial coincide con el cierre anterior.";
+    return "Atención: el saldo inicial difiere "+dinero(r.continuidad_diferencia)+" del cierre del periodo anterior. Revisar sin ajustar automáticamente.";
+  }
   function mostrar() {
     const el=$("#f-estados-contenido");
     if(!el)return;
@@ -44,6 +51,7 @@
         return "<div class='aitem'><span class='tt'>"+esc(c?.nombre||"Cuenta no encontrada")+"</span>"+
           "<span class='mm'><span>"+esc(r.periodo_desde)+" → "+esc(r.periodo_hasta)+"</span>"+
           "<span>"+esc(estadoTexto(r))+"</span>"+
+          "<span class='note' "+(r.continuidad==="revisar"?"role='status' style='color:var(--warn)'":"")+">"+esc(continuidadTexto(r))+"</span>"+
           "<span>Saldo del estado: "+esc(dinero(r.saldo_final))+" · versión "+r.version+"</span></span>"+
           "<span class='acc'><button type='button' class='btn btn-line' data-estado-editar='"+esc(r.id)+"'>Editar</button></span></div>";
       }).join("")+"</div>":"<p class='note'>Todavía no se han capturado estados de cuenta. Puedes empezar por el más reciente.</p>");
