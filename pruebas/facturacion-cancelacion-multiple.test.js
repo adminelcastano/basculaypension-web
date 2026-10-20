@@ -49,6 +49,19 @@ test("Dos CFDI comparten una reserva de ticket y se registran con importes manua
     assert.equal(e.d.prepare("SELECT count(*) n FROM facturas_cfdis").get().n,2);
   }finally{e.close();}
 });
+test("SQLite bloquea un tercer CFDI vigente aunque se intente fuera de la interfaz", async()=>{
+  const e=fake();
+  try {
+    await asegurarEsquemaCfdis(e.env);
+    assert.equal((await emitirMultiples(e.env,e.solicitud(),
+      {facturas:[{folio:"CF1",importe:"1600"},{folio:"CF2",importe:"1600"}],
+       importe_ticket:"3200",confirmado_facturador:true},"admin",ahora,
+       {normalizado:"00423",original:"00423"})).ok,true);
+    assert.throws(()=>e.d.prepare("INSERT INTO facturas_cfdis(id,solicitud_id,folio,importe,creado) VALUES (?,?,?,?,?)")
+      .run("33333333-2222-4333-8444-555555555555",id,"CF3","10.00",ahora),/LIMITE_DOS_CFDI/);
+    assert.equal(e.d.prepare("SELECT count(*) AS n FROM facturas_cfdis WHERE estado='vigente'").get().n,2);
+  }finally{e.close();}
+});
 test("Cancelación manual conserva el CFDI original, referencia y permite sustitución por dos",async()=>{
   const e=fake();
   try{
