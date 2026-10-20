@@ -84,28 +84,70 @@ function drive(d) {
   if (d.op === 'probar') { DriveApp.getFolderById(CARPETA_COLABORADORES).getName(); DriveApp.getFolderById(CARPETA_EXTERNOS).getName(); return 'ok-drive'; }
   if (!d.id || !/^[0-9a-f-]{36}$/.test(d.id)) return 'error drive: id';
   if (d.op === 'carpeta' || d.op === 'borrar-carpeta') return 'ok-drive'; // la oficina administra las carpetas
+  if (d.op !== 'subir' && d.op !== 'borrar') return 'error drive: operación';
   const llaveArchivo = 'f_' + d.id + '_' + String(d.slot || '');
-  const anterior = props.getProperty(llaveArchivo);
-  if (d.op === 'borrar') {
-    if (anterior) {
-      DriveApp.getFileById(anterior).setTrashed(true);
-      props.deleteProperty(llaveArchivo);
+  // Serializa el índice de PropertiesService y las sustituciones del mismo despliegue.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    const anterior = props.getProperty(llaveArchivo);
+    if (d.op === 'borrar') {
+      if (anterior) {
+        DriveApp.getFileById(anterior).setTrashed(true);
+        props.deleteProperty(llaveArchivo);
+      }
+      return 'ok-drive';
     }
-    return 'ok-drive';
-  }
-  if (d.op === 'subir') {
+    const operacion = String(d.operacion || '');
+    if (operacion && !/^[0-9a-f]{64}$/.test(operacion)) return 'error drive: operación inválida';
+    const marca = operacion ? 'castano-personal-v1:' + operacion : '';
     const carpeta = carpetaDePersona(d);
-    const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', String(d.nombre || 'documento'));
-    // Conservar el documento anterior si falla la carga o la actualización del índice.
-    const archivo = carpeta.createFile(blob);
-    props.setProperty(llaveArchivo, archivo.getId());
-    if (anterior && anterior !== archivo.getId()) {
-      // La copia nueva ya quedó registrada: si falla la papelera, conservar ambas copias.
-      try { DriveApp.getFileById(anterior).setTrashed(true); } catch (err) {}
+    const nombre = String(d.nombre || 'documento');
+    let archivo = null, creado = null;
+    if (marca) {
+      // Si la respuesta de la carga anterior se perdió, reutilizar el archivo ya marcado.
+      const encontrados = carpeta.getFilesByName(nombre);
+      while (encontrados.hasNext()) {
+        const previo = encontrados.next();
+        if (!previo.isTrashed() && previo.getDescription() === marca) {
+          archivo = previo;
+          break;
+        }
+      }
+    }
+    if (!archivo) {
+      const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), d.tipoArchivo || 'application/octet-stream', nombre);
+      creado = carpeta.createFile(blob);
+      try {
+        if (marca) creado.setDescription(marca);
+      } catch (err) {
+        try { creado.setTrashed(true); } catch (limpiezaErr) {}
+        throw err;
+      }
+      archivo = creado;
+    }
+    // Un reintento tardío puede encontrar una operación antigua después de que
+    // otra versión más nueva ya fue registrada. La fecha de creación en Drive
+    // (no la de modificación) impide retroceder el índice en ese escenario.
+    if (!creado && anterior && anterior !== archivo.getId()) {
+      const vigente = DriveApp.getFileById(anterior);
+      if (vigente.isTrashed()) throw new Error('La referencia vigente requiere conciliación');
+      if (vigente.getDateCreated().getTime() >= archivo.getDateCreated().getTime()) {
+        return 'ok-drive'; // reintento obsoleto, conservar referencia más reciente
+      }
+    }
+    // No archivar aquí el anterior: la limpieza debe esperar la conciliación de copias.
+    try {
+      if (anterior !== archivo.getId()) props.setProperty(llaveArchivo, archivo.getId());
+    } catch (err) {
+      // Conserva el índice anterior. Si la limpieza falla, la marca permite recuperar.
+      if (creado) try { creado.setTrashed(true); } catch (limpiezaErr) {}
+      throw err;
     }
     return 'ok-drive';
+  } finally {
+    lock.releaseLock();
   }
-  return 'error drive: operación';
 }
 
 function respuesta(t) { return ContentService.createTextOutput(t); }
@@ -226,16 +268,23 @@ function hojaMensual(d) {
     sh.setFrozenRows(1);
     if (datos.length < 2000) sh.autoResizeColumns(1, ancho);
   });
+  // Confirmar escritura de todas las celdas antes de sustituir el índice del mes.
+  SpreadsheetApp.flush();
   const archivo = DriveApp.getFileById(ss.getId());
   archivo.moveTo(carpeta);
   // Sólo después de guardar el nuevo reporte correctamente, archivar versiones anteriores.
-  // Google Drive puede devolver también el nuevo archivo en esta consulta: nunca eliminarlo.
+  // Una falla al archivar un informe antiguo NO convierte una creación exitosa
+  // en error (evita reintentos destructivos o duplicaciones innecesarias).
   const viejos = carpeta.getFilesByName(nombre);
+  let pendientesArchivar = 0;
   while (viejos.hasNext()) {
     const previo = viejos.next();
-    if (previo.getId() !== ss.getId()) previo.setTrashed(true);
+    if (previo.getId() !== ss.getId()) {
+      try { previo.setTrashed(true); } catch (err) { pendientesArchivar++; }
+    }
   }
-  return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null };
+  return { ok: true, id: ss.getId(), url: ss.getUrl(), destino: destino || null,
+    pendientes_archivar: pendientesArchivar };
 }
 
 function dentroDeRaiz(archivo) {

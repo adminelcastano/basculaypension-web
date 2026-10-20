@@ -556,11 +556,24 @@ async function llamarDrive(env, datos) {
 }
 function aB64(bytes) { let bin = ""; const u = new Uint8Array(bytes); for (let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(bin); }
 
+// El mismo colaborador, slot y contenido genera el mismo identificador de
+// operación, sin exponer información personal en la marca que recibe Drive.
+async function idOperacionDrive(fila, slot, bytes) {
+  const cuerpo = new Uint8Array(bytes);
+  const prefijo = new TextEncoder().encode(fila.id + ":" + slot + ":");
+  const mensaje = new Uint8Array(prefijo.length + cuerpo.byteLength);
+  mensaje.set(prefijo);
+  mensaje.set(cuerpo, prefijo.length);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", mensaje));
+  return [...digest].map(n => n.toString(16).padStart(2, "0")).join("");
+}
+
 // Sube a Drive un archivo ya guardado en el sitio. slot: "d:<archivo>" (documento) o "a:<docId>" (administrativo)
 async function aDrive(env, fila, slot, bytes, tipo, nombreBase) {
   const cfg = await leerConfig(env);
   if (!cfg.drive || !env.AVISO_URL || !env.AVISO_TOKEN) return false;
-  await llamarDrive(env, { op: "subir", ...carpetaDrive(fila), slot, nombre: `${nombreBase}.${EXT_DE[tipo] || "bin"}`, tipoArchivo: tipo, base64: aB64(bytes) });
+  await llamarDrive(env, { op: "subir", ...carpetaDrive(fila), slot, nombre: `${nombreBase}.${EXT_DE[tipo] || "bin"}`, tipoArchivo: tipo,
+    operacion: await idOperacionDrive(fila, slot, bytes), base64: aB64(bytes) });
   return true;
 }
 async function borrarDeDrive(env, fila, slot) {
