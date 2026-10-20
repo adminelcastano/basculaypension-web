@@ -60,7 +60,7 @@
         const D0 = v => dinero(v, 0);
         const cur = j.cortes.find(x => x.dia === ahora.dia && x.turno === ahora.turno);
         const sinCorte = j.cortes.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
-        EC.bloqueInfo("caja", "curso", { valor: cur ? D0((cur.efectivo || 0) + (cur.tarjeta || 0)) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
+        EC.bloqueInfo("caja", "curso", { valor: cur ? D0(cur.efectivo_caja) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
         EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
         EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
         EC.bloqueInfo("caja", "movs", { texto: "gastos " + D0(t.gastos || 0) + (t.extras ? " · extras " + D0(t.extras) : "") });
@@ -145,7 +145,11 @@
         : cambio != null ? (c.cambio.fuente === "tablet" ? `Declarado en la tablet por ${avP(c.cambio.persona)}${esc(c.cambio.persona)}.` : "De la hoja (renglón CAMBIO o FONDO).") : "Nadie declaró el cambio con el que empezó."));
     // 2. Ventas e ingresos que entran a la caja
     pasos.push(paso("", "+ Ventas en efectivo", dinero(c.efectivo), `Báscula ${dinero(c.bascula.EFECTIVO)} · pensión ${dinero(c.pension.EFECTIVO)}`));
-    if (c.extra && c.extra.n) pasos.push(paso("", "+ Ingresos extra", dinero(c.extra.importe), `${c.extra.ingreso ? `Rentas y otros ${dinero(c.extra.ingreso)}` : ""}${c.extra.importe - c.extra.ingreso ? `${c.extra.ingreso ? " · " : ""}aumento de cambio ${dinero(c.extra.importe - c.extra.ingreso)}` : ""}`));
+    if (c.extra && c.extra.ingreso) pasos.push(paso("", "+ Ingresos reales extra", dinero(c.extra.ingreso), "Rentas y otros ingresos."));
+    if (c.extra && c.extra.importe - c.extra.ingreso)
+      pasos.push(paso("adm", "+ Aportes de administración (registro histórico)", dinero(c.extra.importe - c.extra.ingreso), "Movimiento interno, no ingreso del negocio."));
+    if (c.adminMovs?.entradas) pasos.push(paso("adm", "+ Ingresos de administración", dinero(c.adminMovs.entradas), "Dinero transferido desde administración a caja."));
+    if (c.adminMovs?.salidas) pasos.push(paso("adm", "− Retiros de administración", "−" + dinero(c.adminMovs.salidas), "Dinero transferido desde caja a administración."));
     if (c.caja && c.caja.n) pasos.push(paso("", "Renglones de caja de la hoja", dinero(c.caja.importe), `${c.caja.n} sin folio de ticket (aparecen en Movimientos de caja).`));
     // 3. Gastos
     pasos.push(paso("", "− Gastos de caja", c.gastos.EFECTIVO ? "−" + dinero(c.gastos.EFECTIVO) : dinero(0), c.n_gastos ? `${c.n_gastos} ${c.n_gastos === 1 ? "gasto capturado" : "gastos capturados"} en el turno.` : "Sin gastos en el turno."));
@@ -160,7 +164,7 @@
     if (k && k.sobre != null) {
       const rets = k.retiros || [], rep = (k.sobre || 0) + rets.reduce((a, r) => a + r.monto, 0) + (k.cambio_sig || 0), d = k.admin ? 0 : Math.round((k.efectivo - rep) * 100) / 100;
       pasos.push(paso(k.admin ? "" : Math.abs(d) < 0.01 ? "ok" : "mal", "Reparto", dinero(rep),
-        `Sobre ${dinero(k.sobre || 0)}${rets.length ? " · retiros " + rets.map((r, i) => `${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") : ""} · cambio que dejó ${dinero(k.cambio_sig || 0)}${Math.abs(d) >= 0.01 ? ` · <b class="rojo">${d > 0 ? "faltan " + dinero(d) + " por repartir" : "sobran " + dinero(-d)}</b>` : ""}`));
+        `Entrega a administración ${dinero(k.sobre || 0)}${rets.length ? " · retiros " + rets.map((r, i) => `${(j.folios_retiros || [])[i] ? `<span class="folio-mc">${esc(j.folios_retiros[i])}</span> ` : ""}${esc(r.concepto)} ${dinero(r.monto)}`).join(", ") : ""} · cambio que dejó ${dinero(k.cambio_sig || 0)}${Math.abs(d) >= 0.01 ? ` · <b class="rojo">${d > 0 ? "faltan " + dinero(d) + " por repartir" : "sobran " + dinero(-d)}</b>` : ""}`));
     }
     // 7. Cambio dejado al siguiente turno
     if (k && k.cambio_sig != null) pasos.push(paso(cs ? est(cs.dif) : k.admin ? "" : "esp", "Cambio para el siguiente turno", dinero(k.cambio_sig),
@@ -184,7 +188,7 @@
       ${k && k.admin ? `<div class="row"><button class="btn btn-bad" type="button" id="c-del-entrega" style="min-height:40px">Borrar esta captura</button></div>` : ""}
       ${k && !k.admin ? `<p class="note">${esc(fechaHora(k.actualizado))}${k.veces > 1 ? ` · corregido ${k.veces - 1} ${k.veces === 2 ? "vez" : "veces"}` : ""}${k.notas ? " · " + esc(k.notas) : ""}</p>` : ""}
       ${(j.historial || []).length > 1 ? `<details><summary class="note" style="cursor:pointer;font-weight:600">Entregas y correcciones (${j.historial.length})</summary>
-        <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Sobre</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+        <div class="tabla-scroll" tabindex="0" role="region" aria-label="Historial del corte"><table class="cmovs"><thead><tr><th>Hora</th><th>Quién</th><th class="n">Efectivo</th><th class="n">Entrega administración</th><th class="n">Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
         ${j.historial.map(x => `<tr><td>${esc(new Date(x.creado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Mexico_City" }))}</td><td>${avP(x.persona)}${esc(x.persona)}</td><td class="n">${dinero(x.efectivo || 0)}</td><td class="n">${dinero(x.sobre || 0)}</td><td class="n">${dinero((x.retiros || []).reduce((a, r) => a + r.monto, 0))}</td><td class="n">${dinero(x.cambio_sig || 0)}</td></tr>`).join("")}
         </tbody></table></div></details>` : ""}
     </section>`;
@@ -209,15 +213,29 @@
       <div style="display:grid;gap:20px;min-width:0">
       <div class="cols">
           ${ficha(c, j, dia, turno)}
+
+          <section class="card caja-admin-card">
+            <h3>Movimientos de administración</h3>
+            <p class="note">Los importes azules son traspasos internos. Un retiro baja la caja y aumenta el efectivo de administración; un ingreso hace lo contrario. No son ventas ni gastos.</p>
+            ${(j.admin_movs || []).length ? `<div>${j.admin_movs.map(x => `<div class="cgasto ${x.anulado ? "caja-admin-anulado" : ""}"><span>${x.folio_mc ? `<span class="folio-mc">${esc(x.folio_mc)}</span> ` : ""}<strong>${x.tipo === "entrada" ? "Ingreso de administración" : "Retiro de administración"}</strong>${x.detalle ? " · " + esc(x.detalle) : ""}${x.anulado ? " · ANULADO" : ""}</span><b class="caja-admin-signo">${x.tipo === "entrada" ? "+" : "−"}${dinero(x.monto)}</b>${!c.conteo && !x.anulado ? `<button type="button" class="btn btn-line btn-sm" data-admin-anular="${esc(x.id)}">Anular</button>` : ""}<span class="note">${esc(fechaHora(x.creado).replace(/^Entregado /, ""))}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : x.creado_por ? " · administración" : ""}</span></div>`).join("")}</div>`
+              : `<p class="note">Sin movimientos internos registrados.</p>`}
+            ${!c.conteo ? `<form class="cform caja-admin-form" id="c-fadmin" novalidate>
+              <label>Movimiento<select name="tipo"><option value="salida">− Retiro de administración</option><option value="entrada">+ Ingreso de administración</option></select></label>
+              <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
+              <label class="wide">Nota opcional<input name="detalle" maxlength="120" placeholder="Motivo o referencia"></label>
+              <span class="err wide" id="c-aerr"></span>
+              <div class="row wide"><button class="btn btn-admin" type="submit">Guardar movimiento</button></div>
+            </form>` : `<p class="note">El corte ya fue entregado. Sus movimientos internos permanecen en el historial.</p>`}
+          </section>
           <section class="card"><h3>Gastos de caja del turno</h3>
             ${j.gastos.length ? `<div>${j.gastos.map(g => `<div class="cgasto"><span>${g.folio_mc ? `<span class="folio-mc">${esc(g.folio_mc)}</span> ` : ""}${g.categoria ? window.catIco(g.categoria) + " " : ""}${esc(g.concepto)}${c.conteo && g.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>${dinero(g.monto)}</b><button class="btn btn-bad" type="button" data-del="${esc(g.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${esc(g.forma.toLowerCase())}${g.persona ? " · " + avP(g.persona) + esc(g.persona) + " (tablet)" : g.creado_por ? " · " + esc(g.creado_por) : ""}${g.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(g.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Sin gastos en este turno.</p>`}
             <details ${j.gastos.length ? "" : "open"}><summary class="note" style="cursor:pointer;font-weight:600">Agregar gasto de caja a este turno</summary><div style="margin-top:12px">${formGasto(dia, turno)}</div></details>
           </section>
           <section class="card"><h3>Ingresos extra y aportes a caja</h3>
-            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${x.folio_mc ? `<span class="folio-mc">${esc(x.folio_mc)}</span> ` : ""}${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas, otros ingresos o aumento de cambio transferido desde sobres.</p>`}
+            ${(j.extras || []).length ? `<div>${j.extras.map(x => `<div class="cgasto"><span>${x.folio_mc ? `<span class="folio-mc">${esc(x.folio_mc)}</span> ` : ""}${esc(x.concepto)}${x.detalle ? " · " + esc(x.detalle) : ""}${c.conteo && x.creado > c.conteo.actualizado ? ` <span class="tag alta">Después del corte</span>` : ""}</span><b>+${dinero(x.monto)}</b><button class="btn btn-bad" type="button" data-xdel="${esc(x.id)}" style="min-height:40px;padding:0 12px">Eliminar</button><span class="note">${x.ingreso ? "cuenta como ingreso" : "solo caja"}${x.persona ? " · " + avP(x.persona) + esc(x.persona) + " (tablet)" : ""}${x.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(x.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}</span></div>`).join("")}</div>` : `<p class="note">Rentas u otros ingresos reales, sin incluir traspasos de administración.</p>`}
             <details><summary class="note" style="cursor:pointer;font-weight:600">Agregar ingreso extra a este turno</summary><div style="margin-top:12px">
               <form class="cform" id="c-fextra" novalidate>
-                <p class="note wide">Todo «Aumento de cambio» se descuenta de efectivo en sobres y aumenta la caja; nunca es un ingreso del negocio. No registres de nuevo el aporte capturado al iniciar turno.</p><label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
+                <p class="note wide">Los ingresos desde administración se registran en la sección azul de movimientos. Aquí solo registra rentas u otros ingresos reales.</p><label>Concepto<select name="concepto">${(j.conceptos_extra || ["Renta", "Aumento de cambio", "Otro ingreso"]).filter(x => x !== "Aumento de cambio").map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
                 <label>Monto<input name="monto" inputmode="decimal" placeholder="0.00" required></label>
                 <label class="wide">De quién o de qué<input name="detalle" maxlength="120" placeholder="Ej. renta del local de ropa"></label>
                 <span class="err wide" id="c-xerr" style="grid-column:1/-1"></span>
@@ -304,6 +322,29 @@
       try { await api("caja/entregas-admin/eliminar", { method: "POST", body: JSON.stringify({ dia, turno }) }); toast("Captura borrada"); await cargar(); abrir(k); }
       catch (e) { if (e.message !== "sesion") toast(e.message); be.disabled = false; }
     });
+
+    const fa = $("#c-fadmin");
+    if (fa) fa.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const f = ev.target, b = f.querySelector("[type=submit]");
+      b.disabled = true; $("#c-aerr").textContent = "";
+      try {
+        await api("caja/admin-movimientos", { method: "POST", body: JSON.stringify({
+          dia, turno, tipo: f.tipo.value, monto: f.monto.value.replace(/[$,\\s]/g, ""),
+          detalle: f.detalle.value, uid: f.dataset.uid || (f.dataset.uid = crypto.randomUUID())
+        }) });
+        toast("Movimiento de administración guardado"); await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") $("#c-aerr").textContent = e.message; b.disabled = false; }
+    });
+    d.querySelectorAll("[data-admin-anular]").forEach(b => b.addEventListener("click", async () => {
+      if (!window.confirm("¿Anular este movimiento? Seguirá en el historial y dejará de afectar los saldos.")) return;
+      b.disabled = true;
+      try {
+        await api("caja/admin-movimientos/" + encodeURIComponent(b.dataset.adminAnular) + "/anular",
+          { method: "POST", body: JSON.stringify({ dia, turno }) });
+        toast("Movimiento anulado"); await cargar(); await abrir(k);
+      } catch (e) { if (e.message !== "sesion") toast(e.message); b.disabled = false; }
+    }));
     conectarForm();
     $("#c-fextra").addEventListener("submit", async ev => {
       ev.preventDefault();
@@ -331,7 +372,7 @@
   $("#c-lista").addEventListener("click", e => { const b = e.target.closest(".item[data-k]"); if (b) abrir(b.dataset.k); });
 
   // ---- Movimientos de caja con folio ----
-  const TIPO_MOV = { gasto: ["Gasto de caja", "#ff7a70"], ingreso: ["Ingreso extra", "#30d158"], retiro: ["Retiro en el corte", "#ff9f0a"], hoja: ["Renglón de la hoja", "#64d2ff"] };
+  const TIPO_MOV = { gasto: ["Gasto de caja", "#ff7a70"], ingreso: ["Ingreso extra", "#30d158"], admin: ["Administración ↔ Caja", "#64d2ff"], retiro: ["Retiro en el corte", "#ff9f0a"], hoja: ["Renglón de la hoja", "#64d2ff"] };
   function vistaMovs(j) {
     const c = $("#c-movs"), ms = j.movimientos || [];
     const filtro = st.filtroMov || "";
@@ -345,7 +386,7 @@
       </div>
       <div class="ctot" style="margin:10px 0">${Object.entries(TIPO_MOV).map(([k, [t]]) => `<div class="k"><span>${t}</span><b>${dinero(suma(k))}</b></div>`).join("")}</div>
       ${lista.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Movimientos de caja"><table class="cmovs tmovs"><thead><tr><th>Folio</th><th>Día y turno</th><th>Hora</th><th>Tipo</th><th>Concepto</th><th>Quién</th><th class="n">Monto</th></tr></thead><tbody>
-        ${lista.map(m => `<tr><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.monto < 0 ? "−" : "+"}${dinero(Math.abs(m.monto))}</td></tr>`).join("")}
+        ${lista.map(m => `<tr class="${m.anulado ? "caja-admin-anulado" : ""}"><td><span class="folio-mc">${esc(m.folio || "—")}</span></td><td><button type="button" class="lnk-corte" data-k="${esc(m.dia + "|" + m.turno)}">${esc(diaTxt(m.dia))} · ${esc(TURNO_TXT[m.turno] || m.turno)}</button></td><td>${esc(String(m.cuando || "").slice(11, 16))}</td><td><span class="tmov" style="--c:${TIPO_MOV[m.tipo][1]}">${TIPO_MOV[m.tipo][0]}</span></td><td>${m.categoria ? window.catIco(m.categoria) + " " : ""}${esc(m.concepto)}${m.detalle ? `<span class="note"> · ${esc(m.detalle)}</span>` : ""}${m.foto ? ` · <a href="/panel/api/turno/foto/${encodeURIComponent(m.foto)}" target="_blank" rel="noopener">foto</a>` : ""}</td><td>${m.persona ? avP(m.persona) + esc(m.persona) : esc(m.por ? "Administración" : "")}</td><td class="n" style="color:${m.tipo === "admin" ? "#64d2ff" : m.monto < 0 ? "#ff8a80" : "#7ee2a0"}">${m.anulado ? "Anulado · " : ""}${(m.anulado ? m.original : m.monto) < 0 ? "−" : "+"}${dinero(Math.abs(m.anulado ? m.original : m.monto))}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay movimientos de caja ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
     const cobros = j.cobros || [];
     c.innerHTML += `<section class="card">
