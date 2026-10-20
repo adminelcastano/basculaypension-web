@@ -78,3 +78,26 @@ Los nuevos scripts `05b-estados.js` y `05c-salarios.js` se validan sintácticame
 **Pruebas verificadas en el commit `7364d2135a9bc745bc0f59fd8ac186982795ca4d`: 426/426 aprobadas, 0 fallidas, ambas compilaciones Wrangler `--dry-run` correctas.** Se repetirá CI tras este último ajuste de documentación.
 
 **Pendiente:** prueba con navegador/teléfono/tablet reales, ensayo de Apps Script desplegado contra Sheet *nuevo* y totalmente ficticio, diseño del ID inmutable para retiros de corte y autorización explícita antes de modificar código productivo y activar el puente SALARIOS.
+
+## Identidad estable para retiros nuevos y vinculación salarial (20/10/2026)
+
+Los retiros salariales capturados en **cortes nuevos de tablet** ya incorporan un UUID individual dentro del JSON `turno_cortes.retiros`. El formulario móvil preserva ese UUID al corregir el mismo retiro y `leerRetiros` lo conserva en las lecturas del panel. Los retiros históricos sin UUID se siguen mostrando normalmente y **nunca** reciben un ID por posición ni se reinterpretan automáticamente. Los folios de movimientos `MC-*` existentes no se modificaron.
+
+La sección SALARIOS permite al administrador seleccionar un colaborador para un retiro nuevo identificado y confirmar explícitamente que recibió el pago. Si coincide con otro gasto o retiro del mismo día e importe, requiere además aclarar que se trata de un pago diferente. No se infiere el beneficiario desde el encargado del turno ni del autor de la captura.
+
+Los vínculos de `fin_nomina_retiros` guardan el UUID, fecha, turno, concepto e importe original, el colaborador confirmado, fecha/responsable de revisión y estado de reflejo. Un retiro vinculado que se edite o se elimine del corte detiene la sincronización hasta conciliarlo. **Nunca se agrega un segundo gasto al sistema para reflejar el salario**.
+
+El Apps Script preparado acepta únicamente dos orígenes respaldados por una referencia estable: `caja_gastos` y `turno_cortes`. Los retiros usan IDs `ret-<UUID>` para evitar colisiones con pagos administrativos; un reintento idéntico no genera dos renglones. Los renglones importados desde la hoja de caja sin identidad estable siguen como candidatos sólo informativos.
+
+Se aclaró en «Sueldos del mes» que sus cifras son **registros operativos de salida**, no una confirmación del beneficiario del sueldo. La atribución correcta se valida en la sección privada SALARIOS.
+
+En estados de cuenta se admite también saldo inicial/final negativo (sobregiro bancario o saldo a favor en crédito), sin permitir cargos, abonos o comisiones negativos. Esto conserva la conciliación exacta en centavos.
+
+### Pruebas de esta etapa
+
+- Los flujos de retiro nuevo, formulario móvil, ID persistido, coexistencia con retiros históricos sin ID, corrección del corte, vínculo a colaborador y sincronización idempotente se ensayaron mediante SQLite y un conector de Apps Script simulado sin red.
+- Se ejecutó también la lógica real del archivo `herramientas/aviso-correo.gs` en un Google Sheet falso de pruebas, comprobando los dos orígenes, IDs repetidos, importes y cambios de fuente.
+- El último commit funcional `653d7a0e224c9c017fba7ea34fc7fcf0bea712df` obtuvo **435/435 pruebas aprobadas**, 0 fallidas, y `dry-run` correcto del Worker principal y Finanzas ensayo en GitHub Actions 39499814959.
+- **Aún falta un ensayo de Apps Script desplegado en un libro real pero completamente ficticio**, y pruebas visuales en móvil físico. No se autoriza considerar el puente real SALARIOS listo para activación por los ensayos simulados.
+
+**Prohibiciones conservadas:** no fusiones ni publicaciones, cambios en SALARIOS original, creación de datos financieros productivos o conexión con BASCULAYPENSION SQLite local sin autorización específica.
