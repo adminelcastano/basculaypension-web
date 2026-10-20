@@ -1729,3 +1729,20 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 }
 .fmov-lista .fmov-eliminar svg { width: 18px; height: 18px; flex: none; }
 .fmov-lista .fmov-eliminar:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+
+/* Caja: traspasos internos de administración. Azul constante, distinto de gasto/venta. */
+#mod-caja .caja-admin-card { border: 1px solid #3d8fd6; background: #102538; }
+#mod-caja .caja-admin-card h3, #mod-caja .caja-admin-signo { color: #90d7ff; }
+#mod-caja .caja-admin-form { padding: 12px; background: #152f43; border-radius: 14px; border: 1px solid #3d8fd6; }
+#mod-caja .caja-admin-form input, #mod-caja .caja-admin-form select { border-color: #3d8fd6; }
+#mod-caja .caja-admin-cifra { border: 1px solid #3d8fd6; border-radius: 12px; }
+#mod-caja .caja-admin-cifra b { color: #90d7ff; }
+#mod-caja .btn-admin { color: #071824; background: #64d2ff; border: 1px solid #64d2ff; }
+#mod-caja .btn-admin:focus-visible { outline-color: #fff; }
+#mod-caja .caja-admin-anulado { opacity: .65; text-decoration: line-through; }
+#mod-caja .cf-p.adm { background: #102538; border-radius: 12px; padding: 8px; }
+#mod-caja .cf-p.adm .cf-l b, #mod-caja .cf-p.adm .cf-l span { color: #90d7ff; }
+#mod-caja .caja-admin-saldo { display: grid; gap: 4px; padding: 14px; margin: 10px 0; border: 1px solid #3d8fd6; border-radius: 14px; background: #102538; }
+#mod-caja .caja-admin-saldo b { color: #90d7ff; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 460px) { #mod-caja .caja-admin-form { padding: 10px; } }
