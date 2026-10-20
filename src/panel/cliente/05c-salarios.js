@@ -26,6 +26,13 @@
               "</select></label><button type='button' class='btn btn-line' data-vincular='"+esc(p.id)+"'>Confirmar</button></span>":"")+
             "</div>";
         }).join("")+"</div>":"<p class='note'>No hay gastos con categoría Sueldos identificados en la fuente estable. Los retiros del corte requieren revisión aparte.</p>")+
+        "<h4 class='fsub'>Candidatos para revisar: cortes y hoja de caja</h4>" +
+        "<p class='note'>Estas referencias pueden repetirse o cambiar al corregir un corte. NO se sincronizan con SALARIOS ni se suman al sueldo pagado verificado.</p>" +
+        ((x.candidatos||[]).length?"<div class='alist'>"+x.candidatos.map(c=>
+          "<div class='aitem'><b class='tt'>"+esc(c.dia)+" · "+esc(c.origen)+"</b>"+
+          "<span class='mm'><span>"+esc(c.turno||"")+" · "+esc(c.concepto)+" · "+money(c.monto)+"</span>"+
+          "<span class='note'>"+(c.posible_duplicado?"Posible duplicado por fecha e importe: revisar fuente":"Pendiente de identificar colaborador y movimiento único")+"</span></span></div>"
+        ).join("")+"</div>":"<p class='note'>No aparecen candidatos salariales recientes en esas fuentes.</p>")+
         (x.habilitado?"<div class='row'><button id='f-salarios-sync' type='button' class='btn btn-primary'>Reflejar pagos confirmados en SALARIOS</button></div>":
           "<p class='note'>La hoja SALARIOS sigue intacta; ningún pago se enviará mientras el puente esté desactivado.</p>")+
         "<p id='f-salarios-error' class='err' role='alert'></p>";
