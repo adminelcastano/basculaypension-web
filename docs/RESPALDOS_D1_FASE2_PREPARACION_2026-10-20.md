@@ -18,7 +18,7 @@
 1. `BACKUP_ACTIVE=SI` y `BACKUP_MODO=ENSAYO` deben darse **juntos**; por defecto se rechaza toda ejecución.
 2. Se acepta únicamente `castano-respaldo-sintetico-AAAAMMDD`. Se exige el UUID de esta base y el UUID distinto de la D1 productiva; no están hardcodeados en el repositorio.
 3. La configuración `wrangler.respaldo-ensayo.jsonc` debe ser un archivo **externo al repositorio, no symlink, con JSON estricto**, `name=castano-respaldo-ensayo` y exactamente un binding D1 `DB` con nombre y UUID coincidentes. Se rechazan `env`, `kv_namespaces`, `triggers`, `routes` y `assets`.
-4. Las rutas de configuración y salida se revisan físicamente; la salida debe existir y estar fuera del código. Los archivos temporales usan `umask 077`, se eliminan al salir y el destino final sólo recibe `.sql.age` y `.sha256`.
+4. Las rutas de configuración y salida se revisan físicamente; la salida debe existir, pertenecer al usuario actual, tener permisos **700** y estar fuera del código. Los archivos temporales usan `umask 077`, se eliminan al salir y el destino final sólo recibe `.sql.age` y `.sha256`.
 5. El cifrado y el manifiesto se publican con enlaces físicos sin sobrescribir; si un fallo deja cifrado sin manifiesto, **conservarlo sin tratarlo como válido** hasta revisión. Nunca borrar huérfanos automáticamente.
 6. No hay PowerShell, instalación WSL, OAuth, rclone ni tareas programadas. La clave privada `age` existente en la Mac **no se genera ni se modifica**.
 
