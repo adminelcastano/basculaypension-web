@@ -125,6 +125,22 @@ test("Texto que parece fórmula se conserva como texto, no se ejecuta",()=>{
   assert.equal(x.ejecutar({op:"pagos",filas:[pago("pago-202610-004",{concepto:"=HIPERVINCULO(1,2)"})]}).ok,true);
   assert.match(x.hojas.get("PAGOS WEB").get(2,5),/^'=HIPERVINCULO/);
 });
+test("Apps Script ficticio admite retiros y gastos como fuentes distintas, sin duplicar",()=>{
+  const x=entorno(),r={
+    id:"ret-00000000-0000-4000-8000-0000000000aa",fecha:"2026-10-17",origen:"turno_cortes",
+    concepto:"Sueldo desde corte",importe:1000.25,colaborador_id:"001_FICTICIO_A",forma:"EFECTIVO",cuenta:""
+  };
+  const first=x.ejecutar({op:"pagos",filas:[pago(),r]});
+  assert.equal(first.ok,true);
+  assert.equal(first.agregados,2);
+  assert.equal(x.hojas.get("PAGOS WEB").getLastRow(),3);
+  assert.equal(x.hojas.get("PAGOS WEB").get(3,4),"turno_cortes");
+  assert.equal(x.hojas.get("PAGOS WEB").get(3,10),"EFECTIVO");
+  assert.equal(x.hojas.get("PAGOS WEB").get(3,11),"");
+  assert.equal(x.ejecutar({op:"pagos",filas:[r]}).agregados,0);
+  assert.equal(x.hojas.get("PAGOS WEB").getLastRow(),3);
+  assert.equal(x.ejecutar({op:"pagos",filas:[{...r,origen:"caja_gastos"}]}).ok,false);
+});
 test("Si faltan controles internos se rechaza sin crear hojas",()=>{
   const x=entorno({missingBase:true});
   assert.equal(x.ejecutar({op:"catalogo"}).ok,false);
