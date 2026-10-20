@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 const read=p=>readFileSync(new URL(p,import.meta.url),"utf8");
 test("Producción obliga SALARIOS_SYNC_ACTIVE=NO hasta autorización independiente",()=>{
   const wr=read("../wrangler.jsonc");
-  const w=wr.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm,"");
+  const w=wr.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/[^\n]*$/gm,"");
   const j=JSON.parse(w);
   assert.equal(j.name,"basculaypension-web");
   assert.equal(j.vars.SALARIOS_SYNC_ACTIVE,"NO");
