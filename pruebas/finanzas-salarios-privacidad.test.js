@@ -40,6 +40,20 @@ test("Apagado por defecto: lista solo sueldo conocido y rechaza cualquier escrit
     assert.equal(e.sqlite.prepare("SELECT COUNT(*) n FROM fin_nomina_vinculos").get().n,0);
   }finally{e.close();}
 });
+test("Un sueldo vinculado que luego cambia de categoría queda señalado, sin escritura a SALARIOS",async()=>{
+  const e=envFake();
+  try{
+    await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    e.sqlite.prepare("INSERT INTO fin_nomina_vinculos(gasto_id,colaborador_id,revisado_en,importe_centavos,fecha_fuente,concepto_fuente) VALUES(?,?,?,?,?,?)")
+      .run("sueldo-prueba-001","001_FICTICIO_202610","2026-10-20",220000,"2026-10-18","Sueldo turno");
+    e.sqlite.prepare("UPDATE caja_gastos SET categoria='Transporte' WHERE id='sueldo-prueba-001'").run();
+    const r=await rutaSalarios({method:"GET"},e.env,["finanzas","salarios"],{email:"admin@example.invalid"});
+    const x=await r.json();
+    assert.equal(x.huerfanos,1);
+    assert.equal(x.pagos.length,0);
+    assert.match(x.aviso,/conciliar/i);
+  }finally{e.close();}
+});
 test("La integración Sheets queda separada de identidades, tokens y datos bancarios",()=>{
   const script=readFileSync(new URL("../herramientas/aviso-correo.gs",import.meta.url),"utf8");
   const bridge=readFileSync(new URL("../src/finanzas-salarios.js",import.meta.url),"utf8");
