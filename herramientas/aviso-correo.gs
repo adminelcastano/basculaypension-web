@@ -365,7 +365,7 @@ function salariosPrivados(d) {
     const monto=Number(f.importe);
     const colaborador=String(f.colaborador_id||'');
     if(!/^[a-z0-9-]{8,64}$/i.test(k)||vistos.has(k)||!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||
-       !(monto>0)||monto>1000000||Math.round(monto*100)!==monto*100||
+       !(monto>0)||monto>1000000||Math.abs(Math.round(monto*100)-monto*100)>0.000001||
        f.origen!=='caja_gastos'||!vigentes.has(colaborador))
       return{ok:false,error:'Revisar referencias de pagos antes de sincronizar'};
     vistos.add(k);
