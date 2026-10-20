@@ -29,7 +29,7 @@
     const el=$("#f-estados-contenido");
     if(!el)return;
     el.innerHTML =
-      "<p class='note'>Elige la cuenta, registra las fechas reales del PDF y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Este registro no genera cargos, gastos ni movimientos.</p>" +
+      "<p class='note'>Elige la cuenta, registra las fechas reales del PDF y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Un saldo a favor o saldo deudor puede capturarse con signo negativo; cargos y abonos siempre son positivos. Este registro no genera cargos, gastos ni movimientos.</p>" +
       "<form class='cform' id='f-est-form' novalidate>" +
       "<label class='wide'>Cuenta o tarjeta<select name='cuenta' required>" +
       cuentas.filter(x=>x.activa).map(x=>"<option value='"+esc(x.id)+"'>"+esc(x.nombre)+(x.tipo==="credito"?" · crédito":" · débito")+"</option>").join("")+
