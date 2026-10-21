@@ -50,6 +50,41 @@ test("Mercado Pago: periodo cruza meses y resumen con cantidades en siguiente re
  assert.equal(r.campos.cargos,"2175.25");
  assert.equal(r.campos.comisiones,undefined);
 });
+test("Mercado Pago: leer encabezados e importes alineados en filas de varias columnas",()=>{
+ const r=lector().analizarEstadoTexto(
+  "MERCADOLIBRE, S.A. DE C.V.\n"+
+  "Saldo inicial: Abonos: Comisiones totales: Saldo final:\n"+
+  "$ 100.00 $ 250.00 $ 5.00 $ 170.00\n"+
+  "Promedio diario de saldos: Cargos: Retenciones por impuestos:\n"+
+  "$ 111.00 $ 180.00 $ 0.00\n"+
+  "DETALLE DE MOVIMIENTOS Período: Del 31 de agosto al 30 de septiembre de 2026\n"+
+  "Cargos: $ 9,999.00\n",{paginas:23});
+ validarCampos(r,{banco:"MERCADO PAGO",desde:"2026-08-31",hasta:"2026-09-30"});
+ assert.equal(r.campos.saldo_inicial,"100.00");
+ assert.equal(r.campos.abonos,"250.00");
+ assert.equal(r.campos.cargos,"180.00");
+ assert.equal(r.campos.saldo_final,"170.00");
+ assert.equal(r.campos.comisiones,undefined);
+ assert.equal(r.paginas,23);
+});
+test("Mercado Pago: un resumen desalineado no asigna importes ni usa movimientos como totales",()=>{
+ const r=lector().analizarEstadoTexto(
+  "MERCADOLIBRE\nSaldo inicial: Abonos: Comisiones totales: Saldo final:\n"+
+  "$ 100.00 $ 250.00 $ 170.00\n"+
+  "DETALLE DE MOVIMIENTOS Período: Del 31 de agosto al 30 de septiembre de 2026\n"+
+  "Abonos: $ 9,999.00\nSaldo final: $ 9,999.00");
+ assert.equal(r.fiable,false);
+ for(const k of ["saldo_inicial","saldo_final","abonos","cargos"])assert.equal(r.campos[k],undefined);
+ assert.match(r.advertencias.join(" "),/importes del resumen/);
+});
+test("Mercado Pago: fechas sin importes no permiten aplicar una propuesta insegura",()=>{
+ const r=lector().analizarEstadoTexto(
+  "MERCADOLIBRE\nDETALLE DE MOVIMIENTOS Período: Del 31 de agosto al 30 de septiembre de 2026");
+ assert.equal(r.campos.periodo_desde,"2026-08-31");
+ assert.equal(r.campos.periodo_hasta,"2026-09-30");
+ assert.equal(r.fiable,false);
+ assert.match(r.advertencias.join(" "),/importes del resumen/);
+});
 test("Banorte: capital a meses, comisiones, interés e IVA no se suman dos veces",()=>{
  const r=lector().analizarEstadoTexto(
   "BANORTE CREDITO\nTU PAGO REQUERIDO ESTE PERIODO\nPeriodo: 11-SEP-2026 al 09-OCT-2026\n"+

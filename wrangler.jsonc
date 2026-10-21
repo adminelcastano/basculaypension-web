@@ -17,6 +17,28 @@
   "kv_namespaces": [{ "binding": "FILES" }],
   // Borrado diario de archivos con más de 90 días tras facturar o rechazar
   "triggers": { "crons": ["17 9 * * *", "47 14 * * *", "*/10 * * * *"] },
+  // Aislamiento de Workers Previews: esta configuración NO sustituye producción.
+  // PR #45: DB y KV exclusivos. Nunca incluir secretos ni servicios externos.
+  "previews": {
+    "observability": { "enabled": false },
+    "vars": {
+      "ENSAYO_FINANZAS": "1",
+      "SALARIOS_SYNC_ACTIVE": "NO",
+      "ADMIN_EMAILS": "administracion@basculaypension.com",
+      "TURNO_EMAILS": "",
+      "ACCESS_TEAM_DOMAIN": "odd-math-3ae5.cloudflareaccess.com",
+      "ACCESS_AUD": "fff20a41811e8310b0e162d5a6a3906b617c749a07e070aa54b796716958369e"
+    },
+    "d1_databases": [{
+      "binding": "DB",
+      "database_name": "castano-finanzas-pr45-preview-20261021",
+      "database_id": "d26993ba-9063-451d-afb1-71ba9be2d65e"
+    }],
+    "kv_namespaces": [{
+      "binding": "FILES",
+      "id": "7eb9ca8c207a4fa0a49a81b94937f0e0"
+    }]
+  },
   "vars": {
     // Bloqueo deliberado: esta publicación NO escribe pagos en SALARIOS.
     "SALARIOS_SYNC_ACTIVE": "NO",

@@ -83,6 +83,49 @@
     if(/LIVERPOOL/.test(s))return "LIVERPOOL";
     return null;
   }
+  // Mercado Pago dispone en ocasiones varias ETIQUETAS en una fila y
+  // todos los IMPORTES en la siguiente. No asociar el primer importe a
+  // varias etiquetas ni leer movimientos como totales del estado.
+  function totalesMercadoPago(lineas) {
+    const corte=lineas.findIndex(x=>/^DETALLE DE MOVIMIENTOS\b/i.test(x));
+    const resumen=lineas.slice(0,corte<0?140:Math.min(corte,140));
+    const etiquetas=/\b(SALDO INICIAL|ABONOS|COMISIONES TOTALES|SALDO FINAL|PROMEDIO DIARIO DE SALDOS|CARGOS|RETENCIONES POR IMPUESTOS)\s*:/gi;
+    const divisas=/(?:-?\s*\$\s*|-?\s*MXN\s*)(\d{1,3}(?:,\d{3})+\.\d{2}|\d{1,9}\.\d{2})(-?)/gi;
+    const claves={"SALDO INICIAL":"saldo_inicial","ABONOS":"abonos","SALDO FINAL":"saldo_final","CARGOS":"cargos"};
+    const totales={};
+    for(let i=0;i+1<resumen.length;i++){
+      const cabecera=resumen[i];
+      const encontradas=[...cabecera.matchAll(etiquetas)].map(x=>x[1].toUpperCase());
+      // Exigir cabecera limpia y dos o más títulos de un resumen, no texto
+      // ambiguo, cantidades mezcladas ni renglones de operaciones.
+      if(encontradas.length<2||cabecera.replace(etiquetas,"").trim())continue;
+      const fila=resumen[i+1],importes=[...fila.matchAll(divisas)];
+      if(importes.length!==encontradas.length||fila.replace(divisas,"").trim())continue;
+      for(let j=0;j<encontradas.length;j++){
+        const clave=claves[encontradas[j]];
+        const cantidad=monto(importes[j][0],{permitirNegativo:clave==="saldo_inicial"||clave==="saldo_final"});
+        if(clave&&cantidad!=null&&totales[clave]==null)totales[clave]=cantidad;
+      }
+    }
+    // Algunos estados presentan una etiqueta y su importe en líneas separadas.
+    // No tomar un importe si comparte su línea con otra etiqueta o concepto.
+    const simple={
+      saldo_inicial:/^SALDO INICIAL\s*:/i,saldo_final:/^SALDO FINAL\s*:/i,
+      abonos:/^ABONOS\s*:/i,cargos:/^CARGOS\s*:/i
+    };
+    for(const [clave,rx] of Object.entries(simple)){
+      if(totales[clave]!=null)continue;
+      for(let i=0;i<resumen.length;i++){
+        if(!rx.test(resumen[i]))continue;
+        const resto=resumen[i].replace(rx,"").trim();
+        const candidato=resto||(resumen[i+1]||"").trim();
+        if(!/^(?:-?\s*\$|-?\s*MXN)?\s*-?\d[\d,.]*-?$/i.test(candidato))continue;
+        const valorSeguro=monto(candidato,{permitirNegativo:clave==="saldo_inicial"||clave==="saldo_final"});
+        if(valorSeguro!=null){totales[clave]=valorSeguro;break;}
+      }
+    }
+    return totales;
+  }
   const creditoRx={
     saldo_inicial:/^ADEUDO DEL PERIODO ANTERIOR\s*(?:=|:)?\s*/i,
     saldo_final:/^SALDO DEUDOR TOTAL(?:\d{1,2})?\s*(?:=|:)?\s*/i,
@@ -113,10 +156,8 @@
       insertar("cargos",valor(n,/^RETIROS\/CARGOS\s*\(-\)\s*(?:\d+\s+)?/));
       advertencias.push("BBVA puede mostrar comisiones que se aplicarán en el siguiente estado: no se propone ese desglose sin verificar movimientos.");
     }else if(institucion==="MERCADO PAGO"){
-      insertar("saldo_inicial",valor(n,/^SALDO INICIAL\s*:/,{permitirNegativo:true}));
-      insertar("saldo_final",valor(n,/^SALDO FINAL\s*:/,{permitirNegativo:true}));
-      insertar("abonos",valor(n,/^ABONOS\s*:/));
-      insertar("cargos",valor(n,/^CARGOS\s*:/));
+      const resumen=totalesMercadoPago(n);
+      for(const [campo,importe] of Object.entries(resumen))insertar(campo,importe);
       advertencias.push("Revisa si las comisiones de Mercado Pago ya están incluidas en cargos; no se suman dos veces.");
     }else if(institucion==="BANORTE"||institucion==="NU"){
       for(const [k,exp] of Object.entries(creditoRx))insertar(k,valor(n,exp,{permitirNegativo:k==="saldo_inicial"||k==="saldo_final"}));
@@ -152,8 +193,12 @@
         advertencias.push("La comprobación matemática preliminar presenta una diferencia de $"+
           Math.abs(diferencia).toFixed(2)+". Puede haber compras diferidas u otras operaciones: revisa el PDF antes de guardar.");
     }
-    if(Object.keys(campos).length<3)advertencias.push("El PDF podría estar escaneado o tener un formato distinto. Utiliza captura manual.");
-    const fiable=!!campos.periodo_desde&&!!campos.periodo_hasta&&!!institucion&&Object.keys(campos).length>=3;
+    // Las fechas por sí solas jamás confirman una lectura bancaria confiable.
+    const importesEncontrados=["saldo_inicial","saldo_final","cargos","abonos","pago_minimo","pago_sin_intereses"]
+      .filter(k=>campos[k]!=null).length;
+    if(importesEncontrados<2)
+      advertencias.push("No se extrajeron suficientes importes del resumen. Revisa el PDF y utiliza captura manual.");
+    const fiable=!!campos.periodo_desde&&!!campos.periodo_hasta&&!!institucion&&importesEncontrados>=2;
     return {institucion,tipo,campos,advertencias,paginas,fiable};
   }
   let moduloPDF=null;
