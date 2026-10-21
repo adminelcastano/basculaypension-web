@@ -16,4 +16,6 @@ test("Obligaciones conserva formularios sin guardar y UID ante consultas simult√
   'if(token===sec)pintar(r)'
  ])assert.ok(ui.includes(fragmento),fragmento);
  assert.ok(!ui.includes('if(cargando)return'));
+ assert.ok(!ui.includes('creandoUid=null;\n        await cargar();'));
+ assert.match(ui,/Si la escritura se complet√≥ pero la lectura posterior falla/);
 });
