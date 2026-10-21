@@ -7,9 +7,6 @@
 // Todo pasa por la verificación de Cloudflare Access igual que antes.
 import PAGINA from "./panel/pagina.html";
 import CSS from "./panel/estilos.css";
-// Distribución oficial PDF.js como recursos de texto, servidos exclusivamente bajo /panel.
-import PDFJS from "pdfjs-dist/build/pdf.min.mjs";
-import PDFJS_WORKER from "pdfjs-dist/build/pdf.worker.min.mjs";
 import J00 from "./panel/cliente/00-base.js";
 import J00P from "./panel/cliente/00-perfil-admin.js";
 import J01 from "./panel/cliente/01-facturacion.js";
@@ -18,7 +15,6 @@ import J03 from "./panel/cliente/03-caja.js";
 import J04 from "./panel/cliente/04-desplazamiento.js";
 import J05 from "./panel/cliente/05-finanzas.js";
 import J05B from "./panel/cliente/05b-estados.js";
-import J05D from "./panel/cliente/05d-estados-pdf.js";
 import J05C from "./panel/cliente/05c-salarios.js";
 import J06 from "./panel/cliente/06-inicio.js";
 import J07 from "./panel/cliente/07-agenda.js";
@@ -29,7 +25,7 @@ import J11 from "./panel/cliente/11-configuracion.js";
 import J12 from "./panel/cliente/12-submenu.js";
 import { swPush } from "./push.js";
 
-export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05D, J05C, J06, J07, J08, J09, J10, J11, J12].join("\n;\n");
+export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05C, J06, J07, J08, J09, J10, J11, J12].join("\n;\n");
 // Para instalar el panel como app en el celular ("Agregar a pantalla principal")
 const MANIFIESTO = {
   id: "/panel", name: "Panel · El Castaño", short_name: "El Castaño", start_url: "/panel", scope: "/panel", display: "standalone",
@@ -58,10 +54,6 @@ export async function paginaPanel() {
 export async function recursoPanel(ruta, url) {
   if (ruta === "/panel/app.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache" } });
   if (ruta === "/panel/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/panel", "X-Content-Type-Options": "nosniff" } });
-  if (ruta === "/panel/vendor/pdfjs-4.10.38/pdf.min.mjs" || ruta === "/panel/vendor/pdfjs-4.10.38/pdf.worker.min.mjs") return new Response(ruta.endsWith("/pdf.min.mjs") ? PDFJS : PDFJS_WORKER, {
-    headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "private, max-age=31536000, immutable",
-      "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow" }
-  });
   const tipo = ruta === "/panel/app.css" ? "text/css" : ruta === "/panel/app.js" ? "text/javascript" : null;
   if (!tipo) return null;
   const v = await huella();
