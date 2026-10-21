@@ -351,9 +351,9 @@ window.interpretarAgenda = function (texto, hoy) {
   // modo: "programado" (registrar el pago de un programado), "hecho" (pago sin programar), "editar" (corregir un pago ya registrado)
   function ventanaPago(modo, it, pago) {
     const mesAb = (st.mesesAbiertos || []).slice().sort()[0] || st.hoy.slice(0, 7);
-    const v = pago || { fecha: st.hoy, importe: it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "", cuenta: it && it.cuenta || null, titulo: "", nota: "", categoria: it && it.categoria || "" };
-    const suelto = modo === "hecho" || (modo === "editar" && !pago.item_id);
-    const titulo = modo === "editar" ? "Corregir pago" : modo === "hecho" ? "Registrar un pago o gasto ya hecho" : "Registrar pago: " + it.titulo;
+    const v = pago || { fecha: st.hoy, importe: modo === "obligacion" ? it.saldo : it && it.importe != null ? it.importe : "", forma: (it && it.forma) || "", cuenta: it && it.cuenta || null, titulo: modo === "obligacion" ? "Abono a " + it.acreedor + ": " + it.concepto : "", nota: "", categoria: it && it.categoria || "" };
+    const suelto = modo === "hecho" || modo === "obligacion" || (modo === "editar" && !pago.item_id);
+    const titulo = modo === "editar" ? "Corregir pago" : modo === "obligacion" ? "Abonar obligación: " + it.acreedor : modo === "hecho" ? "Registrar un pago o gasto ya hecho" : "Registrar pago: " + it.titulo;
     const guia = `<b>Cómo llenarlo</b><ol>
       ${suelto ? `<li><b>Qué pagaste:</b> un nombre claro, por ejemplo «Recibo de luz CFE», «Refacción de la pluma» o «Gasolina».</li>` : ""}
       <li><b>Fecha en que se pagó:</b> el día real del pago. No puede ser futura y debe ser de un mes abierto (el actual, o el anterior mientras no se cierra).</li>
@@ -383,11 +383,11 @@ window.interpretarAgenda = function (texto, hoy) {
       if (b.disabled) return;
       b.disabled = true;
       f.querySelector(".err").textContent = "";
-      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}), uid: uidPago };
+      const cuerpo = { fecha: f.fecha.value, importe: f.importe.value, forma: f.forma.value, nota: f.nota.value, categoria: f.categoria.value, ...(f.titulo ? { titulo: f.titulo.value } : {}), ...(forzar ? { forzar: 1 } : {}), uid: uidPago, ...(modo === "obligacion" ? { obligacion_id: it.id } : {}) };
       let id;
       try {
         if (modo === "editar") { await post(`agenda/pagos/${pago.id}/editar`, cuerpo); id = pago.id; }
-        else if (modo === "hecho") id = (await post("agenda/pagos/hecho", cuerpo)).id;
+        else if (modo === "hecho" || modo === "obligacion") id = (await post("agenda/pagos/hecho", cuerpo)).id;
         else {
           const r = await fetch(`/panel/api/agenda/${encodeURIComponent(it.id)}/pagar`, { method: "POST", headers: { "X-Panel": "1", "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
           const j = await r.json().catch(() => ({ ok: false, error: "Respuesta inválida." }));
@@ -409,9 +409,12 @@ window.interpretarAgenda = function (texto, hoy) {
         if (arch) { b.textContent = "Subiendo comprobante…"; await subirComprobante(id, arch); }
       } catch (e) { aviso = " · " + e.message + " Puedes subirlo después con «Editar»."; }
       d.close(); toast((modo === "editar" ? "Pago corregido" : "Pago registrado") + aviso); await cargar();
+      if(modo==="obligacion")document.dispatchEvent(new Event("obligaciones-actualizadas"));
     };
     f.addEventListener("submit", ev => { ev.preventDefault(); enviar(); });
   }
+
+  window.agendaPagarObligacion = async o => { if(!st.hoy)await cargar(); ventanaPago("obligacion",o); };
 
   function vistaLista(tipo) {
     const todos = st.items.filter(x => x.tipo === tipo);
