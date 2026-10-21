@@ -14,7 +14,7 @@ test("Ambas pantallas nuevas contienen JavaScript válido y están ensambladas e
   assert.match(ensamblado,/import J05B from ".\/panel\/cliente\/05b-estados\.js"/);
   assert.match(ensamblado,/import J05C from ".\/panel\/cliente\/05c-salarios\.js"/);
   assert.match(ensamblado,/J05, J05B, J05C, J05E, J06/);
-  assert.match(ensamblado,/import J05E from ".\\/panel\\/cliente\\/05e-obligaciones\\.js"/);
+  assert.ok(ensamblado.includes('import J05E from "./panel/cliente/05e-obligaciones.js";'));
 });
 test("Captura bancaria expone fechas independientes del mes, campos de crédito y avisos",()=>{
   const ui=leer("../src/panel/cliente/05b-estados.js");
