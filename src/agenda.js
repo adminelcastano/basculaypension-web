@@ -816,11 +816,14 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
     const porCat = {};
     for (const g of (await env.DB.prepare("SELECT categoria, monto FROM caja_gastos WHERE origen = 'admin' AND mes = ?").bind(mes).all()).results) { const k = g.categoria || "Otros"; porCat[k] = (porCat[k] || 0) + g.monto; }
+    // Los importes de agenda_items son previsiones, no obligaciones confirmadas.
+    // Conservar por_pagar_mes por compatibilidad: no introducir este valor en deuda contable.
     // Pagos no programados del mes (concepto e importe)
     const noProg = (await env.DB.prepare("SELECT id, titulo, fecha, importe, categoria FROM agenda_pagos WHERE item_id = '' AND substr(fecha, 1, 7) = ? ORDER BY fecha DESC, creado DESC").bind(mes).all()).results;
     const pendMes = abiertos.filter(x => x.fecha && x.fecha <= finMes);
     return json({ ok: true, hoy, mes, proximos: abiertos.slice(0, 6), vencidos: abiertos.filter(x => x.fecha && x.fecha < hoy).length,
       por_pagar_mes: pendMes.reduce((a, x) => a + (x.importe || 0), 0), n_por_pagar_mes: pendMes.length,
+      por_pagar_mes_tipo: "estimado_programado",
       pagado_mes: delMes.reduce((a, x) => a + x.importe, 0), n_pagado_mes: delMes.length, por_mes: porMes,
       por_concepto: Object.entries(conceptos).map(([titulo, total]) => ({ titulo, total })).sort((a, b) => b.total - a.total),
       por_categoria: Object.entries(porCat).map(([nombre, total]) => ({ nombre: (cats[nombre] || {}).etiqueta || nombre, clave: nombre, total: Math.round(total * 100) / 100, icono: (cats[nombre] || {}).icono || "otros", color: (cats[nombre] || {}).color || "#8e8e93" })).sort((a, b) => b.total - a.total),

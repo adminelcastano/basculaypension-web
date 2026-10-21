@@ -684,11 +684,11 @@ window.interpretarAgenda = function (texto, hoy) {
     const vistos = new Set(), compradasMes = compradas.filter(x => { const k = x.gasto_id || x.id; if (vistos.has(k)) return false; vistos.add(k); return true; }).map(x => ({ importe: x.monto_gasto != null ? x.monto_gasto : x.importe }));
     const sum = (l, f) => l.reduce((a, x) => a + (Number(f(x)) || 0), 0);
     const resumen = `<section class="card"><div class="ctot pg-res">
-        <div class="k"><span>Por pagar este mes</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
+        <div class="k"><span>Pagos previstos este mes · estimado</span><b>${MXN(sum(porPagar, x => x.importe))}</b><small>${porPagar.length} ${porPagar.length === 1 ? "pago" : "pagos"}${vencidos.length ? ` · <span style="color:#ff6961">${vencidos.length} ${vencidos.length === 1 ? "vencido" : "vencidos"}</span>` : ""}</small></div>
         <div class="k dest"><span>Pagado este mes</span><b>${MXN(sum(hechosMes, p => p.importe))}</b><small>${hechosMes.length} ${hechosMes.length === 1 ? "registro" : "registros"}</small></div>
         <div class="k"><span>Compras del mes</span><b>${MXN(sum(compradasMes, x => x.importe))}</b><small>${compras.filter(abierto).length} por comprar</small></div>
       </div><details class="f-guia-saldos" style="margin-top:12px"><summary>¿De dónde salen estos pagos?</summary>
-      <p class="note" data-nl="1">Son pagos de la administración: desde los sobres o el banco. No afectan la caja de ningún turno y se registran como egresos en Dinero.</p></details></section>`;
+      <p class="note" data-nl="1">Los pagos programados son previsiones aproximadas, no deudas confirmadas. Solo cuando se realiza un pago se registra como egreso administrativo en Dinero; no afecta la caja de ningún turno.</p></details></section>`;
     return resumen;
   }
   function vistaProgramados() { return resumenPagos() + vistaLista("pago"); }
@@ -723,7 +723,7 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? st.avisosSinLeer+" novedades o Enterados pendientes" : N("aviso").length ? "Sin novedades pendientes" : "Sin publicaciones activas" });
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
-    EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
+    EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " previstos este mes (estimado)" });
     const urgC = compras.filter(x => x.prioridad === "alta").length, lugs = new Set(compras.map(x => x.lugar || "sin")).size;
     EC.bloqueInfo("agenda", "compras", { texto: !compras.length ? "Nada por comprar" : (urgC ? pl(urgC, "urgente", "urgentes") + " · " : "") + "en " + pl(lugs, "lugar", "lugares") });
     EC.bloqueInfo("finanzas", "hechos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: hechos.length ? pl(hechos.length, "pago este mes", "pagos este mes") : "Nada pagado este mes" });
