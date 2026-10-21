@@ -147,7 +147,7 @@
         <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)}${modoEnsayo ? "" : " · Puede haber consultas de la hoja sin cambios entre registros."}${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
         <div class="ctot" style="margin-bottom:12px"><div class="k"><span>Por cobrar · CAJA (consulta)</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b><small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + (j.por_cobrar_caja.operaciones === 1 ? " cobro pendiente" : " cobros pendientes") : "Origen sin consultar"} · No es ingreso realizado</small></div></div>
         <p class="note" style="margin:0 0 12px">Los abonos de clientes se registran únicamente en CAJA. Este saldo de consulta no suma ingresos ni genera un segundo cobro. <a href="#caja/cortes">Revisar pendientes en Caja</a>.</p>
-        ${alertas.length ? `<p class="note" role="alert" style="margin:0 0 12px;color:var(--warn);font-weight:650">Atención: hay ${alertas.length} transferencia(s) con tickets modificados o no encontrados. Revisa DINERO → Transferencias antes de confiar en la conciliación. Los importes no se han corregido automáticamente.</p>` : ""}
+        ${alertas.length ? `<p class="note" role="alert" style="margin:0 0 12px;color:var(--warn);font-weight:650">Atención: hay ${alertas.length} transferencia(s) con tickets modificados o no encontrados. Revisa CAJA → Transferencias de clientes antes de confiar en la conciliación. Los importes no se han corregido automáticamente.</p>` : ""}
         <div class="fcols">
           <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta (Mercado Pago)", i.tarjeta], ["Tickets por transferencia (hoja)", i.transf_hoja], ...(i.transf_manual ? [["Transferencias capturadas sin ticket", i.transf_manual]] : []), ["Otros ingresos (rentas)", i.otros], ...(i.sobrantes ? [["Sobrantes de caja", i.sobrantes]] : []), ["Total", i.total, "tot"]])}</div>
           <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.retiros, g.retiros], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), [CAT.comision, g.comision], ...(g.faltantes ? [[CAT.faltantes, g.faltantes]] : []), ["Total", g.total, "tot"]])}</div>
@@ -222,7 +222,7 @@
         ${(b.movs || []).length ? `<div class="alist fmov-lista" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc">${abierto ? `<button class="del fmov-eliminar" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento ${esc(m.origen_txt)} hacia ${esc(m.destino_txt)}"><svg aria-hidden="true"><use href="#i-trash"/></svg><span>Eliminar</span></button>` : ""}</span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
 
       </section>`,
-      transferencias: () => `      <section class="card">
+      transferencias: () => `      <section class="card"><p class="note" role="status">Conciliación de transferencias del mes ${esc(nomMes(j.mes))}. Es independiente del periodo seleccionado para los cortes.</p>
         <details class="ftransf-ayuda">
           <summary>¿Cuándo vincular un ticket?</summary>
           <p class="ftransf-ayuda-texto">Si el cobro ya aparece como transferencia en la hoja de Báscula o Pensión, selecciona su ticket para no contar el ingreso dos veces. Elige «Sin ticket» solo para cobros que no pasaron por esas hojas.</p>
@@ -272,7 +272,7 @@
       : hojaSinLigar.length ? hojaSinLigar.length + " tickets por ligar"
       : !(j.transf_hoja || []).length ? "Sin tickets de transferencia en la hoja"
       : "Sin tickets pendientes de vincular";
-    EC.bloqueN("finanzas", "transferencias",
+    EC.bloqueN("caja", "transferencias",
       pendientesConciliacion || hojaSinLigar.length || null,
       pendientesConciliacion > 0 || fuenteAlerta || hojaSinLigar.length > 0);
     EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
@@ -283,7 +283,7 @@
     EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
     EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : "—", texto: e.saldo != null ? "en sobres" : "Sin saldo inicial capturado" });
     EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "")) + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
-    EC.bloqueInfo("finanzas", "transferencias", { texto: estadoTransferencias });
+    EC.bloqueInfo("caja", "transferencias", { texto: estadoTransferencias });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();
     pintarConfigCuentas();
@@ -573,8 +573,8 @@
 
   $("#f-mes").addEventListener("change", e => { st.mes = e.target.value; cargar(); });
   // Desde el Inicio: abrir Finanzas con el formulario de transferencia listo
-  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA("finanzas", { historia: "push", vista: foco === "transf" ? "transferencias" : "resumen" }); };
-  document.addEventListener("modulo", e => { if (e.detail === "finanzas") { if (st.datos) pintar(); cargar(); } });
+  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA(foco === "transf" ? "caja" : "finanzas", { historia: "push", vista: foco === "transf" ? "transferencias" : "resumen" }); };
+  document.addEventListener("modulo", e => { if (e.detail === "finanzas") { if (st.datos) pintar(); cargar(); } else if (e.detail === "caja") { st.mes = ""; cargar(); } });
   document.addEventListener("recargar-todo", () => { if (!$("#mod-finanzas").hidden) cargar(); });
-  if (EC.ruta().mod === "finanzas") cargar();
+  if (["finanzas","caja"].includes(EC.ruta().mod)) cargar();
 })();

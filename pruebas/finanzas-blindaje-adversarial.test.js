@@ -294,7 +294,7 @@ test("Capturas de celular: pagos sin redondear y papelera de movimientos con tex
 
 test("Tarjeta móvil de transferencias no afirma Al corriente sin consultar Google",()=>{
   const ui=source("../src/panel/cliente/05-finanzas.js");
-  const expression=ui.match(/const estadoTransferencias = ([\s\S]*?);\s*EC\.bloqueN\("finanzas", "transferencias"/)?.[1];
+  const expression=ui.match(/const estadoTransferencias = ([\s\S]*?);\s*EC\.bloqueN\("caja", "transferencias"/)?.[1];
   assert.ok(expression,"La tarjeta debe tener una política explícita de estado");
   const estado=new Function("modoEnsayo","fuenteAlerta","pendientesConciliacion","hojaSinLigar","j","return "+expression+";");
   const sinTickets={transf_hoja:[]};

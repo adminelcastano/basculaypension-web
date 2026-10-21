@@ -20,6 +20,7 @@
     if (mod === "dinero") mod = "finanzas";
     // Enlaces antiguos de Dinero → Compras siguen abriendo la lista, ahora en Agenda.
     if (mod === "finanzas" && opciones.vista === "compras") mod = "agenda";
+    if (mod === "finanzas" && opciones.vista === "transferencias") mod = "caja";
     if (mod === "finanzas" && opciones.vista === "salarios") { mod = "config"; opciones = { ...opciones, vista: "conexiones" }; }
     const sec = EC.seccionDe(mod);
     const yaVisible = !($("#mod-" + mod) || {}).hidden;
