@@ -94,16 +94,19 @@
       preview.hidden=false;
       preview.innerHTML="<b>"+esc(dato.institucion||"Banco no reconocido")+
         " · "+Number(dato.paginas||0)+" página(s)</b>"+
-        "<p class='note'>"+(ok?"La cuenta y el tipo coinciden.":
+        "<p class='note'>"+(ok?"La institución y el tipo coinciden. Confirma que es exactamente tu cuenta o tarjeta (no se verifica el número).":
           "Selecciona la cuenta correcta. No se aplicarán datos a una institución distinta.")+"</p>"+
         "<div class='est-pdf-resumen'>"+
         campos.filter(([k])=>propuestas[k]!=null).map(([k,label])=>
           "<div><span>"+esc(label)+"</span><b>"+esc(propuestas[k])+"</b></div>").join("")+"</div>"+
         (dato.advertencias||[]).map(v=>"<p class='note'>⚠ "+esc(v)+"</p>").join("")+
-        "<button type='button' id='f-est-pdf-aplicar' class='btn btn-line' "+(!dato.fiable||!ok||actual?"disabled":"")+">Aplicar sugerencias al formulario</button>"+
+        (ok?"<label class='note est-pdf-confirmar'><input type='checkbox' id='f-est-pdf-cuenta-confirmada'> Confirmo que este PDF pertenece exactamente a la cuenta o tarjeta seleccionada.</label>":"")+
+        "<button type='button' id='f-est-pdf-aplicar' class='btn btn-line' disabled>Aplicar sugerencias al formulario</button>"+
         "<p class='note'>Todavía no se guarda nada. Comprueba cada campo y pulsa Guardar estado de cuenta cuando estés seguro.</p>";
-      $("#f-est-pdf-aplicar")?.addEventListener("click",()=>{
-        if(actual||!importado?.fiable||!coincidePDF(importado,cuentas.find(x=>x.id===form.cuenta.value)))return;
+      const confirmarCuenta=$("#f-est-pdf-cuenta-confirmada"),aplicarPDF=$("#f-est-pdf-aplicar");
+      confirmarCuenta?.addEventListener("change",()=>{aplicarPDF.disabled=!confirmarCuenta.checked||!dato.fiable||!ok||!!actual;});
+      aplicarPDF?.addEventListener("click",()=>{
+        if(actual||!importado?.fiable||!coincidePDF(importado,cuentas.find(x=>x.id===form.cuenta.value))||!confirmarCuenta?.checked)return;
         let aplicados=0,existentes=0;
         for(const [key,value] of Object.entries(importado.campos)){
           const celda=form.elements.namedItem(key);
