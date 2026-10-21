@@ -34,7 +34,7 @@
   "limits": { "cpu_ms": 5000 },
   "rules": [
     { "type": "Data", "globs": ["**/*.webp"], "fallthrough": true },
-    { "type": "Text", "globs": ["**/*.css", "**/cliente/*.js"], "fallthrough": true }
+    { "type": "Text", "globs": ["**/*.css", "**/cliente/*.js", "**/*.mjs"], "fallthrough": true }
   ],
   "observability": { "enabled": true }
 }
