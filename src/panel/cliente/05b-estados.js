@@ -12,7 +12,7 @@
     ["iva","IVA incluido en cargos (opcional)","0.00"]
   ];
   const dinero = n => n == null ? "Sin capturar" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
-  let actual = null, todos = [], cuentas = [], cargando = false;
+  let actual = null, todos = [], cuentas = [], cargando = false, cotejo = null;
   function estadoTexto(r) {
     if (r.comprobacion==="incompleto") return "Datos parciales: faltan saldos o movimientos";
     if (r.comprobacion==="cuadra") return "Las cifras de este estado cuadran entre sí";
@@ -25,10 +25,26 @@
     if(r.continuidad==="cuadra")return "Continuidad correcta: saldo inicial coincide con el cierre anterior.";
     return "Atención: el saldo inicial difiere "+dinero(r.continuidad_diferencia)+" del cierre del periodo anterior. Revisar sin ajustar automáticamente.";
   }
+  function vistaCotejo(){
+    if(!cotejo)return "<p class='note' role='status'>No se pudo consultar el saldo operativo para este periodo. Los estados capturados siguen disponibles.</p>";
+    const celda=v=>v==null?"—":esc(dinero(v));
+    return "<section class='f-est-cotejo' aria-label='Comparación de saldos bancarios'>"+
+      "<h4 class='fsub'>Saldos bancarios y calculados · "+esc(cotejo.mes)+"</h4>"+
+      "<p class='note'>El saldo calculado corresponde al final del mes. El confirmado procede del estado capturado. "+
+      "Solo aparece una diferencia si ambos tienen la misma fecha de cierre y el mes ya terminó; nunca se ajusta el libro de movimientos.</p>"+
+      "<div class='tabla-scroll' role='region' aria-label='Referencias de saldo' tabindex='0'><table class='cmovs'><thead><tr>"+
+      "<th>Cuenta</th><th>Cierre calculado</th><th>Saldo calculado</th><th>Corte bancario</th><th>Saldo confirmado</th><th>Diferencia</th></tr></thead><tbody>"+
+      (cotejo.cuentas||[]).map(c=>"<tr><td><b>"+esc(c.nombre)+"</b><small class='note'>"+esc(c.observacion)+"</small></td>"+
+        "<td>"+esc(c.fecha_calculo)+"</td><td>"+celda(c.saldo_calculado)+"</td>"+
+        "<td>"+esc(c.fecha_corte_confirmada||"No capturado")+"</td><td>"+celda(c.saldo_confirmado)+"</td>"+
+        "<td>"+(c.comparable?celda(c.diferencia):"No comparable")+"</td></tr>").join("")+
+      "</tbody></table></div></section>";
+  }
   function mostrar() {
     const el=$("#f-estados-contenido");
     if(!el)return;
     el.innerHTML =
+      vistaCotejo() +
       "<p class='note'>Elige la cuenta, registra las fechas reales de tu estado de cuenta y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Un saldo a favor o saldo deudor puede capturarse con signo negativo; cargos y abonos siempre son positivos. Este registro no genera cargos, gastos ni movimientos.</p>" +
       "<form class='cform' id='f-est-form' novalidate>" +
       "<label class='wide'>Cuenta o tarjeta<select name='cuenta' required>" +
@@ -101,11 +117,16 @@
     cargando=true;
     const el=$("#f-estados-contenido");
     try{
-      const r=await EC.api("finanzas/estados-cuenta");
-      cuentas=r.cuentas||[];todos=r.estados||[];
+      const mes=$("#f-mes")?.value||EC.hoyMx().slice(0,7);
+      const [r,comparado]=await Promise.all([
+        EC.api("finanzas/estados-cuenta"),
+        EC.api("finanzas/cotejo-estados?mes="+encodeURIComponent(mes)).catch(()=>null)
+      ]);
+      cuentas=r.cuentas||[];todos=r.estados||[];cotejo=comparado;
       if(el)mostrar();
     }catch(e){if(el && e.message!=="sesion")el.innerHTML="<p class='note'>No se pudieron cargar los estados de cuenta: "+esc(e.message)+"</p>";}
     finally{cargando=false;}
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
+  $("#f-mes")?.addEventListener("change",()=>{if(!$("#mod-finanzas").hidden)cargar();});
 })();

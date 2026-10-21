@@ -11,7 +11,8 @@ import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from ".
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES } from "./bitacora.js";
 import { centavosIguales } from "./finanzas-idempotencia.js";
-import { estadosCuentaRuta } from "./finanzas-estados.js";
+import { estadosCuentaRuta, asegurarEsquemaEstados } from "./finanzas-estados.js";
+import { cotejarCuentasMes } from "./finanzas-cotejo.js";
 import { rutaSalarios } from "./finanzas-salarios.js";
 import { resumenPorCobrarCaja } from "./finanzas-cobrar.js";
 import { obligacionesRuta } from "./finanzas-obligaciones.js";
@@ -304,6 +305,21 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
     return json({ ok: true, meses, ...d });
+  }
+  if (partes[1] === "cotejo-estados" && request.method === "GET" && partes.length === 2) {
+    const mes = url.searchParams.get("mes") || meses[0];
+    if (!RE_MES.test(mes) || !meses.includes(mes))
+      return json({ok:false,error:"Mes fuera del historial financiero disponible."},422);
+    await asegurarEsquemaEstados(env);
+    const cierre = new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0)).toISOString().slice(0,10);
+    const [datos,documentos]=await Promise.all([
+      datosFinanzas(env,mes),
+      env.DB.prepare("SELECT cuenta, periodo_desde, periodo_hasta, fecha_corte, saldo_final FROM fin_estados_cuenta WHERE fecha_corte <= ? ORDER BY fecha_corte DESC LIMIT 2400").bind(cierre).all()
+    ]);
+    const hoy = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
+    const resultados=cotejarCuentasMes(datos.banco.lista,documentos.results,mes,hoy);
+    return json({ok:true,mes,fecha_calculo:cierre,consultado:new Date().toISOString(),
+      cuentas:resultados,aviso:"Solo se compara cuando estado bancario y libro calculado cierran el mismo día; nunca se ajustan saldos ni se crean movimientos."});
   }
   if (partes[1] === "obligaciones") return await obligacionesRuta(request,env,partes,usuario);
   if (partes[1] === "estados-cuenta") return await estadosCuentaRuta(request,env,partes,usuario);
