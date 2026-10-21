@@ -135,6 +135,9 @@ test("Nunca hay una ruta automática de guardado ni se usa el nombre del PDF com
  const ui=readFileSync(new URL("../src/panel/cliente/05b-estados.js",import.meta.url),"utf8");
  assert.match(ui,/type='file' id='f-est-pdf-archivo'/);
  assert.match(ui,/Aplicar sugerencias al formulario/);
+ assert.match(ui,/id=\'f-est-pdf-cuenta-confirmada\'/);
+ assert.match(ui,/confirmarCuenta\?\.checked/);
+ assert.match(ui,/disabled>Aplicar sugerencias al formulario/);
  assert.match(ui,/if\(actual\|\|!importado\?\.fiable/);
  assert.match(ui,/String\(celda\.value\|\|""\)\.trim\(\)/);
  assert.match(ui,/No se aplicarán datos a una institución distinta/);
