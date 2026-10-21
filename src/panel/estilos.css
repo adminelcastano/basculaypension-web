@@ -1797,3 +1797,14 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
  #fb-estados .est-pdf-resumen{grid-template-columns:minmax(0,1fr)}
  #fb-estados .est-pdf-caja .row>*{width:100%}
 }
+
+/* Estados: nunca simular una carga interminable por un botón bloqueado. */
+#fb-estados .est-pdf-caja button:disabled { cursor:not-allowed; }
+#fb-estados .est-pdf-confirmar { display:flex;align-items:flex-start;gap:10px;line-height:1.45; }
+#fb-estados .est-pdf-confirmar input[type=checkbox] { flex:none;width:20px;min-width:20px;height:20px;min-height:20px;margin:0;accent-color:var(--amber); }
+#fb-estados .f-est-cuenta small { color:var(--fg-2);font-size:var(--t-sm); }
+#fb-estados .f-est-explicacion { margin:3px 0; }
+#fb-estados .f-est-detalles { padding:12px;border:1px solid var(--line);border-radius:12px; }
+#fb-estados .f-est-detalles summary { cursor:pointer;font-weight:600; }
+#fb-estados .f-est-detalles-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px; }
+@media(max-width:540px){#fb-estados .f-est-detalles-grid{grid-template-columns:minmax(0,1fr)}}
