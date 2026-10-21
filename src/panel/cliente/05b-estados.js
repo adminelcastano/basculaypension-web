@@ -12,7 +12,7 @@
     ["iva","IVA incluido en cargos (opcional)","0.00"]
   ];
   const dinero = n => n == null ? "Sin capturar" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
-  let actual = null, todos = [], cuentas = [], cargando = false, cotejo = null;
+  let actual = null, todos = [], cuentas = [], cargando = false, cotejo = null, secuencia=0;
   function estadoTexto(r) {
     if (r.comprobacion==="incompleto") return "Datos parciales: faltan saldos o movimientos";
     if (r.comprobacion==="cuadra") return "Las cifras de este estado cuadran entre sí";
@@ -113,7 +113,7 @@
     });
   }
   async function cargar(){
-    if(cargando)return;
+    const solicitud=++secuencia;
     cargando=true;
     const el=$("#f-estados-contenido");
     try{
@@ -122,10 +122,11 @@
         EC.api("finanzas/estados-cuenta"),
         EC.api("finanzas/cotejo-estados?mes="+encodeURIComponent(mes)).catch(()=>null)
       ]);
+      if(solicitud!==secuencia)return;
       cuentas=r.cuentas||[];todos=r.estados||[];cotejo=comparado;
       if(el)mostrar();
-    }catch(e){if(el && e.message!=="sesion")el.innerHTML="<p class='note'>No se pudieron cargar los estados de cuenta: "+esc(e.message)+"</p>";}
-    finally{cargando=false;}
+    }catch(e){if(el && solicitud===secuencia && e.message!=="sesion")el.innerHTML="<p class='note'>No se pudieron cargar los estados de cuenta: "+esc(e.message)+"</p>";}
+    finally{if(solicitud===secuencia)cargando=false;}
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
   $("#f-mes")?.addEventListener("change",()=>{if(!$("#mod-finanzas").hidden)cargar();});

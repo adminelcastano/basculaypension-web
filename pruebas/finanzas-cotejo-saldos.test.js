@@ -27,6 +27,8 @@ test("Interfaz y ruta leen dos referencias, sin UPDATE compensatorio",()=>{
  const fin=readFileSync(new URL("../src/finanzas.js",import.meta.url),"utf8");
  const ui=readFileSync(new URL("../src/panel/cliente/05b-estados.js",import.meta.url),"utf8");
  assert.match(fin,/cotejarCuentasMes\(datos\.banco\.lista/);
+ assert.ok(fin.includes("ROW_NUMBER() OVER(PARTITION BY cuenta"));
+ assert.ok(fin.includes("WHERE rn=1"));
  assert.match(fin,/if \(partes\[1\] === "cotejo-estados"/);
  assert.match(ui,/Saldo calculado/);
  assert.match(ui,/Saldo confirmado/);

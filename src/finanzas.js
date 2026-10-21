@@ -314,7 +314,11 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     const cierre = new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0)).toISOString().slice(0,10);
     const [datos,documentos]=await Promise.all([
       datosFinanzas(env,mes),
-      env.DB.prepare("SELECT cuenta, periodo_desde, periodo_hasta, fecha_corte, saldo_final FROM fin_estados_cuenta WHERE fecha_corte <= ? ORDER BY fecha_corte DESC LIMIT 2400").bind(cierre).all()
+      env.DB.prepare(`SELECT cuenta,periodo_desde,periodo_hasta,fecha_corte,saldo_final
+        FROM (SELECT cuenta,periodo_desde,periodo_hasta,fecha_corte,saldo_final,
+          ROW_NUMBER() OVER(PARTITION BY cuenta ORDER BY fecha_corte DESC,periodo_hasta DESC) AS rn
+          FROM fin_estados_cuenta WHERE fecha_corte <= ? AND periodo_hasta <= ?)
+        WHERE rn=1`).bind(cierre,cierre).all()
     ]);
     const hoy = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
     const resultados=cotejarCuentasMes(datos.banco.lista,documentos.results,mes,hoy);
