@@ -118,7 +118,7 @@
     const motivoAlerta = { importe: "El importe de la hoja cambió", forma: "El ticket ya no figura como transferencia", ausente: "El ticket desapareció de la hoja", ambiguo: "Hay más de un ticket con ese folio" };
     // Solo sumamos saldos de activo operativo: sobres + débito, nunca tarjeta
     // de crédito, compromisos previstos ni cuentas por cobrar.
-    const ob = j.obligaciones_confirmadas?.incompleto ? null : j.obligaciones_confirmadas?.resumen;
+    const ob = j.obligaciones_confirmadas?.resumen || null;
     const dineroCompleto = e.saldo != null && b.dinero != null && !b.dinero_parcial;
     const disponible = dineroCompleto ? Math.round((e.saldo+b.dinero)*100)/100 : null;
     const exigible30 = ob ? Math.round((ob.vencido+ob.proximos_30)*100)/100 : null;

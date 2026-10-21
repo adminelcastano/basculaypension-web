@@ -87,5 +87,13 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   db.prepare("DELETE FROM agenda_pagos WHERE id=?").run(primero.data.id);
   list=await listar();assert.equal(list.obligaciones[0].pagado,80.25);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_obl_abonos WHERE activo=1").get().n,1);
+  // Paginación: el tablero continúa mostrando todos los importes confirmados.
+  const nueva=db.prepare("INSERT INTO fin_obligaciones(id,acreedor,concepto,total_centavos,vencimiento,creado,actualizado) VALUES(?,'Proveedor ficticio','Factura de prueba',100,?,?,?)");
+  for(let i=0;i<505;i++)nueva.run("00000000-0000-4000-8000-"+String(i).padStart(12,"0"),vence,"2026-10-21T10:00:00Z","2026-10-21T10:00:00Z");
+  list=await listar();
+  assert.equal(list.incompleto,true);
+  assert.equal(list.obligaciones.length,500);
+  assert.equal(list.resumen.cantidad,506);
+  assert.equal(list.resumen.pendiente,524.75);
  }finally{db.close();}
 });

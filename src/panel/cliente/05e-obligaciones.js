@@ -36,7 +36,7 @@
         <div class="k"><span>Próximos 7 días</span><b>${fmt(t.proximos_7)}</b></div>
         <div class="k"><span>Próximos 30 días</span><b>${fmt(t.proximos_30)}</b></div>
       </div>
-      ${r.incompleto?'<p role="alert" class="note">Hay más de 500 obligaciones. La lista es parcial; no utilizar estos indicadores como totales exhaustivos.</p>':""}
+      ${r.incompleto?'<p role="alert" class="note">Hay más de 500 obligaciones. La lista es parcial; los totales anteriores sí incluyen todas las obligaciones.</p>':""}
       <p class="note">Importes en MXN · actualización de consulta ${esc(new Date(t.actualizado||Date.now()).toLocaleString("es-MX"))}. Los abonos se reflejan en egresos solo cuando confirmas el pago.</p>
     </section>
     <section class="card">

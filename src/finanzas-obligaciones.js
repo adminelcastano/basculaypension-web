@@ -90,16 +90,24 @@ export async function obligacionesRuta(request,env,partes,usuario) {
     const hoy=hoyMx(),mas7=new Date(hoy+"T12:00:00Z"),mas30=new Date(mas7);
     mas7.setUTCDate(mas7.getUTCDate()+7);mas30.setUTCDate(mas30.getUTCDate()+30);
     const f7=mas7.toISOString().slice(0,10),f30=mas30.toISOString().slice(0,10);
-    const activas=todas.filter(o=>o.estado==="activa");
-    const sum=f=>cents(activas.reduce((a,o)=>a+f(o),0));
+    // El listado sí está paginado, pero el total SIEMPRE recorre todas las
+    // obligaciones. Nunca publicar un indicador recortado a 500 filas.
+    const agregados=await env.DB.prepare(`WITH b AS (${sqlSaldos})
+      SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN estado='activa' THEN MAX(0,total_centavos-pagado_centavos) ELSE 0 END),0) AS pendiente,
+        COALESCE(SUM(CASE WHEN estado='activa' AND vencimiento<? THEN MAX(0,total_centavos-pagado_centavos) ELSE 0 END),0) AS vencido,
+        COALESCE(SUM(CASE WHEN estado='activa' AND vencimiento>=? AND vencimiento<=? THEN MAX(0,total_centavos-pagado_centavos) ELSE 0 END),0) AS proximos_7,
+        COALESCE(SUM(CASE WHEN estado='activa' AND vencimiento>=? AND vencimiento<=? THEN MAX(0,total_centavos-pagado_centavos) ELSE 0 END),0) AS proximos_30,
+        COALESCE(SUM(CASE WHEN estado='activa' THEN pagado_centavos ELSE 0 END),0) AS pagado,
+        COALESCE(SUM(CASE WHEN estado='activa' AND total_centavos>pagado_centavos THEN 1 ELSE 0 END),0) AS cantidad
+      FROM b`).bind(hoy,hoy,f7,hoy,f30).first();
     const resto=o=>Math.max(0,o.total_centavos-o.pagado_centavos);
     return json({ok:true,incompleto:todas.length>500,
       obligaciones:todas.slice(0,500).map(o=>({...o,total:cents(o.total_centavos),pagado:cents(o.pagado_centavos),
         saldo:cents(resto(o)),situacion:o.estado==="cancelada"?"cancelada":resto(o)===0?"liquidada":o.vencimiento<hoy?"vencida":"pendiente"})),
-      resumen:{pendiente:sum(o=>resto(o)),vencido:sum(o=>o.vencimiento<hoy?resto(o):0),
-        proximos_7:sum(o=>o.vencimiento>=hoy&&o.vencimiento<=f7?resto(o):0),
-        proximos_30:sum(o=>o.vencimiento>=hoy&&o.vencimiento<=f30?resto(o):0),
-        pagado:sum(o=>o.pagado_centavos),cantidad:activas.filter(o=>resto(o)>0).length,
+      resumen:{pendiente:cents(agregados.pendiente),vencido:cents(agregados.vencido),
+        proximos_7:cents(agregados.proximos_7),proximos_30:cents(agregados.proximos_30),
+        pagado:cents(agregados.pagado),cantidad:Number(agregados.cantidad),
         actualizado:new Date().toISOString()}});
   }
   if(request.method!=="POST"||partes.length<2||partes.length>3)
