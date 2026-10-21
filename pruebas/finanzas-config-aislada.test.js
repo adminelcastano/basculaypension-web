@@ -46,7 +46,18 @@ test("El Worker de ensayo deniega endpoints públicos, crons y escrituras ajenas
   assert.match(code,/if \(env\.ENSAYO_FINANZAS === "1"\) return;/);
   assert.match(code,/ENTORNO DE ENSAYO FINANCIERO/);
   assert.match(code,/Solo se permiten operaciones financieras sintéticas/);
-  assert.doesNotMatch(readFileSync(new URL("../wrangler.jsonc",import.meta.url),"utf8"),/ENSAYO_FINANZAS/);
+  // El modo ensayo sí debe aparecer en previews, nunca en las variables productivas.
+  const prod=JSON.parse(product.replace(/^\s*\/\/.*$/gm,""));
+  assert.ok(!Object.hasOwn(prod.vars,"ENSAYO_FINANZAS"));
+  assert.equal(prod.vars.SALARIOS_SYNC_ACTIVE,"NO");
+  assert.equal(prod.previews.vars.ENSAYO_FINANZAS,"1");
+  assert.equal(prod.previews.vars.SALARIOS_SYNC_ACTIVE,"NO");
+  assert.equal(prod.previews.vars.TURNO_EMAILS,"");
+  assert.notEqual(prod.previews.vars.ACCESS_AUD,prod.vars.ACCESS_AUD);
+  assert.notEqual(prod.previews.d1_databases[0].database_name,prod.d1_databases[0].database_name);
+  assert.notEqual(prod.previews.kv_namespaces[0].id,"3eac28ac69aa4756bc1762072bfb0d05");
+  for(const key of ["INGRESOS_URL","INGRESOS_TOKEN","AVISO_URL","AVISO_TOKEN","CF_API_TOKEN","SENDGRID_API_KEY","GOOGLE_CLIENT_SECRET","GOOGLE_REFRESH_TOKEN"])
+    assert.ok(!Object.hasOwn(prod.previews.vars,key),"No activar servicios externos en Preview: "+key);
 });
 
 test("La salud del Worker integral se consulta después de Access y exige enlaces sintéticos",()=>{
