@@ -20,6 +20,7 @@
   // Aislamiento de Workers Previews: esta configuración NO sustituye producción.
   // PR #45: DB y KV exclusivos. Nunca incluir secretos ni servicios externos.
   "previews": {
+    "observability": { "enabled": false },
     "vars": {
       "ENSAYO_FINANZAS": "1",
       "SALARIOS_SYNC_ACTIVE": "NO",
