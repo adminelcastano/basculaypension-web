@@ -174,10 +174,9 @@ window.interpretarAgenda = function (texto, hoy) {
 
   // La Agenda (calendario, por hacer, incidencias, avisos) y Pagos y compras comparten datos y formularios
   function pintar() {
-    // Todo a la vista, un bloque por tipo: Agenda (calendario, por hacer, incidencias, avisos) y, en Dinero,
-    // pagos programados, compras por hacer y pagos hechos
+    // Agenda incluye la lista de compras pendientes; Dinero conserva programados y pagos hechos.
     const B = { "ab-calendario": vistaCalendario, "ab-tarea": vistaTareas, "ab-incidencia": () => vistaLista("incidencia"), "ab-aviso": vistaAvisos,
-      "pg-prog": vistaProgramados, "pg-comp": () => resumenPagos("compras") + vistaCompras(), "pg-hechos": vistaHechos };
+      "pg-prog": vistaProgramados, "pg-comp": vistaCompras, "pg-hechos": vistaHechos };
     for (const [id, f] of Object.entries(B)) { const el = $("#" + id); if (el) { if(id==="ab-aviso") pintarAvisos(); else {el.innerHTML = f(); conectar(el);} } }
     contadores();
     pintarConfig();
@@ -707,7 +706,7 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueN("agenda", "incidencia", inc.length, inc.some(x => x.gravedad === "grave"));
     EC.bloqueN("agenda", "aviso", Number.isFinite(st.avisosSinLeer) ? st.avisosSinLeer : N("aviso").length, !!st.avisosSinLeer);
     EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
-    EC.bloqueN("finanzas", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
+    EC.bloqueN("agenda", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
     const mes = (st.hoy || "").slice(0, 7);
     const hechos = (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes);
     EC.bloqueN("finanzas", "hechos", hechos.length);
@@ -726,7 +725,7 @@ window.interpretarAgenda = function (texto, hoy) {
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
     EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " por pagar este mes" });
     const urgC = compras.filter(x => x.prioridad === "alta").length, lugs = new Set(compras.map(x => x.lugar || "sin")).size;
-    EC.bloqueInfo("finanzas", "compras", { texto: !compras.length ? "Nada por comprar" : (urgC ? pl(urgC, "urgente", "urgentes") + " · " : "") + "en " + pl(lugs, "lugar", "lugares") });
+    EC.bloqueInfo("agenda", "compras", { texto: !compras.length ? "Nada por comprar" : (urgC ? pl(urgC, "urgente", "urgentes") + " · " : "") + "en " + pl(lugs, "lugar", "lugares") });
     EC.bloqueInfo("finanzas", "hechos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: hechos.length ? pl(hechos.length, "pago este mes", "pagos este mes") : "Nada pagado este mes" });
   }
 
@@ -1727,8 +1726,8 @@ window.interpretarAgenda = function (texto, hoy) {
 
   // Abrir la agenda (o Pagos y compras) en una pestaña y con el formulario listo (desde el Inicio)
   window.agendaDia = dia => { st.sel = dia; st.mes = dia.slice(0, 7); if (st.hoy) pintar(); if (window.irA) window.irA("agenda", { historia: "push", vista: "calendario" }); };
-  // Bloque de cada tipo: los de pagos y compras viven en Dinero
-  const BLOQUE_DE = { pago: ["finanzas", "programados", "pg-prog"], compra: ["finanzas", "compras", "pg-comp"], hechos: ["finanzas", "hechos", "pg-hechos"],
+  // Bloque de cada tipo: compras por hacer en Agenda, pagos registrados en Dinero
+  const BLOQUE_DE = { pago: ["finanzas", "programados", "pg-prog"], compra: ["agenda", "compras", "pg-comp"], hechos: ["finanzas", "hechos", "pg-hechos"],
     calendario: ["agenda", "calendario", "ab-calendario"], tarea: ["agenda", "tarea", "ab-tarea"], incidencia: ["agenda", "incidencia", "ab-incidencia"], aviso: ["agenda", "aviso", "ab-aviso"] };
   window.agendaAbrir = async (tab, accion) => {
     const [mod, clave, cont] = BLOQUE_DE[tab] || BLOQUE_DE.calendario;

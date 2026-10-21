@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - castagram/cierre-seguridad-20261017
+      - feat/caja-dinero-integral-20261021
   pull_request:
     branches: [main]
 permissions:
@@ -36,7 +37,7 @@ jobs:
             printf '%s\n' "$forbidden"
             exit 1
           fi
-      - name: Instalar PDF.js fijo para compilaciones privadas
+      - name: Instalar dependencias para las compilaciones privadas
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Pruebas del proyecto (sin datos productivos)
         run: node --test pruebas/*.test.js

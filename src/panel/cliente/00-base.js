@@ -71,9 +71,10 @@
     if (h === "config" || h.startsWith("config/")) return { mod: "config", vista: h.split("/")[1] || null };
     if (h === "dinero" || h.startsWith("dinero/")) {
       const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : null;
-      return { mod: "finanzas", vista: v === "pagos" ? "programados" : v };
+      return v === "compras" ? { mod: "agenda", vista: "compras" } : { mod: "finanzas", vista: v === "pagos" ? "programados" : v };
     }
     const [m, v] = h.split("/");
+    if (m === "finanzas" && v === "compras") return { mod: "agenda", vista: "compras" };
     return MODS.includes(m) ? { mod: m, vista: v || null } : { mod: "inicio" };
   }
   const seccionDe = mod => mod === "finanzas" || mod === "pagos" ? "dinero" : mod;

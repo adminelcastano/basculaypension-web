@@ -13,6 +13,7 @@ test("DINERO usa captura manual y no expone lector PDF", () => {
     assert.ok(!fuente.includes("panel/vendor/pdfjs"));
   }
   assert.ok(estados.includes('EC.post("finanzas/estados-cuenta",d)'));
+  assert.equal(paquete.dependencies?.["pdfjs-dist"], undefined);
   for (const nombre of ["saldo_inicial", "abonos", "cargos", "saldo_final", "fecha_corte", "pago_minimo", "pago_sin_intereses"])
     assert.ok(estados.includes(nombre), nombre);
 });
