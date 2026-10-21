@@ -85,6 +85,7 @@ test("Datos esenciales primero y desglose opcional; sin alterar nombres de API",
   assert.match(src,/f-est-detalles/);
   assert.match(src,/f-est-credito/);
   assert.match(css,/#fb-estados \.est-pdf-caja button:disabled \{ cursor:not-allowed; \}/);
+  assert.match(css,/#fb-estados \.cform label\.est-pdf-confirmar \{ display:flex;flex-direction:row;/);
 });
 
 test("Banco distinto bloquea y la cuenta BBVA correcta exige confirmación",async()=>{
