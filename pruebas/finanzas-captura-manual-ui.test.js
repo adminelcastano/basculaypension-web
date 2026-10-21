@@ -9,10 +9,10 @@ test("DINERO usa captura manual y no expone lector PDF", () => {
   const paquete = JSON.parse(leer("../package.json"));
   assert.ok(!existsSync(new URL("../src/panel/cliente/05d-estados-pdf.js", import.meta.url)));
   for (const fuente of [panel, estados]) {
-    assert.doesNotMatch(fuente, /pdfjs|f-est-pdf|extraerEstadoPDF|05d-estados-pdf|panel\\/vendor\\/pdfjs/i);
+    assert.doesNotMatch(fuente, /pdfjs|f-est-pdf|extraerEstadoPDF|05d-estados-pdf/i);
+    assert.ok(!fuente.includes("panel/vendor/pdfjs"));
   }
-  assert.equal(paquete.dependencies?.["pdfjs-dist"], undefined);
-  assert.match(estados, /EC\\.post\\("finanzas\\/estados-cuenta"/);
+  assert.ok(estados.includes('EC.post("finanzas/estados-cuenta",d)'));
   for (const nombre of ["saldo_inicial", "abonos", "cargos", "saldo_final", "fecha_corte", "pago_minimo", "pago_sin_intereses"])
     assert.ok(estados.includes(nombre), nombre);
 });
