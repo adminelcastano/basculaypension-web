@@ -14,6 +14,7 @@ import { centavosIguales } from "./finanzas-idempotencia.js";
 import { estadosCuentaRuta } from "./finanzas-estados.js";
 import { rutaSalarios } from "./finanzas-salarios.js";
 import { resumenPorCobrarCaja } from "./finanzas-cobrar.js";
+import { obligacionesRuta } from "./finanzas-obligaciones.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -304,6 +305,7 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     d.abiertos = await mesesAbiertos(env);
     return json({ ok: true, meses, ...d });
   }
+  if (partes[1] === "obligaciones") return await obligacionesRuta(request,env,partes,usuario);
   if (partes[1] === "estados-cuenta") return await estadosCuentaRuta(request,env,partes,usuario);
   if (partes[1] === "salarios") return await rutaSalarios(request,env,partes,usuario);
   if (partes[1] === "bitacora" && request.method === "GET") return json({ ok: true, bitacora: await listaBitacora(env, 150), acciones: ACCIONES });

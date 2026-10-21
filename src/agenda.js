@@ -7,6 +7,7 @@ import { stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras, cuentasTicket } from "./compras.js";
 import { notificar, enviarPush } from "./push.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
+import { asegurarEsquemaObligaciones, stmtVincularAbono, vinculoPago, errorSaldoObligacion } from "./finanzas-obligaciones.js";
 const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => { console.error("push", e && e.message); return 0; });
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
@@ -481,10 +482,14 @@ function cabeceraComprobanteValida(bytes, tipo) {
 }
 
 async function pagosHechosRutas(request, env, partes, usuario, ahora) {
+  await asegurarEsquemaObligaciones(env);
   // Pago hecho sin programar
   if (partes[2] === "hecho" && partes.length === 3 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
     await normalizarMedio(env, c);
+    const obligacionId=c.obligacion_id==null||c.obligacion_id===""?null:String(c.obligacion_id);
+    if(obligacionId && !/^[0-9a-f-]{36}$/i.test(obligacionId))
+      return json({ok:false,error:"Identificador de obligación inválido."},422);
     const v = await validarPagoHecho(env, c, null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const quien = usuario && usuario.email || null;
@@ -498,7 +503,9 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     const repetido = async () => {
       const p = c.uid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
       if (!p) return null;
-      const igual = p.item_id === "" && p.fecha === v.fecha && p.titulo === v.titulo
+      const vinculo = await vinculoPago(env,pid);
+      const igual = (vinculo?.obligacion_id||null)===obligacionId && (!vinculo||vinculo.activo===1) &&
+        p.item_id === "" && p.fecha === v.fecha && p.titulo === v.titulo
         && p.forma === v.forma && centavosIguales(p.importe, v.importe)
         && (p.cuenta || null) === (cta || null) && (p.categoria || null) === (cat || null)
         && (p.nota || null) === (v.nota || null) && p.gasto_id === gid;
@@ -514,12 +521,15 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
     try {
       await env.DB.batch([
         stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta, null, {id:pid,que:"Pago no programado"}),
-        env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
           .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
-        stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat } })
+        ...(obligacionId ? [stmtVincularAbono(env,{pagoId:pid,obligacionId,importeCentavos:Math.round(v.importe*100),ahora,quien})] : []),
+        stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat, obligacion_id: obligacionId } })
       ]);
     } catch (er) {
       const previo = await repetido(); if (previo) return previo;
+      if (errorSaldoObligacion(er))
+        return json({ok:false,error:"No se pudo aplicar el abono: obligación inexistente, cancelada o saldo insuficiente. Actualiza DINERO antes de repetir."},409);
       if (errorBancoEnEscritura(er))
         return await pagoEliminado(env,pid,"Pago no programado")
           ? json({ok:false,error:"Este pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409)
@@ -635,7 +645,9 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
       env.DB.prepare("UPDATE caja_gastos SET mes=?, dia=?, monto=?, forma=?, concepto=?, categoria=?, cuenta=? WHERE id=? AND changes()>0")
         .bind(v.fecha.slice(0,7),v.fecha,v.importe,v.forma,("Pago: "+titulo).slice(0,120),cat,cta,pago.gasto_id)
     );
-    const resultado = await env.DB.batch(st);
+    let resultado;
+    try { resultado = await env.DB.batch(st); }
+    catch(er) { if(errorSaldoObligacion(er))return json({ok:false,error:"El cambio supera el saldo de la obligación. Actualiza antes de editar."},409);throw er; }
     if (!resultado[0]?.meta?.changes)
       return json({ok:false,error:"Este pago cambió o fue eliminado en otra sesión. Actualiza la lista antes de corregirlo."},409);
     return json({ ok: true });
@@ -677,6 +689,10 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
         }
       }
     }
+    // Solo la anulación manual libera saldo. La depuración a 13 meses
+    // conserva el abono histórico de obligaciones ya liquidadas.
+    st.push(env.DB.prepare(`UPDATE fin_obl_abonos SET activo=0,anulado_en=? WHERE pago_id=? AND activo=1
+      AND NOT EXISTS(SELECT 1 FROM agenda_pagos WHERE id=?)`).bind(ahora,pago.id,pago.id));
     const resultados = await env.DB.batch(st);
     if (!resultados[0]?.meta?.changes)
       return json({ ok:false, error:"Este pago ya cambió o fue eliminado en otra sesión. Actualiza la lista antes de intentar borrarlo." },409);
