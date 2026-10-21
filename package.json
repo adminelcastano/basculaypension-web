@@ -1,0 +1,10 @@
+{
+  "name": "basculaypension-web",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "BASCULAYPENSION WEB — EL CASTAÑO",
+  "dependencies": {
+    "pdfjs-dist": "4.10.38"
+  }
+}

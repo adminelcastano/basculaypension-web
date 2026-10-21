@@ -36,6 +36,8 @@ jobs:
             printf '%s\n' "$forbidden"
             exit 1
           fi
+      - name: Instalar PDF.js fijo para compilaciones privadas
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Pruebas del proyecto (sin datos productivos)
         run: node --test pruebas/*.test.js
       - name: Validar compilación de Workers sin publicar
