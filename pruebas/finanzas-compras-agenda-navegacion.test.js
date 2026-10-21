@@ -16,6 +16,6 @@ test("Compras pendientes residen en Agenda sin duplicar contenedores", () => {
 test("Los enlaces antiguos a compras redirigen a Agenda",()=>{
   const base=fuente("src/panel/cliente/00-base.js");
   const navegacion=fuente("src/panel/cliente/02-personal.js");
-  assert.ok(base.includes('v === "compras" ? { mod: "agenda", vista: "compras" }'));
+  assert.ok(base.includes('if (v === "compras") return { mod: "agenda", vista: "compras" }'));
   assert.ok(navegacion.includes('mod === "finanzas" && opciones.vista === "compras"'));
 });
