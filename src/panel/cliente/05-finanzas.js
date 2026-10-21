@@ -263,7 +263,7 @@
       </section>`
     };
     // Dinero muestra todo a la vez, en bloques (los de pagos y compras los pinta la Agenda)
-    const BLOQUES = { "fb-resumen": ["resumen", "diferencias", "sueldos", "categorias", "admin"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["bitacora", "reportes"] };
+    const BLOQUES = { "fb-resumen": ["resumen"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["categorias", "admin", "bitacora", "reportes"] };
     for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
     const porCobrar = $("#fb-por-cobrar");
     if (porCobrar) porCobrar.innerHTML = `<section class="card"><h3>Por cobrar a clientes · CAJA</h3>
