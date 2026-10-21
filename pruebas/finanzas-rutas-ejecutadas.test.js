@@ -8,7 +8,9 @@ const fin=readFileSync(new URL("../src/panel/cliente/05-finanzas.js",import.meta
 test("Rutas antiguas reales convergen a CAJA, AGENDA, CONFIG y cuatro vistas de DINERO",()=>{
  const window={fetch:async()=>({ok:true})};
  const document={addEventListener(){},querySelector(){return null},querySelectorAll(){return []}};
- const c={window,document,location:{hash:""},setTimeout,clearTimeout,Intl,Date,console};
+ const c={window,document,location:{hash:""},setTimeout,clearTimeout,Intl,Date,console,
+  MutationObserver:class{observe(){}}
+ };
  vm.runInNewContext(src,c,{filename:"00-base.js"});
  const ruta=x=>JSON.parse(JSON.stringify(window.EC.ruta(x)));
  const esperado={
@@ -31,5 +33,5 @@ test("Tarjetas con apertura desconocida no se venden como deuda total",()=>{
  assert.ok(fin.includes('b.deuda_parcial?null:b.deuda'));
  assert.ok(fin.includes('Parcial: falta deuda inicial de alguna tarjeta'));
  assert.ok(!fin.includes('Obligaciones registradas, excluye tarjetas'));
- assert.ok(fin.includes('No se agrega a'));
+ assert.ok(fin.includes('no sumarla a obligaciones sin revisar'));
 });
