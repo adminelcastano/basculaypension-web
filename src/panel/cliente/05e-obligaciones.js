@@ -4,9 +4,16 @@
   const $=q=>document.querySelector(q), esc=EC.esc, api=EC.api, post=EC.post;
   const fmt=n=>n==null?"Sin confirmar":EC.dinero(n);
   const hoy=()=>EC.hoyMx();
-  let lista=[], sec=0, creandoUid=null, cargando=false;
+  let lista=[], sec=0, creandoUid=null;
   function pintar(r) {
     const el=$("#fb-obligaciones");if(!el)return;
+    // Una consulta actualizada puede llegar mientras hay un formulario sin guardar.
+    // Mantener sus datos y UID estable hasta que la administración guarde o cancele.
+    const previo=el.querySelector("#fin-ob-form");
+    const borrador=previo?.dataset.dirty==="1" ? {
+      campos:Object.fromEntries(new FormData(previo).entries()),
+      id:previo.dataset.id,version:previo.dataset.version,uid:creandoUid
+    } : null;
     const t=r.resumen||{},pend=r.obligaciones||[];
     lista=pend;
     const filas=pend.map(o=>{
@@ -63,11 +70,25 @@
     EC.bloqueInfo("finanzas","obligaciones",{valor:t.pendiente!=null?fmt(t.pendiente):null,
       texto:Number(t.vencido)>0?"Hay importes vencidos":"Sin duplicar gastos"});
     const f=el.querySelector("#fin-ob-form");
-    const reset=()=>{f.reset();delete f.dataset.id;delete f.dataset.version;
+    const reset=()=>{f.reset();delete f.dataset.id;delete f.dataset.version;delete f.dataset.dirty;
       creandoUid=crypto.randomUUID();el.querySelector("#fin-ob-titulo").textContent="Registrar obligación real";
       f.querySelector("[type=submit]").textContent="Registrar obligación";
       el.querySelector("#fin-ob-reset").hidden=true;el.querySelector("#fin-ob-error").textContent="";};
     reset();
+    if(borrador) {
+      for(const [campo,valor] of Object.entries(borrador.campos)){
+        const input=f.elements.namedItem(campo);if(input)input.value=valor;
+      }
+      if(borrador.id){
+        f.dataset.id=borrador.id;f.dataset.version=borrador.version;
+        el.querySelector("#fin-ob-titulo").textContent="Editar obligación";
+        f.querySelector("[type=submit]").textContent="Guardar cambios";
+        el.querySelector("#fin-ob-reset").hidden=false;
+      }
+      f.dataset.dirty="1";
+      creandoUid=borrador.uid;
+    }
+    for(const evento of ["input","change"])f.addEventListener(evento,()=>{f.dataset.dirty="1";});
     el.querySelector("#fin-ob-reset").addEventListener("click",reset);
     f.addEventListener("submit",async ev=>{
       ev.preventDefault();const b=f.querySelector("[type=submit]"),err=el.querySelector("#fin-ob-error");
@@ -79,13 +100,15 @@
         else datos.uid=creandoUid;
         await post("finanzas/obligaciones"+(id?"/"+encodeURIComponent(id):""),datos);
         EC.toast(id?"Obligación actualizada":"Obligación registrada");
+        delete f.dataset.dirty;
+        creandoUid=null;
         await cargar();
       }catch(e){if(e.message!=="sesion")err.textContent=e.message;}
       finally{if(b.isConnected)b.disabled=false;}
     });
     el.querySelectorAll("[data-ob-editar]").forEach(b=>b.addEventListener("click",()=>{
       const o=lista.find(x=>x.id===b.dataset.obEditar);if(!o)return;
-      f.dataset.id=o.id;f.dataset.version=o.version;
+      f.dataset.id=o.id;f.dataset.version=o.version;f.dataset.dirty="1";
       for(const campo of ["acreedor","concepto","total","vencimiento","emision","referencia","nota"])
         f.elements.namedItem(campo).value=o[campo]??"";
       el.querySelector("#fin-ob-titulo").textContent="Editar obligación";
@@ -129,11 +152,13 @@
     }));
   }
   async function cargar(){
-    if(cargando)return;const token=++sec;cargando=true;
-    const el=$("#fb-obligaciones");
+    const token=++sec,el=$("#fb-obligaciones");
     try{const r=await api("finanzas/obligaciones");if(token===sec)pintar(r);}
-    catch(e){if(el&&e.message!=="sesion")el.innerHTML='<p class="note" role="alert">No se pudieron cargar las obligaciones: '+esc(e.message)+'</p>';}
-    finally{cargando=false;}
+    catch(e){if(token===sec&&el&&e.message!=="sesion"){
+      const err=el.querySelector("#fin-ob-error");
+      if(err)err.textContent="No se pudieron actualizar las obligaciones: "+e.message;
+      else el.innerHTML='<p class="note" role="alert">No se pudieron cargar las obligaciones: '+esc(e.message)+'</p>';
+    }}
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
   document.addEventListener("obligaciones-actualizadas",cargar);
