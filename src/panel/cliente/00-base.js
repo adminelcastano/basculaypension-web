@@ -68,6 +68,7 @@
     if (h === "turno") return { mod: "caja" };
     if (h === "finanzas") return { mod: "finanzas", vista: null };
     if (h === "pagos") return { mod: "finanzas", vista: "programados" };
+    if (h === "dinero/salarios" || h === "finanzas/salarios") return { mod: "config", vista: "conexiones" };
     if (h === "config" || h.startsWith("config/")) return { mod: "config", vista: h.split("/")[1] || null };
     if (h === "dinero" || h.startsWith("dinero/")) {
       const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : null;

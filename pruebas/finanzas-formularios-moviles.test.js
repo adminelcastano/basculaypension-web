@@ -13,7 +13,7 @@ test("Ambas pantallas nuevas contienen JavaScript válido y están ensambladas e
   const ensamblado=leer("../src/panel-app.js");
   assert.match(ensamblado,/import J05B from ".\/panel\/cliente\/05b-estados\.js"/);
   assert.match(ensamblado,/import J05C from ".\/panel\/cliente\/05c-salarios\.js"/);
-  assert.match(ensamblado,/J05, J05B, J05D, J05C, J06/);
+  assert.match(ensamblado,/J05, J05B, J05C, J06/);
 });
 test("Captura bancaria expone fechas independientes del mes, campos de crédito y avisos",()=>{
   const ui=leer("../src/panel/cliente/05b-estados.js");
@@ -41,7 +41,8 @@ test("Bloques financieros y modo móvil conservan espacio y controles accesibles
   const css=leer("../src/panel/estilos.css");
   assert.match(page,/data-bloque="estados"/);
   assert.match(page,/id="f-estados-contenido"/);
-  assert.match(page,/data-bloque="salarios"/);
+  assert.doesNotMatch(page.split('id="mod-finanzas"')[1].split('id="mod-agenda"')[0],/data-bloque="salarios"/);
+  assert.ok(page.split('id="cfg-conexiones"')[1].split('id="cfg-sistema"')[0].includes('id="fb-salarios"'));
   assert.match(page,/id="f-salarios-contenido"/);
   assert.match(css,/@media\(max-width:540px\)/);
   assert.match(css,/#fb-estados \.cform/);
