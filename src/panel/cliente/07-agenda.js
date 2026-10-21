@@ -708,11 +708,11 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueN("agenda", "tarea", tareas.length, tareas.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("agenda", "incidencia", inc.length, inc.some(x => x.gravedad === "grave"));
     EC.bloqueN("agenda", "aviso", Number.isFinite(st.avisosSinLeer) ? st.avisosSinLeer : N("aviso").length, !!st.avisosSinLeer);
-    EC.bloqueN("finanzas", "programados", pagos.length, pagos.some(x => x.fecha && x.fecha < st.hoy));
+    EC.bloqueN("finanzas", "movimientos", pagos.length + (st.pagosHechos || []).filter(p => p.fecha.slice(0,7) === (st.hoy||"").slice(0,7)).length, pagos.some(x => x.fecha && x.fecha < st.hoy));
     EC.bloqueN("agenda", "compras", compras.length, compras.some(x => x.prioridad === "alta"));
     const mes = (st.hoy || "").slice(0, 7);
     const hechos = (st.pagosHechos || []).filter(p => p.fecha.slice(0, 7) === mes);
-    EC.bloqueN("finanzas", "hechos", hechos.length);
+    // Los dos tipos de pago comparten una sola sección de movimientos.
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
     // Cantidades enteras compactas; los importes con centavos NUNCA se redondean.
@@ -726,10 +726,10 @@ window.interpretarAgenda = function (texto, hoy) {
     EC.bloqueInfo("agenda", "aviso", { texto: st.avisosSinLeer ? st.avisosSinLeer+" novedades o Enterados pendientes" : N("aviso").length ? "Sin novedades pendientes" : "Sin publicaciones activas" });
     const finMes = mes ? new Date(Date.UTC(+mes.slice(0, 4), +mes.slice(5, 7), 0)).toISOString().slice(0, 10) : "";
     const vPag = pagos.filter(x => x.fecha && x.fecha < st.hoy).length, porPagar = pagos.filter(x => x.fecha && x.fecha <= finMes).reduce((a, x) => a + (Number(x.importe) || 0), 0);
-    EC.bloqueInfo("finanzas", "programados", { texto: !pagos.length ? "Sin pagos programados" : (vPag ? pl(vPag, "vencido", "vencidos") + " · " : "") + D0(porPagar) + " previstos este mes (estimado)" });
+    EC.bloqueInfo("finanzas", "movimientos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: (vPag ? pl(vPag, "programado vencido", "programados vencidos") + " · " : "") + D0(porPagar) + " previstos este mes (estimado)" });
     const urgC = compras.filter(x => x.prioridad === "alta").length, lugs = new Set(compras.map(x => x.lugar || "sin")).size;
     EC.bloqueInfo("agenda", "compras", { texto: !compras.length ? "Nada por comprar" : (urgC ? pl(urgC, "urgente", "urgentes") + " · " : "") + "en " + pl(lugs, "lugar", "lugares") });
-    EC.bloqueInfo("finanzas", "hechos", { valor: D0(hechos.reduce((a, p) => a + p.importe, 0)), texto: hechos.length ? pl(hechos.length, "pago este mes", "pagos este mes") : "Nada pagado este mes" });
+
   }
 
   // ---- Avisos: muro de publicaciones con conversación ----
@@ -1730,7 +1730,7 @@ window.interpretarAgenda = function (texto, hoy) {
   // Abrir la agenda (o Pagos y compras) en una pestaña y con el formulario listo (desde el Inicio)
   window.agendaDia = dia => { st.sel = dia; st.mes = dia.slice(0, 7); if (st.hoy) pintar(); if (window.irA) window.irA("agenda", { historia: "push", vista: "calendario" }); };
   // Bloque de cada tipo: compras por hacer en Agenda, pagos registrados en Dinero
-  const BLOQUE_DE = { pago: ["finanzas", "programados", "pg-prog"], compra: ["agenda", "compras", "pg-comp"], hechos: ["finanzas", "hechos", "pg-hechos"],
+  const BLOQUE_DE = { pago: ["finanzas", "movimientos", "pg-prog"], compra: ["agenda", "compras", "pg-comp"], hechos: ["finanzas", "movimientos", "pg-hechos"],
     calendario: ["agenda", "calendario", "ab-calendario"], tarea: ["agenda", "tarea", "ab-tarea"], incidencia: ["agenda", "incidencia", "ab-incidencia"], aviso: ["agenda", "aviso", "ab-aviso"] };
   window.agendaAbrir = async (tab, accion) => {
     const [mod, clave, cont] = BLOQUE_DE[tab] || BLOQUE_DE.calendario;

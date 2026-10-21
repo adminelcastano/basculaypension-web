@@ -40,7 +40,8 @@ test("Sueldos de turnos sólo se muestran como candidatos: sin botón de confirm
 test("Bloques financieros y modo móvil conservan espacio y controles accesibles",()=>{
   const page=leer("../src/panel/pagina.html");
   const css=leer("../src/panel/estilos.css");
-  assert.match(page,/data-bloque="estados"/);
+  assert.match(page,/data-bloque="bancos"/);
+  assert.match(page,/id="fb-estados"/);
   assert.match(page,/id="f-estados-contenido"/);
   assert.doesNotMatch(page.split('id="mod-finanzas"')[1].split('id="mod-agenda"')[0],/data-bloque="salarios"/);
   assert.ok(page.split('id="cfg-conexiones"')[1].split('id="cfg-sistema"')[0].includes('id="fb-salarios"'));

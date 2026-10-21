@@ -288,20 +288,27 @@
 <main class="mod" id="mod-finanzas" data-sub data-uno hidden>
 <div class="titlebar">
   <h2 id="f-titulo">Dinero.</h2>
-  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale, lo que se paga y se compra, y dónde está el dinero.</p>
+  <p id="f-subtitulo" class="note">Liquidez, saldos, obligaciones y pagos. El detalle de ingresos y cortes de turno permanece en CAJA.</p>
 </div>
 <div class="tools">
   <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
 </div>
 <div class="ag bloques" id="f-cuerpo">
-  <section class="bloque" data-bloque="resumen"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Resumen del mes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-resumen"></div></section>
-  <section class="bloque" data-bloque="programados"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cal"/></svg><span>Pagos programados</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-prog"></div></section>
-  <section class="bloque" data-bloque="obligaciones"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Cuentas por pagar · confirmadas</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-obligaciones"></div></section>
-  <section class="bloque" data-bloque="hechos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Pagos y gastos hechos</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-hechos"></div></section>
-  <section class="bloque" data-bloque="efectivo"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-billete"/></svg><span>Efectivo en sobres</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-efectivo"></div></section>
-  <section class="bloque" data-bloque="cuentas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Cuentas y tarjetas</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-cuentas"></div></section>
-  <section class="bloque" data-bloque="estados"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Estados de cuenta</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-estados"><section class="card"><h3>Conciliar estados de cuenta</h3><div id="f-estados-contenido"><p class="note">Abre Finanzas para revisar o capturar un estado de cuenta.</p></div></section></div></section>
-  <section class="bloque" data-bloque="bitacora"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Bitácora y reportes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-bitacora"></div></section>
+  <section class="bloque" data-bloque="resumen"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Resumen financiero</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-resumen"></div></section>
+  <section class="bloque" data-bloque="bancos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Bancos y tarjetas</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <h4 class="fsub">Cuentas y tarjetas</h4><div id="fb-cuentas"></div>
+    <details class="f-grupo-extra"><summary>Efectivo en sobres · detalle y conteos</summary><div id="fb-efectivo"></div></details>
+    <h4 class="fsub">Estados de cuenta · captura manual</h4><div id="fb-estados"><section class="card"><h3>Conciliar estados de cuenta</h3><div id="f-estados-contenido"><p class="note">Abre Dinero para capturar un estado de cuenta.</p></div></section></div>
+  </div></section>
+  <section class="bloque" data-bloque="obligaciones"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Cuentas por pagar y cobrar</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <div id="fb-por-cobrar"><p class="note">Consultando pendientes de CAJA…</p></div>
+    <div id="fb-obligaciones"></div>
+  </div></section>
+  <section class="bloque" data-bloque="movimientos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Movimientos y pagos</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <h4 class="fsub">Pagos programados · estimaciones</h4><div id="pg-prog"></div>
+    <h4 class="fsub">Pagos y gastos hechos</h4><div id="pg-hechos"></div>
+    <details class="f-grupo-extra"><summary>Bitácora y reportes</summary><div id="fb-bitacora"></div></details>
+  </div></section>
 </div>
 <p class="cfg-ir"><a href="#config/cuentas" data-cfg="cuentas"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Cuentas, categorías y lugares de compra</a></p>
 </main>

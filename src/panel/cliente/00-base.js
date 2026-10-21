@@ -59,7 +59,8 @@
   // Menú: Hoy (inicio) · Caja · Dinero · Agenda · Facturas · Personal. Dinero tiene vistas: resumen, pagos, cuentas,
   // transferencias y bitacora; "pagos" vive en #mod-pagos y las demás en #mod-finanzas. Los enlaces viejos siguen sirviendo.
   // Desde el 15 oct 2026 Dinero es una sola pantalla con bloques; la "vista" es el bloque al que se baja
-  const VISTAS_DINERO = ["resumen", "pagos", "programados", "compras", "hechos", "efectivo", "cuentas", "transferencias", "bitacora"];
+  const VISTAS_DINERO = ["resumen", "bancos", "obligaciones", "movimientos"];
+  const ALIAS_DINERO = { pagos:"movimientos", programados:"movimientos", hechos:"movimientos", bitacora:"movimientos", efectivo:"bancos", cuentas:"bancos", estados:"bancos" };
   const MODS = ["inicio", "caja", "finanzas", "agenda", "facturacion", "personal", "config"];
   // Configuración (engranaje): #config o #config/<apartado> (tablet, cuentas, categorias, lugares, notificaciones, conexiones, sistema)
   function ruta(hash = location.hash) {
@@ -67,16 +68,20 @@
     if (!h || h === "inicio" || h === "hoy") return { mod: "inicio" };
     if (h === "turno") return { mod: "caja" };
     if (h === "finanzas") return { mod: "finanzas", vista: null };
-    if (h === "pagos") return { mod: "finanzas", vista: "programados" };
+    if (h === "pagos") return { mod: "finanzas", vista: "movimientos" };
     if (h === "dinero/salarios" || h === "finanzas/salarios") return { mod: "config", vista: "conexiones" };
     if (h === "dinero/transferencias" || h === "finanzas/transferencias") return { mod: "caja", vista: "transferencias" };
     if (h === "config" || h.startsWith("config/")) return { mod: "config", vista: h.split("/")[1] || null };
     if (h === "dinero" || h.startsWith("dinero/")) {
-      const v = VISTAS_DINERO.includes(h.split("/")[1]) ? h.split("/")[1] : null;
-      return v === "compras" ? { mod: "agenda", vista: "compras" } : { mod: "finanzas", vista: v === "pagos" ? "programados" : v };
+      const v = h.split("/")[1] || "";
+      if (v === "compras") return { mod: "agenda", vista: "compras" };
+      if (v === "transferencias") return { mod: "caja", vista: "transferencias" };
+      return { mod: "finanzas", vista: VISTAS_DINERO.includes(v) ? v : (ALIAS_DINERO[v] || null) };
     }
     const [m, v] = h.split("/");
     if (m === "finanzas" && v === "compras") return { mod: "agenda", vista: "compras" };
+    if (m === "finanzas" && v === "transferencias") return { mod: "caja", vista: "transferencias" };
+    if (m === "finanzas" && v) return { mod: "finanzas", vista: VISTAS_DINERO.includes(v) ? v : (ALIAS_DINERO[v] || null) };
     return MODS.includes(m) ? { mod: m, vista: v || null } : { mod: "inicio" };
   }
   const seccionDe = mod => mod === "finanzas" || mod === "pagos" ? "dinero" : mod;

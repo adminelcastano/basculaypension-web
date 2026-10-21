@@ -265,6 +265,11 @@
     // Dinero muestra todo a la vez, en bloques (los de pagos y compras los pinta la Agenda)
     const BLOQUES = { "fb-resumen": ["resumen", "diferencias", "sueldos", "categorias", "admin"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["bitacora", "reportes"] };
     for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
+    const porCobrar = $("#fb-por-cobrar");
+    if (porCobrar) porCobrar.innerHTML = `<section class="card"><h3>Por cobrar a clientes · CAJA</h3>
+      <div class="ctot"><div class="k"><span>Saldo pendiente activo</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b>
+      <small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + " cobro(s) pendiente(s)" : "Sin información verificada"}</small></div></div>
+      <p class="note">Consulta solamente. Los abonos de Báscula/Pensión se registran y anulan desde CAJA, sin crear ingresos duplicados. <a href="#caja/cortes">Revisar pendientes en CAJA</a>.</p></section>`;
     const pendientesConciliacion = (j.conciliacion_alertas || []).length;
     const estadoTransferencias = modoEnsayo ? "Ensayo · hoja desconectada"
       : fuenteAlerta ? "Hoja sin sincronización verificada"
@@ -275,14 +280,13 @@
     EC.bloqueN("caja", "transferencias",
       pendientesConciliacion || hojaSinLigar.length || null,
       pendientesConciliacion > 0 || fuenteAlerta || hojaSinLigar.length > 0);
-    EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
+    EC.bloqueN("finanzas", "bancos", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     // Tarjetas financieras: preservar los centavos cuando no son .00.
     // No redondear el saldo real al peso en el resumen del celular.
     const D0 = v => EC.dinero(v, Math.round(Math.abs(Number(v) || 0) * 100) % 100 ? 2 : 0);
-    EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
-    EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : "—", texto: e.saldo != null ? "en sobres" : "Sin saldo inicial capturado" });
-    EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "")) + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
+    EC.bloqueInfo("finanzas", "resumen", { valor: disponible == null ? null : D0(disponible), texto: disponible == null ? "Disponible incompleto" : "Disponible calculado · " + nomMes(j.mes).toLowerCase() });
+    EC.bloqueInfo("finanzas", "bancos", { valor: b.dinero != null && !b.dinero_parcial ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · faltan saldos" : "en cuentas") + (e.saldo == null ? " · sobres sin saldo" : "") + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
     EC.bloqueInfo("caja", "transferencias", { texto: estadoTransferencias });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();

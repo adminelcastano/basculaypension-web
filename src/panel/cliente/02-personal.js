@@ -16,12 +16,16 @@
   function mostrar(mod, opciones = {}) {
     if (mod === "turno") mod = "caja";
     // Dinero es una sola pantalla con bloques; "pagos" (enlaces viejos) baja a Pagos programados
-    if (mod === "pagos") { mod = "finanzas"; opciones = { ...opciones, vista: opciones.vista && opciones.vista !== "pagos" ? opciones.vista : "programados" }; }
+    if (mod === "pagos") { mod = "finanzas"; opciones = { ...opciones, vista: opciones.vista && opciones.vista !== "pagos" ? opciones.vista : "movimientos" }; }
     if (mod === "dinero") mod = "finanzas";
     // Enlaces antiguos de Dinero → Compras siguen abriendo la lista, ahora en Agenda.
     if (mod === "finanzas" && opciones.vista === "compras") mod = "agenda";
     if (mod === "finanzas" && opciones.vista === "transferencias") mod = "caja";
     if (mod === "finanzas" && opciones.vista === "salarios") { mod = "config"; opciones = { ...opciones, vista: "conexiones" }; }
+    if (mod === "finanzas" && opciones.vista && !["resumen","bancos","obligaciones","movimientos"].includes(opciones.vista)) {
+      const alias={pagos:"movimientos",programados:"movimientos",hechos:"movimientos",bitacora:"movimientos",efectivo:"bancos",cuentas:"bancos",estados:"bancos"};
+      opciones={...opciones,vista:alias[opciones.vista]||null};
+    }
     const sec = EC.seccionDe(mod);
     const yaVisible = !($("#mod-" + mod) || {}).hidden;
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === sec) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });

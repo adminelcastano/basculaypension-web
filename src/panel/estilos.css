@@ -1782,3 +1782,12 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 #fb-obligaciones .fin-ob-item .acc{display:flex;gap:8px;flex-wrap:wrap}
 #fb-obligaciones .fin-ob-item .mm{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 @media(max-width:540px){#fb-obligaciones .cform{grid-template-columns:minmax(0,1fr)}#fb-obligaciones .fin-ob-item .acc button{min-height:44px}#fb-obligaciones .cform [type=submit]{min-height:48px}}
+
+/* Cuatro áreas principales de Dinero: módulos interiores adaptables. */
+#mod-finanzas .f-secciones{display:grid;gap:12px;min-width:0}
+#mod-finanzas .f-secciones>.fsub{margin:12px 0 0}
+#mod-finanzas .f-grupo-extra{min-width:0;border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--bg-2)}
+#mod-finanzas .f-grupo-extra>summary{cursor:pointer;font-weight:650;min-height:44px;display:flex;align-items:center}
+#mod-finanzas .f-grupo-extra>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#mod-finanzas .f-grupo-extra>div{padding-top:10px}
+#mod-caja #fb-transf{min-width:0}

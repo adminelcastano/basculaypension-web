@@ -207,7 +207,7 @@ test("Finanzas móvil: cifras monetarias sin redondear al peso en tarjetas de re
  const ui=source("../src/panel/cliente/05-finanzas.js");
  assert.match(ui,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
  assert.match(ui,/EC\.bloqueInfo\("finanzas", "resumen", \{ valor: D0/);
- assert.match(ui,/EC\.bloqueInfo\("finanzas", "cuentas", \{ valor: b\.dinero != null \? D0/);
+ assert.match(ui,/EC\.bloqueInfo\("finanzas", "bancos", \{ valor: b\.dinero != null && !b\.dinero_parcial \? D0/);
  const n=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
  assert.equal(n(8064.50),2);
  assert.equal(n(564.50),2);
@@ -274,14 +274,14 @@ test("Capturas de celular: pagos sin redondear y papelera de movimientos con tex
   const fin=source("../src/panel/cliente/05-finanzas.js");
   const css=source("../src/panel/estilos.css");
   assert.match(agenda,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
-  assert.match(agenda,/bloqueInfo\("finanzas", "hechos", \{ valor: D0\(hechos\.reduce/);
-  assert.match(agenda,/bloqueInfo\("finanzas", "programados".+D0\(porPagar\)/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "movimientos", \{ valor: D0\(hechos\.reduce/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "movimientos".+D0\(porPagar\)/);
   const decimales=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
   assert.equal(decimales(285.50),2,"Un pago de 285.50 no puede mostrarse como 286");
   assert.equal(decimales(850),0);
   assert.equal(decimales(0.01),2);
   assert.equal(decimales(564.50),2);
-  assert.match(fin,/bloqueInfo\("finanzas", "efectivo", \{ valor: e\.saldo != null \? D0\(e\.saldo\) : "—"/);
+  assert.match(fin,/bloqueInfo\("finanzas", "bancos", \{ valor: b\.dinero != null && !b\.dinero_parcial/);
   assert.match(fin,/Sin saldo inicial capturado/);
   assert.match(fin,/class="alist fmov-lista"/);
   assert.match(fin,/class="del fmov-eliminar"[^\n]*data-mdel/);
