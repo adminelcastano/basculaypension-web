@@ -39,7 +39,7 @@ function panelMock(filename,answer){
   };
   vm.runInNewContext(source,sandbox,{filename,timeout:2000});
   assert.equal(typeof registered.modulo,"function","El panel debe registrar su activación");
-  return{view,selectors,form,events,async activar(){registered.modulo({detail:"finanzas"});await flush();await flush();}};
+  return{view,selectors,form,events,async activar(seccion="finanzas"){registered.modulo({detail:seccion});await flush();await flush();}};
 }
 test("Formulario bancario renderiza periodos cruzados, estados negativos, créditos y alerta de continuidad",async()=>{
   const x=panelMock("05b-estados.js",{
@@ -82,7 +82,7 @@ test("SALARIOS desconectado renderiza sueldos y retiros sin ningún botón activ
      identificador_estable:true,retiro_id:"00000000-0000-4000-8000-000000000002"}],
    fuentes_no_vinculadas:"Solo se revisan candidatos; no se envían al Sheet."
  });
- await x.activar();
+ await x.activar("config");
  const html=x.view.innerHTML;
  assert.match(html,/Sincronización SALARIOS suspendida/);
  assert.match(html,/Retiro de corte/);
