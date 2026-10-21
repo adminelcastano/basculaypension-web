@@ -28,7 +28,11 @@
     const solicitud = ++secuenciaDinero;
     const c = $("#fb-resumen");
     try {
-      const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
+      const [j,obligaciones] = await Promise.all([
+        api("finanzas" + (st.mes ? "?mes=" + st.mes : "")),
+        api("finanzas/obligaciones").catch(() => null)
+      ]);
+      j.obligaciones_confirmadas=obligaciones;
       if (solicitud !== secuenciaDinero) return;
       st.datos = j; st.mes = j.mes;
       try { pintarConfigCuentas(); } catch (er) { console.error(er); }
@@ -112,8 +116,33 @@
     const alertas = j.conciliacion_alertas || [];
     const alertaIds = new Set(alertas.map(a => a.id));
     const motivoAlerta = { importe: "El importe de la hoja cambió", forma: "El ticket ya no figura como transferencia", ausente: "El ticket desapareció de la hoja", ambiguo: "Hay más de un ticket con ese folio" };
+    // Solo sumamos saldos de activo operativo: sobres + débito, nunca tarjeta
+    // de crédito, compromisos previstos ni cuentas por cobrar.
+    const ob = j.obligaciones_confirmadas?.incompleto ? null : j.obligaciones_confirmadas?.resumen;
+    const dineroCompleto = e.saldo != null && b.dinero != null && !b.dinero_parcial;
+    const disponible = dineroCompleto ? Math.round((e.saldo+b.dinero)*100)/100 : null;
+    const exigible30 = ob ? Math.round((ob.vencido+ob.proximos_30)*100)/100 : null;
+    const escenario = disponible != null && exigible30 != null ?
+      Math.round((disponible-exigible30)*100)/100 : null;
+    const conDato = x => x == null ? "—" : D(x);
+    const tarjetaInfo = (titulo,valor,nota="") => `<div class="k"><span>${titulo}</span>
+      <b>${conDato(valor)}</b>${nota?`<small class="note">${nota}</small>`:""}</div>`;
+    const indicadores = `<div class="ctot f-tablero-kpi" aria-label="Indicadores financieros">
+      ${tarjetaInfo("Disponible calculado (sobres + débito)",disponible,dineroCompleto?"No equivale a saldo bancario confirmado":"Incompleto: falta saldo inicial de alguna cuenta o efectivo")}
+      ${tarjetaInfo("Por pagar · deuda confirmada",ob?.pendiente??null,ob?"Obligaciones registradas, excluye tarjetas":"Sin consulta completa")}
+      ${tarjetaInfo("Vencido · obligaciones",ob?.vencido??null)}
+      ${tarjetaInfo("Próximos 7 días · obligaciones",ob?.proximos_7??null)}
+      ${tarjetaInfo("Próximos 30 días · obligaciones",ob?.proximos_30??null)}
+      ${tarjetaInfo("Por cobrar a clientes · CAJA",j.por_cobrar_caja?.total??null,"No se considera ingreso hasta cobrar")}
+      ${tarjetaInfo("Deuda en tarjetas",b.deuda,"No se agrega a obligaciones para evitar duplicados")}
+      ${tarjetaInfo("Escenario tras pagos exigibles a 30 días",escenario,"Sin sumar cobros futuros, otros gastos ni pagos previstos")}
+    </div>
+    <p class="note">Flujo registrado del mes: entradas ${D(i.total)} · salidas ${D(g.total)}. Son operaciones, no dinero adicional al disponible. Los estados bancarios confirmados se consultan aparte. Última actualización financiera: ${esc(j.obligaciones_confirmadas?.resumen?.actualizado||"No verificada")}.</p>`;
     const S = {
       resumen: () => `      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
+        ${indicadores}
+        <details class="f-guia-saldos" style="margin-top:12px">
+          <summary>Ver detalle operativo del mes (origen: CAJA y pagos)</summary>
         <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
         <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)}${modoEnsayo ? "" : " · Puede haber consultas de la hoja sin cambios entre registros."}${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
         <div class="ctot" style="margin-bottom:12px"><div class="k"><span>Por cobrar · CAJA (consulta)</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b><small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + (j.por_cobrar_caja.operaciones === 1 ? " cobro pendiente" : " cobros pendientes") : "Origen sin consultar"} · No es ingreso realizado</small></div></div>
@@ -124,6 +153,7 @@
           <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.retiros, g.retiros], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), [CAT.comision, g.comision], ...(g.faltantes ? [[CAT.faltantes, g.faltantes]] : []), ["Total", g.total, "tot"]])}</div>
         </div>
         <div class="fgraf">${graf(j.por_dia)}</div>
+        </details>
         ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
       </section>`,
       diferencias: () => `      <section class="card"><h3>Diferencias de caja</h3>
