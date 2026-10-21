@@ -13,6 +13,7 @@ import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES 
 import { centavosIguales } from "./finanzas-idempotencia.js";
 import { estadosCuentaRuta } from "./finanzas-estados.js";
 import { rutaSalarios } from "./finanzas-salarios.js";
+import { resumenPorCobrarCaja } from "./finanzas-cobrar.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -298,6 +299,7 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     d.ensayo_finanzas = env.ENSAYO_FINANZAS === "1";
     d.sync = d.ensayo_finanzas ? null : await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
     delete d.cortes; delete d.gastos_caja;
+    d.por_cobrar_caja = await resumenPorCobrarCaja(env);
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
     return json({ ok: true, meses, ...d });
