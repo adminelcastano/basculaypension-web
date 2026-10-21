@@ -1800,7 +1800,7 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 
 /* Estados: nunca simular una carga interminable por un botón bloqueado. */
 #fb-estados .est-pdf-caja button:disabled { cursor:not-allowed; }
-#fb-estados .est-pdf-confirmar { display:flex;align-items:flex-start;gap:10px;line-height:1.45; }
+#fb-estados .cform label.est-pdf-confirmar { display:flex;flex-direction:row;align-items:flex-start;gap:10px;line-height:1.45; }
 #fb-estados .est-pdf-confirmar input[type=checkbox] { flex:none;width:20px;min-width:20px;height:20px;min-height:20px;margin:0;accent-color:var(--amber); }
 #fb-estados .f-est-cuenta small { color:var(--fg-2);font-size:var(--t-sm); }
 #fb-estados .f-est-explicacion { margin:3px 0; }
