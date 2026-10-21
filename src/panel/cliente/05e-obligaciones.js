@@ -105,7 +105,7 @@
     }));
   }
   async function cargar(){
-    const token=++sec;if(cargando)return;cargando=true;
+    if(cargando)return;const token=++sec;cargando=true;
     const el=$("#fb-obligaciones");
     try{const r=await api("finanzas/obligaciones");if(token===sec)pintar(r);}
     catch(e){if(el&&e.message!=="sesion")el.innerHTML='<p class="note" role="alert">No se pudieron cargar las obligaciones: '+esc(e.message)+'</p>';}
