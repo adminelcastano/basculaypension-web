@@ -13,6 +13,10 @@
   ];
   const dinero = n => n == null ? "Sin capturar" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
   let actual = null, todos = [], cuentas = [], cargando = false;
+  const titulos = {
+    debito: {saldo_inicial:"Dinero al inicio",abonos:"Entradas y depósitos",cargos:"Salidas y retiros",saldo_final:"Dinero al corte"},
+    credito: {saldo_inicial:"Deuda anterior",abonos:"Pagos y abonos",cargos:"Compras y cargos",saldo_final:"Deuda al corte"}
+  };
   function estadoTexto(r) {
     if (r.comprobacion==="incompleto") return "Datos parciales: faltan saldos o movimientos";
     if (r.comprobacion==="cuadra") return "Las cifras de este estado cuadran entre sí";
@@ -29,25 +33,30 @@
     const el=$("#f-estados-contenido");
     if(!el)return;
     el.innerHTML =
-      "<p class='note'>Elige la cuenta, registra las fechas reales del PDF y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Un saldo a favor o saldo deudor puede capturarse con signo negativo; cargos y abonos siempre son positivos. Este registro no genera cargos, gastos ni movimientos.</p>" +
-      "<div class='est-pdf-caja' role='group' aria-label='Lectura privada de PDF'>"+
+      "<p class='note'>Registra los datos básicos del periodo: cuánto había, qué entró, qué salió y cuánto quedó. En crédito se muestran también los importes y fechas de pago. Puedes dejar importes desconocidos en blanco; este registro no crea movimientos.</p>" +
+      "<form class='cform' id='f-est-form' novalidate>" +
+      "<label class='wide f-est-cuenta'>Cuenta o tarjeta<select name='cuenta' required>" +
+      cuentas.filter(x=>x.activa).map(x=>"<option value='"+esc(x.id)+"'>"+esc(x.nombre)+(x.tipo==="credito"?" · crédito":" · débito")+"</option>").join("")+
+      "</select><small class='note'>Elige la cuenta antes de leer el PDF. Verifica tú la titularidad.</small></label>" +
+      "<div class='est-pdf-caja wide' role='group' aria-label='Lectura privada de PDF'>"+
       "<b>Leer estado de cuenta en PDF</b>"+
       "<p class='note'>El PDF se procesa únicamente en este dispositivo. Revisa las sugerencias antes de aplicarlas al formulario.</p>"+
       "<div class='row'><label class='est-pdf-archivo'>Seleccionar PDF (máximo 12 MB)<input type='file' id='f-est-pdf-archivo' accept='.pdf,application/pdf' aria-label='Seleccionar estado de cuenta PDF'></label>"+
       "<button type='button' class='btn btn-line' id='f-est-pdf-leer' disabled>Leer PDF</button></div>"+
       "<p id='f-est-pdf-mensaje' class='note' role='status' aria-live='polite'></p>"+
       "<div id='f-est-pdf-preview' hidden></div></div>"+
-      "<form class='cform' id='f-est-form' novalidate>" +
-      "<label class='wide'>Cuenta o tarjeta<select name='cuenta' required>" +
-      cuentas.filter(x=>x.activa).map(x=>"<option value='"+esc(x.id)+"'>"+esc(x.nombre)+(x.tipo==="credito"?" · crédito":" · débito")+"</option>").join("")+
-      "</select></label>" +
       "<label>Inicio del periodo<input name='periodo_desde' type='date' required></label>" +
       "<label>Fin del periodo<input name='periodo_hasta' type='date' required></label>" +
       "<label>Fecha de corte<input name='fecha_corte' type='date' required></label>" +
       "<label class='f-est-credito'>Fecha límite de pago<input name='fecha_pago_limite' type='date'></label>" +
-      datosCampos.map(([name,title,hint])=>"<label>"+title+"<input name='"+name+"' inputmode='decimal' autocomplete='off' placeholder='"+hint+"'></label>").join("")+
+      "<p class='note wide f-est-explicacion' id='f-est-explicacion'></p>"+
+      datosCampos.slice(0,4).map(([name,title,hint])=>"<label><span data-est-label='"+name+"'>"+title+"</span><input name='"+name+"' inputmode='decimal' autocomplete='off' placeholder='"+hint+"'></label>").join("")+
+      "<details class='f-est-detalles wide'><summary>Detalles opcionales: comisiones, intereses e IVA</summary><div class='f-est-detalles-grid'>"+
+      datosCampos.slice(4).map(([name,title,hint])=>"<label><span>"+title+"</span><input name='"+name+"' inputmode='decimal' autocomplete='off' placeholder='"+hint+"'></label>").join("")+
+      "</div></details>"+
       "<label class='f-est-credito'>Pago mínimo<input name='pago_minimo' inputmode='decimal' placeholder='Opcional'></label>" +
       "<label class='f-est-credito'>Pago para no generar intereses<input name='pago_sin_intereses' inputmode='decimal' placeholder='Opcional'></label>" +
+      "<p class='note wide f-est-credito'>La deuda al corte puede incluir compras a meses. No equivale necesariamente al pago para no generar intereses. Los servicios y proveedores se administran en Agenda → Pagos programados.</p>"+
       "<label class='wide'>Nota privada de conciliación (opcional)<textarea name='nota' maxlength='300' rows='2' placeholder='Anotación para revisar movimientos. No incluyas números completos de cuenta.'></textarea></label>"+
       "<div class='row wide'><button class='btn btn-primary' type='submit'>Guardar estado de cuenta</button><button class='btn btn-line' id='f-est-nuevo' type='button' hidden>Nuevo registro</button></div>"+
       "<span class='err wide' role='alert' id='f-est-err'></span></form>"+
@@ -65,7 +74,16 @@
     const form=$("#f-est-form");
     const mostrarCredito=()=>{
       const c=cuentas.find(x=>x.id===form.cuenta.value);
-      form.querySelectorAll(".f-est-credito").forEach(x=>x.hidden=c?.tipo!=="credito");
+      const credito=c?.tipo==="credito";
+      form.querySelectorAll(".f-est-credito").forEach(x=>x.hidden=!credito);
+      for(const [campo,texto] of Object.entries(titulos[credito?"credito":"debito"])){
+        const etiqueta=form.querySelector('[data-est-label="'+campo+'"]');
+        if(etiqueta)etiqueta.textContent=texto;
+      }
+      const explicacion=$("#f-est-explicacion");
+      if(explicacion)explicacion.textContent=credito
+        ? "Deuda final = deuda anterior + compras y cargos − pagos y abonos. No se registra ningún pago automáticamente."
+        : "Saldo final = dinero al inicio + entradas − salidas. No se crean ingresos ni gastos automáticamente.";
       if(c?.tipo!=="credito") for(const name of ["fecha_pago_limite","pago_minimo","pago_sin_intereses"])form.elements.namedItem(name).value="";
     };
 
@@ -80,27 +98,34 @@
       return !!bank && dato.tipo===cuenta?.tipo &&
         (bank==="AMEX"?/AMEX|AMERICAN EXPRESS/.test(nombre):
          bank==="NU"?/\bNU\b/.test(nombre):
-         bank==="MERCADO PAGO"?nombre.includes("MERCADO PAGO"):nombre.includes(bank));
+         bank==="MERCADO PAGO"?/MERCADO\s*PAGO|MDO\s*PAGO/.test(nombre):nombre.includes(bank));
     };
     function mostrarPDF(){
       if(!preview||!importado)return;
       const dato=importado,propuestas=dato.campos||{},cuenta=cuentas.find(x=>x.id===form.cuenta.value);
       const ok=coincidePDF(dato,cuenta);
+      const nombres=titulos[cuenta?.tipo==="credito"?"credito":"debito"];
+      const contexto=ok
+        ? "La institución y el tipo coinciden. Confirma que es exactamente tu cuenta o tarjeta (no se verifica el número)."
+        : "El PDF indica "+(dato.institucion||"institución desconocida")+" · "+(dato.tipo==="credito"?"crédito":"débito")+
+          ". Cuenta seleccionada: "+(cuenta?.nombre||"ninguna")+" · "+(cuenta?.tipo==="credito"?"crédito":"débito")+
+          ". Elige la cuenta correcta arriba. No se aplicarán datos a una institución distinta ni a otro tipo.";
       const campos=[
         ["periodo_desde","Inicio del periodo"],["periodo_hasta","Fin del periodo"],
         ["fecha_corte","Fecha de corte"],["fecha_pago_limite","Fecha límite de pago"],
-        ...datosCampos.map(([id,titulo])=>[id,titulo]),
+        ...datosCampos.map(([id,titulo])=>[id,nombres[id]||titulo]),
         ["pago_minimo","Pago mínimo"],["pago_sin_intereses","Pago para no generar intereses"]];
       preview.hidden=false;
       preview.innerHTML="<b>"+esc(dato.institucion||"Banco no reconocido")+
         " · "+Number(dato.paginas||0)+" página(s)</b>"+
-        "<p class='note'>"+(ok?"La institución y el tipo coinciden. Confirma que es exactamente tu cuenta o tarjeta (no se verifica el número).":
-          "Selecciona la cuenta correcta. No se aplicarán datos a una institución distinta.")+"</p>"+
+        "<p class='note' role='status'>"+esc(contexto)+"</p>"+
         "<div class='est-pdf-resumen'>"+
         campos.filter(([k])=>propuestas[k]!=null).map(([k,label])=>
           "<div><span>"+esc(label)+"</span><b>"+esc(propuestas[k])+"</b></div>").join("")+"</div>"+
         (dato.advertencias||[]).map(v=>"<p class='note'>⚠ "+esc(v)+"</p>").join("")+
-        (ok?"<label class='note est-pdf-confirmar'><input type='checkbox' id='f-est-pdf-cuenta-confirmada'> Confirmo que este PDF pertenece exactamente a la cuenta o tarjeta seleccionada.</label>":"")+
+        (ok&&dato.fiable&&!actual?"<label class='note est-pdf-confirmar'><input type='checkbox' id='f-est-pdf-cuenta-confirmada'> Confirmo que este PDF pertenece exactamente a la cuenta o tarjeta seleccionada.</label>":"")+
+        (!dato.fiable?"<p class='note'>La lectura es incompleta o no confiable. Usa la captura manual.</p>":"")+
+        (actual?"<p class='note'>Termina esta edición o pulsa Nuevo registro antes de aplicar otro PDF.</p>":"")+
         "<button type='button' id='f-est-pdf-aplicar' class='btn btn-line' disabled>Aplicar sugerencias al formulario</button>"+
         "<p class='note'>Todavía no se guarda nada. Comprueba cada campo y pulsa Guardar estado de cuenta cuando estés seguro.</p>";
       const confirmarCuenta=$("#f-est-pdf-cuenta-confirmada"),aplicarPDF=$("#f-est-pdf-aplicar");
