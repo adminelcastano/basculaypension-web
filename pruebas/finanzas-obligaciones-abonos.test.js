@@ -47,6 +47,10 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   const uno=await obl(c);assert.equal(uno.status,200,JSON.stringify(uno));
   const id=uno.data.id;
   assert.equal((await obl(c)).data.repetido,true);
+  let historia=(await obl(null,"finanzas/obligaciones/"+id,"GET")).data;
+  assert.equal(historia.historial.length,1);
+  assert.equal(historia.historial[0].version,1);
+  assert.equal(historia.historial[0].foto.total,200.55);
   assert.equal((await obl({...c,total:"200.56"})).status,409);
   const listar=async()=> (await obl(null,"finanzas/obligaciones","GET")).data;
   let list=await listar();
@@ -81,6 +85,12 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   const rem=await obl({...c,accion:"editar",version:1,total:"100.00"},"finanzas/obligaciones/"+id);
   assert.equal(rem.status,200,JSON.stringify(rem));
   list=await listar();assert.equal(list.obligaciones[0].saldo,19.75);
+  historia=(await obl(null,"finanzas/obligaciones/"+id,"GET")).data;
+  assert.deepEqual(historia.historial.map(x=>x.version),[2,1]);
+  assert.equal(historia.historial[0].foto.total,100);
+  assert.equal(historia.abonos.length,2);
+  assert.equal(historia.abonos.filter(x=>x.activo===1).length,1);
+  assert.equal(historia.abonos.filter(x=>x.activo===0).length,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_bitacora WHERE que='Obligación'").get().n,2);
   // La limpieza ordinaria de pagos de 13 meses NO reabre deudas confirmadas:
   // el vínculo conserva su foto monetaria, aunque agenda_pagos desaparezca.

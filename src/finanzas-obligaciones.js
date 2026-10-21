@@ -21,6 +21,11 @@ export async function asegurarEsquemaObligaciones(env) {
     version INTEGER NOT NULL DEFAULT 1, creado TEXT NOT NULL, actualizado TEXT NOT NULL,
     creado_por TEXT, actualizado_por TEXT)`).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS fin_obligaciones_vencimiento ON fin_obligaciones(estado,vencimiento)").run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS fin_obligaciones_hist (
+    id TEXT PRIMARY KEY, obligacion_id TEXT NOT NULL, version INTEGER NOT NULL,
+    foto TEXT NOT NULL, accion TEXT NOT NULL, cuando TEXT NOT NULL, quien TEXT,
+    UNIQUE(obligacion_id,version))`).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS fin_obligaciones_hist_ref ON fin_obligaciones_hist(obligacion_id,version)").run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS fin_obl_abonos (
     pago_id TEXT PRIMARY KEY, obligacion_id TEXT NOT NULL, importe_centavos INTEGER NOT NULL CHECK(importe_centavos>0),
     activo INTEGER NOT NULL DEFAULT 1, creado TEXT NOT NULL, creado_por TEXT, anulado_en TEXT)`).run();
@@ -110,6 +115,27 @@ export async function obligacionesRuta(request,env,partes,usuario) {
         pagado:cents(agregados.pagado),cantidad:Number(agregados.cantidad),
         actualizado:new Date().toISOString()}});
   }
+  if(request.method==="GET"&&partes.length===3){
+    const id=partes[2];
+    if(!UID.test(id))return json({ok:false,error:"Referencia inválida."},422);
+    const obligacion=await env.DB.prepare(sqlSaldos+" WHERE o.id=?").bind(id).first();
+    if(!obligacion)return json({ok:false,error:"Obligación no encontrada."},404);
+    const [pagos,cambios]=await Promise.all([
+      env.DB.prepare(`SELECT a.pago_id,a.importe_centavos,a.activo,a.creado,a.creado_por,a.anulado_en,
+        p.fecha,p.titulo,p.forma,p.nota
+        FROM fin_obl_abonos a LEFT JOIN agenda_pagos p ON p.id=a.pago_id
+        WHERE a.obligacion_id=? ORDER BY a.creado DESC,a.pago_id DESC LIMIT 500`).bind(id).all(),
+      env.DB.prepare("SELECT version,foto,accion,cuando,quien FROM fin_obligaciones_hist WHERE obligacion_id=? ORDER BY version DESC LIMIT 500").bind(id).all()
+    ]);
+    return json({ok:true,obligacion:{...obligacion,total:cents(obligacion.total_centavos),
+        pagado:cents(obligacion.pagado_centavos),saldo:cents(Math.max(0,obligacion.total_centavos-obligacion.pagado_centavos))},
+      abonos:pagos.results.map(x=>({...x,importe:cents(x.importe_centavos)})),
+      historial:cambios.results.map(x=>{
+        let foto=null;try{foto=JSON.parse(x.foto);}catch{}
+        return {version:x.version,accion:x.accion,cuando:x.cuando,quien:x.quien,
+          foto:foto?{...foto,total:cents(foto.total_centavos)}:null};
+      }),limite:pagos.results.length>=500||cambios.results.length>=500});
+  }
   if(request.method!=="POST"||partes.length<2||partes.length>3)
     return json({ok:false,error:"Ruta no permitida."},405);
   let c;try{c=await request.json();}catch{return json({ok:false,error:"Datos inválidos."},400);}
@@ -126,6 +152,11 @@ export async function obligacionesRuta(request,env,partes,usuario) {
     try{await env.DB.batch([
       env.DB.prepare(`INSERT INTO fin_obligaciones(id,acreedor,concepto,total_centavos,emision,vencimiento,referencia,nota,creado,actualizado,creado_por,actualizado_por)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,d.acreedor,d.concepto,d.total_centavos,d.emision,d.vencimiento,d.referencia,d.nota,ahora,ahora,quien,quien),
+      env.DB.prepare(`INSERT INTO fin_obligaciones_hist(id,obligacion_id,version,foto,accion,cuando,quien)
+        SELECT ?,id,version,json_object('acreedor',acreedor,'concepto',concepto,'total_centavos',total_centavos,
+          'emision',emision,'vencimiento',vencimiento,'referencia',referencia,'nota',nota),
+          'crear',?,? FROM fin_obligaciones WHERE id=? AND changes()>0`)
+        .bind(crypto.randomUUID(),ahora,quien,id),
       stmtBitacora(env,{quien,accion:"crear",que:"Obligación",ref:id,mes:d.vencimiento.slice(0,7),
         detalle:{acreedor:d.acreedor,concepto:d.concepto,principal:cents(d.total_centavos),vencimiento:d.vencimiento}})
     ]);}catch(e){
@@ -157,7 +188,13 @@ export async function obligacionesRuta(request,env,partes,usuario) {
         WHERE obligacion_id=? AND activo=1),0)`).bind(d.acreedor,d.concepto,d.total_centavos,d.emision,d.vencimiento,d.referencia,d.nota,
           ahora,quien,id,version,d.total_centavos,id);
   let results;
-  try{results=await env.DB.batch([st,stmtBitacoraSiCambio(env,{quien,accion:cancel?"borrar":"editar",que:"Obligación",ref:id,
+  try{results=await env.DB.batch([st,
+    env.DB.prepare(`INSERT INTO fin_obligaciones_hist(id,obligacion_id,version,foto,accion,cuando,quien)
+      SELECT ?,id,version,json_object('acreedor',acreedor,'concepto',concepto,'total_centavos',total_centavos,
+        'emision',emision,'vencimiento',vencimiento,'referencia',referencia,'nota',nota),
+        ?,?,? FROM fin_obligaciones WHERE id=? AND changes()>0`)
+      .bind(crypto.randomUUID(),cancel?"cancelar":"editar",ahora,quien,id),
+    stmtBitacoraSiCambio(env,{quien,accion:cancel?"borrar":"editar",que:"Obligación",ref:id,
     mes:(d?.vencimiento||actual.vencimiento).slice(0,7),detalle:cancel?{estado:"cancelada"}:
       {acreedor:d.acreedor,principal:cents(d.total_centavos),vencimiento:d.vencimiento}})]);}
   catch(e){if(errorSaldoObligacion(e))return json({ok:false,error:"El principal no puede ser menor que sus abonos; tampoco puedes cancelar una obligación pagada."},409);throw e;}

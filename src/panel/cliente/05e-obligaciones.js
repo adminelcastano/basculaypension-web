@@ -23,6 +23,7 @@
         <span class="acc">
           ${activo&&!sinSaldo?`<button class="btn btn-primary" type="button" data-ob-abonar="${esc(o.id)}">Abonar</button>`:""}
           ${activo?`<button class="btn btn-line" type="button" data-ob-editar="${esc(o.id)}">Editar</button>`:""}
+          <button class="btn btn-line" type="button" data-ob-historial="${esc(o.id)}">Historial</button>
           ${activo&&!o.pagado?`<button class="btn btn-line" type="button" data-ob-cancelar="${esc(o.id)}">Cancelar</button>`:""}
         </span>
       </article>`;
@@ -56,6 +57,7 @@
     </section>
     <section class="card"><h3>Obligaciones e historial</h3>
       ${filas?`<div class="alist">${filas}</div>`:'<p class="note">Sin obligaciones confirmadas todavía.</p>'}
+      <div id="fin-ob-hist" role="status" aria-live="polite" hidden></div>
     </section>`;
     EC.bloqueN("finanzas","obligaciones",Number(t.cantidad)||0,Number(t.vencido)>0);
     EC.bloqueInfo("finanzas","obligaciones",{valor:t.pendiente!=null?fmt(t.pendiente):null,
@@ -90,6 +92,28 @@
       f.querySelector("[type=submit]").textContent="Guardar cambios";
       el.querySelector("#fin-ob-reset").hidden=false;
       f.scrollIntoView({behavior:"smooth",block:"center"});f.elements.namedItem("acreedor").focus();
+    }));
+    el.querySelectorAll("[data-ob-historial]").forEach(b=>b.addEventListener("click",async()=>{
+      const o=lista.find(x=>x.id===b.dataset.obHistorial),dest=el.querySelector("#fin-ob-hist");
+      if(!o||!dest)return;
+      if(dest.dataset.ref===o.id&&!dest.hidden){dest.hidden=true;b.setAttribute("aria-expanded","false");return;}
+      b.disabled=true;dest.hidden=false;dest.dataset.ref=o.id;dest.textContent="Consultando historial…";
+      try {
+        const r=await api("finanzas/obligaciones/"+encodeURIComponent(o.id));
+        if(dest.dataset.ref!==o.id)return;
+        const pago=(r.abonos||[]).map(a=>`<div class="aitem"><b>${esc(fmt(a.importe))} · ${a.activo?"Abono vigente":"Abono anulado"}</b>
+          <span class="note">${esc(a.fecha||a.creado?.slice(0,10)||"Sin fecha")} · ${esc(a.titulo||"Pago histórico")} · ${esc(a.forma||"Sin forma histórica")}</span></div>`).join("");
+        const rev=(r.historial||[]).map(h=>`<div class="aitem"><b>Versión ${h.version} · ${esc(h.accion)}</b>
+          <span class="note">${esc(h.cuando)} · ${esc(h.quien||"Administración")}</span>
+          <span class="note">Principal ${esc(fmt(h.foto?.total))} · vencimiento ${esc(h.foto?.vencimiento||"Sin fecha")}</span></div>`).join("");
+        dest.innerHTML=`<h4 class="fsub">Historial de ${esc(o.acreedor)} · ${esc(o.concepto)}</h4>
+          <p class="note">Registros de abonos vinculados al pago administrativo existente; no se crean movimientos aquí.</p>
+          <h5>Abonos</h5>${pago||'<p class="note">Sin abonos registrados.</p>'}
+          <h5>Versiones</h5>${rev||'<p class="note">Sin versiones históricas anteriores a esta función.</p>'}
+          ${r.limite?'<p class="note" role="alert">Historial parcial: hay más registros.</p>':""}`;
+        dest.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }catch(e){if(e.message!=="sesion")dest.textContent="No se pudo consultar el historial: "+e.message;}
+      finally{if(b.isConnected){b.disabled=false;b.setAttribute("aria-expanded","true");}}
     }));
     el.querySelectorAll("[data-ob-abonar]").forEach(b=>b.addEventListener("click",async()=>{
       const o=lista.find(x=>x.id===b.dataset.obAbonar);if(!o)return;
