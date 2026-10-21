@@ -50,6 +50,7 @@ test("El Worker de ensayo deniega endpoints públicos, crons y escrituras ajenas
   const prod=JSON.parse(product.replace(/^\s*\/\/.*$/gm,""));
   assert.ok(!Object.hasOwn(prod.vars,"ENSAYO_FINANZAS"));
   assert.equal(prod.vars.SALARIOS_SYNC_ACTIVE,"NO");
+  assert.equal(prod.previews.observability.enabled,false,"No conservar logs de PDF en Preview");
   assert.equal(prod.previews.vars.ENSAYO_FINANZAS,"1");
   assert.equal(prod.previews.vars.SALARIOS_SYNC_ACTIVE,"NO");
   assert.equal(prod.previews.vars.TURNO_EMAILS,"");
