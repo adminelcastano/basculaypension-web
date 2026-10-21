@@ -101,7 +101,8 @@
         await post("finanzas/obligaciones"+(id?"/"+encodeURIComponent(id):""),datos);
         EC.toast(id?"Obligación actualizada":"Obligación registrada");
         delete f.dataset.dirty;
-        creandoUid=null;
+        // Si la escritura se completó pero la lectura posterior falla,
+        // conservar el UID para que reintentar NO cree otra obligación.
         await cargar();
       }catch(e){if(e.message!=="sesion")err.textContent=e.message;}
       finally{if(b.isConnected)b.disabled=false;}
