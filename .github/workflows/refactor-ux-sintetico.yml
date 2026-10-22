@@ -1,0 +1,34 @@
+name: Refactor UX sin producción
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/panel/**'
+      - 'src/panel-app.js'
+      - 'pruebas/ux-browser-emulado.mjs'
+      - '.github/workflows/refactor-ux-sintetico.yml'
+permissions:
+  contents: read
+jobs:
+  ux-sintetica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador de pruebas sin ejecutar scripts de terceros
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+      - name: Instalar Chromium y WebKit
+        run: npx playwright install --with-deps chromium webkit
+      - name: Probar navegación real con HTTP local y datos exclusivamente sintéticos
+        run: node pruebas/ux-browser-emulado.mjs
+      - name: Conservar capturas sintéticas para inspección
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactor-ux-chromium-webkit
+          path: ux-artifacts/*.png
+          retention-days: 3
+          if-no-files-found: warn
