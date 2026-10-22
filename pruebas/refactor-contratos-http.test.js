@@ -24,18 +24,15 @@ async function consulta(env,path) {
  const tipo=res.headers.get("Content-Type");
  return {status:res.status,tipo:tipo?.split(";")[0],body:await res.json()};
 }
-test("CASTAGRAM: feed vacío captura contrato HTTP/JSON real, sin escrituras",async t=>{
+test("CASTAGRAM: feed activo y archivo conservan contratos HTTP/JSON sobre la misma D1 sintética",async t=>{
  const {sqlite,env}=ficticio(t);
+ const vacío={status:200,tipo:"application/json",body:{ok:true,items:[],mas:false,cursor:""}};
  const x=await consulta(env,"/avisos-feed");
- assert.deepEqual(x,{status:200,tipo:"application/json",body:{ok:true,items:[],mas:false,cursor:""}});
+ assert.deepEqual(x,vacío);
  assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM agenda_items").get().n,0);
-});
-test("CASTAGRAM: archivo nunca aparece en feed activo aunque el registro exista",async t=>{
- const {sqlite,env}=ficticio(t);
- await consulta(env,"/avisos-feed"); // Inicializar el esquema en memoria
  sqlite.prepare("INSERT INTO agenda_items(id,tipo,titulo,estado,creado,autor,para) VALUES (?,?,?,?,?,?,?)")
    .run("archivado-test","aviso","No publicar","archivado","2026-10-01T12:00:00Z","admin",'{"todos":false,"admin":true,"turnos":[],"personas":[]}');
- const x=await consulta(env,"/avisos-feed");
- assert.deepEqual(x,{status:200,tipo:"application/json",body:{ok:true,items:[],mas:false,cursor:""}});
+ const archivado=await consulta(env,"/avisos-feed");
+ assert.deepEqual(archivado,vacío);
  assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM agenda_items").get().n,1);
 });
