@@ -213,6 +213,12 @@ export async function pendientesCategorias(env) {
   return { pendientes:lista.slice(0,80), total:Object.values(totales).reduce((a,b)=>a+b,0) };
 }
 
+// La sugerencia automática nunca reutiliza una categoría eliminada.
+export async function sugerirCategoriaVigente(env, titulo) {
+  const sugerida = await resolverCategoria(env, adivinarCategoria(titulo));
+  return sugerida || "Otros";
+}
+
 // Rutas: /panel/api/categorias (lista, crear o cambiar icono)
 export async function categoriasPanel(request, env, usuario = null) {
   await asegurarEsquemaCategorias(env);
