@@ -813,5 +813,6 @@
   setInterval(() => { if (!document.hidden && !$("#mod-facturacion").hidden) cargarLista(); }, 60000);
   document.addEventListener("modulo", e => { if (e.detail === "facturacion") cargarLista(); });
   api("yo").then(j => { $("#yo").textContent = j.email; }).catch(() => {});
-  cargarLista();
+  // La variante financiera no abre ni consulta la bandeja de Facturación.
+  if (document.body?.dataset.panelFinanciero !== "1") cargarLista();
 })();
