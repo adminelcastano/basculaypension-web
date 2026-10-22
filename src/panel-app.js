@@ -22,6 +22,7 @@ import J05E from "./panel/cliente/05e-obligaciones.js";
 import J06 from "./panel/cliente/06-inicio.js";
 import J07C from "./panel/cliente/07-compras-controlador.js";
 import J07P from "./panel/cliente/07-pagos-controlador.js";
+import J07A from "./panel/cliente/07-castagram-controlador.js";
 import J07 from "./panel/cliente/07-agenda.js";
 import J08 from "./panel/cliente/08-navegacion.js";
 import J09 from "./panel/cliente/09-ocultar.js";
@@ -30,7 +31,7 @@ import J11 from "./panel/cliente/11-configuracion.js";
 import J12 from "./panel/cliente/12-submenu.js";
 import { swPush } from "./push.js";
 
-export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05C, J05E, J06, J07C, J07P, J07, J08, J09, J10, J11, J12].join("\n;\n");
+export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05C, J05E, J06, J07C, J07P, J07A, J07, J08, J09, J10, J11, J12].join("\n;\n");
 // Para instalar el panel como app en el celular ("Agregar a pantalla principal")
 const MANIFIESTO = {
   id: "/panel", name: "Panel · El Castaño", short_name: "El Castaño", start_url: "/panel", scope: "/panel", display: "standalone",
