@@ -119,7 +119,8 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
     {...c,uid:"uid-ataque-nombre-02",concepto:{"$gt":""}},
     {...c,uid:"uid-ataque-fecha-03",vencimiento:"2026-02-30"},
     {...c,uid:"uid-ataque-monto-04",total:"10.001"},
-    {...c,uid:"uid-ataque-import-05",total:"-1.00"}
+    {...c,uid:"uid-ataque-import-05",total:"-1.00"},
+    {...c,uid:"uid-ataque-coma-006",total:"1,50"}
   ]){
     const r=await obl(payload);
     assert.ok([400,422].includes(r.status),"Datos inválidos aceptados: "+JSON.stringify(payload)+" => "+JSON.stringify(r));

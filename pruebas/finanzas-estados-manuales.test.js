@@ -45,6 +45,12 @@ test("Fecha de corte y fin de periodo independientes del mes calendario",()=>{
 });
 test("Centavos exactos, campos vacíos distinguibles de cero, crédito con signo contrario",()=>{
   assert.equal(dineroCentavos("1,234.56"),123456);
+  assert.equal(dineroCentavos("$ 1,234.56"),123456);
+  for(const ambiguo of ["1,50","12,34","1 234.56","1,234,56","1,234.5.6","1,2,3"])
+    assert.ok(Number.isNaN(dineroCentavos(ambiguo)),"Formato ambiguo: "+ambiguo);
+  assert.ok(Number.isNaN(dineroCentavos({monto:"100"})));
+  assert.ok(Number.isNaN(dineroCentavos(["100"])));
+  assert.equal(dineroCentavos("100.50"),10050);
   assert.equal(dineroCentavos("",{opcional:true}),null);
   assert.ok(Number.isNaN(dineroCentavos("30.999")));
   assert.equal(calcularEstado({saldo_inicial:150000,abonos:80000,cargos:50000,saldo_final:180000},"debito").comprobacion,"cuadra");
