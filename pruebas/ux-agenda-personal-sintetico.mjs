@@ -80,7 +80,7 @@ try {
      await page.waitForFunction(()=>document.querySelector("#ab-aviso").textContent.includes("Nueva publicación"));
      await page.evaluate(()=>window.irA("personal",{historia:"push",vista:"colaborador"}));
      await page.waitForFunction(()=>document.querySelector("#p-lista").textContent.includes("Colaborador de ensayo"),{timeout:12000});
-     const t=await page.locator("#p-lista").innerText();
+     const t=await page.locator("#p-lista").textContent();
      assert.match(t,/Externo de ensayo/);
      assert.match(t,/Campañas/);
      assert.doesNotMatch(t,/No se pudo cargar/);
