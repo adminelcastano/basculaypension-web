@@ -287,7 +287,7 @@ window.interpretarAgenda = function (texto, hoy) {
   // ---- Pagos hechos (programados o no) ----
   const MXN = v => "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   // Pagos administrativos: mismo estado, mismos UID y rutas de Agenda.
-  const { listaPagosHechos, ventanaPago, ventanaProgramar } = window.CastaPagosControlador({
+  const { filaPagoHecho, listaPagosHechos, ventanaPago, ventanaProgramar } = window.CastaPagosControlador({
     st, ico, esc, MXN, diaTxt, mayus, fMes, post, cargar, toast
   });
 
@@ -487,7 +487,7 @@ window.interpretarAgenda = function (texto, hoy) {
 
   // Calendario, tareas y acciones rápidas: misma API pública de Agenda.
   const { vistaCalendario, vistaTareas, toastAccion } = window.CastaCalendarioControlador({
-    st, $, esc, toast, post, fLargo, fMes, mayus, ico, abierto, cargar, pintar, formulario, item, MXN
+    st, $, esc, toast, post, fLargo, fMes, mayus, ico, abierto, cargar, pintar, formulario, item, MXN, filaPagoHecho
   });
 
   // Al volver a la app, la agenda y Dinero se actualizan (por ejemplo, para ver quién ya dio «Enterado»)
