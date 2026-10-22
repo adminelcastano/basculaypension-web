@@ -5,7 +5,7 @@ import { idOperacionCastagram, fotoAvisoPermitida } from "../src/avisos.js";
 import { avisoParaEncargado, normalizarPara, pushTablet } from "../src/agenda.js";
 
 const f = path => readFileSync(new URL(path, import.meta.url),"utf8");
-const panel=f("../src/panel/cliente/07-agenda.js");
+const panel=f("../src/panel/cliente/07-agenda.js") + "\n" + f("../src/panel/cliente/07-castagram-controlador.js");
 const turno=f("../src/turno.html");
 const server=f("../src/turno.js");
 const agenda=f("../src/agenda.js");
