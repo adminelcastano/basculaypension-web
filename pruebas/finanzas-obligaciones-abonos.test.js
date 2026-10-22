@@ -111,6 +111,27 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   assert.equal(persistente.forma,"TRANSFERENCIA","El medio de pago también sobrevive");
   assert.equal(persistente.titulo,"Abono corregido con referencia permanente");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_obl_abonos WHERE activo=1").get().n,1);
+  // Entradas hostiles o defectuosas: nunca escribir una obligación inválida,
+  // ni filtrar un error interno por JSON null/arrays o campos tipados como objeto.
+  const deudaAntes=db.prepare("SELECT COUNT(*) AS n FROM fin_obligaciones").get().n;
+  for(const payload of [
+    [],42,"cadena","nada",{...c,uid:"uid-ataque-obj-0001",acreedor:{html:"<img onerror=alert(1)>"}},
+    {...c,uid:"uid-ataque-nombre-02",concepto:{"$gt":""}},
+    {...c,uid:"uid-ataque-fecha-03",vencimiento:"2026-02-30"},
+    {...c,uid:"uid-ataque-monto-04",total:"10.001"},
+    {...c,uid:"uid-ataque-import-05",total:"-1.00"}
+  ]){
+    const r=await obl(payload);
+    assert.ok([400,422].includes(r.status),"Datos inválidos aceptados: "+JSON.stringify(payload)+" => "+JSON.stringify(r));
+  }
+  for(const raw of ["null","{}"]){
+    const request=new Request("https://ensayo.invalid/panel/api/finanzas/obligaciones",{
+      method:"POST",body:raw,headers:{"Content-Type":"application/json"}});
+    const r=await obligacionesRuta(request,env,["finanzas","obligaciones"],actor);
+    assert.ok([400,422].includes(r.status),"JSON "+raw+" no debe provocar 500");
+  }
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM fin_obligaciones").get().n,deudaAntes,
+    "Los ataques no deben introducir deudas");
   // Paginación: el tablero continúa mostrando todos los importes confirmados.
   const nueva=db.prepare("INSERT INTO fin_obligaciones(id,acreedor,concepto,total_centavos,vencimiento,creado,actualizado) VALUES(?,'Proveedor ficticio','Factura de prueba',100,?,?,?)");
   for(let i=0;i<505;i++)nueva.run("00000000-0000-4000-8000-"+String(i).padStart(12,"0"),vence,"2026-10-21T10:00:00Z","2026-10-21T10:00:00Z");
