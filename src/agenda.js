@@ -1,3 +1,6 @@
+import { pagosHechosRutas } from "./agenda-pagos-rutas.js";
+import { rutasComprasAgenda } from "./agenda-compras-rutas.js";
+import { feedCastagramAdmin } from "./agenda-feed.js";
 import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
 import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, enterarComentario, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
@@ -481,227 +484,8 @@ function cabeceraComprobanteValida(bytes, tipo) {
   return false;
 }
 
-async function pagosHechosRutas(request, env, partes, usuario, ahora) {
-  await asegurarEsquemaObligaciones(env);
-  // Pago hecho sin programar
-  if (partes[2] === "hecho" && partes.length === 3 && request.method === "POST") {
-    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    await normalizarMedio(env, c);
-    const obligacionId=c.obligacion_id==null||c.obligacion_id===""?null:String(c.obligacion_id);
-    if(obligacionId && !/^[0-9a-f-]{36}$/i.test(obligacionId))
-      return json({ok:false,error:"Identificador de obligación inválido."},422);
-    const v = await validarPagoHecho(env, c, null);
-    if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
-    const quien = usuario && usuario.email || null;
-    let gid, pid;
-    try {
-      gid = await idFinanciero("gasto-pago-suelto", c.uid, quien);
-      pid = await idFinanciero("pago-suelto", c.uid, quien);
-    } catch (er) { return json({ok:false,error:er.message},422); }
-    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
-    const cta = await cuentaDe(env, c, null, v.forma);
-    const repetido = async () => {
-      const p = c.uid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
-      if (!p) return null;
-      const vinculo = await vinculoPago(env,pid);
-      const igual = (vinculo?.obligacion_id||null)===obligacionId && (!vinculo||vinculo.activo===1) &&
-        p.item_id === "" && p.fecha === v.fecha && p.titulo === v.titulo
-        && p.forma === v.forma && centavosIguales(p.importe, v.importe)
-        && (p.cuenta || null) === (cta || null) && (p.categoria || null) === (cat || null)
-        && (p.nota || null) === (v.nota || null) && p.gasto_id === gid;
-      return igual ? json({ok:true,id:pid,repetido:true}) :
-        json({ok:false,error:"Esta operación ya registró otro pago o importe. Actualiza los pagos hechos y verifica antes de repetirla."},409);
-    };
-    const previo = await repetido(); if (previo) return previo;
-    if (await pagoEliminado(env,pid,"Pago no programado"))
-      return json({ok:false,error:"Este pago fue eliminado. Actualiza Pagos hechos antes de registrar otro."},409);
-    const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
-    if (errorCuenta) return json({ ok:false, error:errorCuenta },422);
-    // Egreso y pago en una sola operación: o quedan los dos o ninguno.
-    try {
-      await env.DB.batch([
-        stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta, null, {id:pid,que:"Pago no programado"}),
-        env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
-        ...(obligacionId ? [stmtVincularAbono(env,{pagoId:pid,obligacionId,importeCentavos:Math.round(v.importe*100),
-          fecha:v.fecha,forma:v.forma,titulo:v.titulo,ahora,quien})] : []),
-        stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat, obligacion_id: obligacionId } })
-      ]);
-    } catch (er) {
-      const previo = await repetido(); if (previo) return previo;
-      if (errorSaldoObligacion(er))
-        return json({ok:false,error:"No se pudo aplicar el abono: obligación inexistente, cancelada o saldo insuficiente. Actualiza DINERO antes de repetir."},409);
-      if (errorBancoEnEscritura(er))
-        return await pagoEliminado(env,pid,"Pago no programado")
-          ? json({ok:false,error:"Este pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409)
-          : conflictoBanco();
-      throw er;
-    }
-    return json({ ok: true, id: pid });
-  }
-  const pid = partes[2];
-  const pago = pid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
-  if (!pago) return json({ ok: false, error: "No existe ese pago." }, 404);
-  const accion = partes[3];
-  if (accion === "comprobante" && request.method === "GET") {
-    if (!pago.comprobante) return new Response("Sin comprobante.", { status: 404 });
-    const { value, metadata } = await leerArchivo(env, pago.comprobante);
-    if (!value) return new Response("Archivo no disponible.", { status: 404 });
-    const tipo = (metadata && metadata.tipo) || pago.comp_tipo || "application/octet-stream";
-    return new Response(value, { headers: { "Content-Type": tipo, "Content-Disposition": "inline", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'" } });
-  }
-  if (request.method !== "POST") return json({ ok: false, error: "Ruta no encontrada." }, 404);
-  await asegurarEsquemaCaja(env);
-  const meses = await mesesAbiertos(env);
-  if (!meses.includes(pago.fecha.slice(0, 7))) return json({ ok: false, error: "Ese pago es de un mes ya cerrado; ya no se puede cambiar." }, 409);
-
-  if (accion === "comprobante") {
-    const tipo = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
-    if (!TIPOS_COMP.includes(tipo)) return json({ ok: false, error: "Sube una foto (JPG, PNG, HEIC) o un PDF." }, 415);
-    const bytes = await request.arrayBuffer();
-    if (!bytes.byteLength || bytes.byteLength > 10 * 1024 * 1024) return json({ ok: false, error: "El archivo está vacío o pesa más de 10 MB." }, 413);
-    if (!cabeceraComprobanteValida(bytes, tipo))
-      return json({ok:false,error:"El archivo no coincide con el formato de foto o PDF indicado. Elige el archivo original."},415);
-    // Llave única por versión: dos sesiones no sobrescriben el mismo archivo
-    // antes de ganar la actualización condicional del recibo.
-    const llave = "pc:" + pago.id + ":" + crypto.randomUUID();
-    const nombre = `${pago.fecha} ${String(pago.titulo || "Pago").replace(/[^\p{L}\p{N} .-]/gu, "").slice(0, 60)}.${tipo === "application/pdf" ? "pdf" : (tipo.split("/")[1] || "jpg").replace("jpeg", "jpg")}`;
-    await guardarArchivo(env, llave, bytes, { tipo, nombre, carpeta: ["Comprobantes de pago", pago.fecha.slice(0, 7)] });
-    let guardado;
-    try {
-      const resultados = await env.DB.batch([
-        env.DB.prepare(`UPDATE agenda_pagos SET comprobante = ?, comp_tipo = ?
-          WHERE id = ? AND COALESCE(comprobante, '') = ?`)
-          .bind(llave, tipo, pago.id, pago.comprobante || ""),
-        stmtBitacoraSiCambio(env, {
-          quien: usuario?.email, accion: pago.comprobante ? "editar" : "crear",
-          que: "Comprobante de pago", ref: pago.id, mes: pago.fecha.slice(0, 7),
-          detalle: { tipo, operacion: pago.comprobante ? "reemplazo" : "adjuntar" }
-        })
-      ]);
-      guardado = resultados[0];
-    } catch (e) {
-      await borrarArchivo(env, llave).catch(() => {});
-      throw e;
-    }
-    if (!guardado.meta?.changes) {
-      await borrarArchivo(env, llave).catch(() => {});
-      return json({ok:false,error:"El comprobante cambió o el pago fue eliminado en otra sesión. Actualiza Pagos hechos."},409);
-    }
-    // Solo borrar la versión anterior DESPUÉS de vincular la nueva.
-    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(e => console.error("Comprobante antiguo", e?.message));
-    return json({ ok: true });
-  }
-  if (accion === "quitar-comprobante") {
-    if (!pago.comprobante) return json({ok:true,sin_cambios:true});
-    const resultados = await env.DB.batch([
-      env.DB.prepare(`UPDATE agenda_pagos SET comprobante = NULL, comp_tipo = NULL
-        WHERE id = ? AND comprobante = ?`).bind(pago.id, pago.comprobante),
-      stmtBitacoraSiCambio(env, {
-        quien: usuario?.email, accion: "borrar", que: "Comprobante de pago",
-        ref: pago.id, mes: pago.fecha.slice(0, 7), detalle: { operacion: "retirar" }
-      })
-    ]);
-    const guardado = resultados[0];
-    if (!guardado.meta?.changes)
-      return json({ok:false,error:"El comprobante cambió en otra sesión. Actualiza Pagos hechos antes de quitarlo."},409);
-    await borrarArchivo(env, pago.comprobante).catch(e => console.error("Comprobante retirado", e?.message));
-    return json({ ok: true });
-  }
-  if (accion === "editar") {
-    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    await normalizarMedio(env, c);
-    const v = await validarPagoHecho(env, { ...c, titulo: c.titulo ?? pago.titulo }, pago.item_id ? pago : null);
-    if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
-    const titulo = pago.item_id ? pago.titulo : v.titulo;
-    const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
-    const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
-    const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
-    if (errorCuenta) return json({ok:false,error:errorCuenta},422);
-    const mismo = pago.fecha === v.fecha && centavosIguales(pago.importe, v.importe)
-      && pago.forma === v.forma && (pago.nota || null) === (v.nota || null)
-      && (pago.titulo || "") === (titulo || "") && (pago.categoria || null) === (cat || null)
-      && (pago.cuenta || null) === (cta || null);
-    if (mismo) return json({ok:true,sin_cambios:true});
-    // Dos sesiones pueden abrir el mismo recibo: solo una modifica la versión
-    // que ambas vieron. El cambio del gasto comparte D1.batch y depende del
-    // UPDATE condicional, evitando gastos huérfanos o auditorías falsas.
-    const st = [
-      env.DB.prepare(`UPDATE agenda_pagos SET fecha=?, importe=?, forma=?, nota=?, titulo=?, categoria=?, cuenta=?
-        WHERE id=? AND fecha=? AND importe=? AND forma=?
-        AND COALESCE(nota,'')=? AND COALESCE(titulo,'')=? AND COALESCE(categoria,'')=?
-        AND COALESCE(cuenta,'')=? AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id=agenda_pagos.gasto_id))
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM fin_cuentas WHERE id = ? AND activa = 1 AND tipo = ?))`)
-        .bind(v.fecha,v.importe,v.forma,v.nota,titulo,cat,cta,
-          pago.id,pago.fecha,pago.importe,pago.forma,
-          pago.nota||"",pago.titulo||"",pago.categoria||"",pago.cuenta||"",
-          cta,cta,v.forma === "TARJETA" ? "credito" : "debito"),
-      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion:"editar",
-        que: pago.item_id ? "Pago programado" : "Pago no programado",
-        ref:pago.id,mes:v.fecha.slice(0,7),
-        detalle:{concepto:titulo,antes:{fecha:pago.fecha,importe:pago.importe,forma:pago.forma,cuenta:pago.cuenta,categoria:pago.categoria},
-          ahora:{fecha:v.fecha,importe:v.importe,forma:v.forma,cuenta:cta,categoria:cat}}})
-    ];
-    if (pago.gasto_id) st.push(
-      env.DB.prepare("UPDATE caja_gastos SET mes=?, dia=?, monto=?, forma=?, concepto=?, categoria=?, cuenta=? WHERE id=? AND changes()>0")
-        .bind(v.fecha.slice(0,7),v.fecha,v.importe,v.forma,("Pago: "+titulo).slice(0,120),cat,cta,pago.gasto_id)
-    );
-    let resultado;
-    try { resultado = await env.DB.batch(st); }
-    catch(er) { if(errorSaldoObligacion(er))return json({ok:false,error:"El cambio supera el saldo de la obligación. Actualiza antes de editar."},409);throw er; }
-    if (!resultado[0]?.meta?.changes)
-      return json({ok:false,error:"Este pago cambió o fue eliminado en otra sesión. Actualiza la lista antes de corregirlo."},409);
-    return json({ ok: true });
-  }
-  if (accion === "eliminar") {
-    // Compare-and-delete: si otra sesión corrigió o eliminó el pago tras abrir
-    // el diálogo, no destruir su versión más reciente ni duplicar la bitácora.
-    const st = [
-      env.DB.prepare(`DELETE FROM agenda_pagos WHERE id = ? AND fecha = ? AND importe = ? AND forma = ?
-        AND COALESCE(cuenta, '') = ? AND COALESCE(nota, '') = ?
-        AND COALESCE(titulo, '') = ? AND COALESCE(categoria, '') = ?
-        AND COALESCE(comprobante, '') = ?
-        AND (gasto_id IS NULL OR EXISTS (SELECT 1 FROM caja_gastos WHERE id = agenda_pagos.gasto_id))`)
-        .bind(pago.id, pago.fecha, pago.importe, pago.forma, pago.cuenta || "", pago.nota || "",
-          pago.titulo || "", pago.categoria || "", pago.comprobante || ""),
-      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar",
-        que: pago.item_id ? "Pago programado" : "Pago no programado", ref: pago.id,
-        mes: pago.fecha.slice(0, 7),
-        detalle: { concepto: pago.titulo, fecha: pago.fecha, importe: pago.importe, forma: pago.forma, cuenta: pago.cuenta } })
-    ];
-    // changes() es el de la bitácora anterior: si DELETE = 0, todo sigue intacto.
-    if (pago.gasto_id) st.push(
-      env.DB.prepare("DELETE FROM caja_gastos WHERE id = ? AND changes() > 0").bind(pago.gasto_id)
-    );
-    let regreso = null;
-    if (pago.item_id && pago.programado) {
-      const it = await env.DB.prepare("SELECT * FROM agenda_items WHERE id = ?").bind(pago.item_id).first();
-      const otro = await env.DB.prepare("SELECT 1 FROM agenda_pagos WHERE item_id = ? AND creado > ? LIMIT 1").bind(pago.item_id, pago.creado).first();
-      if (it && !otro) {
-        const n = MESES_FREC[it.frecuencia || "mensual"];
-        if (!n && it.estado === "pagado") {
-          st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, fecha = ?, actualizado = ? WHERE id = ? AND changes() > 0")
-            .bind(pago.programado, ahora, it.id));
-          regreso = pago.programado;
-        } else if (n && it.fecha === sumarMeses(pago.programado, n)) {
-          st.push(env.DB.prepare("UPDATE agenda_items SET fecha = ?, avisado = NULL, actualizado = ? WHERE id = ? AND changes() > 0")
-            .bind(pago.programado, ahora, it.id));
-          regreso = pago.programado;
-        }
-      }
-    }
-    // Solo la anulación manual libera saldo. La depuración a 13 meses
-    // conserva el abono histórico de obligaciones ya liquidadas.
-    st.push(env.DB.prepare(`UPDATE fin_obl_abonos SET activo=0,anulado_en=? WHERE pago_id=? AND activo=1
-      AND NOT EXISTS(SELECT 1 FROM agenda_pagos WHERE id=?)`).bind(ahora,pago.id,pago.id));
-    const resultados = await env.DB.batch(st);
-    if (!resultados[0]?.meta?.changes)
-      return json({ ok:false, error:"Este pago ya cambió o fue eliminado en otra sesión. Actualiza la lista antes de intentar borrarlo." },409);
-    if (pago.comprobante) await borrarArchivo(env, pago.comprobante).catch(() => {});
-    return json({ ok:true, regreso });
-  }
-  return json({ ok: false, error: "Ruta no encontrada." }, 404);
-}
+// Inyección de utilidades ya existentes; conserva rutas y API pública.
+const dependenciasPagos = () => ({ normalizarMedio, json, MESES_FREC, sumarMeses, validarPagoHecho, stmtGastoAdmin, pagoEliminado, errorBancoEnEscritura, conflictoBanco, cuentaDe, errorCuentaEgreso, TIPOS_COMP, cabeceraComprobanteValida });
 
 // Rutas: /panel/api/agenda...
 export async function agendaPanel(request, env, url, partes, usuario) {
@@ -709,28 +493,9 @@ export async function agendaPanel(request, env, url, partes, usuario) {
   const ahora = new Date().toISOString();
 
 
-  // Feed independiente de compras, pagos e incidencias; no devuelve datos ajenos.
-  if (partes[1] === "avisos-feed" && request.method === "GET") {
-    await asegurarEsquemaAvisos(env);
-    const cursor = url.searchParams.get("cursor") || "";
-    const m = /^(\d{4}-\d\d-\d\dT[^|]{8,28})\|([A-Za-z0-9_-]{8,80})$/.exec(cursor);
-    const condiciones = ["tipo = 'aviso'", "estado = 'activo'"], args = [];
-    if(m){condiciones.push("(creado < ? OR (creado = ? AND id < ?))");args.push(m[1],m[1],m[2]);}
-    const rows = (await env.DB.prepare("SELECT * FROM agenda_items WHERE "+condiciones.join(" AND ")+" ORDER BY creado DESC,id DESC LIMIT 26").bind(...args).all()).results;
-    const items = rows.slice(0,25);
-    if(items.length){
-      const ids=items.map(x=>x.id),q=ids.map(()=>"?").join(",");
-      const [lect,vistos]=await Promise.all([
-        env.DB.prepare("SELECT item_id, persona, at FROM agenda_lecturas WHERE item_id IN ("+q+")").bind(...ids).all().then(x=>x.results),
-        env.DB.prepare("SELECT item_id FROM aviso_vistos WHERE persona = 'ADMIN' AND item_id IN ("+q+")").bind(...ids).all().then(x=>x.results)
-      ]);
-      const v=new Set(vistos.map(x=>x.item_id)), conv=await resumenConversaciones(env,items,"ADMIN");
-      for(const it of items){it.lecturas=lect.filter(x=>x.item_id===it.id);it.visto_admin=v.has(it.id);
-        it.para=normalizarPara(it.para);it.autor=it.autor||"admin";it.conv=conv[it.id];}
-    }
-    const ultimo=items[items.length-1];
-    return json({ok:true,items,mas:rows.length>25,cursor:ultimo?ultimo.creado+"|"+ultimo.id:""});
-  }
+  // Admin feed delegado sin cambiar HTTP ni permisos.
+  if (partes[1] === "avisos-feed" && request.method === "GET")
+    return feedCastagramAdmin(env, url, { asegurarEsquemaAvisos, resumenConversaciones, normalizarPara, json });
 
   await asegurarEsquemaCaja(env);
   await asegurarEsquemaCategorias(env);
@@ -847,7 +612,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       no_programados: noProg, n_no_programados: noProg.length, total_no_programados: noProg.reduce((a, x) => a + x.importe, 0) });
   }
 
-  if (partes[1] === "pagos" && partes.length >= 3) return await pagosHechosRutas(request, env, partes, usuario, ahora);
+  if (partes[1] === "pagos" && partes.length >= 3) return await pagosHechosRutas(request, env, partes, usuario, ahora, dependenciasPagos());
 
   if (partes.length === 1 && request.method === "POST") {
     let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
@@ -885,124 +650,12 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     return json({ ok: true, id });
   }
 
-  // ---- Lista de compras: carrito y terminar la compra con un solo ticket ----
-  // Regresar a pendiente todos los artículos de un ticket (se borra su egreso).
-  // Solo afecta a la compra exacta si aún tiene sus artículos comprados:
-  // una petición atrasada NO puede borrar el historial de una recompra posterior.
-  if (partes[1] === "compras" && partes[2] === "regresar-ticket" && request.method === "POST") {
-    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
-    const gid = String(c.gasto_id || "");
-    const g = await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ? AND origen = 'admin'").bind(gid).first();
-    const its = (await env.DB.prepare("SELECT id, titulo, estado FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gid).all()).results;
-    if (!g || !its.length) return json({ ok: false, error: "Ese ticket ya no está disponible. Actualiza la lista antes de repetir." }, 409);
-    if (!(await mesesAbiertos(env)).includes(g.mes))
-      return json({ ok: false, error: "Ese ticket es de un mes ya cerrado; ya no se puede regresar a pendiente." }, 409);
-    if (its.some(it => it.estado !== "comprado"))
-      return json({ok:false,error:"El ticket cambió en otra sesión. Actualiza la lista."},409);
-    const resultado = await env.DB.batch([
-      // La compra debe seguir completa: impide que una sesión vieja retire
-      // artículos que fueron movidos a otro gasto por una sesión más reciente.
-      env.DB.prepare(`DELETE FROM caja_gastos WHERE id = ? AND mes = ? AND origen = 'admin'
-        AND (SELECT COUNT(*) FROM agenda_items WHERE tipo = 'compra' AND estado = 'comprado' AND gasto_id = ?) = ?`)
-        .bind(gid, g.mes, gid, its.length),
-      stmtBitacoraSiCambio(env, { quien: usuario && usuario.email, accion: "borrar", que: "Compra", ref: gid, mes: g.mes,
-        detalle: { dia: g.dia, concepto: g.concepto, importe: g.monto, forma: g.forma, cuenta: g.cuenta } }),
-      // changes() en este paso pertenece a la bitácora insertada solo si DELETE ganó.
-      env.DB.prepare(`UPDATE agenda_items SET estado = 'pendiente', cerrado = NULL, importe = NULL,
-        gasto_id = NULL, actualizado = ? WHERE tipo = 'compra' AND estado = 'comprado'
-        AND gasto_id = ? AND changes() > 0`).bind(ahora, gid),
-      // Solo liberar las claves históricas de este ticket después de devolver sus artículos.
-      env.DB.prepare("DELETE FROM compras_historial WHERE gasto_id = ? AND changes() > 0").bind(gid)
-    ]);
-    if (!resultado[0]?.meta?.changes)
-      return json({ok:false,error:"Ese ticket ya fue devuelto o cambió en otra sesión. Actualiza la lista."},409);
-    return json({ ok: true, n: Number(resultado[2]?.meta?.changes || 0) });
-  }
-  if (partes[1] === "compras" && request.method === "POST" && ["carrito", "terminar"].includes(partes[2])) {
-    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
-    const ids = [...new Set((Array.isArray(c.ids) ? c.ids : []).map(String))].slice(0, 80);
-    if (!ids.length) return json({ ok: false, error: "No hay artículos." }, 422);
-    let gidOperacion = null;
-    let repetido = async () => null;
-    if (partes[2] === "terminar") {
-      const quien = usuario && usuario.email || null;
-      try { gidOperacion = await idFinanciero("compra-ticket", c.uid, quien); }
-      catch (er) { return json({ok:false,error:er.message},422); }
-      await asegurarEsquemaCaja(env);
-      const total = cuentasTicket(ids, c.total, c.precios || {});
-      if (total.error) return json({ok:false,error:total.error},422);
-      await normalizarMedio(env, c);
-      const forma = ["EFECTIVO","TARJETA","TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
-      const dia = c.fecha_compra == null || c.fecha_compra === "" ? hoyMx() : String(c.fecha_compra);
-      if (!diaFinancieroValido(dia)) return json({ok:false,error:"La fecha de compra no existe. Revisa el calendario."},422);
-      repetido = async () => {
-        const gasto = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(gidOperacion).first() : null;
-        if (!gasto) return null;
-        const filasPrev = (await env.DB.prepare("SELECT id, importe FROM agenda_items WHERE tipo = 'compra' AND gasto_id = ?").bind(gidOperacion).all()).results;
-        // Dos tickets pueden sumar lo mismo con precios individuales distintos.
-        // El UID identifica también el desglose, no solo el total bancario.
-        const mismosPrecios = filasPrev.every(f => f.importe == null
-          ? total.precios[f.id] == null
-          : total.precios[f.id] != null && centavosIguales(f.importe, total.precios[f.id]));
-        const coinciden = filasPrev.length === ids.length && filasPrev.every(f => ids.includes(f.id))
-          && mismosPrecios && centavosIguales(gasto.monto,total.total) && gasto.dia === dia && gasto.forma === forma
-          && (c.cuenta == null || (gasto.cuenta || null) === (c.cuenta || null));
-        return coinciden ? json({ok:true,gasto_id:gidOperacion,total:total.total,repetido:true}) :
-          json({ok:false,error:"Esta compra ya quedó registrada con otros datos. Revisa el ticket antes de intentar repetirla."},409);
-      };
-      const anterior = await repetido(); if (anterior) return anterior;
-      if (await pagoEliminado(env,gidOperacion,"Compra"))
-        return json({ok:false,error:"Este ticket fue devuelto a pendientes. Actualiza Compras antes de intentar registrarlo de nuevo."},409);
-    }
-    const q = ids.map(() => "?").join(",");
-    const filas = (await env.DB.prepare(`SELECT * FROM agenda_items WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(...ids).all()).results;
-    if (partes[2] === "carrito") {
-      await env.DB.prepare(`UPDATE agenda_items SET en_carrito = ?, actualizado = ? WHERE tipo = 'compra' AND estado = 'pendiente' AND id IN (${q})`).bind(c.v ? 1 : null, ahora, ...ids).run();
-      return json({ ok: true, n: filas.length });
-    }
-    if (filas.length !== ids.length) return json({ ok: false, error: "Algún artículo ya no está pendiente. Actualiza la lista." }, 409);
-    const cu = cuentasTicket(ids, c.total, c.precios || {});
-    if (cu.error) return json({ ok: false, error: cu.error }, 422);
-    // La forma se normalizó una sola vez antes de verificar el retry.
-    // Normalizar dos veces perdería la cuenta de C:<id>.
-    const forma = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"].includes(c.forma) ? c.forma : "EFECTIVO";
-    await asegurarEsquemaCaja(env); await asegurarEsquemaCompras(env);
-    const dia = c.fecha_compra == null || c.fecha_compra === "" ? hoyMx() : String(c.fecha_compra);
-    if (!diaFinancieroValido(dia) || dia > hoyMx() || !(await mesesAbiertos(env)).includes(dia.slice(0, 7)))
-      return json({ ok: false, error: "La fecha de la compra debe existir, ser de un mes abierto y no futura." }, 422);
-    const lugares = await listaLugares(env), lugarIds = [...new Set(filas.map(f => f.lugar).filter(Boolean))];
-    const lugarN = lugarIds.length === 1 ? (lugares.find(l => l.id === lugarIds[0]) || {}).nombre : null;
-    const orden = ids.map(id => filas.find(f => f.id === id));
-    const lista = orden.map(f => f.titulo + (f.cantidad ? ` (${f.cantidad})` : "")).join(", ");
-    const concepto = ((lugarN ? `Compra en ${lugarN}: ` : "Compra: ") + lista).slice(0, 120);
-    // Categoría del egreso: la que más se repite entre los artículos
-    const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }
-    const cat = (await resolverCategoria(env, c.categoria)) || Object.entries(cats).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
-    const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
-    const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
-    if (errorCuenta) return json({ok:false,error:errorCuenta},422);
-    const st = [stmtGastoAdmin(env, gid, dia.slice(0, 7), dia, concepto, cu.total, forma, ahora, quien, cat, cta, null, {id:gid,que:"Compra"})];
-    for (const f of orden) {
-      const imp = cu.precios[f.id] ?? null;
-      st.push(env.DB.prepare("UPDATE agenda_items SET estado = 'comprado', cerrado = ?, actualizado = ?, importe = ?, gasto_id = ?, pospuesta = NULL, en_carrito = NULL WHERE id = ?").bind(ahora, ahora, imp, gid, f.id));
-      st.push(stmtHistorialCompra(env, f, { importe: imp, fecha: dia, gasto_id: gid, exclusiva: true }));
-    }
-    st.push(stmtBitacora(env, { quien, accion: "crear", que: "Compra", ref: gid, mes: dia.slice(0, 7), detalle: { dia, concepto, importe: cu.total, forma, cuenta: cta, categoria: cat, articulos: orden.length } }));
-    try { await env.DB.batch(st); }
-    catch (er) {
-      const ya = await repetido(); if (ya) return ya;
-      if (errorBancoEnEscritura(er))
-        return await pagoEliminado(env,gid,"Compra")
-          ? json({ok:false,error:"Este ticket fue devuelto en otra sesión. Actualiza Compras antes de registrar otro."},409)
-          : conflictoBanco();
-      if (/UNIQUE constraint failed: compras_historial\.id/i.test(String(er?.message || "")))
-        return json({ok:false,error:"Uno de los artículos ya fue comprado por otra sesión. Actualiza la lista antes de volver a registrar el ticket."},409);
-      throw er;
-    }
-    const deTablet = orden.filter(f => f.reporto);
-    if (deTablet.length) await notificar(env, "tablet", { titulo: deTablet.length === 1 ? "Ya se compró: " + deTablet[0].titulo : `Ya se compraron ${deTablet.length} cosas que pidieron`, cuerpo: deTablet.map(f => `${f.titulo} (pidió ${f.reporto})`).join(", ").slice(0, 200), sec: "inicio", url: "/turno", etiqueta: "compra-" + gid });
-    return json({ ok: true, gasto_id: gid, total: cu.total });
+  // Rutas de Compras: devolver null deja al coordinador resolver igual el 404.
+  if (partes[1] === "compras" && request.method === "POST") {
+    const res = await rutasComprasAgenda(request, env, partes, usuario, ahora, {
+      json, normalizarMedio, diaFinancieroValido, hoyMx, listaLugares, stmtGastoAdmin, pagoEliminado, errorBancoEnEscritura, conflictoBanco, cuentaDe, errorCuentaEgreso
+    });
+    if (res) return res;
   }
 
   // Archivo de avisos: todos los archivados con su conversación (no se borran)

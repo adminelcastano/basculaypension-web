@@ -1,3 +1,5 @@
+import {r2, CAT_SUELDOS, diferenciasCaja, resumenSueldos} from "./finanzas-calculos.js";
+export { CAT_SUELDOS, diferenciasCaja, resumenSueldos };
 // Finanzas: la unión de las dos fuentes de dinero, para llevar un control real.
 // - Turnos: tickets (efectivo, tarjeta y transferencia), ingresos extra, gastos de caja, retiros del corte
 //   (taxi, compras, sueldos) y diferencias de caja (lo contado contra lo esperado y el cambio entre turnos).
@@ -18,9 +20,9 @@ import { resumenPorCobrarCaja } from "./finanzas-cobrar.js";
 import { obligacionesRuta } from "./finanzas-obligaciones.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-const r2 = v => Math.round(v * 100) / 100;
+
 const RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
-export const CAT_COMISION = "Comisiones bancarias", CAT_FALTANTE = "Faltantes de caja", CAT_SUELDOS = "Sueldos", CAT_TRANSPORTE = "Transporte";
+export const CAT_COMISION = "Comisiones bancarias", CAT_FALTANTE = "Faltantes de caja", CAT_TRANSPORTE = "Transporte";
 
 let esquemaListo = false;
 export async function asegurarEsquemaFinanzas(env) {
@@ -72,17 +74,6 @@ export async function clasificarAdmin(env, gastos) {
 export const CAT_TXT = { programado: "Pago programado", no_programado: "Pago no programado", compra: "Compra", otro: "Otro gasto", caja: "Gasto de caja (turnos)", retiro: "Retiro del corte", comision: "Comisión de tarjeta", faltante: "Faltante de caja", cambio: "Aumento de cambio" };
 export const FORMA_ADMIN = { EFECTIVO: "Efectivo (sobres)", TRANSFERENCIA: "Transferencia (banco)", TARJETA: "Tarjeta (banco)" };
 
-// Diferencias de caja de los cortes entregados: lo contado contra lo esperado y el cambio entre turnos.
-// Negativo = faltó dinero (egreso); positivo = sobró (ingreso).
-export function diferenciasCaja(cortes, cambios) {
-  const lista = [];
-  for (const c of cortes) if (c.conteo && c.conteo.dif_efectivo != null && Math.abs(c.conteo.dif_efectivo) >= 0.01)
-    lista.push({ tipo: "corte", dia: c.dia, turno: c.turno, persona: c.conteo.persona, dif: c.conteo.dif_efectivo, concepto: "Efectivo contado contra el esperado" });
-  for (const x of cambios) if (Math.abs(x.dif) >= 0.01)
-    lista.push({ tipo: "cambio", dia: x.dia, turno: x.turno, persona: x.recibio, dif: x.dif, concepto: `Cambio: ${x.de.persona} dejó ${x.dejado.toFixed(2)}, ${x.recibio} recibió ${x.recibido.toFixed(2)}` });
-  const faltantes = r2(-lista.filter(x => x.dif < 0).reduce((a, x) => a + x.dif, 0)), sobrantes = r2(lista.filter(x => x.dif > 0).reduce((a, x) => a + x.dif, 0));
-  return { lista: lista.sort((a, b) => a.dia.localeCompare(b.dia)), faltantes, sobrantes };
-}
 
 // Retiros del corte (taxi, compras, sueldos…): egresos del día del corte
 export function retirosDeCortes(conteos) {
@@ -105,18 +96,6 @@ export function renglonesHoja(movs) {
   return { gastos, ingresos, admin };
 }
 
-// Sueldos del mes: lo que los encargados se cobran del turno (gastos de caja o retiros con categoría Sueldos)
-// y lo que paga la administración (pagos con categoría Sueldos, en efectivo de los sobres o por banco).
-export function resumenSueldos(gastosCaja, retiros, admin) {
-  const porPersona = {};
-  const sumar = (k, v, n = 1) => { porPersona[k] = porPersona[k] || { persona: k, total: 0, n: 0 }; porPersona[k].total = r2(porPersona[k].total + v); porPersona[k].n += n; };
-  for (const g of gastosCaja) if (g.categoria === CAT_SUELDOS) sumar(g.persona || g.creado_por || "Sin nombre", g.monto);
-  for (const r of retiros) if (r.categoria === CAT_SUELDOS) sumar(r.persona || "Sin nombre", r.monto);
-  const delAdmin = {};
-  for (const x of admin) if (x.categoria === CAT_SUELDOS) { const k = String(x.concepto || "Sueldo").replace(/^Pago:\s*/i, ""); delAdmin[k] = delAdmin[k] || { concepto: k, total: 0, n: 0 }; delAdmin[k].total = r2(delAdmin[k].total + x.monto); delAdmin[k].n++; }
-  const caja = Object.values(porPersona).sort((a, b) => b.total - a.total), adm = Object.values(delAdmin).sort((a, b) => b.total - a.total);
-  return { caja, admin: adm, total_caja: r2(caja.reduce((a, x) => a + x.total, 0)), total_admin: r2(adm.reduce((a, x) => a + x.total, 0)), total: r2(caja.reduce((a, x) => a + x.total, 0) + adm.reduce((a, x) => a + x.total, 0)) };
-}
 
 // Registros de dinero de varios meses (para los saldos encadenados), agrupados por mes
 async function leerFlujos(env, meses, cuentas) {

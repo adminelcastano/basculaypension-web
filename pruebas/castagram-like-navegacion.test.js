@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const leer = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const pagina = leer("../src/panel/pagina.html");
 const inicio = leer("../src/panel/cliente/06-inicio.js");
-const panel = leer("../src/panel/cliente/07-agenda.js");
+const panel = leer("../src/panel/cliente/07-agenda.js") + "\n" + leer("../src/panel/cliente/07-castagram-controlador.js");
 const tablet = leer("../src/turno.html");
 const avisos = leer("../src/avisos.js");
 const agenda = leer("../src/agenda.js");

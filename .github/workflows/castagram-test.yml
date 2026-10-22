@@ -46,3 +46,27 @@ jobs:
 
       - name: Validar compilación de Finanzas ensayo sin publicar
         run: ./node_modules/.bin/wrangler deploy --config wrangler.finanzas-ensayo.jsonc --dry-run --outdir /tmp/finanzas-ensayo-validado
+
+  ux-refactor:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador de pruebas sin ejecutar scripts de paquetes
+        run: npm install --ignore-scripts --no-save --no-audit --no-fund playwright@1.56.1
+      - name: Instalar Chromium y WebKit
+        run: npx playwright install --with-deps chromium webkit
+      - name: Navegación y viewport en servidor local sintético (11 perfiles)
+        run: node pruebas/ux-browser-emulado.mjs
+      - name: Capturas exclusivamente sintéticas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactor-ux-11-perfiles
+          path: ux-artifacts/*.png
+          retention-days: 3
+          if-no-files-found: warn
