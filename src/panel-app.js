@@ -8,7 +8,8 @@
 import PAGINA from "./panel/pagina.html";
 import CSS_BASE from "./panel/estilos.css";
 import CSS_NAVEGACION from "./panel/estilos-navegacion.css";
-const CSS = CSS_BASE + CSS_NAVEGACION;
+import CSS_CASTAGRAM from "./panel/estilos-castagram.css";
+const CSS = CSS_BASE.replace("/*__CASTAGRAM_CSS__*/", CSS_CASTAGRAM) + CSS_NAVEGACION;
 import J00 from "./panel/cliente/00-base.js";
 import J00P from "./panel/cliente/00-perfil-admin.js";
 import J01 from "./panel/cliente/01-facturacion.js";

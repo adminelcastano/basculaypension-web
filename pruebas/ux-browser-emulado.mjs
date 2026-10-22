@@ -12,7 +12,9 @@ const html=read("src/panel/pagina.html").replace("{{CSS}}","/panel/app.css").rep
 // El ensayo sirve exactamente las mismas hojas concatenadas por panel-app.js.
 const estilosExtra = existsSync(join(root,"src/panel/estilos-navegacion.css"));
 if (estilosExtra) assert.ok(read("src/panel-app.js").includes("CSS_BASE + CSS_NAVEGACION"));
-const css=read("src/panel/estilos.css") + (estilosExtra ? read("src/panel/estilos-navegacion.css") : "");
+const cssBase=read("src/panel/estilos.css");
+const castaCss=existsSync(join(root,"src/panel/estilos-castagram.css")) ? read("src/panel/estilos-castagram.css") : null;
+const css=(castaCss ? cssBase.replace("/*__CASTAGRAM_CSS__*/",castaCss) : cssBase) + (estilosExtra ? read("src/panel/estilos-navegacion.css") : "");
 const rjson=(res,obj)=>{res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify(obj));};
 const server=createServer((req,res)=>{
  const p=new URL(req.url,"http://127.0.0.1").pathname;
