@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
+const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../src/panel/cliente/01-facturacion.js", import.meta.url), "utf8");
 const csf = readFileSync(new URL("../src/lectura-csf.js", import.meta.url), "utf8");
 
