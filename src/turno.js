@@ -1,3 +1,5 @@
+import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
+export { turnoSugerido, diaDeTurno };
 import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
@@ -23,7 +25,7 @@ const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGEND
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio, guardarMovimientoAdminCaja, anularMovimientoAdminCaja } from "./caja.js";
 
-const TZ = "America/Mexico_City";
+
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
@@ -90,26 +92,6 @@ const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")
 const b64u = s => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const deB64u = s => atob(s.replace(/-/g, "+").replace(/_/g, "/"));
 
-// Hora local en México (sin horario de verano)
-function local(ahora = new Date()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .formatToParts(ahora).map(x => [x.type, x.value]));
-  return { dia: `${p.year}-${p.month}-${p.day}`, h: Number(p.hour) + Number(p.minute) / 60 };
-}
-const sumaDias = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-
-// Turno sugerido al entrar: el que empieza en los próximos 30 minutos ya cuenta
-export function turnoSugerido(ahora = new Date()) {
-  const { h } = local(ahora);
-  const x = (h + 0.5) % 24;
-  return x >= 6 && x < 14 ? "MAÑANA" : x >= 14 && x < 22 ? "TARDE" : "NOCHE";
-}
-// Día del corte para el turno elegido (la noche que pasa de medianoche es del día anterior)
-export function diaDeTurno(turno, ahora = new Date()) {
-  const { dia, h } = local(ahora);
-  if (turno === "NOCHE" && h < 12) return sumaDias(dia, -1);
-  return dia;
-}
 
 // ---------------------------------------------------------------------------
 // Esquema
