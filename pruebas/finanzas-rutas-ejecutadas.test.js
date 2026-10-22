@@ -30,7 +30,7 @@ test("Rutas antiguas reales convergen a CAJA, AGENDA, CONFIG y cuatro vistas de 
  assert.equal(window.EC.hashDe("caja","transferencias"),"#caja/transferencias");
 });
 test("Tarjetas con apertura desconocida no se venden como deuda total",()=>{
- assert.ok(fin.includes('b.deuda_parcial?null:b.deuda'));
+ assert.ok(fin.includes('b.deuda_parcial||montosSinCuenta?null:b.deuda'));
  assert.ok(fin.includes('Parcial: falta deuda inicial de alguna tarjeta'));
  assert.ok(!fin.includes('Obligaciones registradas, excluye tarjetas'));
  assert.ok(fin.includes('no sumarla a obligaciones sin revisar'));
