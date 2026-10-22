@@ -6,6 +6,7 @@
 // (huella del contenido) en la URL: el navegador los guarda un año y solo los vuelve a bajar cuando cambian.
 // Todo pasa por la verificación de Cloudflare Access igual que antes.
 import PAGINA from "./panel/pagina.html";
+import { transformarPanelFinanciero } from "./panel-financiero.js";
 import CSS_BASE from "./panel/estilos.css";
 import CSS_NAVEGACION from "./panel/estilos-navegacion.css";
 const CSS = CSS_BASE + CSS_NAVEGACION;
@@ -55,6 +56,11 @@ async function huella() {
 export async function paginaPanel() {
   const v = await huella();
   return PAGINA.replace("{{CSS}}", `/panel/app.css?v=${v}`).replace("{{JS}}", `/panel/app.js?v=${v}`);
+}
+
+// Comparte exactamente las versiones CSS/JS de /panel; sin copiar datos ni guardar cachés adicionales.
+export async function paginaPanelFinanciero() {
+  return transformarPanelFinanciero(await paginaPanel());
 }
 
 // /panel/app.css y /panel/app.js (null si no es uno de ellos)
