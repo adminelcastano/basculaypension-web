@@ -129,5 +129,5 @@ window.CastaPagosControlador = function crearPagos(dependencias) {
     f.addEventListener("submit", ev => { ev.preventDefault(); enviar(); });
   }
 
-  return { listaPagosHechos, ventanaPago, ventanaProgramar };
+  return { filaPagoHecho, listaPagosHechos, ventanaPago, ventanaProgramar };
 };
