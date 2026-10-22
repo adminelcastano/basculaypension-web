@@ -93,10 +93,8 @@ test("Compra agrupada puede reintentarse sin duplicar ticket ni perder cuenta",(
   const agenda=source("../src/agenda.js");
   const ui=source("../src/panel/cliente/07-compras-controlador.js");
   assert.match(source("../src/panel/cliente/07-agenda.js"),/window\.CastaComprasControlador\(\{/);
-  const a=agenda.indexOf('if (partes[1] === "compras" && request.method');
-  const b=agenda.indexOf("// Archivo de avisos:",a);
-  assert.ok(a>0&&b>a);
-  const bloque=agenda.slice(a,b);
+  assert.match(agenda,/rutasComprasAgenda\(request, env, partes, usuario, ahora/);
+  const bloque=source("../src/agenda-compras-rutas.js");
   assert.match(bloque,/idFinanciero\("compra-ticket"/);
   assert.match(bloque,/const anterior = await repetido\(\); if \(anterior\) return anterior/);
   assert.match(bloque,/const ya = await repetido\(\); if \(ya\) return ya/);
