@@ -19,7 +19,9 @@ test("La vista de obligaciones compila, está montada una sola vez y funciona en
   assert.ok(ui.includes('name="'+k+'"'),"Falta "+k);
 });
 test("Abonar una obligación utiliza el pago administrativo con UID y sin doble gasto",()=>{
- const agenda=leer("src/panel/cliente/07-agenda.js");
+ const agenda=leer("src/panel/cliente/07-pagos-controlador.js");
+ const coordinador=leer("src/panel/cliente/07-agenda.js");
+ assert.match(coordinador,/window\.agendaPagarObligacion/);
  const backend=leer("src/agenda.js");
  const pagos=leer("src/finanzas-obligaciones.js");
  assert.ok(agenda.includes('modo === "obligacion" ? { obligacion_id: it.id } : {}'));
