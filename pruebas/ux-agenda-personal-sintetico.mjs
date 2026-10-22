@@ -17,7 +17,7 @@ const normal={ok:true,items:[
  {id:"t1",tipo:"tarea",titulo:"Revisar equipo sintético",estado:"pendiente",fecha,prioridad:"normal",creado:"2026-10-22T10:00:00Z"},
  {id:"i1",tipo:"incidencia",titulo:"Incidencia sintética",estado:"pendiente",fecha,gravedad:"leve",prioridad:"normal",creado:"2026-10-22T10:00:00Z"}
 ],hoy:fecha,pagos_hechos:[{id:"ph1",titulo:"Pago sintético",fecha,importe:125.25,forma:"EFECTIVO",categoria:"",nota:"",comprobante:null}],
- meses_abiertos:["2026-10"],categorias:[],cuentas:[],frecuencias:{mensual:"Mensual"},lugares:[],
+ meses_abiertos:["2026-10"],categorias:[{nombre:"Sueldos",etiqueta:"Sueldos",icono:"sueldos",color:"#b69cff"},{nombre:"Otros",etiqueta:"Otros",icono:"otros",color:"#8e8e93"},{nombre:"Oficina",etiqueta:"Oficina",icono:"papeleria",color:"#ffcc00"}],cuentas:[],frecuencias:{mensual:"Mensual"},lugares:[],
  memoria_compras:[{norm:"papel termico sintetico",titulo:"Papel térmico sintético",veces:3,
  precio:{importe:120.5,fecha:"2026-10-20"},ultimo:{lugar:"",cantidad:"1 caja"}}],
  abiertos:{tarea:1,incidencia:1,aviso:0},avisos_sin_leer:0};
@@ -33,6 +33,7 @@ const server=createServer((req,res)=>{
  if(p==="/panel/app.js"){res.writeHead(200,{"Content-Type":"application/javascript"});return res.end(js);}
  if(p==="/panel/api/agenda")return json(res,normal);
  if(p==="/panel/api/agenda/avisos-feed")return json(res,{ok:true,items:[],cursor:"",mas:false});
+ if(p==="/panel/api/categorias")return json(res,{ok:true,categorias:normal.categorias,protegidas:["Sueldos","Otros"],pendientes:[{id:"g1",origen:"caja_gastos",concepto:"Gasto sin categoría de ensayo",dia:fecha,importe:80}],total:1});
  if(p==="/panel/api/colaboradores")return json(res,{ok:true,colaboradores:url.searchParams.get("tipo")==="externo"?[externo]:[persona],conteos,config:{drive:false}});
  if(p==="/panel/api/colaboradores/campanas")return json(res,{ok:true,campanas:[],hoy:fecha,documentos:[]});
  if(p.startsWith("/panel/api/colaboradores/") && !p.includes("/campanas/")) {
@@ -92,6 +93,12 @@ try {
      await page.evaluate(()=>document.querySelector('#mod-personal [data-nuevo="campanas"]').click());
      await page.waitForFunction(()=>!!document.querySelector("#cp-form"));
      assert.match(await page.locator("#cp-form").textContent(),/Nueva campaña|¿A quién va\?/);
+     await page.evaluate(()=>window.irA("config",{historia:"push",vista:"categorias"}));
+     await page.waitForFunction(()=>document.querySelector("#cfg-categorias-c")?.textContent.includes("Gasto sin categoría de ensayo"));
+     assert.equal(await page.locator('#cfg-categorias-c [data-cat-borrar="Sueldos"]').count(),0);
+     assert.equal(await page.locator('#cfg-categorias-c [data-cat-borrar="Oficina"]').count(),1);
+     assert.match(await page.locator("#cfg-categorias-c").textContent(),/Gasto sin categoría de ensayo/);
+     assert.equal(await page.locator('#cfg-categorias-c [data-cat-asignar="g1"]').count(),1);
      assert.equal(errors.length,0,"Errores JS: "+errors.join("; "));
      console.log("OK "+name+": calendario, pagos, compras, tareas, incidencias, Castagram y Personal");
    }finally{await ctx.close();await browser.close();}
