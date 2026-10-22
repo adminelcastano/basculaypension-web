@@ -169,7 +169,7 @@ export async function recategorizarRegistro(env, { origen, id, categoria, quien 
   const filaCat = await env.DB.prepare("SELECT nombre FROM categorias WHERE nombre=? OR COALESCE(etiqueta,nombre)=?").bind(categoria,categoria).first();
   if (!filaCat) { const e = new Error("Elige una categoría existente de la lista."); e.code = "CAT_INVALIDA"; throw e; }
   if (!await existeTablaCategoria(env, origen)) { const e = new Error("Registro no encontrado."); e.code = "CAT_NO_EXISTE"; throw e; }
-  const original = await env.DB.prepare("SELECT id, categoria" + (origen === "caja_gastos" || origen === "agenda_items" || origen === "agenda_pagos" ? ", gasto_id" : "") + " FROM " + origen + " WHERE id=?").bind(id).first();
+  const original = await env.DB.prepare("SELECT id, categoria" + (origen === "caja_gastos" ? "" : ", gasto_id") + " FROM " + origen + " WHERE id=?").bind(id).first();
   if (!original || original.categoria != null) {
     const e = new Error("Este registro ya fue categorizado o no existe. Actualiza la lista."); e.code = "CAT_CONFLICTO"; throw e;
   }
