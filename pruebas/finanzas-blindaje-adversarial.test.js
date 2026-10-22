@@ -54,7 +54,7 @@ test("Escrituras financieras conservan uid y limitan duplicados en servidor",()=
   const caja=source("../src/caja.js");
   const agenda=source("../src/agenda.js");
   const uiFin=source("../src/panel/cliente/05-finanzas.js");
-  const uiAgenda=source("../src/panel/cliente/07-agenda.js");
+  const uiAgenda=source("../src/panel/cliente/07-pagos-controlador.js");
   for(const src of [cuentas,caja,agenda]) {
     assert.match(src,/idFinanciero\(/);
     assert.match(src,/repetid[oa]\(/);
@@ -91,7 +91,8 @@ test("Caja del panel conserva identidad al reintentar y asienta la bitácora",()
 
 test("Compra agrupada puede reintentarse sin duplicar ticket ni perder cuenta",()=>{
   const agenda=source("../src/agenda.js");
-  const ui=source("../src/panel/cliente/07-agenda.js");
+  const ui=source("../src/panel/cliente/07-compras-controlador.js");
+  assert.match(source("../src/panel/cliente/07-agenda.js"),/window\.CastaComprasControlador\(\{/);
   const a=agenda.indexOf('if (partes[1] === "compras" && request.method');
   const b=agenda.indexOf("// Archivo de avisos:",a);
   assert.ok(a>0&&b>a);
@@ -174,12 +175,15 @@ test("Interfaz móvil: controles de cuentas revierten valores rechazados y bloqu
 });
 test("Pago modal: evitar doble confirmación y recuperar el estado tras conflicto",()=>{
   const ui=source("../src/panel/cliente/07-agenda.js");
-  assert.match(ui,/const b = f\.querySelector\("\[type=submit\]"\);\s*if \(b\.disabled\) return;\s*b\.disabled = true/);
+  const modal=source("../src/panel/cliente/07-pagos-controlador.js");
+  assert.match(ui,/window\.CastaPagosControlador/);
+  assert.match(modal,/const b = f\.querySelector\("\[type=submit\]"\);\s*if \(b\.disabled\) return;\s*b\.disabled = true/);
   assert.match(ui,/c\.querySelectorAll\("\[data-borrar-pago\]"\)/);
   assert.match(ui,/if \(b\.disabled\) return;\s*const p = \(st\.pagosHechos/);
   assert.match(ui,/if \(b\.isConnected\) b\.disabled = false/);
   assert.match(ui,/\/otra sesión\|cambió\|ya no existe\/\.test\(e\.message\)/);
   assert.doesNotThrow(()=>new Function(ui));
+  assert.doesNotThrow(()=>new Function(modal));
 });
 
 test("El campo móvil conserva saldo original para rechazar formularios obsoletos",()=>{
