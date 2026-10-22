@@ -342,8 +342,9 @@ window.interpretarAgenda = function (texto, hoy) {
       <p class="note">Eliminar una categoría no borra sus gastos ni importes. Los registros quedan «Sin categoría» para que los reclasifiques. Las categorías técnicas están protegidas.</p>
       <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
           <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
-          <label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i=>`<option value="${i}" ${i===c.icono?"selected":""}>${esc(ICONO_TXT[i] || i)}</option>`).join("")}</select></label>
+          <div class="cat-sel" style="flex-wrap:wrap"><label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i=>`<option value="${i}" ${i===c.icono?"selected":""}>${esc(ICONO_TXT[i] || i)}</option>`).join("")}</select></label>
           ${protegidas.has(c.nombre) ? '<span class="note">Sistema</span>' : `<button class="btn btn-line btn-sm" type="button" data-cat-borrar="${esc(c.nombre)}">Eliminar</button>`}
+          </div>
         </div>`).join("")}</div>
       <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Limpieza e higiene" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
       ${disponibles.length ? `<p class="note">Categorías sugeridas (opcionales):</p><div class="row">${disponibles.map(([n,ico])=>`<button class="btn btn-line btn-sm" type="button" data-cat-sugerir="${esc(n)}" data-icono="${ico}">+ ${esc(n)}</button>`).join("")}</div>` : ""}
