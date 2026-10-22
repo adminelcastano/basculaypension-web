@@ -64,6 +64,10 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_pagos").get().n,1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_obl_abonos").get().n,1);
+  assert.deepEqual(
+    (({fecha_pago,forma_pago,concepto_pago})=>[fecha_pago,forma_pago,concepto_pago])(
+      db.prepare("SELECT fecha_pago,forma_pago,concepto_pago FROM fin_obl_abonos WHERE pago_id=?").get(primero.data.id)
+    ),[dia,"TRANSFERENCIA",base.titulo],"Se guarda la fecha real, forma y concepto de cada abono");
   const excesivo=await pago("pagos/hecho",{...base,uid:"uid-abono-excesivo-2026",importe:"120.31"});
   assert.equal(excesivo.status,409,JSON.stringify(excesivo));
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1,"Abono rechazado revierte egreso y pago");
@@ -82,6 +86,11 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   assert.equal(db.prepare("SELECT activo FROM fin_obl_abonos WHERE pago_id=?").get(segundo.data.id).activo,0);
   list=await listar();assert.equal(list.obligaciones[0].saldo,120.30);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM caja_gastos").get().n,1);
+  const corregido=await pago("pagos/"+primero.data.id+"/editar",{...base,importe:"80.25",
+    titulo:"Abono corregido con referencia permanente"});
+  assert.equal(corregido.status,200,JSON.stringify(corregido));
+  assert.equal(db.prepare("SELECT concepto_pago FROM fin_obl_abonos WHERE pago_id=?").get(primero.data.id).concepto_pago,
+    "Abono corregido con referencia permanente");
   const rem=await obl({...c,accion:"editar",version:1,total:"100.00"},"finanzas/obligaciones/"+id);
   assert.equal(rem.status,200,JSON.stringify(rem));
   list=await listar();assert.equal(list.obligaciones[0].saldo,19.75);
@@ -96,6 +105,11 @@ test("Obligaciones confirmadas: dos abonos atómicos, reintentos, límites y rev
   // el vínculo conserva su foto monetaria, aunque agenda_pagos desaparezca.
   db.prepare("DELETE FROM agenda_pagos WHERE id=?").run(primero.data.id);
   list=await listar();assert.equal(list.obligaciones[0].pagado,80.25);
+  historia=(await obl(null,"finanzas/obligaciones/"+id,"GET")).data;
+  const persistente=historia.abonos.find(x=>x.pago_id===primero.data.id);
+  assert.equal(persistente.fecha,dia,"La fecha efectiva sobrevive la limpieza de 13 meses");
+  assert.equal(persistente.forma,"TRANSFERENCIA","El medio de pago también sobrevive");
+  assert.equal(persistente.titulo,"Abono corregido con referencia permanente");
   assert.equal(db.prepare("SELECT COUNT(*) n FROM fin_obl_abonos WHERE activo=1").get().n,1);
   // Paginación: el tablero continúa mostrando todos los importes confirmados.
   const nueva=db.prepare("INSERT INTO fin_obligaciones(id,acreedor,concepto,total_centavos,vencimiento,creado,actualizado) VALUES(?,'Proveedor ficticio','Factura de prueba',100,?,?,?)");

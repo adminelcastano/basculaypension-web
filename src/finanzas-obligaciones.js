@@ -28,7 +28,17 @@ export async function asegurarEsquemaObligaciones(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS fin_obligaciones_hist_ref ON fin_obligaciones_hist(obligacion_id,version)").run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS fin_obl_abonos (
     pago_id TEXT PRIMARY KEY, obligacion_id TEXT NOT NULL, importe_centavos INTEGER NOT NULL CHECK(importe_centavos>0),
-    activo INTEGER NOT NULL DEFAULT 1, creado TEXT NOT NULL, creado_por TEXT, anulado_en TEXT)`).run();
+    activo INTEGER NOT NULL DEFAULT 1, creado TEXT NOT NULL, creado_por TEXT, anulado_en TEXT,
+    fecha_pago TEXT, forma_pago TEXT, concepto_pago TEXT)`).run();
+  // Migración aditiva: en una Preview previa puede existir la tabla sin estos
+  // campos. Nunca borrar/reescribir abonos ni asumir que el historial antiguo
+  // contiene una fecha de pago que no se guardó.
+  const campos=(await env.DB.prepare("PRAGMA table_info(fin_obl_abonos)").all()).results;
+  for(const campo of ["fecha_pago","forma_pago","concepto_pago"]){
+    if(campos.some(x=>x.name===campo))continue;
+    try{await env.DB.prepare("ALTER TABLE fin_obl_abonos ADD COLUMN "+campo+" TEXT").run();}
+    catch(er){if(!/duplicate column name/i.test(String(er?.message||"")))throw er;}
+  }
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS fin_obl_abonos_obligacion ON fin_obl_abonos(obligacion_id,activo)").run();
   // Las consultas previas no son suficientes en dos sesiones simultáneas.
   // El trigger evalúa la suma vigente DENTRO del INSERT transaccional.
@@ -58,6 +68,12 @@ export async function asegurarEsquemaObligaciones(env) {
   await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS fin_obl_pago_actualizar AFTER UPDATE OF importe ON agenda_pagos
     BEGIN UPDATE fin_obl_abonos SET importe_centavos=ROUND(NEW.importe*100)
       WHERE pago_id=NEW.id AND activo=1; END`).run();
+  await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS fin_obl_pago_snapshot_editar
+    AFTER UPDATE OF fecha,forma,titulo ON agenda_pagos
+    BEGIN UPDATE fin_obl_abonos
+      SET fecha_pago=NEW.fecha,forma_pago=NEW.forma,concepto_pago=NEW.titulo
+      WHERE pago_id=NEW.id AND activo=1;
+    END`).run();
   await env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS fin_obl_principal_proteger BEFORE UPDATE OF total_centavos,estado ON fin_obligaciones
     BEGIN SELECT RAISE(ABORT,'OBLIGACION_CON_ABONOS')
       WHERE (NEW.total_centavos < COALESCE((SELECT SUM(importe_centavos) FROM fin_obl_abonos
@@ -66,15 +82,22 @@ export async function asegurarEsquemaObligaciones(env) {
           WHERE obligacion_id=OLD.id AND activo=1)); END`).run();
   esquemaListo = true;
 }
-export const stmtVincularAbono = (env,{pagoId,obligacionId,importeCentavos,ahora,quien}) =>
-  env.DB.prepare("INSERT INTO fin_obl_abonos(pago_id,obligacion_id,importe_centavos,creado,creado_por) VALUES(?,?,?,?,?)")
-    .bind(pagoId,obligacionId,importeCentavos,ahora,quien);
+export const stmtVincularAbono = (env,{pagoId,obligacionId,importeCentavos,fecha,forma,titulo,ahora,quien}) =>
+  env.DB.prepare(`INSERT INTO fin_obl_abonos
+    (pago_id,obligacion_id,importe_centavos,fecha_pago,forma_pago,concepto_pago,creado,creado_por)
+    VALUES(?,?,?,?,?,?,?,?)`).bind(pagoId,obligacionId,importeCentavos,fecha,forma,titulo,ahora,quien);
 export const errorSaldoObligacion = e => /OBLIGACION_(?:SALDO_INSUFICIENTE|NO_DISPONIBLE|PAGO_INVALIDO|CON_ABONOS)|fin_obl_abonos.pago_id/i.test(String(e?.message||""));
 export async function vinculoPago(env,pagoId) {
   return env.DB.prepare("SELECT obligacion_id,importe_centavos,activo FROM fin_obl_abonos WHERE pago_id=?")
     .bind(pagoId).first();
 }
 function validar(c) {
+  if(typeof c.acreedor!=="string"||typeof c.concepto!=="string"
+    ||typeof c.vencimiento!=="string"
+    ||(c.emision!=null&&typeof c.emision!=="string")
+    ||(c.referencia!=null&&typeof c.referencia!=="string")
+    ||(c.nota!=null&&typeof c.nota!=="string"))
+    return {error:"Los campos de texto deben tener valores válidos."};
   const acreedor=nom(c.acreedor,120),concepto=nom(c.concepto,160);
   const total_centavos=dineroCentavos(c.total);
   const emision=c.emision || null,vencimiento=String(c.vencimiento||"");
@@ -122,7 +145,9 @@ export async function obligacionesRuta(request,env,partes,usuario) {
     if(!obligacion)return json({ok:false,error:"Obligación no encontrada."},404);
     const [pagos,cambios]=await Promise.all([
       env.DB.prepare(`SELECT a.pago_id,a.importe_centavos,a.activo,a.creado,a.creado_por,a.anulado_en,
-        p.fecha,p.titulo,p.forma,p.nota
+        COALESCE(p.fecha,a.fecha_pago) AS fecha,
+        COALESCE(p.titulo,a.concepto_pago) AS titulo,
+        COALESCE(p.forma,a.forma_pago) AS forma,p.nota
         FROM fin_obl_abonos a LEFT JOIN agenda_pagos p ON p.id=a.pago_id
         WHERE a.obligacion_id=? ORDER BY a.creado DESC,a.pago_id DESC LIMIT 500`).bind(id).all(),
       env.DB.prepare("SELECT version,foto,accion,cuando,quien FROM fin_obligaciones_hist WHERE obligacion_id=? ORDER BY version DESC LIMIT 500").bind(id).all()
@@ -139,6 +164,8 @@ export async function obligacionesRuta(request,env,partes,usuario) {
   if(request.method!=="POST"||partes.length<2||partes.length>3)
     return json({ok:false,error:"Ruta no permitida."},405);
   let c;try{c=await request.json();}catch{return json({ok:false,error:"Datos inválidos."},400);}
+  if(!c||typeof c!=="object"||Array.isArray(c))
+    return json({ok:false,error:"Se esperaba un objeto de datos válido."},400);
   const quien=usuario?.email||null,ahora=new Date().toISOString();
   if(partes.length===2){
     const v=validar(c);if(v.error)return json({ok:false,error:v.error},422);

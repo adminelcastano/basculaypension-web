@@ -523,7 +523,8 @@ async function pagosHechosRutas(request, env, partes, usuario, ahora) {
         stmtGastoAdmin(env, gid, v.fecha.slice(0, 7), v.fecha, ("Pago: " + v.titulo).slice(0, 120), v.importe, v.forma, ahora, quien, cat, cta, null, {id:pid,que:"Pago no programado"}),
         env.DB.prepare("INSERT INTO agenda_pagos (id, item_id, fecha, programado, importe, forma, gasto_id, creado, creado_por, titulo, nota, categoria, cuenta) VALUES (?, '', ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
           .bind(pid, v.fecha, v.importe, v.forma, gid, ahora, quien, v.titulo, v.nota, cat, cta),
-        ...(obligacionId ? [stmtVincularAbono(env,{pagoId:pid,obligacionId,importeCentavos:Math.round(v.importe*100),ahora,quien})] : []),
+        ...(obligacionId ? [stmtVincularAbono(env,{pagoId:pid,obligacionId,importeCentavos:Math.round(v.importe*100),
+          fecha:v.fecha,forma:v.forma,titulo:v.titulo,ahora,quien})] : []),
         stmtBitacora(env, { quien, accion: "crear", que: "Pago no programado", ref: pid, mes: v.fecha.slice(0, 7), detalle: { fecha: v.fecha, concepto: v.titulo, importe: v.importe, forma: v.forma, cuenta: cta, categoria: cat, obligacion_id: obligacionId } })
       ]);
     } catch (er) {
