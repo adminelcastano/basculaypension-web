@@ -6,7 +6,9 @@ import {asegurarEsquemaCompras} from "../src/compras.js";
 test("Inventario D1: módulos antiguos mantienen tablas, índices y sin DROP",()=>{
  const x=inspeccionar(),tabla=Object.fromEntries(x.map(y=>[y.modulo,y]));
  assert.equal(x.length,MODULOS.length);
- assert.equal(tabla.caja.crear_tablas,14);
+ // 14 tablas heredadas + 2 tablas aditivas de recepción, sin eliminar ninguna.
+ assert.equal(tabla.caja.crear_tablas,16);
+ assert.equal(tabla.caja.drop_table,0);
  assert.equal(tabla.agenda.crear_tablas,5);
  assert.equal(tabla.personal.crear_tablas,4);
  assert.equal(tabla.compras.crear_tablas,1);
