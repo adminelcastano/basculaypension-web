@@ -412,7 +412,7 @@ export async function expedienteApi(request, env, url, ctx, avisar, enviarA) {
 // ---------------------------------------------------------------------------
 export const SITIO = "https://basculaypension.com";
 function escH(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function correoEnlace(nombre, token, admin, tipoPersona) {
+export function correoEnlace(nombre, token, admin, tipoPersona) {
   const enlace = `${SITIO}/expediente/${token}`;
   const primer = String(nombre || "").split(" ")[0];
   const ext = tipoPersona === "externo";
@@ -426,7 +426,7 @@ function correoEnlace(nombre, token, admin, tipoPersona) {
 <p style="margin:0 0 4px;color:#ffcc00;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">${ext ? "Registro de externos" : "Expediente laboral"}</p>
 <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#f5f5f7">Hola, ${escH(primer)}.</h1>
 <p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:#a1a1a6">Para ${ext ? "completar" : "actualizar"} ${que}, sube la foto de tus documentos y revisa tus datos en tu enlace personal. Toma unos 5 minutos. No lo compartas con nadie.${ext ? "" : ` El enlace estará abierto ${DIAS_ALTA} días.`}</p>
-<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">${soloAcuse ? "Leer y confirmar aviso v1" : "Subir mis documentos"}</a></p>
+<p style="margin:0 0 24px"><a href="${enlace}" style="display:inline-block;background:#ffcc00;color:#111;padding:14px 24px;border-radius:999px;text-decoration:none;font-weight:700;font-size:16px">Subir mis documentos</a></p>
 <p style="margin:0 0 8px;font-size:15px;color:#f5f5f7"><b>${ext ? "Documentos que necesitamos:" : "Entrega 2 copias de cada documento con Josué:"}</b></p>
 <ul style="margin:0 0 20px;padding-left:20px;font-size:15px;line-height:1.6;color:#a1a1a6">${docs.map(d => `<li>${escH(d)}</li>`).join("")}</ul>
 <p style="margin:0;font-size:13px;color:#86868b">Si el botón no abre, copia este enlace:<br><span style="color:#a1a1a6;word-break:break-all">${enlace}</span></p>
