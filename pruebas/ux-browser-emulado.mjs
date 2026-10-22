@@ -1,6 +1,6 @@
 // UI real del proyecto, servidor local exclusivamente sintético.
 import assert from "node:assert/strict";
-import {readFileSync,mkdirSync} from "node:fs";
+import {readFileSync,mkdirSync,existsSync} from "node:fs";
 import {createServer} from "node:http";
 import {join} from "node:path";
 import {chromium,webkit} from "playwright";
@@ -9,7 +9,10 @@ const imports=[...read("src/panel-app.js").matchAll(/import J\w+ from "\.\/panel
 assert.ok(imports.includes("12-submenu.js"));
 const js=imports.map(p=>read("src/panel/cliente/"+p)).join("\n;\n");
 const html=read("src/panel/pagina.html").replace("{{CSS}}","/panel/app.css").replace("{{JS}}","/panel/app.js");
-const css=read("src/panel/estilos.css");
+// El ensayo sirve exactamente las mismas hojas concatenadas por panel-app.js.
+const estilosExtra = existsSync(join(root,"src/panel/estilos-navegacion.css"));
+if (estilosExtra) assert.ok(read("src/panel-app.js").includes("CSS_BASE + CSS_NAVEGACION"));
+const css=read("src/panel/estilos.css") + (estilosExtra ? read("src/panel/estilos-navegacion.css") : "");
 const rjson=(res,obj)=>{res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify(obj));};
 const server=createServer((req,res)=>{
  const p=new URL(req.url,"http://127.0.0.1").pathname;
