@@ -97,11 +97,14 @@
         <span class="m">${pillCamp(c)}<span>${c.abierta ? "Hasta" : "Límite"} ${esc(fecha(c.limite))}</span></span>
         <span class="m"><span class="mini ${c.completos === c.total ? "ok" : ""}"><i style="width:${c.total ? c.completos / c.total * 100 : 0}%"></i></span><span>${c.completos} de ${c.total} completaron</span></span>
       </button>`;
+  let secuenciaPersonal = 0;
   async function cargar() {
+    const solicitud = ++secuenciaPersonal;
     const lista = $("#p-lista");
     const q = tipo => { const p = new URLSearchParams({ tipo, estatus: st.estatus, filtro: st.filtro }); if (st.q) p.set("q", st.q); return api("colaboradores?" + p); };
     try {
       const [jc, je, jk, v] = await Promise.all([q("colaborador"), q("externo"), api("colaboradores/campanas").catch(() => ({ campanas: [] })), api("turno/vinculos").catch(() => ({}))]);
+      if (solicitud !== secuenciaPersonal) return; // respuestas antiguas no pisan filtros nuevos
       VINC = (v && v.vinculos) || {};
       st.camps = jk.campanas || [];
       const suma = k => (jc.conteos[k] || 0) + (je.conteos[k] || 0);
@@ -135,7 +138,7 @@
       lista.innerHTML = grupo("colaborador", inac ? "Colaboradores inactivos" : "Colaboradores", "i-persona", filas(jc, "colaborador"), inac ? "No hay colaboradores inactivos." : st.filtro === "completos" ? "Todavía nadie tiene su expediente completo." : "Sin colaboradores.")
         + grupo("externo", inac ? "Externos inactivos" : "Externos", "i-activo", filas(je, "externo"), inac ? "No hay externos inactivos." : "Sin externos.")
         + grupo("campanas", "Campañas", "i-doc", campsVis.map(filaCamp), "Todavía no hay campañas. Lanza una con «+ Campaña» cuando necesites pedir documentos.");
-    } catch (e) { if (e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
+    } catch (e) { if (solicitud === secuenciaPersonal && e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
   function input(k, etiqueta, clase, tipo, valor) {
@@ -161,7 +164,7 @@
   function pintarDocs(docs) {
     const n = docs.filter(d => d.recibido).length;
     $("#p-docs-n").textContent = `${n} de ${docs.length}`;
-    $("#p-barra").style.width = (n / docs.length * 100) + "%";
+    $("#p-barra").style.width = (docs.length ? n / docs.length * 100 : 0) + "%";
     $("#p-barra").parentElement.classList.toggle("ok", n === docs.length);
   }
 
@@ -569,7 +572,8 @@
         const v = r.envio || {};
         toast(`Campaña lanzada · ${v.enviados || 0} correo${v.enviados === 1 ? "" : "s"} enviado${v.enviados === 1 ? "" : "s"}`);
         await cargarCampanas(); await abrirCampana(r.id);
-        if (v.sin_correo && v.sin_correo.length || v.error) $("#cp-envio").textContent = [v.sin_correo.length ? `Sin correo: ${v.sin_correo.join(", ")}. Mándales WhatsApp con el botón de cada uno.` : "", v.error || ""].filter(Boolean).join(" ");
+        const sinCorreo = Array.isArray(v.sin_correo) ? v.sin_correo : [];
+        if (sinCorreo.length || v.error) $("#cp-envio").textContent = [sinCorreo.length ? `Sin correo: ${sinCorreo.join(", ")}. Mándales WhatsApp con el botón de cada uno.` : "", v.error || ""].filter(Boolean).join(" ");
       } catch (err) { errores(cont, err.errores); $("#cp-estado").textContent = err.message; b.disabled = false; }
     });
   }
@@ -634,7 +638,7 @@
     const accion = async (ruta, cuerpo, ok) => { try { const r = await post(`colaboradores/campanas/${id}/${ruta}`, cuerpo); if (ok) ok(r); await cargarCampanas(); await abrirCampana(id); } catch (e) { toast(e.message); } };
     if ($("#cp-recordar")) $("#cp-recordar").addEventListener("click", e => {
       e.currentTarget.disabled = true;
-      accion("recordar", {}, r => { toast(`${r.enviados} recordatorio${r.enviados === 1 ? "" : "s"} enviado${r.enviados === 1 ? "" : "s"}`); setTimeout(() => { if ($("#cp-envio")) $("#cp-envio").textContent = [r.sin_correo.length ? `Sin correo: ${r.sin_correo.join(", ")}. Usa su botón de WhatsApp.` : "", r.error || ""].filter(Boolean).join(" "); }, 50); });
+      accion("recordar", {}, r => { toast(`${r.enviados} recordatorio${r.enviados === 1 ? "" : "s"} enviado${r.enviados === 1 ? "" : "s"}`); setTimeout(() => { if ($("#cp-envio")) $("#cp-envio").textContent = [(r.sin_correo || []).length ? `Sin correo: ${r.sin_correo.join(", ")}. Usa su botón de WhatsApp.` : "", r.error || ""].filter(Boolean).join(" "); }, 50); });
     });
     $("#cp-lim-ok").addEventListener("click", () => accion("limite", { limite: $("#cp-lim").value }, () => toast(cp.abierta ? "Fecha guardada" : "Campaña reabierta")));
     const armar = (b, txt, fn) => b.addEventListener("click", () => {
