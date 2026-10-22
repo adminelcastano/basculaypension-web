@@ -16,7 +16,7 @@ import { clavePublica, suscribir, desuscribir, aparatos, enviarPush } from "./pu
 
 // Panel interno: la autorización Access y la validación Origin/X-Panel permanecen en el Worker.
 export function crearRutasPanel(deps) {
-  const { LEER_TICKET_IA, RE_CP, RE_EMAIL, RE_RFC, TIPOS_IMAGEN, TIPO_PDF, asegurarEsquema, cabecerasPanel, enviarCorreoA, hReporte, json, leerTicket, limiteHistorico, limpiarPlacas, aceptarLicenciaModelo, normalizarImporte, texto, archivo, tipoArchivo, normalizarFolioTicket, folioTicketValido, leerArchivo, borrarArchivo, REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } = deps;
+  const { DIAS_RETENCION, LEER_TICKET_IA, RE_CP, RE_EMAIL, RE_RFC, TIPOS_IMAGEN, TIPO_PDF, asegurarEsquema, cabecerasPanel, enviarCorreoA, hReporte, json, leerTicket, limiteHistorico, limpiarPlacas, aceptarLicenciaModelo, normalizarImporte, texto, archivo, tipoArchivo, normalizarFolioTicket, folioTicketValido, leerArchivo, borrarArchivo, REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } = deps;
 async function rutasPanel(request, env, url, usuario) {
   const ruta = url.pathname.replace(/\/+$/, "");
   await asegurarEsquema(env);
