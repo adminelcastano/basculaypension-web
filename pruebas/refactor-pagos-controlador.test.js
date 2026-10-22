@@ -5,7 +5,7 @@ import vm from "node:vm";
 const src=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 test("Controlador Pagos mantiene rutas, UID, comprobantes y acceso previo",()=>{
  const app=src("src/panel-app.js"), ag=src("src/panel/cliente/07-agenda.js"), pagos=src("src/panel/cliente/07-pagos-controlador.js");
- assert.match(app,/J07C, J07P, J07, J08/);
+ assert.match(app,/J07C, J07P, J07A, J07, J08/);
  assert.match(ag,/window\.CastaPagosControlador\(\{/);
  assert.match(ag,/window\.agendaPagarObligacion/);
  for(const p of ['crypto.randomUUID()','post("agenda/pagos/hecho"','post("agenda", { tipo: "pago"','/panel/api/agenda/','quitar-comprobante','obligaciones-actualizadas'])assert.ok(pagos.includes(p),p);
