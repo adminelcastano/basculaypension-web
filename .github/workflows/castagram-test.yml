@@ -64,6 +64,8 @@ jobs:
         run: node pruebas/ux-browser-emulado.mjs
       - name: Turno sin PIN válido y aislamiento de tablet compartida (Chromium/WebKit)
         run: node pruebas/ux-turno-prepublicacion.mjs
+      - name: Panel Financiero con API ficticia (escritorio y teléfono)
+        run: node pruebas/ux-panel-financiero.mjs
       - name: Capturas exclusivamente sintéticas
         if: always()
         uses: actions/upload-artifact@v4

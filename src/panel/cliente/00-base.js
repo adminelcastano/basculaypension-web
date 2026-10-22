@@ -65,7 +65,7 @@
   // Configuración (engranaje): #config o #config/<apartado> (tablet, cuentas, categorias, lugares, notificaciones, conexiones, sistema)
   function ruta(hash = location.hash) {
     const h = String(hash || "").replace(/^#/, "");
-    if (!h || h === "inicio" || h === "hoy") return { mod: "inicio" };
+    if (!h || h === "inicio" || h === "hoy") return { mod: document.body?.dataset.panelFinanciero === "1" ? "caja" : "inicio" };
     if (h === "turno") return { mod: "caja" };
     if (h === "finanzas") return { mod: "finanzas", vista: null };
     if (h === "pagos") return { mod: "finanzas", vista: "movimientos" };

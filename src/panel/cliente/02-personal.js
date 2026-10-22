@@ -26,6 +26,14 @@
       const alias={pagos:"movimientos",programados:"movimientos",hechos:"movimientos",bitacora:"movimientos",efectivo:"bancos",cuentas:"bancos",estados:"bancos"};
       opciones={...opciones,vista:alias[opciones.vista]||null};
     }
+    // /panel/financiero: vista económica del administrador, sin atajos a
+    // Facturas, Personal, Configuración, Hoy ni contenido no económico de Agenda.
+    if (document.body?.dataset.panelFinanciero === "1") {
+      if (!["caja", "finanzas", "agenda"].includes(mod)) {
+        mod = "caja"; opciones = { ...opciones, vista: null };
+      }
+      if (mod === "agenda") opciones = { ...opciones, vista: "compras" };
+    }
     const sec = EC.seccionDe(mod);
     const yaVisible = !($("#mod-" + mod) || {}).hidden;
     document.querySelectorAll(".modulos button").forEach(b => { if (b.dataset.mod === sec) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });

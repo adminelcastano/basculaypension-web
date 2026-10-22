@@ -11,7 +11,7 @@ import { correrIA } from "./neuronas.js";
 const REVISAR_FOTO_IA = true;
 const LEER_TICKET_IA = false;
 import { REGIMENES, USOS, SERVICIOS, FORMAS_PAGO } from "./catalogos.js";
-import { paginaPanel, recursoPanel } from "./panel-app.js";
+import { paginaPanel, paginaPanelFinanciero, recursoPanel } from "./panel-app.js";
 import { expedientePagina, expedienteApi, recordatoriosAutomaticos } from "./personal.js";
 import { sincronizarCaja, cierreMensualCaja } from "./caja.js";
 import { recordatoriosAgenda, resumenDiarioAgenda, limpiarAgenda } from "./agenda.js";
@@ -392,6 +392,13 @@ async function panel(request, env, url) {
     const esquema = await env.DB.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").first();
     const kv = await env.FILES.get("ensayo:finanzas:prueba-kv-20261018", {type:"json"});
     return json({ok:true,entorno:"FINANZAS_INTEGRAL_ENSAYO",tablas:Number(esquema?.total||0),kv_aislada:kv?.entorno==="KV-FINANZAS-ENSAYO",servicios_productivos:false});
+  }
+  // Segunda entrada privada bajo el mismo Cloudflare Access: /panel/financiero.
+  // Solo cambia la navegación, nunca la API ni los bindings financieros.
+  if (ruta === "/panel/financiero" && request.method === "GET") {
+    return new Response(await paginaPanelFinanciero(), {
+      headers: { "Content-Type": "text/html; charset=utf-8", ...cabecerasPanel() }
+    });
   }
   if (ruta === "/panel" && request.method === "GET") {
     let documento = await paginaPanel();
