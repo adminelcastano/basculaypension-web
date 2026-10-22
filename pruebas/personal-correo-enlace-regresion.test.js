@@ -51,6 +51,8 @@ test("Contrato del correo exige confirmación ok-para y no marca envío anticipa
   assert.match(apps, /confirmacion = 'ok-para';/);
   assert.match(apps, /https:\/\/basculaypension\.com\/expediente\//);
   const emisor = personal.split("async function enviarEnlacePorCorreo(")[1].split("// ---------------------------------------------------------------------------")[0];
-  assert.ok(emisor.indexOf("await enviar(env,") < emisor.indexOf("UPDATE colaboradores SET correo_enviado"));
+  const colaborador = emisor.split("const datos = parse(fila.datos);")[1];
+  assert.ok(colaborador.includes("await enviar(env,"));
+  assert.ok(colaborador.indexOf("await enviar(env,") < colaborador.indexOf("UPDATE colaboradores SET correo_enviado"));
   assert.ok(emisor.includes("return { error:"));
 });
