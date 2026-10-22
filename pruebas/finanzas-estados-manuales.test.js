@@ -98,6 +98,23 @@ test("Prohíbe solapes de periodos aun si intentan evitar el formulario",async()
   assert.equal((await e.list()).length,1);
  }finally{e.close();}
 });
+test("Datos bancarios hostiles no alteran libros ni disparan errores internos",async()=>{
+ const e=entorno();
+ try{
+   for(const payload of [null,[],42,"texto"]){
+     const out=await e.post(payload);
+     assert.equal(out.status,400,"Tipo hostil: "+JSON.stringify(payload));
+   }
+   for(const v of ["1,50","1 234.50","1,2,3"]){
+     const out=await e.post({...base,saldo_final:v});
+     assert.equal(out.status,422,"Valor ambiguo: "+v);
+   }
+   const weird=await e.post({...base,abonos:{"$gte":0}});
+   assert.equal(weird.status,422);
+   assert.equal((await e.list()).length,0,"La base ficticia no debe tener estados guardados");
+   assert.equal(e.db.prepare("SELECT COUNT(*) AS n FROM fin_bitacora").get().n,0);
+ }finally{e.close();}
+});
 test("No registra gastos ni saldo bancario en la captura del estado",async()=>{
  const e=entorno();
  try{
