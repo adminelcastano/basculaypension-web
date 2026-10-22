@@ -1,6 +1,6 @@
 // Compras de Agenda: estado único inyectado; no almacén paralelo.
 window.CastaComprasControlador = function crearCompras(contexto) {
-  const { st, abierto, esc, ico, formEditar, avP, selLugar, MXN, post, toast, cargar, pintar, formulario, $ } = contexto;
+  const { st, abierto, esc, ico, formEditar, avP, selLugar, MXN, post, toast, cargar, pintar, formulario, $, fDia } = contexto;
   // ---- Compras agrupadas por el lugar donde se compran ----
   // ---- Lista de compras (al estilo de las mejores apps de compras, adaptada a la pensión) ----
   // Barra rápida con sugerencias de lo ya comprado, "Lo que compras seguido", precio de la última vez,
