@@ -31,7 +31,7 @@ function panelMock(filename,answer){
       addEventListener:(type,fn)=>{registered[type]=fn;}
     },
     EC:{
-      esc,hoyMx:()=> "2026-10-21",api:async()=>structuredClone(answer),post:async()=>({ok:true}),
+      esc,hoyMx:()=> "2026-10-21",ruta:()=>({mod:"inicio"}),api:async()=>structuredClone(answer),post:async()=>({ok:true}),
       confirmar:async()=>false,toast:()=>{}
     },
     Date,Intl,console,queueMicrotask,FormData,
