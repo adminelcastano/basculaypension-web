@@ -6,7 +6,7 @@ import { webcrypto } from "node:crypto";
 import { permisoFotoTurno } from "../src/foto-acceso-turno.js";
 
 // Extrae el código real del Worker: no duplica ni inventa una implementación de ruta/sesión.
-const source = readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/turno-sesion.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
 function extraer(inicio) {
   const a = source.indexOf(inicio);
   assert.ok(a >= 0, "Falta " + inicio);
