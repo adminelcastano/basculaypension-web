@@ -268,12 +268,14 @@
     const sobres = conSobre.reduce((a, c) => a + (Number(c.conteo.sobre) || 0), 0);
     contar($("#i-sobres"), sobres, v => dinero(v));
     const n = conSobre.length;
-    const elegibles = conSobre.filter(c => Number(c.conteo.sobre) > 0);
+    // El importe de "En sobres hoy" sigue mostrando los últimos tres turnos.
+    // Los pendientes deben abarcar TODOS los cortes del período, incluso los antiguos.
+    const elegibles = j.cortes.filter(c => c.conteo && Number(c.conteo.sobre) > 0);
     const recibidos = elegibles.filter(c => c.recepcion_sobre?.recibido).length;
     const pendientes = elegibles.length - recibidos;
-    $("#i-sobres-nota").textContent = n
-      ? `${n} de ${lista.length} turnos con corte · ${recibidos} recibidos · ${pendientes} pendientes`
-      : "Ningún turno ha entregado sobre";
+    $("#i-sobres-nota").textContent = elegibles.length
+      ? `${recibidos} recibidos · ${pendientes} pendientes en el período`
+      : "Sin sobres por recibir en el período";
     const irSobres = $("#i-sobres-ir");
     if (irSobres) irSobres.hidden = pendientes === 0;
   }
