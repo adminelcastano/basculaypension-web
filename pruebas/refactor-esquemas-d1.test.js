@@ -17,9 +17,10 @@ test("Compras: inicialización aditiva preserva fila previa e índices en SQLite
  const db=new DatabaseSync(":memory:");t.after(()=>db.close());
  db.exec("CREATE TABLE agenda_items (id TEXT, titulo TEXT, lugar TEXT, cantidad TEXT, importe REAL, gasto_id TEXT, categoria TEXT, creado TEXT, actualizado TEXT, cerrado TEXT, estado TEXT, tipo TEXT)");
  db.prepare("INSERT INTO agenda_items (id,titulo,estado,tipo,creado) VALUES (?,?,?,?,?)").run("antiguo","Papel","comprado","compra","2026-10-01");
- const env={DB:{prepare(sql){const stmt=db.prepare(sql);
-  const wrap=vals=>({bind(...v){return wrap(v);},async run(){return {meta:{changes:Number(stmt.run(...vals).changes)}};},
-   async first(){return stmt.get(...vals)||null;},async all(){return{results:stmt.all(...vals)}}});
+ const env={DB:{prepare(sql){
+  // D1 difiere la preparación efectiva hasta ejecutar el batch; simular ese contrato.
+  const wrap=vals=>({bind(...v){return wrap(v);},async run(){return {meta:{changes:Number(db.prepare(sql).run(...vals).changes)}};},
+   async first(){return db.prepare(sql).get(...vals)||null;},async all(){return{results:db.prepare(sql).all(...vals)}}});
   return wrap([]);},async batch(stmts){const out=[];for(const st of stmts)out.push(await st.run());return out;}}};
  await asegurarEsquemaCompras(env);
  assert.equal(db.prepare("SELECT COUNT(*) n FROM agenda_items").get().n,1);
