@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const src = readFileSync(new URL("../src/personal.js", import.meta.url), "utf8");
+const src = readFileSync(new URL("../src/personal.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/personal-campanas.js", import.meta.url), "utf8");
 const form = readFileSync(new URL("../src/expediente.html", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../src/panel/cliente/02-personal.js", import.meta.url), "utf8");
 const aviso = readFileSync(new URL("../public/aviso-de-privacidad-colaboradores/index.html", import.meta.url), "utf8");

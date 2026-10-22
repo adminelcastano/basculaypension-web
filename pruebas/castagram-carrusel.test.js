@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const panel=readFileSync(new URL("../src/panel/cliente/07-agenda.js",import.meta.url),"utf8");
-const turno=readFileSync(new URL("../src/turno.html",import.meta.url),"utf8");
+const panel=readFileSync(new URL("../src/panel/cliente/07-agenda.js",import.meta.url),"utf8") + "\n" + readFileSync(new URL("../src/panel/cliente/07-castagram-controlador.js",import.meta.url),"utf8");
+const turno=readFileSync(new URL("../src/turno.html", import.meta.url), "utf8").replace("/*__TURNO_CSS__*/", readFileSync(new URL("../src/turno-estilos.css", import.meta.url), "utf8"));
 const estilos=readFileSync(new URL("../src/panel/estilos.css",import.meta.url),"utf8");
 
 function funciones(fuente) {
