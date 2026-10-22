@@ -319,7 +319,7 @@ window.interpretarAgenda = function (texto, hoy) {
   // Controlador de Compras: comparte el estado y servicios de Agenda.
   const { vistaCompras, conectarCompras } = window.CastaComprasControlador({
     st, abierto, esc, ico, formEditar, avP: (...a) => avP(...a), selLugar,
-    MXN, post, toast, cargar, pintar, formulario, $
+    MXN, post, toast, cargar, pintar, formulario, $, fDia
   });
   setTimeout(conectarCompras, 0);
 
