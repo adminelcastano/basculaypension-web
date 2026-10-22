@@ -13,7 +13,7 @@ test("Volver al índice no sale del panel en rutas profundas directas",()=>{
  assert.ok(js.includes('aria-current","page"'));
 });
 test("Las tablets 821–1200px muestran Volver y el plegable dispone de tacto y foco",()=>{
- const css=read("src/panel/estilos.css");
+ const css=read("src/panel/estilos.css") + read("src/panel/estilos-navegacion.css");
  const s=css.slice(css.lastIndexOf("/* Navegación premium"));
  assert.match(s,/@media \(min-width:821px\) and \(max-width:1200px\)/);
  assert.match(s,/\.mod\.uno:not\(\.en-idx\) \.sub-volver/);

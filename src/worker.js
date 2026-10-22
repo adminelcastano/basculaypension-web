@@ -1,3 +1,5 @@
+import { filasExcel } from "./facturacion-reporte-filas.js";
+import { MAX_ARCHIVO, normalizarImporte, texto, archivo, tipoArchivo, validarArchivo, crearFolio } from "./facturacion-entradas.js";
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { asegurarEsquemaCfdis, listarCfdis, emitirMultiples, cancelarRegistro, sustituirRegistro } from "./facturas-registro.js";
@@ -26,7 +28,7 @@ import { clavePublica, suscribir, desuscribir, aparatos, enviarPush } from "./pu
 // ---------------------------------------------------------------------------
 // Configuración
 // ---------------------------------------------------------------------------
-const MAX_ARCHIVO = 10 * 1024 * 1024;          // 10 MB por archivo
+// MAX_ARCHIVO se importa de facturacion-entradas.js (límite conservado).
 const MAX_PETICION = 22 * 1024 * 1024;         // 22 MB por envío
 const LIMITE_POR_HORA = 8;                     // envíos por IP por hora
 const DIAS_RETENCION = 90;                     // días tras facturar o rechazar: se borra el registro completo
@@ -324,51 +326,6 @@ async function crearSolicitud(request, env, ctx) {
   return json({ ok: true, folio });
 }
 
-// Acepta "350", "$1,250.50", "1250,5" y devuelve "1250.50"; null si no es válido
-function normalizarImporte(v) {
-  let t = String(v ?? "").trim().replace(/[$\s]|MXN/gi, "");
-  if (!t) return "";
-  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(t)) t = t.replace(/,/g, "");
-  else if (/^\d+,\d{1,2}$/.test(t)) t = t.replace(",", ".");
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(t)) return null;
-  return Number(t).toFixed(2);
-}
-
-function texto(form, nombre) {
-  const v = form.get(nombre);
-  return typeof v === "string" ? v.trim() : "";
-}
-function archivo(form, nombre) {
-  const v = form.get(nombre);
-  return v && typeof v === "object" && typeof v.arrayBuffer === "function" && v.size > 0 ? v : null;
-}
-// La firma real evita rechazar fotos móviles sin MIME y aceptar un archivo disfrazado.
-async function tipoArchivo(f) {
-  if (!f) return null;
-  const a = new Uint8Array(await f.slice(0, 1024).arrayBuffer());
-  const ascii = (i, j) => String.fromCharCode(...a.slice(i, j));
-  if (a.length >= 3 && a[0] === 255 && a[1] === 216 && a[2] === 255) return "image/jpeg";
-  if (a.length >= 8 && a.slice(0, 8).every((v, i) => v === [137, 80, 78, 71, 13, 10, 26, 10][i])) return "image/png";
-  if (a.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
-  if (a.length >= 5 && ascii(0, 1024).includes("%PDF-")) return "application/pdf";
-  if (a.length >= 12 && ascii(4, 8) === "ftyp" && /^(heic|heix|hevc|hevx|heim|heis|hevm|hevs|mif1|msf1)$/.test(ascii(8, 12))) return "image/heic";
-  return null;
-}
-function validarArchivo(f, tipo, requerido, que) {
-  if (!f) return requerido ? "Adjunta " + que + "." : null;
-  if (f.size > MAX_ARCHIVO) return "El archivo de " + que + " pesa más de 10 MB.";
-  if (!tipo) return "Para " + que + " usa JPG, PNG, WebP, HEIC o PDF válido.";
-  return null;
-}
-function crearFolio() {
-  const fecha = new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(2, 10).replace(/-/g, "");
-  const letras = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const rnd = crypto.getRandomValues(new Uint8Array(4));
-  let s = "";
-  for (const b of rnd) s += letras[b % letras.length];
-  return `EC-${fecha}-${s}`;
-}
-
 // ---------------------------------------------------------------------------
 // Aviso por correo de nueva solicitud (vía Google Apps Script del propio negocio)
 // ---------------------------------------------------------------------------
@@ -422,20 +379,6 @@ async function enviarCorreoA(env, datos) {
 // ---------------------------------------------------------------------------
 // Filas de solicitudes de factura para los reportes y respaldos en Google Sheets
 // ---------------------------------------------------------------------------
-const ENCABEZADOS = ["Folio solicitud", "Recibida", "Estado", "Servicio", "Folio ticket", "Cliente en ticket", "Placas", "Descripción auto", "Tarifa", "Anotación a mano", "RFC", "Nombre o razón social", "Código postal", "Régimen fiscal", "Uso CFDI", "Forma de pago", "Correo", "WhatsApp", "Importe", "Folio factura", "Fecha resolución", "Fecha entrega manual", "Motivo rechazo", "Versión aviso de privacidad"];
-function filasExcel(results) {
-  const local = iso => iso ? new Date(new Date(iso).getTime() - 6 * 3600e3).toISOString().slice(0, 16).replace("T", " ") : "";
-  const est = { pendiente: "Recibida", en_revision: "En revisión", facturada: "Facturada", enviada: "Enviada al cliente", rechazada: "Rechazada", cancelada: "CFDI cancelado" };
-  const filas = [ENCABEZADOS];
-  for (const r of results) {
-    filas.push([r.folio, local(r.creado), est[r.estado] || r.estado, SERVICIOS[r.servicio] || r.servicio || "", r.folio_ticket || "", r.cliente || "",
-      r.placas || "", r.descripcion || "", r.tarifa || "", r.anotacion || "",
-      r.rfc || "", r.nombre || "", r.cp || "", r.regimen ? `${r.regimen} ${REGIMENES[r.regimen] || ""}` : "",
-      r.uso ? `${r.uso} ${USOS[r.uso] || ""}` : "", r.forma_pago ? `${r.forma_pago} ${FORMAS_PAGO[r.forma_pago] || ""}` : "", r.email || "", r.telefono || "", r.importe ? "$" + Number(r.importe).toLocaleString("es-MX", { minimumFractionDigits: 2 }) : "", r.folio_factura || "", local(r.resuelta_en), local(r.enviada_en), r.motivo || "", r.aviso_version || ""]);
-  }
-  return filas;
-}
-
 // Para el reporte mensual en Sheets
 const hReporte = { script: scriptArchivos, filasFacturas: filasExcel };
 // ---------------------------------------------------------------------------

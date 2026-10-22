@@ -6,7 +6,7 @@ const file = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const avisos = file("../src/avisos.js");
 const agenda = file("../src/agenda.js");
 const turno = file("../src/turno.js");
-const panel = file("../src/panel/cliente/07-agenda.js");
+const panel = file("../src/panel/cliente/07-agenda.js") + "\n" + file("../src/panel/cliente/07-castagram-controlador.js");
 const tablet = file("../src/turno.html");
 
 test("Me gusta es reversible, idempotente y conserva el Enterado del post", async () => {
