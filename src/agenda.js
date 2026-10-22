@@ -597,7 +597,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     // Egresos de la administración del mes por categoría (pagos y compras), con su icono y color
     const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
     const porCat = {};
-    for (const g of (await env.DB.prepare("SELECT categoria, monto FROM caja_gastos WHERE origen = 'admin' AND mes = ?").bind(mes).all()).results) { const k = g.categoria || "Otros"; porCat[k] = (porCat[k] || 0) + g.monto; }
+    for (const g of (await env.DB.prepare("SELECT categoria, monto FROM caja_gastos WHERE origen = 'admin' AND mes = ?").bind(mes).all()).results) { const k = g.categoria && cats[g.categoria] ? g.categoria : "Sin categoría"; porCat[k] = (porCat[k] || 0) + g.monto; }
     // Los importes de agenda_items son previsiones, no obligaciones confirmadas.
     // Conservar por_pagar_mes por compatibilidad: no introducir este valor en deuda contable.
     // Pagos no programados del mes (concepto e importe)
