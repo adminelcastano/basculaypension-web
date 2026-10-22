@@ -115,7 +115,7 @@ test("Validaciones monetarias y rechazo del corte no escriben bitácora", async 
   } finally { db.close(); }
 });
 test("Turno conserva cola por identidad y diferencia entradas/salidas azules", () => {
-  const ui = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8").replace("/*__TURNO_CSS__*/", readFileSync(new URL("../src/turno-estilos.css", import.meta.url), "utf8"));
   const server = readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
   const panel = readFileSync(new URL("../src/panel/cliente/03-caja.js", import.meta.url), "utf8");
   assert.match(ui, /admin-movimientos\|incidencias/);

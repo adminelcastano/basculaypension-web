@@ -7,7 +7,7 @@ const avisos = file("../src/avisos.js");
 const agenda = file("../src/agenda.js") + "\n" + file("../src/agenda-avisos-rutas.js");
 const turno = file("../src/turno.js");
 const panel = file("../src/panel/cliente/07-agenda.js") + "\n" + file("../src/panel/cliente/07-castagram-controlador.js");
-const tablet = file("../src/turno.html");
+const tablet = file("../src/turno.html").replace("/*__TURNO_CSS__*/", file("../src/turno-estilos.css"));
 
 test("Me gusta es reversible, idempotente y conserva el Enterado del post", async () => {
   const begin = avisos.indexOf("export async function enterarComentario(");
