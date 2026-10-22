@@ -44,6 +44,8 @@ async function run(d,i){
  const browser=browsers[engine] ||= await (engine==="webkit"?webkit:chromium).launch({headless:true});
  const ctx=await browser.newContext({viewport:{width,height},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:mobile?2:1,reducedMotion:"reduce"});
  const page=await ctx.newPage(),errors=[];
+ page.setDefaultTimeout(6500);page.setDefaultNavigationTimeout(10000);
+ console.log("INICIO "+name+" "+width+"x"+height);
  page.on("pageerror",e=>errors.push(e.message));
  try{
   await page.goto(URLbase()+"#dinero",{waitUntil:"domcontentloaded"});
