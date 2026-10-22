@@ -66,6 +66,8 @@ jobs:
         run: node pruebas/ux-turno-prepublicacion.mjs
       - name: Panel Financiero con API ficticia (escritorio y teléfono)
         run: node pruebas/ux-panel-financiero.mjs
+      - name: Agenda y Personal con datos sintéticos (Chromium y WebKit)
+        run: node pruebas/ux-agenda-personal-sintetico.mjs
       - name: Capturas exclusivamente sintéticas
         if: always()
         uses: actions/upload-artifact@v4
