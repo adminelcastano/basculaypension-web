@@ -1,6 +1,6 @@
 // Calendario y tareas de Agenda. Reutiliza el estado único, sin caché paralelo.
 window.CastaCalendarioControlador = function crearCalendario(dependencias) {
-  const { st, $, esc, toast, post, fLargo, fMes, mayus, ico, abierto, cargar, pintar, formulario, item, MXN } = dependencias;
+  const { st, $, esc, toast, post, fLargo, fMes, mayus, ico, abierto, cargar, pintar, formulario, item, MXN, filaPagoHecho } = dependencias;
   function vistaCalendario() {
     const [a, m] = st.mes.split("-").map(Number);
     const primero = new Date(Date.UTC(a, m - 1, 1));
