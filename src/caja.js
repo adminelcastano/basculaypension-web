@@ -273,6 +273,10 @@ export async function asegurarEsquemaCaja(env) {
   // Anular conserva la evidencia y el folio; no se borran importes históricos.
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_admin_movs (id TEXT PRIMARY KEY, mes TEXT NOT NULL, dia TEXT NOT NULL, turno TEXT NOT NULL, tipo TEXT NOT NULL CHECK (tipo IN ('entrada','salida')), monto REAL NOT NULL CHECK (monto > 0), detalle TEXT, persona TEXT, creado TEXT NOT NULL, creado_por TEXT NOT NULL, anulado INTEGER NOT NULL DEFAULT 0, anulado_por TEXT, anulado_en TEXT)").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_admin_movs_mes ON caja_admin_movs (mes, dia, turno, creado)").run();
+  // La recepción física del sobre NO es un movimiento de dinero: no afecta cortes, Caja ni Dinero.
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_sobres_recepcion (dia TEXT NOT NULL, turno TEXT NOT NULL, recibido INTEGER NOT NULL CHECK (recibido IN (0,1)), revision INTEGER NOT NULL, actualizado TEXT NOT NULL, por TEXT NOT NULL, PRIMARY KEY (dia, turno))").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS caja_sobres_recepcion_hist (id INTEGER PRIMARY KEY AUTOINCREMENT, dia TEXT NOT NULL, turno TEXT NOT NULL, recibido INTEGER NOT NULL, revision INTEGER NOT NULL, actualizado TEXT NOT NULL, por TEXT NOT NULL)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS caja_sobres_recepcion_hist_clave ON caja_sobres_recepcion_hist (dia, turno, id)").run();
   const cols = new Set((await env.DB.prepare("PRAGMA table_info(caja_gastos)").all()).results.map(r => r.name));
   for (const c of ["foto", "persona"]) if (!cols.has(c)) await env.DB.prepare(`ALTER TABLE caja_gastos ADD COLUMN ${c} TEXT`).run();
   // Desde el 14 oct 2026 el encargado cuenta el efectivo físico CON el cambio inicial (con_cambio = 1)
@@ -900,6 +904,57 @@ export async function validarTicketRef(env, valor, mes, excepto, importe = null)
   return { ref: v };
 }
 
+
+/**
+ * Acompaña los cortes con un estado de recepción separado del conteo físico y del flujo monetario.
+ * También se aplica al resumen de Hoy, sin recalcular ni alterar importes.
+ */
+export async function anexarRecepcionSobres(env, cortes) {
+  if (!cortes.length) return cortes;
+  const dias = cortes.map(c => c.dia).sort();
+  const filas = (await env.DB.prepare("SELECT dia, turno, recibido, revision, actualizado, por FROM caja_sobres_recepcion WHERE dia BETWEEN ? AND ?")
+    .bind(dias[0], dias[dias.length - 1]).all()).results;
+  const porTurno = new Map(filas.map(f => [f.dia + "|" + f.turno, f]));
+  for (const c of cortes) {
+    const f = porTurno.get(c.dia + "|" + c.turno);
+    c.recepcion_sobre = f
+      ? { recibido: f.recibido === 1, revision: f.revision, actualizado: f.actualizado, por: f.por }
+      : { recibido: false, revision: 0 };
+  }
+  return cortes;
+}
+
+/**
+ * Guardar o corregir una recepción. La revisión optimista impide sobrescribir un
+ * cambio hecho desde otra sesión o dispositivo. La bitácora se escribe en el mismo batch.
+ */
+export async function registrarRecepcionSobre(env, { dia, turno, recibido, revision, quien }, ahora = new Date().toISOString()) {
+  if (!fechaCalendarioCaja(dia) || !TURNOS.includes(turno) || typeof recibido !== "boolean" ||
+      !Number.isSafeInteger(revision) || revision < 0 || revision > 1000000000 || !quien) {
+    const e = new Error("Datos inválidos para confirmar el sobre."); e.code = "SOBRE_INVALIDO"; throw e;
+  }
+  const v = recibido ? 1 : 0;
+  // Un sobre aún no registrado sólo admite la primera confirmación (revisión 0 → 1).
+  const cambio = revision === 0
+    ? env.DB.prepare("INSERT INTO caja_sobres_recepcion (dia, turno, recibido, revision, actualizado, por) SELECT ?, ?, 1, 1, ?, ? FROM turno_cortes WHERE dia = ? AND turno = ? AND sobre > 0 AND NOT EXISTS (SELECT 1 FROM caja_sobres_recepcion WHERE dia = ? AND turno = ?)")
+      .bind(dia, turno, ahora, quien, dia, turno, dia, turno)
+    : env.DB.prepare("UPDATE caja_sobres_recepcion SET recibido = ?, revision = revision + 1, actualizado = ?, por = ? WHERE dia = ? AND turno = ? AND revision = ? AND recibido != ? AND EXISTS (SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ? AND sobre > 0)")
+      .bind(v, ahora, quien, dia, turno, revision, v, dia, turno);
+  if (revision === 0 && !recibido) {
+    const e = new Error("Actualiza la lista antes de corregir esta recepción."); e.code = "SOBRE_CONFLICTO"; throw e;
+  }
+  const resultados = await env.DB.batch([
+    cambio,
+    env.DB.prepare("INSERT INTO caja_sobres_recepcion_hist (dia, turno, recibido, revision, actualizado, por) SELECT dia, turno, recibido, revision, actualizado, por FROM caja_sobres_recepcion WHERE dia = ? AND turno = ? AND changes() > 0").bind(dia, turno),
+    stmtBitacoraSiCambio(env, { quien, accion: "editar", que: "Recepción física de sobre", ref: dia + "|" + turno,
+      mes: dia.slice(0, 7), detalle: { recibido, revision: revision + 1 } })
+  ]);
+  if (Number(resultados[0]?.meta?.changes || 0) !== 1) {
+    const e = new Error("La recepción cambió en otra sesión o ya no existe el sobre. Actualiza la lista."); e.code = "SOBRE_CONFLICTO"; throw e;
+  }
+  return { recibido, revision: revision + 1, actualizado: ahora, por: quien };
+}
+
 // Rutas del panel: /panel/api/caja...
 export async function cajaPanel(request, env, url, partes, usuario, h) {
   await asegurarEsquemaCaja(env);
@@ -909,6 +964,26 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
   const diaValido = d => fechaCalendarioCaja(d) && meses.includes(d.slice(0, 7)) && d <= hoy;
 
 
+
+
+  // Recepción material del sobre (distinta de "corte entregado" y de los ingresos contables).
+  // La identidad procede de Cloudflare Access y las validaciones de escritura del Worker.
+  if (partes[1] === "sobres" && partes[2] === "recepcion" && partes.length === 3 && request.method === "POST") {
+    let c; try { c = await request.json(); } catch { return json({ ok: false, error: "Datos inválidos." }, 400); }
+    const dia = String(c.dia || ""), turno = normTurno(c.turno);
+    if (!fechaCalendarioCaja(dia) || dia > hoy || !turno || typeof c.recibido !== "boolean" ||
+        !Number.isSafeInteger(c.revision) || c.revision < 0)
+      return json({ ok: false, error: "Revisa el día, turno y estado del sobre." }, 422);
+    try {
+      return json({ ok: true, ...(await registrarRecepcionSobre(env, {
+        dia, turno, recibido: c.recibido, revision: c.revision, quien: usuario?.email || "Administración"
+      })) });
+    } catch (e) {
+      if (e.code === "SOBRE_CONFLICTO") return json({ ok: false, error: e.message }, 409);
+      if (e.code === "SOBRE_INVALIDO") return json({ ok: false, error: e.message }, 422);
+      throw e;
+    }
+  }
 
   // Saldo de Caja para administración: sólo lectura, mismo cálculo del corte;
   // no modifica folios y declara cuándo se sincronizaron las ventas externas.
@@ -1157,6 +1232,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
       esResumenHoy ? Promise.resolve(null) : listaCategorias(env)
     ]);
     const cortes = ponerCambioTurnos(unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos), conteos, inicios);
+    await anexarRecepcionSobres(env, cortes);
     const tr = transferenciasMes(movs, transf);
     // El camino ligero evita numeraciones de folios, escrituras y catálogos.
     // Conserva todas las fuentes en vivo que utiliza Hoy y sus alertas.
