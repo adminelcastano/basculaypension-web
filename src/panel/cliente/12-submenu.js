@@ -32,6 +32,10 @@
     m.classList.toggle("en-idx", !ok);
     if (ok) m.dataset.activo = clave; else delete m.dataset.activo;
     m.querySelectorAll(".bloque[data-bloque]").forEach(b => b.classList.toggle("activo", !!ok && b.dataset.bloque === clave));
+    m.querySelectorAll(".sub-idx [data-ir]").forEach(b => {
+      if(ok && b.dataset.ir===clave)b.setAttribute("aria-current","page");
+      else b.removeAttribute("aria-current");
+    });
     m.querySelectorAll(".ini-grid > [data-grupo]").forEach(b => b.classList.toggle("activo", !!ok && b.dataset.grupo === clave));
     marcar(m, ok ? clave : "todo");
     scrollTo({ top: 0, behavior: "instant" });
@@ -85,17 +89,23 @@
       const idx = document.createElement("nav"); idx.className = "sub-idx"; idx.setAttribute("aria-label", "Tipos de " + nombre);
       idx.innerHTML = tipos.map(t => `<button type="button" class="ti" data-ir="${t.clave}"><span class="ti-i"><svg aria-hidden="true"><use href="${t.ico || "#i-inbox"}"/></svg></span><svg class="ti-c" aria-hidden="true"><use href="#i-chev"/></svg><b class="ti-v"></b><span class="ti-t">${EC.esc(t.txt)}</span><span class="ti-s"></span></button>`).join("");
       const volver = document.createElement("button"); volver.type = "button"; volver.className = "sub-volver";
-      volver.innerHTML = `<svg aria-hidden="true"><use href="#i-chev"/></svg>${EC.esc(nombre)}`;
+      volver.innerHTML = `<svg aria-hidden="true"><use href="#i-chev"/></svg>Volver a ${EC.esc(nombre)}`;
+      volver.setAttribute("aria-label", "Volver al índice de " + nombre);
       cont.prepend(idx, volver);
       idx.addEventListener("click", e => {
         const b = e.target.closest("[data-ir]"); if (!b) return;
-        history.pushState({ mod, vista: b.dataset.ir }, "", EC.hashDe(mod, b.dataset.ir));
+        history.pushState({ mod, vista: b.dataset.ir, desdeIndice: true }, "", EC.hashDe(mod, b.dataset.ir));
         mostrarUno(m, b.dataset.ir);
         const h = m.querySelector(".bloque.activo .bq-h") || m.querySelector(`.lgrp-g[data-grupo="${CSS.escape(b.dataset.ir)}"] .lgrp`); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
       });
       volver.addEventListener("click", () => {
-        if ((history.state || {}).vista) history.back();
-        else { history.replaceState({ mod, vista: null }, "", EC.hashDe(mod, null) || location.pathname); mostrarUno(m, null); }
+        // Una ruta profunda abierta desde fuera no tiene necesariamente
+        // una entrada anterior del índice: no salir del sitio por accidente.
+        if (history.state?.desdeIndice && history.state.mod === mod) history.back();
+        else {
+          history.replaceState({ mod, vista: null }, "", EC.hashDe(mod, null) || location.pathname);
+          mostrarUno(m, null);
+        }
       });
       for (const t of tipos) pintarTarjeta(mod, t.clave);
       mqUno.addEventListener("change", () => aplicarModo(m));
@@ -165,7 +175,8 @@
     const idx = document.createElement("nav"); idx.className = "sub-idx"; idx.setAttribute("aria-label", "Resumen por área");
     idx.innerHTML = tipos.map(t => `<button type="button" class="ti" data-ir="${t.clave}"><span class="ti-i"><svg aria-hidden="true"><use href="${t.ico}"/></svg></span><svg class="ti-c" aria-hidden="true"><use href="#i-chev"/></svg><b class="ti-v"></b><span class="ti-t">${EC.esc(t.txt)}</span><span class="ti-s"></span></button>`).join("");
     const volver = document.createElement("button"); volver.type = "button"; volver.className = "sub-volver";
-    volver.innerHTML = `<svg aria-hidden="true"><use href="#i-chev"/></svg>Hoy`;
+    volver.innerHTML = `<svg aria-hidden="true"><use href="#i-chev"/></svg>Volver a Hoy`;
+    volver.setAttribute("aria-label", "Volver al índice de Hoy");
     const primero = grid.querySelector(`:scope > [data-grupo="${tipos[0].clave}"]`);
     grid.insertBefore(idx, primero); grid.prepend(volver);
     // El dato principal de cada grupo se copia a su tarjeta cada vez que Hoy se actualiza
@@ -182,12 +193,15 @@
     leer();
     idx.addEventListener("click", e => {
       const b = e.target.closest("[data-ir]"); if (!b) return;
-      history.pushState({ mod: "inicio", vista: b.dataset.ir }, "", EC.hashDe("inicio", b.dataset.ir));
+      history.pushState({ mod: "inicio", vista: b.dataset.ir, desdeIndice: true }, "", EC.hashDe("inicio", b.dataset.ir));
       mostrarUno(m, b.dataset.ir);
     });
     volver.addEventListener("click", () => {
-      if ((history.state || {}).vista) history.back();
-      else { history.replaceState({ mod: "inicio", vista: null }, "", location.pathname); mostrarUno(m, null); }
+      if (history.state?.desdeIndice && history.state.mod === "inicio") history.back();
+      else {
+        history.replaceState({ mod: "inicio", vista: null }, "", location.pathname);
+        mostrarUno(m, null);
+      }
     });
     mqUno.addEventListener("change", () => aplicarModo(m));
     aplicarModo(m);

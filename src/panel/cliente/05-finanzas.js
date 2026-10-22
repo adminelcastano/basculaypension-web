@@ -28,7 +28,11 @@
     const solicitud = ++secuenciaDinero;
     const c = $("#fb-resumen");
     try {
-      const j = await api("finanzas" + (st.mes ? "?mes=" + st.mes : ""));
+      const [j,obligaciones] = await Promise.all([
+        api("finanzas" + (st.mes ? "?mes=" + st.mes : "")),
+        api("finanzas/obligaciones").catch(() => null)
+      ]);
+      j.obligaciones_confirmadas=obligaciones;
       if (solicitud !== secuenciaDinero) return;
       st.datos = j; st.mes = j.mes;
       try { pintarConfigCuentas(); } catch (er) { console.error(er); }
@@ -112,16 +116,46 @@
     const alertas = j.conciliacion_alertas || [];
     const alertaIds = new Set(alertas.map(a => a.id));
     const motivoAlerta = { importe: "El importe de la hoja cambió", forma: "El ticket ya no figura como transferencia", ausente: "El ticket desapareció de la hoja", ambiguo: "Hay más de un ticket con ese folio" };
+    // Solo sumamos saldos de activo operativo: sobres + débito, nunca tarjeta
+    // de crédito, compromisos previstos ni cuentas por cobrar.
+    const ob = j.obligaciones_confirmadas?.resumen || null;
+    const sinCuenta=(b.sin_cuenta||{});
+    const montosSinCuenta=["pagos","transferencias"].some(k=>Math.abs(Number(sinCuenta[k]||0))>=0.005);
+    const dineroCompleto = e.saldo != null && b.dinero != null && !b.dinero_parcial && !montosSinCuenta;
+    const disponible = dineroCompleto ? Math.round((e.saldo+b.dinero)*100)/100 : null;
+    const exigible30 = ob ? Math.round((ob.vencido+ob.proximos_30)*100)/100 : null;
+    const escenario = disponible != null && exigible30 != null ?
+      Math.round((disponible-exigible30)*100)/100 : null;
+    const conDato = x => x == null ? "—" : D(x);
+    const tarjetaInfo = (titulo,valor,nota="") => `<div class="k"><span>${titulo}</span>
+      <b>${conDato(valor)}</b>${nota?`<small class="note">${nota}</small>`:""}</div>`;
+    const indicadores = `<div class="ctot f-tablero-kpi" aria-label="Indicadores financieros">
+      ${tarjetaInfo("Disponible calculado (sobres + débito)",disponible,dineroCompleto?"No equivale a saldo bancario confirmado":montosSinCuenta?"Incompleto: hay movimientos bancarios sin cuenta asignada":"Incompleto: falta saldo inicial de alguna cuenta o efectivo")}
+      ${tarjetaInfo("Por pagar · deuda confirmada",ob?.pendiente??null,ob?"Obligaciones registradas; evitar volver a incluir aquí saldos de tarjetas":"Sin consulta completa")}
+      ${tarjetaInfo("Vencido · obligaciones",ob?.vencido??null)}
+      ${tarjetaInfo("Próximos 7 días · obligaciones",ob?.proximos_7??null)}
+      ${tarjetaInfo("Próximos 30 días · obligaciones",ob?.proximos_30??null)}
+      ${tarjetaInfo("Por cobrar a clientes · CAJA",j.por_cobrar_caja?.total??null,"No se considera ingreso hasta cobrar")}
+      ${tarjetaInfo("Deuda en tarjetas",b.deuda_parcial||montosSinCuenta?null:b.deuda,b.deuda_parcial?"Parcial: falta deuda inicial de alguna tarjeta":montosSinCuenta?"No verificable: hay operaciones bancarias sin cuenta asignada":"Referencia bancaria independiente; no sumarla a obligaciones sin revisar")}
+      ${tarjetaInfo("Escenario tras pagos exigibles a 30 días",escenario,"Sin sumar cobros futuros, otros gastos ni pagos previstos")}
+    </div>
+    <p class="note">Flujo registrado del mes: entradas ${D(i.total)} · salidas ${D(g.total)}. Son operaciones, no dinero adicional al disponible. Los estados bancarios confirmados se consultan aparte. Última actualización financiera: ${esc(j.obligaciones_confirmadas?.resumen?.actualizado||"No verificada")}.</p>`;
     const S = {
       resumen: () => `      <section class="card"><h3>${esc(nomMes(j.mes))}</h3>
+        ${indicadores}
+        <details class="f-guia-saldos" style="margin-top:12px">
+          <summary>Ver detalle operativo del mes (origen: CAJA y pagos)</summary>
         <div class="ctot fkpi"><div class="k"><span>Entró</span><b style="color:#7ee2a0">${D(i.total)}</b></div><div class="k"><span>Salió</span><b style="color:#ff8a80">${D(g.total)}</b></div><div class="k dest"><span>Resultado</span><b>${D(j.resultado)}</b></div></div>
         <p class="note" role="status" style="margin:8px 0 12px;${fuenteAlerta ? "color:var(--warn);" : ""}">${esc(fuenteEstado)}${modoEnsayo ? "" : " · Puede haber consultas de la hoja sin cambios entre registros."}${fuenteAlerta ? " · Revisa Caja → Sincronizar antes de tomar decisiones." : ""}</p>
-        ${alertas.length ? `<p class="note" role="alert" style="margin:0 0 12px;color:var(--warn);font-weight:650">Atención: hay ${alertas.length} transferencia(s) con tickets modificados o no encontrados. Revisa DINERO → Transferencias antes de confiar en la conciliación. Los importes no se han corregido automáticamente.</p>` : ""}
+        <div class="ctot" style="margin-bottom:12px"><div class="k"><span>Por cobrar · CAJA (consulta)</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b><small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + (j.por_cobrar_caja.operaciones === 1 ? " cobro pendiente" : " cobros pendientes") : "Origen sin consultar"} · No es ingreso realizado</small></div></div>
+        <p class="note" style="margin:0 0 12px">Los abonos de clientes se registran únicamente en CAJA. Este saldo de consulta no suma ingresos ni genera un segundo cobro. <a href="#caja/cortes">Revisar pendientes en Caja</a>.</p>
+        ${alertas.length ? `<p class="note" role="alert" style="margin:0 0 12px;color:var(--warn);font-weight:650">Atención: hay ${alertas.length} transferencia(s) con tickets modificados o no encontrados. Revisa CAJA → Transferencias de clientes antes de confiar en la conciliación. Los importes no se han corregido automáticamente.</p>` : ""}
         <div class="fcols">
           <div><h4>Ingresos</h4>${filas([["Tickets en efectivo", i.efectivo], ["Tickets con tarjeta (Mercado Pago)", i.tarjeta], ["Tickets por transferencia (hoja)", i.transf_hoja], ...(i.transf_manual ? [["Transferencias capturadas sin ticket", i.transf_manual]] : []), ["Otros ingresos (rentas)", i.otros], ...(i.sobrantes ? [["Sobrantes de caja", i.sobrantes]] : []), ["Total", i.total, "tot"]])}</div>
           <div><h4>Egresos</h4>${filas([[CAT.caja, g.caja], [CAT.retiros, g.retiros], [CAT.programado, g.programado], [CAT.no_programado, g.no_programado], [CAT.compra, g.compra], ...(g.otro ? [[CAT.otro, g.otro]] : []), [CAT.comision, g.comision], ...(g.faltantes ? [[CAT.faltantes, g.faltantes]] : []), ["Total", g.total, "tot"]])}</div>
         </div>
         <div class="fgraf">${graf(j.por_dia)}</div>
+        </details>
         ${enCurso ? `<p class="note" style="margin:6px 0 0">Mes en curso: las cifras cambian conforme entran tickets, gastos y pagos.</p>` : ""}
       </section>`,
       diferencias: () => `      <section class="card"><h3>Diferencias de caja</h3>
@@ -190,7 +224,7 @@
         ${(b.movs || []).length ? `<div class="alist fmov-lista" style="margin-top:10px">${b.movs.map(m => `<div class="aitem"><span class="grav pagado" title="${esc(m.tipo_txt)}"><svg aria-hidden="true"><use href="#i-transf"/></svg></span><span class="tt">${esc(m.origen_txt)} → ${esc(m.destino_txt)}</span><span class="acc">${abierto ? `<button class="del fmov-eliminar" type="button" data-mdel="${esc(m.id)}" aria-label="Eliminar movimiento ${esc(m.origen_txt)} hacia ${esc(m.destino_txt)}"><svg aria-hidden="true"><use href="#i-trash"/></svg><span>Eliminar</span></button>` : ""}</span><span class="mm"><span><b>${D(m.importe)}</b></span><span>${esc(m.tipo_txt)}</span><span>${esc(diaTxt(m.fecha))}</span>${m.nota ? `<span>${esc(m.nota)}</span>` : ""}</span></div>`).join("")}</div>` : `<p class="note" style="margin-top:8px">Sin movimientos entre cuentas este mes.</p>`}
 
       </section>`,
-      transferencias: () => `      <section class="card">
+      transferencias: () => `      <section class="card"><p class="note" role="status">Conciliación de transferencias del mes ${esc(nomMes(j.mes))}. Es independiente del periodo seleccionado para los cortes.</p>
         <details class="ftransf-ayuda">
           <summary>¿Cuándo vincular un ticket?</summary>
           <p class="ftransf-ayuda-texto">Si el cobro ya aparece como transferencia en la hoja de Báscula o Pensión, selecciona su ticket para no contar el ingreso dos veces. Elige «Sin ticket» solo para cobros que no pasaron por esas hojas.</p>
@@ -231,8 +265,14 @@
       </section>`
     };
     // Dinero muestra todo a la vez, en bloques (los de pagos y compras los pinta la Agenda)
-    const BLOQUES = { "fb-resumen": ["resumen", "diferencias", "sueldos", "categorias", "admin"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["bitacora", "reportes"] };
+    const BLOQUES = { "fb-resumen": ["resumen"], "fb-efectivo": ["efectivo"], "fb-cuentas": ["cuentas"], "fb-transf": ["transferencias"], "fb-bitacora": ["categorias", "admin", "bitacora", "reportes"] };
     for (const [id, ks] of Object.entries(BLOQUES)) { const el = $("#" + id); if (el) el.innerHTML = ks.map(k => S[k]()).join("\n"); }
+    const porCobrar = $("#fb-por-cobrar");
+    if (porCobrar) porCobrar.innerHTML = `<section class="card"><h3>Por cobrar a clientes · CAJA</h3>
+      <div class="ctot"><div class="k"><span>Saldo pendiente activo</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b>
+      <small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + " cobro(s) pendiente(s)" : "Sin información verificada"}</small></div></div>
+      ${j.por_cobrar_caja?.revisar_pagados? `<p class="warn" role="alert"><b>Revisar en CAJA:</b> ${j.por_cobrar_caja.revisar_pagados} registro(s) marcados como pagados no coinciden con sus abonos activos. Diferencia por comprobar ${D(j.por_cobrar_caja.revisar_total)}. No se ha agregado como deuda ni se ha movido dinero.</p>`:""}
+      <p class="note">Consulta solamente. Los abonos de Báscula/Pensión se registran y anulan desde CAJA, sin crear ingresos duplicados. <a href="#caja/cortes">Revisar pendientes en CAJA</a>.</p></section>`;
     const pendientesConciliacion = (j.conciliacion_alertas || []).length;
     const estadoTransferencias = modoEnsayo ? "Ensayo · hoja desconectada"
       : fuenteAlerta ? "Hoja sin sincronización verificada"
@@ -240,18 +280,17 @@
       : hojaSinLigar.length ? hojaSinLigar.length + " tickets por ligar"
       : !(j.transf_hoja || []).length ? "Sin tickets de transferencia en la hoja"
       : "Sin tickets pendientes de vincular";
-    EC.bloqueN("finanzas", "transferencias",
+    EC.bloqueN("caja", "transferencias",
       pendientesConciliacion || hojaSinLigar.length || null,
       pendientesConciliacion > 0 || fuenteAlerta || hojaSinLigar.length > 0);
-    EC.bloqueN("finanzas", "cuentas", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
+    EC.bloqueN("finanzas", "bancos", (b.faltan_saldo || []).length ? "!" : null, (b.faltan_saldo || []).length > 0);
     // Línea de estado de cada tarjeta del índice (celular y tablet)
     // Tarjetas financieras: preservar los centavos cuando no son .00.
     // No redondear el saldo real al peso en el resumen del celular.
     const D0 = v => EC.dinero(v, Math.round(Math.abs(Number(v) || 0) * 100) % 100 ? 2 : 0);
-    EC.bloqueInfo("finanzas", "resumen", { valor: D0(j.resultado ?? (i.total - g.total)), texto: "resultado de " + nomMes(j.mes).toLowerCase() });
-    EC.bloqueInfo("finanzas", "efectivo", { valor: e.saldo != null ? D0(e.saldo) : "—", texto: e.saldo != null ? "en sobres" : "Sin saldo inicial capturado" });
-    EC.bloqueInfo("finanzas", "cuentas", { valor: b.dinero != null ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · falta capturar saldos" : "en cuentas" + (b.deuda ? " · deuda " + D0(b.deuda) : "")) + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
-    EC.bloqueInfo("finanzas", "transferencias", { texto: estadoTransferencias });
+    EC.bloqueInfo("finanzas", "resumen", { valor: disponible == null ? null : D0(disponible), texto: disponible == null ? "Disponible incompleto" : "Disponible calculado · " + nomMes(j.mes).toLowerCase() });
+    EC.bloqueInfo("finanzas", "bancos", { valor: b.dinero != null && !b.dinero_parcial ? D0(b.dinero) : null, texto: (b.dinero_parcial ? "Parcial · faltan saldos" : "en cuentas") + (e.saldo == null ? " · sobres sin saldo" : "") + (b.conciliaciones_pendientes ? " · revisar conciliación" : "") });
+    EC.bloqueInfo("caja", "transferencias", { texto: estadoTransferencias });
     EC.bloqueInfo("finanzas", "bitacora", { texto: "Cambios y reportes del mes" });
     conectar();
     pintarConfigCuentas();
@@ -541,8 +580,8 @@
 
   $("#f-mes").addEventListener("change", e => { st.mes = e.target.value; cargar(); });
   // Desde el Inicio: abrir Finanzas con el formulario de transferencia listo
-  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA("finanzas", { historia: "push", vista: foco === "transf" ? "transferencias" : "resumen" }); };
-  document.addEventListener("modulo", e => { if (e.detail === "finanzas") { if (st.datos) pintar(); cargar(); } });
+  window.finanzasAbrir = foco => { st.foco = foco; if (window.irA) window.irA(foco === "transf" ? "caja" : "finanzas", { historia: "push", vista: foco === "transf" ? "transferencias" : "resumen" }); };
+  document.addEventListener("modulo", e => { if (e.detail === "finanzas") { if (st.datos) pintar(); cargar(); } else if (e.detail === "caja") { st.mes = ""; cargar(); } });
   document.addEventListener("recargar-todo", () => { if (!$("#mod-finanzas").hidden) cargar(); });
-  if (EC.ruta().mod === "finanzas") cargar();
+  if (["finanzas","caja"].includes(EC.ruta().mod)) cargar();
 })();

@@ -7,10 +7,16 @@ export const fechaReal = s => typeof s==="string" && DIA.test(s) && !Number.isNa
   new Date(s+"T12:00:00Z").toISOString().slice(0,10)===s;
 export function dineroCentavos(x,{opcional=false,permitirNegativo=false}={}) {
   if(opcional && (x==null||x==="")) return null;
-  const s=String(x??"").trim().replace(/[$,\s]/g,"");
-  if(!(permitirNegativo?/^-?\d{1,9}(\.\d{1,2})?$/:/^\d{1,9}(\.\d{1,2})?$/).test(s))return NaN;
-  const signo=s.startsWith("-")?-1:1;
-  const [p,c=""]=s.replace(/^-/,"").split(".");
+  // No eliminar comas arbitrariamente: "1,50" NO es "150".
+  // Solo se permiten miles agrupados de 3 en 3 y decimal con punto.
+  if(typeof x!=="string"&&typeof x!=="number")return NaN;
+  const literal=String(x).trim().replace(/^\$\s*/,"");
+  const patron=permitirNegativo
+    ? /^-?(?:\d{1,9}|\d{1,3}(?:,\d{3}){1,2})(?:\.\d{1,2})?$/
+    : /^(?:\d{1,9}|\d{1,3}(?:,\d{3}){1,2})(?:\.\d{1,2})?$/;
+  if(!patron.test(literal))return NaN;
+  const signo=literal.startsWith("-")?-1:1;
+  const [p,c=""]=literal.replace(/^-/,"").replace(/,/g,"").split(".");
   const v=Number(p)*100+Number(c.padEnd(2,"0"));
   return Number.isSafeInteger(v)&&v<=10000000000?signo*v:NaN;
 }
@@ -105,6 +111,8 @@ export async function estadosCuentaRuta(request,env,partes,usuario) {
   }
   if(request.method!=="POST"||partes.length!==2)return respuesta({ok:false,error:"Operación no permitida."},405);
   let c;try{c=await request.json();}catch{return respuesta({ok:false,error:"Datos inválidos."},400);}
+  if(!c||typeof c!=="object"||Array.isArray(c))
+    return respuesta({ok:false,error:"Se esperaba un objeto de datos válido."},400);
   const cuentaId=String(c.cuenta||"");
   const cuenta=await env.DB.prepare("SELECT id,nombre,tipo,activa FROM fin_cuentas WHERE id=?").bind(cuentaId).first();
   if(!cuenta||!cuenta.activa)return respuesta({ok:false,error:"Cuenta no disponible; actualiza Finanzas."},409);

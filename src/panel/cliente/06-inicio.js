@@ -80,7 +80,7 @@
   function pintarPagos(j) {
     const D = v => dinero(v, 2);
     contar($("#i-pp"), j.por_pagar_mes, v => dinero(v));
-    $("#i-pp-nota").textContent = j.n_por_pagar_mes ? `${j.n_por_pagar_mes} ${j.n_por_pagar_mes === 1 ? "pago pendiente" : "pagos pendientes"}${j.vencidos ? ` · ${j.vencidos} ${j.vencidos === 1 ? "vencido" : "vencidos"}` : ""}` : "Nada pendiente este mes";
+    $("#i-pp-nota").textContent = j.n_por_pagar_mes ? `${j.n_por_pagar_mes} ${j.n_por_pagar_mes === 1 ? "pago previsto" : "pagos previstos"}${j.vencidos ? ` · ${j.vencidos} ${j.vencidos === 1 ? "vencido" : "vencidos"}` : ""}` : "Nada pendiente este mes";
     contar($("#i-pg"), j.pagado_mes, v => dinero(v));
     $("#i-pg-nota").textContent = j.n_pagado_mes ? `${j.n_pagado_mes} ${j.n_pagado_mes === 1 ? "pago registrado" : "pagos registrados"}` : "Sin pagos registrados";
     $("#n-pagos").textContent = j.proximos.length;

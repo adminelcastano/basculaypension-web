@@ -1,0 +1,27 @@
+name: D1 respaldo recuperable PR46
+on:
+  push:
+    branches: [feat/caja-dinero-integral-20261021]
+    paths:
+      - .github/workflows/d1-respaldo-verificable-pr46.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: d1-respaldo-pr46
+  cancel-in-progress: false
+jobs:
+  respaldo:
+    if: github.ref == 'refs/heads/feat/caja-dinero-integral-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_D1_BACKUP_TOKEN: ${{ secrets.CLOUDFLARE_D1_BACKUP_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exportar SOLO de D1 origen y verificar restauración en D1 nueva aislada
+        run: node scripts/seguridad/respaldo-d1-pr46.mjs

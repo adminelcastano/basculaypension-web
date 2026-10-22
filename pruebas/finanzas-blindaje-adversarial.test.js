@@ -206,8 +206,8 @@ test("Eliminar en móvil exige confirmación visible, no una doble pulsación in
 test("Finanzas móvil: cifras monetarias sin redondear al peso en tarjetas de resumen",()=>{
  const ui=source("../src/panel/cliente/05-finanzas.js");
  assert.match(ui,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
- assert.match(ui,/EC\.bloqueInfo\("finanzas", "resumen", \{ valor: D0/);
- assert.match(ui,/EC\.bloqueInfo\("finanzas", "cuentas", \{ valor: b\.dinero != null \? D0/);
+ assert.match(ui,/EC\.bloqueInfo\("finanzas", "resumen", \{ valor: disponible == null \? null : D0/);
+ assert.match(ui,/EC\.bloqueInfo\("finanzas", "bancos", \{ valor: b\.dinero != null && !b\.dinero_parcial \? D0/);
  const n=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
  assert.equal(n(8064.50),2);
  assert.equal(n(564.50),2);
@@ -274,15 +274,15 @@ test("Capturas de celular: pagos sin redondear y papelera de movimientos con tex
   const fin=source("../src/panel/cliente/05-finanzas.js");
   const css=source("../src/panel/estilos.css");
   assert.match(agenda,/const D0 = v => EC\.dinero\(v, Math\.round\(Math\.abs\(Number\(v\) \|\| 0\) \* 100\) % 100 \? 2 : 0\)/);
-  assert.match(agenda,/bloqueInfo\("finanzas", "hechos", \{ valor: D0\(hechos\.reduce/);
-  assert.match(agenda,/bloqueInfo\("finanzas", "programados".+D0\(porPagar\)/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "movimientos", \{ valor: D0\(hechos\.reduce/);
+  assert.match(agenda,/bloqueInfo\("finanzas", "movimientos".+D0\(porPagar\)/);
   const decimales=v=>Math.round(Math.abs(Number(v)||0)*100)%100?2:0;
   assert.equal(decimales(285.50),2,"Un pago de 285.50 no puede mostrarse como 286");
   assert.equal(decimales(850),0);
   assert.equal(decimales(0.01),2);
   assert.equal(decimales(564.50),2);
-  assert.match(fin,/bloqueInfo\("finanzas", "efectivo", \{ valor: e\.saldo != null \? D0\(e\.saldo\) : "—"/);
-  assert.match(fin,/Sin saldo inicial capturado/);
+  assert.match(fin,/bloqueInfo\("finanzas", "bancos", \{ valor: b\.dinero != null && !b\.dinero_parcial/);
+  assert.match(fin,/sobres sin saldo/);
   assert.match(fin,/class="alist fmov-lista"/);
   assert.match(fin,/class="del fmov-eliminar"[^\n]*data-mdel/);
   assert.match(fin,/<span>Eliminar<\/span><\/button>/);
@@ -294,7 +294,7 @@ test("Capturas de celular: pagos sin redondear y papelera de movimientos con tex
 
 test("Tarjeta móvil de transferencias no afirma Al corriente sin consultar Google",()=>{
   const ui=source("../src/panel/cliente/05-finanzas.js");
-  const expression=ui.match(/const estadoTransferencias = ([\s\S]*?);\s*EC\.bloqueN\("finanzas", "transferencias"/)?.[1];
+  const expression=ui.match(/const estadoTransferencias = ([\s\S]*?);\s*EC\.bloqueN\("caja", "transferencias"/)?.[1];
   assert.ok(expression,"La tarjeta debe tener una política explícita de estado");
   const estado=new Function("modoEnsayo","fuenteAlerta","pendientesConciliacion","hojaSinLigar","j","return "+expression+";");
   const sinTickets={transf_hoja:[]};
@@ -364,7 +364,7 @@ test("Dinero: ayudas de pagos hechas desplegables sin frases recortadas en móvi
   assert.match(ui,/<summary>¿Qué pagos se registran aquí\?<\/summary>/);
   assert.match(ui,/<summary>¿De dónde salen estos pagos\?<\/summary>/);
   assert.match(ui,/<p class="note" data-nl="1">Registra gastos ya realizados/);
-  assert.match(ui,/<p class="note" data-nl="1">Son pagos de la administración/);
+  assert.match(ui,/<p class="note" data-nl="1">Los pagos programados son previsiones aproximadas/);
   assert.doesNotMatch(ui,/<p class="note" style="margin:10px 0 0">Para lo que ya pagaste/);
   assert.match(css,/\.f-guia-saldos > summary/);
   assert.doesNotThrow(()=>new Function(ui));

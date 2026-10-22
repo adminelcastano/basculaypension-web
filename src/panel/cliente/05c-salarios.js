@@ -76,5 +76,5 @@
     }catch(e){if(e.message!=="sesion")div.innerHTML="<p class='note'>No se pudo consultar el puente SALARIOS: "+esc(e.message)+"</p>";}
     finally{busy=false;if(recargarPendiente){recargarPendiente=false;queueMicrotask(cargar);}}
   }
-  document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
+  document.addEventListener("modulo",e=>{if(e.detail==="config")cargar();});
 })();

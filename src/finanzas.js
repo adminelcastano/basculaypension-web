@@ -11,8 +11,11 @@ import { asegurarEsquemaCategorias, listaCategorias, adivinarCategoria } from ".
 import { asegurarEsquemaCuentas, listaCuentas, cuentasRutas, TIPOS_MOV, flujosMes, encadenarSaldos, comisionMercadoPago, COMISION_INICIAL } from "./cuentas.js";
 import { asegurarEsquemaBitacora, stmtBitacoraSiCambio, listaBitacora, ACCIONES } from "./bitacora.js";
 import { centavosIguales } from "./finanzas-idempotencia.js";
-import { estadosCuentaRuta } from "./finanzas-estados.js";
+import { estadosCuentaRuta, asegurarEsquemaEstados } from "./finanzas-estados.js";
+import { cotejarCuentasMes } from "./finanzas-cotejo.js";
 import { rutaSalarios } from "./finanzas-salarios.js";
+import { resumenPorCobrarCaja } from "./finanzas-cobrar.js";
+import { obligacionesRuta } from "./finanzas-obligaciones.js";
 
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const r2 = v => Math.round(v * 100) / 100;
@@ -298,10 +301,31 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
     d.ensayo_finanzas = env.ENSAYO_FINANZAS === "1";
     d.sync = d.ensayo_finanzas ? null : await env.FILES.get("caja:sync", { type:"json" }).catch(() => null);
     delete d.cortes; delete d.gastos_caja;
+    d.por_cobrar_caja = await resumenPorCobrarCaja(env);
     d.cuentas_activas = await listaCuentas(env);
     d.abiertos = await mesesAbiertos(env);
     return json({ ok: true, meses, ...d });
   }
+  if (partes[1] === "cotejo-estados" && request.method === "GET" && partes.length === 2) {
+    const mes = url.searchParams.get("mes") || meses[0];
+    if (!RE_MES.test(mes) || !meses.includes(mes))
+      return json({ok:false,error:"Mes fuera del historial financiero disponible."},422);
+    await asegurarEsquemaEstados(env);
+    const cierre = new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0)).toISOString().slice(0,10);
+    const [datos,documentos]=await Promise.all([
+      datosFinanzas(env,mes),
+      env.DB.prepare(`SELECT cuenta,periodo_desde,periodo_hasta,fecha_corte,saldo_final
+        FROM (SELECT cuenta,periodo_desde,periodo_hasta,fecha_corte,saldo_final,
+          ROW_NUMBER() OVER(PARTITION BY cuenta ORDER BY fecha_corte DESC,periodo_hasta DESC) AS rn
+          FROM fin_estados_cuenta WHERE fecha_corte <= ? AND periodo_hasta <= ?)
+        WHERE rn=1`).bind(cierre,cierre).all()
+    ]);
+    const hoy = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
+    const resultados=cotejarCuentasMes(datos.banco.lista,documentos.results,mes,hoy,datos.banco.sin_cuenta);
+    return json({ok:true,mes,fecha_calculo:cierre,consultado:new Date().toISOString(),
+      cuentas:resultados,aviso:"Solo se compara cuando estado bancario y libro calculado cierran el mismo día; nunca se ajustan saldos ni se crean movimientos."});
+  }
+  if (partes[1] === "obligaciones") return await obligacionesRuta(request,env,partes,usuario);
   if (partes[1] === "estados-cuenta") return await estadosCuentaRuta(request,env,partes,usuario);
   if (partes[1] === "salarios") return await rutaSalarios(request,env,partes,usuario);
   if (partes[1] === "bitacora" && request.method === "GET") return json({ ok: true, bitacora: await listaBitacora(env, 150), acciones: ACCIONES });

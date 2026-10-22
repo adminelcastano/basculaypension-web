@@ -146,7 +146,7 @@
 
       <div class="sec-h cat-f"><span class="pt" aria-hidden="true"></span><h3 class="sec-t">Pagos y compras</h3><span class="ln" aria-hidden="true"></span><button type="button" class="sec-ir" data-ir="pagos">Ir a Pagos ›</button></div>
       <div class="ini-card cat-f kpi" data-agenda="pago" tabindex="0" role="link" style="--c:#30d158">
-        <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Por pagar este mes</span></div>
+        <div class="ini-top"><span class="ibadge"><svg><use href="#i-reloj"/></svg></span><span class="ini-k">Pagos previstos · estimado</span></div>
         <b class="ini-num" id="i-pp">$0</b><span class="note" id="i-pp-nota"></span>
       </div>
       <div class="ini-card cat-f kpi" data-agenda="hechos" tabindex="0" role="link" style="--c:#30d158">
@@ -281,28 +281,34 @@
 </div></div></section>
   <section class="bloque" data-bloque="movs"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-transf"/></svg><span>Movimientos de caja</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div id="c-movs"></div></div></section>
   <section class="bloque" data-bloque="entregas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-gasto"/></svg><span>Entregas</span><b class="bq-n" hidden></b></h3><div class="bq-c"><div id="c-entregas"></div></div></section>
+  <section class="bloque" data-bloque="transferencias"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-transf"/></svg><span>Transferencias de clientes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-transf"></div></section>
 </div>
 <p class="cfg-ir"><a href="#config/tablet" data-cfg="tablet"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Encargados de la tablet</a></p>
 </main>
 <main class="mod" id="mod-finanzas" data-sub data-uno hidden>
 <div class="titlebar">
   <h2 id="f-titulo">Dinero.</h2>
-  <p id="f-subtitulo" class="note">Turnos y administración juntos: lo que entra, lo que sale, lo que se paga y se compra, y dónde está el dinero.</p>
+  <p id="f-subtitulo" class="note">Liquidez, saldos, obligaciones y pagos. El detalle de ingresos y cortes de turno permanece en CAJA.</p>
 </div>
 <div class="tools">
   <label class="fmes">Mes<select id="f-mes" aria-label="Mes"></select></label>
 </div>
 <div class="ag bloques" id="f-cuerpo">
-  <section class="bloque" data-bloque="resumen"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Resumen del mes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-resumen"></div></section>
-  <section class="bloque" data-bloque="programados"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cal"/></svg><span>Pagos programados</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-prog"></div></section>
-  <section class="bloque" data-bloque="compras"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-carrito"/></svg><span>Compras por hacer</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-comp"></div></section>
-  <section class="bloque" data-bloque="hechos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Pagos y gastos hechos</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-hechos"></div></section>
-  <section class="bloque" data-bloque="salarios"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-persona"/></svg><span>Salarios · Google Sheets</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-salarios"><section class="card"><h3>Pagos salariales</h3><div id="f-salarios-contenido"><p class="note">Consultando pagos existentes...</p></div></section></div></section>
-  <section class="bloque" data-bloque="efectivo"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-billete"/></svg><span>Efectivo en sobres</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-efectivo"></div></section>
-  <section class="bloque" data-bloque="cuentas"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Cuentas y tarjetas</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-cuentas"></div></section>
-  <section class="bloque" data-bloque="estados"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Estados de cuenta</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-estados"><section class="card"><h3>Conciliar estados de cuenta</h3><div id="f-estados-contenido"><p class="note">Abre Finanzas para revisar o capturar un estado de cuenta.</p></div></section></div></section>
-  <section class="bloque" data-bloque="transferencias"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-transf"/></svg><span>Transferencias</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-transf"></div></section>
-  <section class="bloque" data-bloque="bitacora"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Bitácora y reportes</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-bitacora"></div></section>
+  <section class="bloque" data-bloque="resumen"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Resumen financiero</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="fb-resumen"></div></section>
+  <section class="bloque" data-bloque="bancos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cat-tarjetas"/></svg><span>Bancos y tarjetas</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <h4 class="fsub">Cuentas y tarjetas</h4><div id="fb-cuentas"></div>
+    <details class="f-grupo-extra"><summary>Efectivo en sobres · detalle y conteos</summary><div id="fb-efectivo"></div></details>
+    <h4 class="fsub">Estados de cuenta · captura manual</h4><div id="fb-estados"><section class="card"><h3>Conciliar estados de cuenta</h3><div id="f-estados-contenido"><p class="note">Abre Dinero para capturar un estado de cuenta.</p></div></section></div>
+  </div></section>
+  <section class="bloque" data-bloque="obligaciones"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-doc"/></svg><span>Cuentas por pagar y cobrar</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <div id="fb-por-cobrar"><p class="note">Consultando pendientes de CAJA…</p></div>
+    <div id="fb-obligaciones"></div>
+  </div></section>
+  <section class="bloque" data-bloque="movimientos"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-check"/></svg><span>Movimientos y pagos</span><b class="bq-n" hidden></b></h3><div class="bq-c f-secciones">
+    <h4 class="fsub">Pagos programados · estimaciones</h4><div id="pg-prog"></div>
+    <h4 class="fsub">Pagos y gastos hechos</h4><div id="pg-hechos"></div>
+    <details class="f-grupo-extra"><summary>Bitácora y reportes</summary><div id="fb-bitacora"></div></details>
+  </div></section>
 </div>
 <p class="cfg-ir"><a href="#config/cuentas" data-cfg="cuentas"><svg aria-hidden="true"><use href="#i-engrane"/></svg>Cuentas, categorías y lugares de compra</a></p>
 </main>
@@ -312,6 +318,7 @@
   <p id="a-subtitulo" class="note"></p>
 </div>
 <div class="ag bloques" id="ag-cuerpo">
+  <section class="bloque" data-bloque="compras"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-carrito"/></svg><span>Compras por hacer</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="pg-comp"></div></section>
   <section class="bloque" data-bloque="calendario"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-cal"/></svg><span>Calendario</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-calendario"></div></section>
   <section class="bloque" data-bloque="tarea"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tarea"/></svg><span>Por hacer</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-tarea"></div></section>
   <section class="bloque" data-bloque="incidencia"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-alerta"/></svg><span>Incidencias</span><b class="bq-n" hidden></b></h3><div class="bq-c" id="ab-incidencia"></div></section>
@@ -337,7 +344,12 @@
     <span class="note" id="p-drive-nota"></span>
     <button class="btn btn-line" id="cfg-correo-verificar" type="button">Verificar Correo Panel</button>
     <span class="note" id="cfg-correo-resultado" role="status" aria-live="polite"></span>
-  </div></section></section>
+  </div></section>
+  <section class="card" id="fb-salarios"><h3>Salarios · conexión privada</h3>
+    <p class="note">Consulta de registros existentes. La conexión con Google Sheets permanece desactivada; no se crean pagos nuevos.</p>
+    <div id="f-salarios-contenido"><p class="note">Consultando pagos existentes...</p></div>
+  </section>
+  </section>
   <section class="bloque cfg-ap" data-bloque="sistema" id="cfg-sistema"><h3 class="bq-h"><svg aria-hidden="true"><use href="#i-tendencia"/></svg><span>Sistema</span><b class="bq-n" hidden></b></h3><section class="ini-card" id="i-consumo" aria-live="polite"><div class="ini-top"><span class="ibadge" style="--c:#30d158"><svg><use href="#i-tendencia"/></svg></span><span class="ini-k">Consumo de Cloudflare y archivos</span></div><div id="i-consumo-txt" class="note">Revisando…</div></section></section>
 </div>
 </main>

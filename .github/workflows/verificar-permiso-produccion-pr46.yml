@@ -1,0 +1,23 @@
+name: Verificar permiso de publicación PR46
+on:
+  push:
+    branches: [feat/caja-dinero-integral-20261021]
+    paths:
+      - .github/workflows/verificar-permiso-produccion-pr46.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verificar token y bindings sin publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PRODUCTION_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          RELEASE_MODE: preflight
+        run: node scripts/seguridad/verificar-publicacion-pr46.mjs

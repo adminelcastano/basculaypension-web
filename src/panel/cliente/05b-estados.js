@@ -12,7 +12,7 @@
     ["iva","IVA incluido en cargos (opcional)","0.00"]
   ];
   const dinero = n => n == null ? "Sin capturar" : (Number(n) < 0 ? "−" : "") + "$" + Math.abs(Number(n)).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
-  let actual = null, todos = [], cuentas = [], cargando = false;
+  let actual = null, todos = [], cuentas = [], cargando = false, cotejo = null, secuencia=0;
   function estadoTexto(r) {
     if (r.comprobacion==="incompleto") return "Datos parciales: faltan saldos o movimientos";
     if (r.comprobacion==="cuadra") return "Las cifras de este estado cuadran entre sí";
@@ -25,18 +25,27 @@
     if(r.continuidad==="cuadra")return "Continuidad correcta: saldo inicial coincide con el cierre anterior.";
     return "Atención: el saldo inicial difiere "+dinero(r.continuidad_diferencia)+" del cierre del periodo anterior. Revisar sin ajustar automáticamente.";
   }
+  function vistaCotejo(){
+    if(!cotejo)return "<p class='note' role='status'>No se pudo consultar el saldo operativo para este periodo. Los estados capturados siguen disponibles.</p>";
+    const celda=v=>v==null?"—":esc(dinero(v));
+    return "<section class='f-est-cotejo' aria-label='Comparación de saldos bancarios'>"+
+      "<h4 class='fsub'>Saldos bancarios y calculados · "+esc(cotejo.mes)+"</h4>"+
+      "<p class='note'>El saldo calculado corresponde al final del mes. El confirmado procede del estado capturado. "+
+      "Solo aparece una diferencia si ambos tienen la misma fecha de cierre y el mes ya terminó; nunca se ajusta el libro de movimientos.</p>"+
+      "<div class='tabla-scroll' role='region' aria-label='Referencias de saldo' tabindex='0'><table class='cmovs'><thead><tr>"+
+      "<th>Cuenta</th><th>Cierre calculado</th><th>Saldo calculado</th><th>Corte bancario</th><th>Saldo confirmado</th><th>Diferencia</th></tr></thead><tbody>"+
+      (cotejo.cuentas||[]).map(c=>"<tr><td><b>"+esc(c.nombre)+"</b><small class='note'>"+esc(c.observacion)+"</small></td>"+
+        "<td>"+esc(c.fecha_calculo)+"</td><td>"+celda(c.saldo_calculado)+"</td>"+
+        "<td>"+esc(c.fecha_corte_confirmada||"No capturado")+"</td><td>"+celda(c.saldo_confirmado)+"</td>"+
+        "<td>"+(c.comparable?celda(c.diferencia):"No comparable")+"</td></tr>").join("")+
+      "</tbody></table></div></section>";
+  }
   function mostrar() {
     const el=$("#f-estados-contenido");
     if(!el)return;
     el.innerHTML =
-      "<p class='note'>Elige la cuenta, registra las fechas reales del PDF y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Un saldo a favor o saldo deudor puede capturarse con signo negativo; cargos y abonos siempre son positivos. Este registro no genera cargos, gastos ni movimientos.</p>" +
-      "<div class='est-pdf-caja' role='group' aria-label='Lectura privada de PDF'>"+
-      "<b>Leer estado de cuenta en PDF</b>"+
-      "<p class='note'>El PDF se procesa únicamente en este dispositivo. Revisa las sugerencias antes de aplicarlas al formulario.</p>"+
-      "<div class='row'><label class='est-pdf-archivo'>Seleccionar PDF (máximo 12 MB)<input type='file' id='f-est-pdf-archivo' accept='.pdf,application/pdf' aria-label='Seleccionar estado de cuenta PDF'></label>"+
-      "<button type='button' class='btn btn-line' id='f-est-pdf-leer' disabled>Leer PDF</button></div>"+
-      "<p id='f-est-pdf-mensaje' class='note' role='status' aria-live='polite'></p>"+
-      "<div id='f-est-pdf-preview' hidden></div></div>"+
+      vistaCotejo() +
+      "<p class='note'>Elige la cuenta, registra las fechas reales de tu estado de cuenta y captura sus cifras cuando estén disponibles. Puedes guardar campos parciales. Un saldo a favor o saldo deudor puede capturarse con signo negativo; cargos y abonos siempre son positivos. Este registro no genera cargos, gastos ni movimientos.</p>" +
       "<form class='cform' id='f-est-form' novalidate>" +
       "<label class='wide'>Cuenta o tarjeta<select name='cuenta' required>" +
       cuentas.filter(x=>x.activa).map(x=>"<option value='"+esc(x.id)+"'>"+esc(x.nombre)+(x.tipo==="credito"?" · crédito":" · débito")+"</option>").join("")+
@@ -45,7 +54,7 @@
       "<label>Fin del periodo<input name='periodo_hasta' type='date' required></label>" +
       "<label>Fecha de corte<input name='fecha_corte' type='date' required></label>" +
       "<label class='f-est-credito'>Fecha límite de pago<input name='fecha_pago_limite' type='date'></label>" +
-      datosCampos.map(([name,title,hint])=>"<label>"+title+"<input name='"+name+"' inputmode='decimal' autocomplete='off' placeholder='"+hint+"'></label>").join("")+
+      datosCampos.map(([name,title,hint])=>"<label data-estado-campo='"+name+"'><span>"+title+"</span><input name='"+name+"' inputmode='decimal' autocomplete='off' placeholder='"+hint+"'></label>").join("")+
       "<label class='f-est-credito'>Pago mínimo<input name='pago_minimo' inputmode='decimal' placeholder='Opcional'></label>" +
       "<label class='f-est-credito'>Pago para no generar intereses<input name='pago_sin_intereses' inputmode='decimal' placeholder='Opcional'></label>" +
       "<label class='wide'>Nota privada de conciliación (opcional)<textarea name='nota' maxlength='300' rows='2' placeholder='Anotación para revisar movimientos. No incluyas números completos de cuenta.'></textarea></label>"+
@@ -66,80 +75,16 @@
     const mostrarCredito=()=>{
       const c=cuentas.find(x=>x.id===form.cuenta.value);
       form.querySelectorAll(".f-est-credito").forEach(x=>x.hidden=c?.tipo!=="credito");
+      const etiquetas=c?.tipo==="credito"
+        ? {saldo_inicial:"Deuda al inicio",abonos:"Pagos y abonos",cargos:"Compras y cargos",saldo_final:"Deuda al corte"}
+        : {saldo_inicial:"Saldo inicial",abonos:"Depósitos y abonos",cargos:"Retiros y cargos",saldo_final:"Saldo al corte (estado de cuenta)"};
+      Object.entries(etiquetas).forEach(([nombre,texto])=>{
+        const span=form.querySelector('[data-estado-campo="'+nombre+'"] span');
+        if(span)span.textContent=texto;
+      });
       if(c?.tipo!=="credito") for(const name of ["fecha_pago_limite","pago_minimo","pago_sin_intereses"])form.elements.namedItem(name).value="";
     };
 
-    // Lectura local: no crea registros ni guarda el PDF; solo rellena campos
-    // vacíos y únicamente cuando el banco y tipo seleccionados coinciden.
-    const archivo=$("#f-est-pdf-archivo"),leer=$("#f-est-pdf-leer");
-    const mensaje=$("#f-est-pdf-mensaje"),preview=$("#f-est-pdf-preview");
-    let importado=null;
-    const normPDF = txt=>String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
-    const coincidePDF=(dato,cuenta)=>{
-      const nombre=normPDF(cuenta?.nombre),bank=dato?.institucion;
-      return !!bank && dato.tipo===cuenta?.tipo &&
-        (bank==="AMEX"?/AMEX|AMERICAN EXPRESS/.test(nombre):
-         bank==="NU"?/\bNU\b/.test(nombre):
-         bank==="MERCADO PAGO"?nombre.includes("MERCADO PAGO"):nombre.includes(bank));
-    };
-    function mostrarPDF(){
-      if(!preview||!importado)return;
-      const dato=importado,propuestas=dato.campos||{},cuenta=cuentas.find(x=>x.id===form.cuenta.value);
-      const ok=coincidePDF(dato,cuenta);
-      const campos=[
-        ["periodo_desde","Inicio del periodo"],["periodo_hasta","Fin del periodo"],
-        ["fecha_corte","Fecha de corte"],["fecha_pago_limite","Fecha límite de pago"],
-        ...datosCampos.map(([id,titulo])=>[id,titulo]),
-        ["pago_minimo","Pago mínimo"],["pago_sin_intereses","Pago para no generar intereses"]];
-      preview.hidden=false;
-      preview.innerHTML="<b>"+esc(dato.institucion||"Banco no reconocido")+
-        " · "+Number(dato.paginas||0)+" página(s)</b>"+
-        "<p class='note'>"+(ok?"La institución y el tipo coinciden. Confirma que es exactamente tu cuenta o tarjeta (no se verifica el número).":
-          "Selecciona la cuenta correcta. No se aplicarán datos a una institución distinta.")+"</p>"+
-        "<div class='est-pdf-resumen'>"+
-        campos.filter(([k])=>propuestas[k]!=null).map(([k,label])=>
-          "<div><span>"+esc(label)+"</span><b>"+esc(propuestas[k])+"</b></div>").join("")+"</div>"+
-        (dato.advertencias||[]).map(v=>"<p class='note'>⚠ "+esc(v)+"</p>").join("")+
-        (ok?"<label class='note est-pdf-confirmar'><input type='checkbox' id='f-est-pdf-cuenta-confirmada'> Confirmo que este PDF pertenece exactamente a la cuenta o tarjeta seleccionada.</label>":"")+
-        "<button type='button' id='f-est-pdf-aplicar' class='btn btn-line' disabled>Aplicar sugerencias al formulario</button>"+
-        "<p class='note'>Todavía no se guarda nada. Comprueba cada campo y pulsa Guardar estado de cuenta cuando estés seguro.</p>";
-      const confirmarCuenta=$("#f-est-pdf-cuenta-confirmada"),aplicarPDF=$("#f-est-pdf-aplicar");
-      confirmarCuenta?.addEventListener("change",()=>{aplicarPDF.disabled=!confirmarCuenta.checked||!dato.fiable||!ok||!!actual;});
-      aplicarPDF?.addEventListener("click",()=>{
-        if(actual||!importado?.fiable||!coincidePDF(importado,cuentas.find(x=>x.id===form.cuenta.value))||!confirmarCuenta?.checked)return;
-        let aplicados=0,existentes=0;
-        for(const [key,value] of Object.entries(importado.campos)){
-          const celda=form.elements.namedItem(key);
-          if(!celda)continue;
-          if(String(celda.value||"").trim()&&String(celda.value)!==String(value)){existentes++;continue;}
-          celda.value=String(value);aplicados++;
-        }
-        mostrarCredito();
-        importado=null;
-        preview.hidden=true;
-        preview.replaceChildren();
-        mensaje.textContent="Se aplicaron "+aplicados+" campos. Se respetaron "+existentes+" valores escritos anteriormente. Revisa antes de guardar.";
-        form.scrollIntoView({behavior:"smooth",block:"start"});
-      });
-    }
-    if(archivo&&leer&&mensaje&&preview){
-      archivo.addEventListener("change",()=>{leer.disabled=!archivo.files?.length;mensaje.textContent="";});
-      form.cuenta.addEventListener("change",()=>{if(importado)mostrarPDF();});
-      leer.addEventListener("click",async()=>{
-        const file=archivo.files?.[0];
-        if(!file||!EC.extraerEstadoPDF)return;
-        if(actual){mensaje.textContent="Termina esta edición o pulsa Nuevo registro antes de leer otro PDF.";return;}
-        leer.disabled=true;mensaje.textContent="Leyendo PDF localmente…";
-        preview.hidden=true;preview.replaceChildren();importado=null;
-        try{
-          const datos=await EC.extraerEstadoPDF(file);
-          importado=datos;
-          mensaje.textContent=datos.fiable?"Lectura terminada: revisa las cifras sugeridas.":"No se identificó suficiente información confiable; captura manualmente.";
-          mostrarPDF();
-        }catch(error){mensaje.textContent="No se pudo leer el PDF: "+String(error?.message||"Error desconocido").slice(0,180);}
-        finally{archivo.value="";leer.disabled=true;}
-      });
-    }
     form.cuenta.addEventListener("change",mostrarCredito);
     mostrarCredito();
     $("#f-est-nuevo").addEventListener("click",()=>{actual=null;form.reset();mostrarCredito();$("#f-est-nuevo").hidden=true;$("#f-est-err").textContent="";});
@@ -168,15 +113,22 @@
     });
   }
   async function cargar(){
-    if(cargando)return;
+    const solicitud=++secuencia;
     cargando=true;
     const el=$("#f-estados-contenido");
     try{
-      const r=await EC.api("finanzas/estados-cuenta");
-      cuentas=r.cuentas||[];todos=r.estados||[];
+      const mes=$("#f-mes")?.value||EC.hoyMx().slice(0,7);
+      const [r,comparado]=await Promise.all([
+        EC.api("finanzas/estados-cuenta"),
+        EC.api("finanzas/cotejo-estados?mes="+encodeURIComponent(mes)).catch(()=>null)
+      ]);
+      if(solicitud!==secuencia)return;
+      cuentas=r.cuentas||[];todos=r.estados||[];cotejo=comparado;
       if(el)mostrar();
-    }catch(e){if(el && e.message!=="sesion")el.innerHTML="<p class='note'>No se pudieron cargar los estados de cuenta: "+esc(e.message)+"</p>";}
-    finally{cargando=false;}
+    }catch(e){if(el && solicitud===secuencia && e.message!=="sesion")el.innerHTML="<p class='note'>No se pudieron cargar los estados de cuenta: "+esc(e.message)+"</p>";}
+    finally{if(solicitud===secuencia)cargando=false;}
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
+  $("#f-mes")?.addEventListener("change",()=>{if(!$("#mod-finanzas").hidden)cargar();});
+  if(EC.ruta().mod==="finanzas")cargar();
 })();

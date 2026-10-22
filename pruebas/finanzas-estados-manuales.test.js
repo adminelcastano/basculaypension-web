@@ -45,6 +45,12 @@ test("Fecha de corte y fin de periodo independientes del mes calendario",()=>{
 });
 test("Centavos exactos, campos vacíos distinguibles de cero, crédito con signo contrario",()=>{
   assert.equal(dineroCentavos("1,234.56"),123456);
+  assert.equal(dineroCentavos("$ 1,234.56"),123456);
+  for(const ambiguo of ["1,50","12,34","1 234.56","1,234,56","1,234.5.6","1,2,3"])
+    assert.ok(Number.isNaN(dineroCentavos(ambiguo)),"Formato ambiguo: "+ambiguo);
+  assert.ok(Number.isNaN(dineroCentavos({monto:"100"})));
+  assert.ok(Number.isNaN(dineroCentavos(["100"])));
+  assert.equal(dineroCentavos("100.50"),10050);
   assert.equal(dineroCentavos("",{opcional:true}),null);
   assert.ok(Number.isNaN(dineroCentavos("30.999")));
   assert.equal(calcularEstado({saldo_inicial:150000,abonos:80000,cargos:50000,saldo_final:180000},"debito").comprobacion,"cuadra");
@@ -90,6 +96,23 @@ test("Prohíbe solapes de periodos aun si intentan evitar el formulario",async()
   assert.equal((await e.post({...base,periodo_desde:"2026-10-01",periodo_hasta:"2026-10-31",fecha_corte:"2026-10-31"})).status,409);
   assert.throws(()=>e.db.prepare("INSERT INTO fin_estados_cuenta(id,cuenta,periodo_desde,periodo_hasta,fecha_corte,version,creado,actualizado) VALUES('bad','cuenta-ficticia','2026-10-03','2026-10-20','2026-10-20',1,'2026-10-20','2026-10-20')").run(),/PERIODO_SUPERPUESTO/);
   assert.equal((await e.list()).length,1);
+ }finally{e.close();}
+});
+test("Datos bancarios hostiles no alteran libros ni disparan errores internos",async()=>{
+ const e=entorno();
+ try{
+   for(const payload of [null,[],42,"texto"]){
+     const out=await e.post(payload);
+     assert.equal(out.status,400,"Tipo hostil: "+JSON.stringify(payload));
+   }
+   for(const v of ["1,50","1 234.50","1,2,3"]){
+     const out=await e.post({...base,saldo_final:v});
+     assert.equal(out.status,422,"Valor ambiguo: "+v);
+   }
+   const weird=await e.post({...base,abonos:{"$gte":0}});
+   assert.equal(weird.status,422);
+   assert.equal((await e.list()).length,0,"La base ficticia no debe tener estados guardados");
+   assert.equal(e.db.prepare("SELECT COUNT(*) AS n FROM fin_bitacora").get().n,0);
  }finally{e.close();}
 });
 test("No registra gastos ni saldo bancario en la captura del estado",async()=>{
