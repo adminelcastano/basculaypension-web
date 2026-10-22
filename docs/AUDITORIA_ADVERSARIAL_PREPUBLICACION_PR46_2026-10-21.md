@@ -44,3 +44,13 @@
 **Orden después de recibir autorización explícita:** validar `main` y la cabeza del PR; comprobar D1/backup previo y bindings; fusionar solo el PR autorizado; desplegar `wrangler.jsonc` a producción en ventana controlada; validar acceso, CAJA, DINERO, obligaciones, saldo/conciliación y encabezados de caché con consultas no destructivas; comprobar que CASTAGRAM, Personal y Facturas sigan intactos; detener y revertir Worker si los smoke tests fallan.
 
 **Prohibido** fusionar, publicar, modificar saldos/filas reales o desactivar Access sin autorización diferenciada.
+
+## Revisión independiente final — puerta de autorización
+
+**Commit técnico revisado:** `227051b64675054338e5df285cc3d85477f75323`.
+
+Hallazgo adicional: si un pendiente de CAJA marcado «pagado» cambia de importe durante una resincronización de su origen, el saldo residual puede diferir de los abonos registrados. DINERO ahora muestra **«Revisar en CAJA»**, número de registros y diferencia a verificar, **sin sumar el residuo como deuda exigible**, sin cambiar el estado administrativo, y sin escribir ingresos. El caso se reproduce con SQLite sintético (`pruebas/finanzas-por-cobrar-caja.test.js`), y se comprueba que el valor de cobros activos permanezca inalterado.
+
+**Última evidencia de recuperación:** se verificó por GET que el Worker productivo usa la D1 `castano-facturas` (UUID `665db15f-b688-4d34-9632-a264a8fe9637`, 54 tablas al momento de la consulta) y que la API **D1 Time Travel devuelve un bookmark vigente**. No se extrajeron filas, ni se hizo exportación/restauración, ni se alteró producción. **Riesgo residual:** aún no existe evidencia de restauración ensayada de un respaldo completo antes del merge; el bookmark no basta por sí solo para certificar capacidad de recuperación.
+
+**Veredicto de esta auditoría:** candidato para **evaluación administrativa**, no publicación automática. Antes de autorizar el despliegue productivo: (1) confirmar un respaldo recuperable/verificable, (2) disponer de rollback del Worker actual, (3) comprobar el estado de Access, bindings y D1, y (4) acordar una revisión de saldos/obligaciones con lecturas no destructivas después de publicar. La precisión histórica de documentos ya depurados y la conciliación entre obligaciones/tarjetas siguen siendo verificaciones humanas, no supuestos.
