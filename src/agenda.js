@@ -1,17 +1,16 @@
-import {rutaArchivoCastagramAdmin, rutaConversacionCastagramAdmin} from "./agenda-avisos-rutas.js";
+import { rutaArchivoCastagramAdmin, rutaConversacionCastagramAdmin } from "./agenda-avisos-rutas.js";
 import { pagosHechosRutas } from "./agenda-pagos-rutas.js";
 import { rutasComprasAgenda } from "./agenda-compras-rutas.js";
 import { feedCastagramAdmin } from "./agenda-feed.js";
-import { leerArchivo, borrarArchivo, guardarArchivo } from "./fotos.js";
-import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, conversacion, marcarVisto, comentar, enterarComentario, editarComentario, borrarComentario, archivoAvisos, borrarConversaciones } from "./avisos.js";
+import { borrarArchivo, guardarArchivo } from "./fotos.js";
+import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
-import { stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
-import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras, cuentasTicket } from "./compras.js";
+import { stmtBitacora } from "./bitacora.js";
+import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras } from "./compras.js";
 import { notificar, enviarPush } from "./push.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
-import { asegurarEsquemaObligaciones, stmtVincularAbono, vinculoPago, errorSaldoObligacion } from "./finanzas-obligaciones.js";
 const enviarPushSeguro = (env, msg) => enviarPush(env, "admin", msg).catch(e => { console.error("push", e && e.message); return 0; });
 // "Pagado con" llega como EFECTIVO o C:<cuenta>: se separa en forma (EFECTIVO/TRANSFERENCIA/TARJETA) y cuenta
 async function normalizarMedio(env, c) {
