@@ -1,3 +1,4 @@
+import { crearPinTurno } from "./turno-pin.js";
 import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
 export { turnoSugerido, diaDeTurno };
 import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
@@ -127,25 +128,8 @@ export async function asegurarEsquemaTurno(env) {
 // 100 000 iteraciones de PBKDF2 (el máximo que admite Workers).
 // Formatos guardados: "v3$" (100 000, actual), "v2$" (2 000, plan gratuito) y sin prefijo (20 000).
 // Los v2 y sin prefijo se siguen aceptando y se convierten a v3 al entrar con el PIN correcto.
-const ITER_V3 = 100000;
-async function derivar(pin, sal, iteraciones) {
-  const llave = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: iteraciones }, llave, 256));
-}
-const hashPin = async (pin, sal) => "v3$" + await derivar(pin, sal, ITER_V3);
-const pinViejo = guardado => !String(guardado || "").startsWith("v3$");
-async function pinCorrecto(pin, sal, guardado) {
-  if (!guardado) return false;
-  const calculado = guardado.startsWith("v3$") ? await hashPin(pin, sal)
-    : guardado.startsWith("v2$") ? "v2$" + await derivar(pin, sal, 2000)
-    : await derivar(pin, sal, 20000);
-  return igual(calculado, guardado);
-}
-function igual(a, b) {
-  if (a.length !== b.length) return false;
-  let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
+// Las sesiones reutilizan exactamente el mismo comprobador de PIN.
+const { hashPin, pinViejo, pinCorrecto, igual } = crearPinTurno({ enc, hex, crypto });
 let secretoCache = null;
 async function secreto(env) {
   if (secretoCache) return secretoCache;
