@@ -60,7 +60,7 @@ try {
      await page.waitForFunction(()=>document.querySelector("#pg-comp").textContent.includes("Papel térmico sintético"));
      const textoCompras=await page.locator("#pg-comp").innerText();
      assert.match(textoCompras,/Última vez/);
-     assert.match(textoCompras,/Refacción sintética/);
+     assert.match(await page.locator("#pg-comp").textContent(),/Refacción sintética/);
      assert.equal(await page.locator("#ag-error").count(),0,"Error Agenda compras");
      await page.evaluate(()=>window.irA("agenda",{historia:"push",vista:"tarea"}));
      assert.match(await page.locator("#ab-tarea").innerText(),/Revisar equipo sintético/);
