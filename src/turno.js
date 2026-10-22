@@ -1,3 +1,4 @@
+import CSS_TURNO from "./turno-estilos.css";
 import { crearPinTurno } from "./turno-pin.js";
 import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
 export { turnoSugerido, diaDeTurno };
@@ -273,7 +274,7 @@ async function estado(env, s) {
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
 let versionHtml = null, htmlArmado = null;
-const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR));
+const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR).replace("/*__TURNO_CSS__*/", CSS_TURNO));
 function versionDe(html) {
   if (versionHtml) return versionHtml;
   html = armar(html);
