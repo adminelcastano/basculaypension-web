@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { normalizarFolioTicket, folioTicketValido, claveTicket, mismaOperacion, faltantesParaFacturar } from "../src/facturacion-reglas.js";
 
-const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
+const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../src/panel/cliente/01-facturacion.js", import.meta.url), "utf8");
 const publico = readFileSync(new URL("../public/factura/index.html", import.meta.url), "utf8");
 const aviso = readFileSync(new URL("../public/aviso-de-privacidad/index.html", import.meta.url), "utf8");
@@ -79,11 +79,13 @@ test("No permite salir hacia Facturador con un folio corregido pero no guardado"
 });
 
 test("Los reportes conservan fecha de entrega y número de columnas coherente", () => {
-  const cab = worker.match(/^const ENCABEZADOS = \[[^\n]+\];/m);
-  const filas = worker.match(/function filasExcel\(results\) \{[\s\S]*?\n\}/);
+  const reporte = readFileSync(new URL("../src/facturacion-reporte-filas.js", import.meta.url), "utf8");
+  assert.match(worker,/filasFacturas: filasExcel/);
+  const cab = reporte.match(/^export const ENCABEZADOS = \[[^\n]+\];/m);
+  const filas = reporte.match(/function filasExcel\(results\) \{[\s\S]*?\n\}/);
   assert.ok(cab && filas);
   const fn = new Function("SERVICIOS", "REGIMENES", "USOS", "FORMAS_PAGO",
-    cab[0] + "\n" + filas[0] + "\nreturn filasExcel;");
+    cab[0].replace(/^export /, "") + "\n" + filas[0] + "\nreturn filasExcel;");
   const filasExcel = fn({ bascula: "Báscula" }, { "612": "Actividad" },
     { G03: "Gastos" }, { "01": "Efectivo" });
   const datos = filasExcel([{
