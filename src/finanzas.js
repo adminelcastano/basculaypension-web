@@ -67,7 +67,7 @@ export async function clasificarAdmin(env, gastos) {
       ? c.length === 1 ? c[0].titulo + (c[0].cantidad ? ` (${c[0].cantidad})` : "")
         : (g.concepto || `Compra agrupada (${c.length} artículos)`)
       : g.concepto;
-    return { id: g.id, mes: g.mes, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cuenta: g.cuenta || null, cat, categoria: g.categoria || "Otros", nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
+    return { id: g.id, mes: g.mes, dia: g.dia, concepto, monto: g.monto, forma: g.forma, cuenta: g.cuenta || null, cat, categoria: g.categoria || null, nota: p && p.nota || "", comprobante: p && p.comprobante ? p.id : null, creado: g.creado, por: g.creado_por || "" };
   });
 }
 
@@ -248,7 +248,7 @@ export async function datosFinanzas(env, mes) {
   // Egresos por categoría (caja, retiros del corte, administración, comisiones y faltantes), con icono y color
   const cats = Object.fromEntries((await listaCategorias(env)).map(c => [c.nombre, c]));
   const pc = {};
-  const add = (k, v, caja) => { k = k || "Otros"; pc[k] = pc[k] || { nombre: k, total: 0, caja: 0 }; pc[k].total += v; if (caja) pc[k].caja += v; };
+  const add = (k, v, caja) => { k = k && cats[k] ? k : "Sin categoría"; pc[k] = pc[k] || { nombre: k, total: 0, caja: 0 }; pc[k].total += v; if (caja) pc[k].caja += v; };
   for (const g of gastosCaja) add(g.categoria, g.monto, true);
   for (const r of retiros) add(r.categoria, r.monto, true);
   for (const x of admin) add(x.categoria, x.monto, false);
