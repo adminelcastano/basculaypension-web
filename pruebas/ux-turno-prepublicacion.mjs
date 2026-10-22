@@ -65,7 +65,7 @@ try{
    await pagina.locator('#personas .persona[data-clave="ENSAYO"]').click();
    await pagina.locator("#paso-pin").waitFor({state:"visible"});
    for(const n of ["1","2","3","4"]) await pagina.locator('#teclado button[data-k="'+n+'"]').click();
-   await pagina.locator("#err-pin").getByText("PIN incorrecto sintético").waitFor();
+   await pagina.waitForFunction(()=>document.querySelector("#err-pin")?.textContent?.includes("PIN incorrecto sintético"));
    assert.equal(await pagina.locator("#app").isVisible(),false,"Un PIN rechazado abrió contenido privado");
    // Una tablet compartida no puede rehidratar el estado de otro encargado.
    await pagina.evaluate(()=>localStorage.setItem("turno:estado",JSON.stringify({persona:"OTRO",privado:"NO-REHIDRATAR"})));
