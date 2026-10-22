@@ -14,7 +14,8 @@ test("Campañas mantiene lógica original y adaptadores de Personal",()=>{
 });
 test("Crear campaña con participantes sintéticos conserva instrucciones D1 y claves",async()=>{
  const calls=[];
- const env={DB:{prepare(sql){return{bind(...args){return{async run(){calls.push({sql,args})},sql,args}}}}},async batch(items){for(const p of items)calls.push({sql:p.sql,args:p.args});}}};
+ const prepare=sql=>({bind(...args){return{sql,args,async run(){calls.push({sql,args});}};}});
+ const env={DB:{prepare,async batch(items){for(const p of items)calls.push({sql:p.sql,args:p.args});}}};
  const deps={VERSION_AVISO_PERSONAL_V1:"personal-aviso-v1-2026-10-17",DOC_AVISO_PERSONAL:"aviso-privacidad-colaboradores",DOCUMENTOS:{},folioDe:()=>"",
   parse:()=>({}),json:x=>x,SITIO:"https://invalid.example",escH:String,estaCompleto:()=>false,fechaLarga:String,hoyLocal:()=>"2026-10-22",
   sumarDias:()=>"",nuevoIdCampana:()=>"campana-sintetica",leerCampana:x=>x,estadoEnCampana:()=>({})};
