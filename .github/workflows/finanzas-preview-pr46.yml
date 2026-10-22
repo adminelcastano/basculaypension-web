@@ -1,4 +1,6 @@
 name: Preview privada CAJA DINERO PR46
+# Repúblicación aprobada de la Preview aislada después de QA responsive Chromium/WebKit:
+# 11/11 perfiles, navegación CAJA/DINERO/AGENDA y pruebas de overflow/teclado.
 
 on:
   # Solamente el primer commit que introduce este archivo activa el deploy.
