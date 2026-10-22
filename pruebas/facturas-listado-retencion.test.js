@@ -8,7 +8,7 @@ const fuente = ruta => readFileSync(new URL("../" + ruta, import.meta.url), "utf
 function despachadorFicticio() {
   const src = fuente("src/worker-panel-rutas.js")
     .replace(/^import .*;$/gm, "")
-    .replace(/^export function crearRutasPanel/, "function crearRutasPanel");
+    .replace(/^export function crearRutasPanel/m, "function crearRutasPanel");
   const contexto = { URL, Request };
   vm.runInNewContext(src + "\n;globalThis.crearRutasPanelEnsayo = crearRutasPanel;", contexto);
   const consultas = [];
