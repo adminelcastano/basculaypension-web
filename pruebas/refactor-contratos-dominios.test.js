@@ -39,7 +39,7 @@ test("AGENDA: carrito sin artículos conserva HTTP 422 y no escribe D1",async()=
 });
 
 test("FACTURACIÓN: ruta API no registrada conserva HTTP 404",async()=>{
- const c=extraer("src/worker.js","async function rutasPanel(request, env, url, usuario) {");
+ const c=extraer("src/worker-panel-rutas.js","async function rutasPanel(request, env, url, usuario) {");
  const ruta=instancia(c,["asegurarEsquema","json"],[async()=>{},json],"rutasPanel");
  const url=new URL("https://ensayo.invalid/panel/api/ruta-inexistente");
  const result=await ruta({method:"GET"}, {}, url, {email:"actor@invalid.example"});

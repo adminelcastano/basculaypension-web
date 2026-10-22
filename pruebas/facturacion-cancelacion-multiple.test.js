@@ -102,7 +102,7 @@ test("Compatibilidad: factura única histórica pasa al historial al confirmar c
 test("Los formularios públicos y el panel distinguen solicitud, cancelación y avisos manuales",()=>{
   const page=readFileSync(new URL("../public/factura/index.html",import.meta.url),"utf8");
   const panel=readFileSync(new URL("../src/panel/cliente/01-facturacion.js",import.meta.url),"utf8");
-  const worker=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8");
+  const worker=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8") + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8");
   assert.match(page,/name="facturas_solicitadas" value="2"/);
   assert.match(page,/No es necesario calcular importes/);
   assert.match(panel,/registrar-cancelacion/);

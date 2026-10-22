@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { normalizarFolioTicket, folioTicketValido, claveTicket, mismaOperacion, faltantesParaFacturar } from "../src/facturacion-reglas.js";
 
-const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
+const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../src/panel/cliente/01-facturacion.js", import.meta.url), "utf8");
 const publico = readFileSync(new URL("../public/factura/index.html", import.meta.url), "utf8");
 const aviso = readFileSync(new URL("../public/aviso-de-privacidad/index.html", import.meta.url), "utf8");
