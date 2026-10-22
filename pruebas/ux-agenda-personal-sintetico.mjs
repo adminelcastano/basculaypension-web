@@ -35,6 +35,16 @@ const server=createServer((req,res)=>{
  if(p==="/panel/api/agenda/avisos-feed")return json(res,{ok:true,items:[],cursor:"",mas:false});
  if(p==="/panel/api/colaboradores")return json(res,{ok:true,colaboradores:url.searchParams.get("tipo")==="externo"?[externo]:[persona],conteos,config:{drive:false}});
  if(p==="/panel/api/colaboradores/campanas")return json(res,{ok:true,campanas:[],hoy:fecha,documentos:[]});
+ if(p.startsWith("/panel/api/colaboradores/") && !p.includes("/campanas/")) {
+   const c=p.endsWith(externo.id)?externo:persona;
+   return json(res,{ok:true,colaborador:{...c,token:"token-sintetico",correo:"",
+      docs:[{clave:"ine",nombre:"INE",recibido:false,fecha:"",fotos:[],piezas:1}],
+      admin_docs:[],datos:{},admin:{nacionalidad:"Nacional",puesto:"Báscula",notas:""},
+      falta:{datos:true,docs:["INE"]},acceso:{abierto:false,hasta:null},
+      llenado_en:null,acuse_v1_en:null,completo:false},
+     listas:{estado_civil:[],escolaridad:[],puestos:["Báscula"],nacionalidad:["Nacional"],actividades:[]},
+     config:{drive:false},encargado:{correo:"ensayo@ejemplo.invalid",wa:"",avisado:""}});
+ }
  if(p==="/panel/api/turno/vinculos")return json(res,{ok:true,vinculos:{}});
  if(p==="/panel/api/turno")return json(res,{ok:true,personas:[]});
  if(p==="/panel/api/yo")return json(res,{ok:true,email:"ensayo@ejemplo.invalid"});
@@ -74,6 +84,14 @@ try {
      assert.match(t,/Externo de ensayo/);
      assert.match(t,/Campañas/);
      assert.doesNotMatch(t,/No se pudo cargar/);
+     await page.evaluate(()=>document.querySelector('#p-lista [data-tipo="colaborador"]').click());
+     await page.waitForFunction(()=>document.querySelector("#p-detalle").textContent.includes("Documentos entregados"));
+     assert.match(await page.locator("#p-detalle").textContent(),/Colaborador de ensayo/);
+     await page.evaluate(()=>document.querySelector('#p-lista [data-tipo="externo"]').click());
+     await page.waitForFunction(()=>document.querySelector("#p-detalle").textContent.includes("Registro con el encargado de turno"));
+     await page.evaluate(()=>document.querySelector('#mod-personal [data-nuevo="campanas"]').click());
+     await page.waitForFunction(()=>!!document.querySelector("#cp-form"));
+     assert.match(await page.locator("#cp-form").textContent(),/Nueva campaña|¿A quién va\?/);
      assert.equal(errors.length,0,"Errores JS: "+errors.join("; "));
      console.log("OK "+name+": calendario, pagos, compras, tareas, incidencias, Castagram y Personal");
    }finally{await ctx.close();await browser.close();}
