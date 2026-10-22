@@ -130,4 +130,5 @@
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
   $("#f-mes")?.addEventListener("change",()=>{if(!$("#mod-finanzas").hidden)cargar();});
+  if(EC.ruta().mod==="finanzas")cargar();
 })();
