@@ -1,0 +1,71 @@
+name: Preview privada CAJA DINERO PR46
+
+on:
+  # Solamente el primer commit que introduce este archivo activa el deploy.
+  # Futuras actualizaciones requieren un nuevo disparo explícito.
+  push:
+    branches: [feat/caja-dinero-integral-20261021]
+    paths:
+      - .github/workflows/finanzas-preview-pr46.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: castano-finanzas-ensayo-pr46
+  cancel-in-progress: false
+
+jobs:
+  preview-aislada:
+    if: github.ref == 'refs/heads/feat/caja-dinero-integral-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ff18e14a20fef8a9c6e49eb88f19cf46
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardas de aislamiento (detener si falta alguna)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::No existe un token Cloudflare configurado en Actions para desplegar esta Preview. No se desplegó nada."
+            exit 1
+          fi
+          test -f wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"name": "castano-finanzas-ensayo-20261018"' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"database_id": "bb6fac21-f3e9-44b3-8e67-770c14796532"' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"id": "06093f14870a4df89ab81b0246dec74a"' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"ENSAYO_FINANZAS": "1"' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"preview_urls": false' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"crons": []' wrangler.finanzas-ensayo.jsonc
+          grep -Fq '"ACCESS_AUD": "61906c005bbf2883bafb408d577211fe96ceef4e7ddc9b0a179e484fef8e390b"' wrangler.finanzas-ensayo.jsonc
+          if grep -Eq '"(INGRESOS_URL|INGRESOS_TOKEN|AVISO_URL|AVISO_TOKEN|GOOGLE_CLIENT_SECRET|GOOGLE_REFRESH_TOKEN)"' wrangler.finanzas-ensayo.jsonc; then
+            echo "::error::Se detectaron enlaces a servicios externos productivos."
+            exit 1
+          fi
+          echo "Entorno validado: Worker, D1, KV, Access y crons son exclusivamente de ensayo."
+      - name: Instalar dependencias sin scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Pruebas sintéticas completas
+        run: node --test pruebas/*.test.js
+      - name: Compilar Preview sin modificar Cloudflare
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc --dry-run --outdir /tmp/castano-preview-pr46
+      - name: Publicar SOLO el Worker protegido de ensayo
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.finanzas-ensayo.jsonc
+      - name: Comprobar bloqueo de usuarios anónimos
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://castano-finanzas-ensayo-20261018.administracion-ff1.workers.dev/panel"
+          code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$url")"
+          echo "Estado HTTP de acceso anónimo a /panel: $code"
+          if [ "$code" != "302" ] && [ "$code" != "403" ] && [ "$code" != "401" ]; then
+            echo "::error::La Preview no mostró un bloqueo válido de Cloudflare Access."
+            exit 1
+          fi
