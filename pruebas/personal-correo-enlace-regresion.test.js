@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { correoEnlace, SITIO } from "../src/personal.js";
+// Ejecuta el generador puro sin importar fotos ni plantillas HTML del Worker.
+const modulo = readFileSync(new URL("../src/personal.js", import.meta.url), "utf8");
+const SITIO = "https://basculaypension.com";
+const plantilla = modulo.match(/export function correoEnlace\(nombre, token, admin, tipoPersona\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(plantilla, "No se encontró correoEnlace");
+const nombresDocs = (admin) => ({ ine: admin?.nacionalidad === "Naturalizado" ? "Pasaporte o tarjeta de residente" : "INE", curp: "CURP" });
+const escH = s => String(s ?? "").replace(/[&<>"']/g, x => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[x]));
+const correoEnlace = new Function("SITIO", "nombresDocs", "DIAS_ALTA", "escH", plantilla.replace(/^export /, "") + "\nreturn correoEnlace;")(
+  SITIO, nombresDocs, 14, escH
+);
 
 const token = "f".repeat(32); // Identificador ficticio, nunca un token de expediente real.
 const enlace = SITIO + "/expediente/" + token;
