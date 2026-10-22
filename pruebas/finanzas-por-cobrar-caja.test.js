@@ -26,9 +26,27 @@ test("DINERO consulta solo los saldos pendientes activos; no cuenta abonos anula
   const r=await resumenPorCobrarCaja(x.env);
   assert.deepEqual([r.total,r.operaciones,r.mas_antiguo],[175.40,2,"2026-10-10"]);
   assert.equal(r.origen,"caja_pendientes");
+  assert.equal(r.revisar_pagados,1,"Pagados sin abonos trazables deben revisarse en CAJA");
+  assert.equal(r.revisar_total,300);
+  assert.equal(r.total,175.40,"La alerta no debe sumar la discrepancia como deuda real");
   assert.match(r.advertencia,/no es ingreso realizado/i);
   assert.equal(x.db.prepare("SELECT COUNT(*) n FROM caja_cobros_admin").get().n,2,"No escribe abonos");
  } finally {x.db.close();}
+});
+test("Variaciones en el monto de un ticket pagado requieren revisión sin crear deuda ficticia",async()=>{
+ const x=preparar();
+ try{
+   x.pendiente("t1",75.50,"pagado");
+   x.abono("a1","t1",75.50);
+   let r=await resumenPorCobrarCaja(x.env);
+   assert.equal(r.revisar_pagados,0);
+   assert.equal(r.total,0);
+   x.db.prepare("UPDATE caja_pendientes SET monto=95.50 WHERE id='t1'").run();
+   r=await resumenPorCobrarCaja(x.env);
+   assert.equal(r.total,0,"El estado «pagado» no se altera automáticamente");
+   assert.deepEqual([r.revisar_pagados,r.revisar_total],[1,20]);
+   assert.equal(x.db.prepare("SELECT estado FROM caja_pendientes WHERE id='t1'").get().estado,"pagado");
+ }finally{x.db.close();}
 });
 test("El saldo es cero sin pendientes y se ajusta al abonar sin crear asiento en DINERO",async()=>{
  const x=preparar();

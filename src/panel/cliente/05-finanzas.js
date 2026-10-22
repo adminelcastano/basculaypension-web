@@ -271,6 +271,7 @@
     if (porCobrar) porCobrar.innerHTML = `<section class="card"><h3>Por cobrar a clientes · CAJA</h3>
       <div class="ctot"><div class="k"><span>Saldo pendiente activo</span><b>${j.por_cobrar_caja ? D(j.por_cobrar_caja.total) : "—"}</b>
       <small>${j.por_cobrar_caja ? j.por_cobrar_caja.operaciones + " cobro(s) pendiente(s)" : "Sin información verificada"}</small></div></div>
+      ${j.por_cobrar_caja?.revisar_pagados? `<p class="warn" role="alert"><b>Revisar en CAJA:</b> ${j.por_cobrar_caja.revisar_pagados} registro(s) marcados como pagados no coinciden con sus abonos activos. Diferencia por comprobar ${D(j.por_cobrar_caja.revisar_total)}. No se ha agregado como deuda ni se ha movido dinero.</p>`:""}
       <p class="note">Consulta solamente. Los abonos de Báscula/Pensión se registran y anulan desde CAJA, sin crear ingresos duplicados. <a href="#caja/cortes">Revisar pendientes en CAJA</a>.</p></section>`;
     const pendientesConciliacion = (j.conciliacion_alertas || []).length;
     const estadoTransferencias = modoEnsayo ? "Ensayo · hoja desconectada"
