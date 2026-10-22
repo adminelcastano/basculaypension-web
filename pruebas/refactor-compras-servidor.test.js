@@ -9,7 +9,12 @@ test("Las rutas de compra conservaron literalmente la transacción original, UID
  const a=old.indexOf("  // ---- Lista de compras: carrito y terminar la compra con un solo ticket ----");
  const b=old.indexOf("  // Archivo de avisos: todos los archivados con su conversación",a);
  const mod=src("src/agenda-compras-rutas.js"),coordinador=src("src/agenda.js");
- assert.ok(a>=0&&b>a&&mod.includes(old.slice(a,b)));
+ // La única diferencia admitida es que un artículo expresamente sin categoría no
+ // vuelve a categorizarse automáticamente al generar el ticket.
+ const previo = "const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }";
+ const ahora = "const cats = {}; for (const f of orden) { const k = f.categoria; if (k) cats[k] = (cats[k] || 0) + 1; }";
+ assert.ok(mod.includes(ahora));
+ assert.ok(a>=0&&b>a&&mod.replace(ahora,previo).includes(old.slice(a,b)));
  assert.match(coordinador,/return res;/);
  assert.match(coordinador,/rutasComprasAgenda\(request, env, partes, usuario, ahora/);
  for(const clave of ['idFinanciero("compra-ticket"','stmtHistorialCompra','stmtBitacoraSiCambio','await normalizarMedio(env, c)','const ya = await repetido(); if (ya) return ya'])assert.ok(mod.includes(clave),clave);
