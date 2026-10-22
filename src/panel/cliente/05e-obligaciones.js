@@ -163,4 +163,6 @@
   }
   document.addEventListener("modulo",e=>{if(e.detail==="finanzas")cargar();});
   document.addEventListener("obligaciones-actualizadas",cargar);
+  // Al abrir directamente #dinero/obligaciones el evento módulo ya pudo pasar.
+  if (EC.ruta().mod==="finanzas")cargar();
 })();
