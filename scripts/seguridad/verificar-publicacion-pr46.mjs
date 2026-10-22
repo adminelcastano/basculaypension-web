@@ -25,7 +25,7 @@ for(const s of ["CF_API_TOKEN","INGRESOS_TOKEN","AVISO_TOKEN","AVISO_URL"])
  assert.equal(bind(s)?.type,"secret_text","Falta secreto productivo "+s);
 const deploy=await cf("/workers/scripts/"+WORKER+"/deployments?per_page=1");
 const current=(deploy?.deployments||deploy||[])[0]?.versions?.[0]?.version_id;
-if(process.env.RELEASE_MODE==="preflight")assert.equal(current,PREVIOUS,"Producción cambió desde última revisión");
+assert.equal(current,PREVIOUS,"La versión productiva cambió desde el respaldo; abortar publicación");
 const a='"database_name": "castano-facturas"';
 const b='"kv_namespaces": [{ "binding": "FILES" }]';
 assert.equal(config.split(a).length,2);
