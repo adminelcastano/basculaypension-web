@@ -420,7 +420,7 @@ async function panel(request, env, url) {
 
 // Rutas de /panel/api/... (ya verificado el inicio de sesión). "hoy" las usa por dentro para armar el tablero.
 
-const rutasPanel = crearRutasPanel({ LEER_TICKET_IA, RE_CP, RE_EMAIL, RE_RFC, TIPOS_IMAGEN, TIPO_PDF, asegurarEsquema, cabecerasPanel, enviarCorreoA, hReporte, json, leerTicket, limiteHistorico, limpiarPlacas, aceptarLicenciaModelo, normalizarImporte, texto, archivo, tipoArchivo, normalizarFolioTicket, folioTicketValido, leerArchivo, borrarArchivo, REGIMENES, USOS, SERVICIOS, FORMAS_PAGO });
+const rutasPanel = crearRutasPanel({ DIAS_RETENCION, LEER_TICKET_IA, RE_CP, RE_EMAIL, RE_RFC, TIPOS_IMAGEN, TIPO_PDF, asegurarEsquema, cabecerasPanel, enviarCorreoA, hReporte, json, leerTicket, limiteHistorico, limpiarPlacas, aceptarLicenciaModelo, normalizarImporte, texto, archivo, tipoArchivo, normalizarFolioTicket, folioTicketValido, leerArchivo, borrarArchivo, REGIMENES, USOS, SERVICIOS, FORMAS_PAGO });
 
 function cabecerasPanel() {
   return {
