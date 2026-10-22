@@ -119,7 +119,9 @@
     // Solo sumamos saldos de activo operativo: sobres + débito, nunca tarjeta
     // de crédito, compromisos previstos ni cuentas por cobrar.
     const ob = j.obligaciones_confirmadas?.resumen || null;
-    const dineroCompleto = e.saldo != null && b.dinero != null && !b.dinero_parcial;
+    const sinCuenta=(b.sin_cuenta||{});
+    const montosSinCuenta=["pagos","transferencias"].some(k=>Math.abs(Number(sinCuenta[k]||0))>=0.005);
+    const dineroCompleto = e.saldo != null && b.dinero != null && !b.dinero_parcial && !montosSinCuenta;
     const disponible = dineroCompleto ? Math.round((e.saldo+b.dinero)*100)/100 : null;
     const exigible30 = ob ? Math.round((ob.vencido+ob.proximos_30)*100)/100 : null;
     const escenario = disponible != null && exigible30 != null ?
@@ -128,13 +130,13 @@
     const tarjetaInfo = (titulo,valor,nota="") => `<div class="k"><span>${titulo}</span>
       <b>${conDato(valor)}</b>${nota?`<small class="note">${nota}</small>`:""}</div>`;
     const indicadores = `<div class="ctot f-tablero-kpi" aria-label="Indicadores financieros">
-      ${tarjetaInfo("Disponible calculado (sobres + débito)",disponible,dineroCompleto?"No equivale a saldo bancario confirmado":"Incompleto: falta saldo inicial de alguna cuenta o efectivo")}
+      ${tarjetaInfo("Disponible calculado (sobres + débito)",disponible,dineroCompleto?"No equivale a saldo bancario confirmado":montosSinCuenta?"Incompleto: hay movimientos bancarios sin cuenta asignada":"Incompleto: falta saldo inicial de alguna cuenta o efectivo")}
       ${tarjetaInfo("Por pagar · deuda confirmada",ob?.pendiente??null,ob?"Obligaciones registradas; evitar volver a incluir aquí saldos de tarjetas":"Sin consulta completa")}
       ${tarjetaInfo("Vencido · obligaciones",ob?.vencido??null)}
       ${tarjetaInfo("Próximos 7 días · obligaciones",ob?.proximos_7??null)}
       ${tarjetaInfo("Próximos 30 días · obligaciones",ob?.proximos_30??null)}
       ${tarjetaInfo("Por cobrar a clientes · CAJA",j.por_cobrar_caja?.total??null,"No se considera ingreso hasta cobrar")}
-      ${tarjetaInfo("Deuda en tarjetas",b.deuda_parcial?null:b.deuda,b.deuda_parcial?"Parcial: falta deuda inicial de alguna tarjeta":"Referencia bancaria independiente; no sumarla a obligaciones sin revisar")}
+      ${tarjetaInfo("Deuda en tarjetas",b.deuda_parcial||montosSinCuenta?null:b.deuda,b.deuda_parcial?"Parcial: falta deuda inicial de alguna tarjeta":montosSinCuenta?"No verificable: hay operaciones bancarias sin cuenta asignada":"Referencia bancaria independiente; no sumarla a obligaciones sin revisar")}
       ${tarjetaInfo("Escenario tras pagos exigibles a 30 días",escenario,"Sin sumar cobros futuros, otros gastos ni pagos previstos")}
     </div>
     <p class="note">Flujo registrado del mes: entradas ${D(i.total)} · salidas ${D(g.total)}. Son operaciones, no dinero adicional al disponible. Los estados bancarios confirmados se consultan aparte. Última actualización financiera: ${esc(j.obligaciones_confirmadas?.resumen?.actualizado||"No verificada")}.</p>`;

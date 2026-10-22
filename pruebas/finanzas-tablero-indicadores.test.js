@@ -9,7 +9,10 @@ test("Resumen financiero diferencia disponible calculado, deuda y cobros",()=>{
   "Vencido · obligaciones","Próximos 7 días · obligaciones","Próximos 30 días · obligaciones",
   "Por cobrar a clientes · CAJA","Deuda en tarjetas","Escenario tras pagos exigibles a 30 días"])
    assert.ok(src.includes(s),s);
- assert.ok(src.includes("b.dinero != null && !b.dinero_parcial"));
+ assert.ok(src.includes("b.dinero != null && !b.dinero_parcial && !montosSinCuenta"));
+ assert.ok(src.includes('const montosSinCuenta=["pagos","transferencias"]'));
+ assert.ok(src.includes('Incompleto: hay movimientos bancarios sin cuenta asignada'));
+ assert.ok(src.includes('b.deuda_parcial||montosSinCuenta?null:b.deuda'));
  assert.ok(src.includes("e.saldo != null"));
  assert.ok(src.includes("j.por_cobrar_caja?.total??null"));
  assert.ok(src.includes('api("finanzas/obligaciones").catch(() => null)'));
