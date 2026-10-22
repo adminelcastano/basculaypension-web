@@ -5,10 +5,10 @@ import { idOperacionCastagram, fotoAvisoPermitida } from "../src/avisos.js";
 import { avisoParaEncargado, normalizarPara, pushTablet } from "../src/agenda.js";
 
 const f = path => readFileSync(new URL(path, import.meta.url),"utf8");
-const panel=f("../src/panel/cliente/07-agenda.js");
+const panel=f("../src/panel/cliente/07-agenda.js") + "\n" + f("../src/panel/cliente/07-castagram-controlador.js");
 const turno=f("../src/turno.html");
 const server=f("../src/turno.js");
-const agenda=f("../src/agenda.js");
+const agenda=f("../src/agenda.js")+"\n"+f("../src/agenda-avisos-rutas.js");
 const avisos=f("../src/avisos.js");
 const css=f("../src/panel/estilos.css");
 
@@ -112,7 +112,9 @@ test("El feed de turno filtra autorizados ANTES del límite y pagina sin repetir
 
 test("Panel y turno tienen API paginada, protección de fotografías y flujo de prueba",()=>{
   assert.match(agenda,/partes\[1\] === "avisos-feed"/);
-  assert.match(agenda,/ORDER BY creado DESC,id DESC LIMIT 26/);
+  assert.match(agenda,/return feedCastagramAdmin\(env, url,/);
+  const feed = readFileSync(new URL("../src/agenda-feed.js", import.meta.url), "utf8");
+  assert.match(feed,/ORDER BY creado DESC,id DESC LIMIT 26/);
   assert.match(server,/partes\[1\] === "pagina"/);
   assert.match(panel,/data-casta-mas/);
   assert.match(turno,/data-casta-mas/);

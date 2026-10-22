@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const tablet = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8");
-const panel = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8");
+const panel = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/panel/cliente/07-castagram-controlador.js", import.meta.url), "utf8");
 const turno = readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
 const server = readFileSync(new URL("../src/avisos.js", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/panel/estilos.css", import.meta.url), "utf8");

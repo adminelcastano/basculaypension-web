@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const worker = readFileSync(new URL("../src/worker.js", import.meta.url), "utf8");
-const bloque = worker.split('if (partes[0] === "diagnostico" && partes[1] === "correo-panel"')[1]?.split('if (partes[0] === "colaboradores")')[0];
+const bloque = (worker + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8")).split('if (partes[0] === "diagnostico" && partes[1] === "correo-panel"')[1]?.split('if (partes[0] === "colaboradores")')[0];
 test("Correo Panel: diagnóstico aislado por POST en panel privado", () => {
   assert.ok(bloque, "Falta ruta diagnóstica");
   assert.match(bloque, /request\.method !== "POST"/);

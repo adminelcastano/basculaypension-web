@@ -14,7 +14,7 @@ test("Tablet: contador después del PIN sin fusionar Leído y Enterado",()=>{
  assert.match(html,/avisos\/\$\{en\.dataset\.enterado\}\/enterado/);
 });
 test("Logotipo sin título grande duplicado",()=>{
- const html=read("src/turno.html"),panel=read("src/panel/cliente/07-agenda.js");
+ const html=read("src/turno.html"),panel=read("src/panel/cliente/07-agenda.js")+read("src/panel/cliente/07-castagram-controlador.js");
  assert.match(html,/castagram-texto\.png/);assert.match(panel,/castagram-texto\.png/);
  assert.doesNotMatch(html,/titulo\("Castagram\."/);
 });
