@@ -6,7 +6,9 @@
 // (huella del contenido) en la URL: el navegador los guarda un año y solo los vuelve a bajar cuando cambian.
 // Todo pasa por la verificación de Cloudflare Access igual que antes.
 import PAGINA from "./panel/pagina.html";
-import CSS from "./panel/estilos.css";
+import CSS_BASE from "./panel/estilos.css";
+import CSS_NAVEGACION from "./panel/estilos-navegacion.css";
+const CSS = CSS_BASE + CSS_NAVEGACION;
 import J00 from "./panel/cliente/00-base.js";
 import J00P from "./panel/cliente/00-perfil-admin.js";
 import J01 from "./panel/cliente/01-facturacion.js";
