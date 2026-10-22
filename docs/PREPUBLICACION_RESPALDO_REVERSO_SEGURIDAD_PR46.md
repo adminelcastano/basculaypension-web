@@ -40,6 +40,22 @@ La administración autorizó **solo** estas tres acciones previas:
 - La lectura de crons confirmó 3 horarios existentes; no se activó ningún cron ni sincronización nuevos.
 - La Preview PR46 sigue en D1 y KV separadas con Access privado. La producción no se desplegó.
 
+## Ejecución verificada del respaldo D1 — 22 de octubre de 2026 UTC
+
+**Resultado:** respaldo completo y restauración **EXITOSA** en D1 independiente. <https://github.com/adminelcastano/basculaypension-web/actions/runs/39711151511> · intento 2.
+
+- Origen productivo, **solo lectura:** `castano-facturas`, UUID `665db15f-b688-4d34-9632-a264a8fe9637`.
+- Destino recuperado en Cloudflare, no vinculado al Worker productivo: `castano-respaldo-pr46-20261022-39711151511`, UUID `71133574-95f0-4104-8558-d8b7a8d7d6f9`.
+- Exportación descargada por GitHub Actions: **622419 bytes**; transferida a la D1 independiente mediante importación de Cloudflare.
+- Verificación **`PRAGMA quick_check=ok`**, **54 tablas restauradas** (54 tablas en origen al ejecutar) y confirmación adicional de Cloudflare de que origen y destino tienen identificadores diferentes.
+- El tamaño físico SQLite puede diferir entre origen y copia por compactación durante export/import: el contenido se verificó por esquema e integridad, no por igualdad de tamaño.
+- La exportación únicamente existió en memoria de GitHub Actions; no se guardó como artefacto ni se incluyó en GitHub, el código fuente ni el chat.
+- Producción sigue en Worker versión `8083307f-9ebd-4120-a824-8d97b78077a9`, 100 %, con bindings a la D1 original, KV original y `SALARIOS_SYNC_ACTIVE=NO`.
+
+**Con este resultado, el punto 1 queda completado como recuperación técnica de una copia íntegra.** No se ha ensayado restaurar la copia encima de producción, deliberadamente, para evitar pérdida de datos posteriores. La existencia de 54 tablas y quick_check no sustituye conciliaciones semánticas de registros; no se promete riesgo cero.
+
+El token temporal `CLOUDFLARE_D1_BACKUP_TOKEN` puede revocarse en Cloudflare y eliminarse de GitHub Actions una vez que administración compruebe que no necesitará otro respaldo con ese token. La D1 respaldada permanecerá disponible aunque se revoque.
+
 ## Puerta administrativa
-**Puntos 2 y 3: verificados. Punto 1: pendiente de reejecución con token D1 y recuperación real.**
+**Puntos 1, 2 y 3: verificados.** El punto 4 permanece descartado por la administración.
 No afirmar que el respaldo está verificado antes del resultado positivo. No publicar producción ni fusionar PR46 sin autorización posterior e independiente.
