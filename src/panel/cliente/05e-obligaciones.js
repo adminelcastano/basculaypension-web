@@ -126,7 +126,8 @@
         const r=await api("finanzas/obligaciones/"+encodeURIComponent(o.id));
         if(dest.dataset.ref!==o.id)return;
         const pago=(r.abonos||[]).map(a=>`<div class="aitem"><b>${esc(fmt(a.importe))} · ${a.activo?"Abono vigente":"Abono anulado"}</b>
-          <span class="note">${esc(a.fecha||a.creado?.slice(0,10)||"Sin fecha")} · ${esc(a.titulo||"Pago histórico")} · ${esc(a.forma||"Sin forma histórica")}</span></div>`).join("");
+          <span class="note">${a.fecha?"Pagado: "+esc(a.fecha):"Fecha efectiva no disponible"}
+            · ${a.creado?"Registrado: "+esc(a.creado.slice(0,10))+" · ":""}${esc(a.titulo||"Concepto histórico no disponible")} · ${esc(a.forma||"Medio histórico no disponible")}</span></div>`).join("");
         const rev=(r.historial||[]).map(h=>`<div class="aitem"><b>Versión ${h.version} · ${esc(h.accion)}</b>
           <span class="note">${esc(h.cuando)} · ${esc(h.quien||"Administración")}</span>
           <span class="note">Principal ${esc(fmt(h.foto?.total))} · vencimiento ${esc(h.foto?.vencimiento||"Sin fecha")}</span></div>`).join("");
