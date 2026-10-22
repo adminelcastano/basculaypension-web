@@ -8,7 +8,8 @@ const rules = readFileSync(new URL("../src/facturacion-reglas.js", import.meta.u
 // Aislamos únicamente las rutas ya protegidas por Access. Los servicios externos
 // y D1 se reemplazan por dobles ficticios: nunca se consulta producción.
 const routeBody = worker.match(/async function rutasPanel\(request, env, url, usuario\) \{[\s\S]*?\n\}\n\nfunction cabecerasPanel/);
-const importeBody = worker.match(/function normalizarImporte\(v\) \{[\s\S]*?\n\}/);
+const importeFuente = readFileSync(new URL("../src/facturacion-entradas.js", import.meta.url), "utf8");
+const importeBody = importeFuente.match(/function normalizarImporte\(v\) \{[\s\S]*?\n\}/);
 assert.ok(routeBody && importeBody, "Localizar las funciones existentes del Worker");
 const factory = new Function("asegurarEsquema", "json", "REGIMENES", "USOS", "SERVICIOS", "FORMAS_PAGO", "limiteHistorico", "DIAS_RETENCION", "listarCfdis", "emitirMultiples", "cancelarRegistro", "sustituirRegistro",
   rules.replace(/^export /gm, "") + "\n" + importeBody[0] + "\n" +
