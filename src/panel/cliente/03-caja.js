@@ -14,6 +14,7 @@
   // Diferencia del corte ciego: contado − sistema (con ícono y texto, no solo color)
   const difEtq = v => v == null ? "" : !descuadre(v) ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${dinero(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${dinero(v)}</span>`;
   const TURNO_TXT = { "MAÑANA": "Mañana", "TARDE": "Tarde", "NOCHE": "Noche" };
+  const TURNOS_ORDEN = ["MAÑANA", "TARDE", "NOCHE"];
   const toast = EC.toast;
   const api = EC.api;
   // Turno actual (hora de Tapachula): mañana 6–14, tarde 14–22, noche 22–6
@@ -44,7 +45,9 @@
       if (j.cuentas) window.CUENTAS = j.cuentas;
       EC.bloqueN("caja", "movs", (j.movimientos || []).length);
       EC.bloqueN("caja", "cortes", j.cortes.length);
-      EC.bloqueN("caja", "entregas", j.cortes.filter(x => x.conteo).length);
+      const sobresElegibles = j.cortes.filter(x => x.conteo && Number(x.conteo.sobre) > 0);
+      const sobresPendientes = sobresElegibles.filter(x => !x.recepcion_sobre?.recibido).length;
+      EC.bloqueN("caja", "entregas", sobresPendientes, sobresPendientes > 0);
       const [a, m] = j.mes.split("-");
       const nomMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(+a, +m - 1, 15)));
       const s = j.sync;
@@ -66,7 +69,7 @@
         EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
         EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
         EC.bloqueInfo("caja", "movs", { texto: "gastos " + D0(t.gastos || 0) + (t.extras ? " · extras " + D0(t.extras) : "") });
-        EC.bloqueInfo("caja", "entregas", { texto: "administración " + D0(sobres) });
+        EC.bloqueInfo("caja", "entregas", { texto: sobresPendientes ? `${sobresPendientes} por recibir · ${sobresElegibles.length - sobresPendientes} recibidos` : `${sobresElegibles.length} sobres recibidos` });
         const fb = $("#c-fil-btn"); if (fb) fb.textContent = "Periodo: " + per.replace(/^(\S)/, c => c.toUpperCase()) + " ▾";
       }
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
@@ -410,10 +413,19 @@
   function vistaEntregas(j) {
     const c = $("#c-entregas");
     const cs = j.cortes.filter(x => x.conteo);
+    const conSobre = cs.filter(x => Number(x.conteo.sobre) > 0);
+    const recibidos = conSobre.filter(x => x.recepcion_sobre?.recibido).length;
+    const pendientes = conSobre.length - recibidos;
+    // Pendientes primero, pero sin alterar el orden ni las cifras que usa el backend.
+    const prioridad = x => Number(x.conteo.sobre) <= 0 ? 2 : x.recepcion_sobre?.recibido ? 1 : 0;
+    const orden = [...cs].sort((a, b) => prioridad(a) - prioridad(b) || b.dia.localeCompare(a.dia) || TURNOS_ORDEN.indexOf(a.turno) - TURNOS_ORDEN.indexOf(b.turno));
+    const borrador = c.querySelector("#c-imp-t")?.value || "";
+    const importacionAbierta = !!c.querySelector("#c-imp")?.open;
     const folRet = {}; for (const m of j.movimientos || []) if (m.tipo === "retiro") (folRet[m.dia + "|" + m.turno] = folRet[m.dia + "|" + m.turno] || []).push(m);
     const tot = k => cs.reduce((a, x) => a + (k === "retiros" ? (x.conteo.retiros || []).reduce((y, r) => y + r.monto, 0) : x.conteo[k] || 0), 0);
     c.innerHTML = `<section class="card">
       <p class="note" style="margin:4px 0 10px">Lo que cada encargado contó y cómo lo repartió al entregar el corte: el efectivo entregado a administración (cuenta como efectivo recibido en Dinero), los retiros y el cambio que dejó al siguiente turno.</p>
+      <p class="note" style="margin:0 0 10px">La casilla «Recibido físicamente» confirma que administración tiene el sobre. No modifica ingresos, cortes ni saldos; cada cambio queda registrado.</p>
       <details id="c-imp"><summary class="btn btn-line" style="display:inline-flex;align-items:center;cursor:pointer;margin-bottom:10px">Capturar entregas de turnos sin tablet</summary>
         <div class="cform" style="display:block;margin:0 0 14px">
           <p class="note" style="margin:0 0 8px">Pega una tabla con una línea por turno: <b>día, turno, entrega a administración, taxi, sueldo y cambio que dejó</b> (separada por tabuladores, como al copiar de una hoja). «—» o vacío = sin dato. Primero se revisa; no se guarda nada hasta que confirmes. El sueldo o taxi que ya está como renglón en la hoja de ese turno no se cuenta dos veces, y los turnos que entregaron en la tablet no se cambian.</p>
@@ -421,11 +433,30 @@
           <div class="row" style="margin-top:8px"><button class="btn btn-primary" type="button" id="c-imp-rev">Revisar</button></div>
           <div id="c-imp-r"></div>
         </div></details>
-      <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Administración</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div></div>
-      ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Administración</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
-        ${cs.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
+      <div class="ctot" style="margin:0 0 10px"><div class="k dest"><span>Administración</span><b>${dinero(tot("sobre"))}</b></div><div class="k"><span>Retiros</span><b>${dinero(tot("retiros"))}</b></div><div class="k"><span>Cortes entregados</span><b>${cs.length}</b></div><div class="k"><span>Sobres recibidos</span><b>${recibidos}</b></div><div class="k ${pendientes ? "dest" : ""}"><span>Por recibir</span><b>${pendientes}</b></div></div>
+      ${cs.length ? `<div class="tabla-scroll" tabindex="0" role="region" aria-label="Entregas"><table class="tcortes"><thead><tr><th>Corte</th><th>Entregó</th><th class="n">Contado</th><th>Diferencia</th><th class="n">Administración</th><th>Recibido físicamente</th><th>Retiros</th><th class="n">Cambio sig.</th></tr></thead><tbody>
+        ${orden.map(x => `<tr><td><button type="button" class="lnk-corte" data-k="${esc(x.dia + "|" + x.turno)}">${esc(diaTxt(x.dia))} · ${esc(TURNO_TXT[x.turno] || x.turno)}</button></td><td>${x.conteo.admin ? `<span class="cat-chip">Administración</span>` : avP(x.conteo.persona) + esc(x.conteo.persona)}</td><td class="n">${x.conteo.admin ? "—" : dinero(x.conteo.efectivo)}</td><td>${x.conteo.admin ? `<span class="note">sin conteo</span>` : difEtq(x.conteo.dif_efectivo)}</td><td class="n"><b>${x.conteo.sobre != null ? dinero(x.conteo.sobre) : "—"}</b></td><td class="c-sobre-celda">${Number(x.conteo.sobre) > 0 ? `<label class="c-sobre-recepcion"><input type="checkbox" data-dia="${esc(x.dia)}" data-turno="${esc(x.turno)}" data-revision="${Number(x.recepcion_sobre?.revision || 0)}" ${x.recepcion_sobre?.recibido ? "checked" : ""} aria-label="Sobre ${esc(diaTxt(x.dia))}, ${esc(TURNO_TXT[x.turno] || x.turno)}: recibido físicamente"><span>${x.recepcion_sobre?.recibido ? "Recibido" : "Pendiente"}</span></label>${x.recepcion_sobre?.recibido ? `<small class="c-sobre-meta">${esc(x.recepcion_sobre.por || "Administración")} · ${esc(new Date(x.recepcion_sobre.actualizado).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/Mexico_City" }))}</small>` : ""}` : "—"}</td><td>${(folRet[x.dia + "|" + x.turno] || []).map(r => `<div><span class="folio-mc">${esc(r.folio || "")}</span> ${esc(r.concepto)} ${dinero(-r.monto)}</div>`).join("") || "—"}</td><td class="n">${x.conteo.cambio_sig != null ? dinero(x.conteo.cambio_sig) : "—"}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="note">No hay cortes entregados ${st.desde || st.hasta ? "en este periodo" : "este mes"}.</p>`}</section>`;
     c.querySelectorAll(".lnk-corte").forEach(b => b.addEventListener("click", () => { abrirCorte(b.dataset.k); }));
+
+    if (c.querySelector("#c-imp-t")) c.querySelector("#c-imp-t").value = borrador;
+    if (importacionAbierta && c.querySelector("#c-imp")) c.querySelector("#c-imp").open = true;
+    c.querySelectorAll(".c-sobre-recepcion input").forEach(input => input.addEventListener("change", async () => {
+      const recibido = input.checked;
+      input.disabled = true;
+      try {
+        await api("caja/sobres/recepcion", { method: "POST", body: JSON.stringify({
+          dia: input.dataset.dia, turno: input.dataset.turno, recibido, revision: Number(input.dataset.revision)
+        }) });
+        toast(recibido ? "Sobre recibido físicamente" : "Recepción corregida");
+      } catch (e) {
+        input.checked = !recibido;
+        if (e.message !== "sesion") toast(e.message || "No se pudo guardar la recepción");
+      } finally {
+        // Recargar incluso ante conflicto, para mostrar el estado real de otras sesiones.
+        await cargar();
+      }
+    }));
     const EST = { nueva: ["Se agrega", "ok"], reemplaza: ["Reemplaza la captura anterior", "ok"], tablet: ["Ya entregó en la tablet", "no"], vacia: ["Sin datos", "no"], fuera: ["Fuera del mes", "no"], repetida: ["Repetida", "no"] };
     const enviar = async aplicar => {
       const r = $("#c-imp-r"), t = $("#c-imp-t").value;
