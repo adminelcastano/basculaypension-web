@@ -11,7 +11,7 @@ test("CASTAGRAM conserva exactamente el cuerpo anterior, sin alterar comentarios
  const controlador=fuente("src/panel/cliente/07-castagram-controlador.js");
  assert.ok(controlador.includes(original),"Se cambió lógica interna de CASTAGRAM en extracción");
  for(const ruta of ["avisos-archivo","comentarios","conversacion","avisos-feed"]) assert.ok((controlador+fuente("src/panel/cliente/07-agenda.js")).includes(ruta),ruta);
- assert.match(fuente("src/panel-app.js"),/J07P, J07A, J07, J08/);
+ assert.match(fuente("src/panel-app.js"),/J07P, J07A, J07K, J07, J08/);
  assert.doesNotThrow(()=>new vm.Script(controlador));
  assert.doesNotThrow(()=>new vm.Script(fuente("src/panel/cliente/07-agenda.js")));
 });
