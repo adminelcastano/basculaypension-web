@@ -1,7 +1,7 @@
 // Categorías de egresos (pagos programados, pagos y gastos hechos, compras y gastos de caja).
 // Se eligen de una lista o se escriben: una nueva se crea sola (con el icono "Otros") y su icono se puede
 // cambiar en Pagos y compras → Categorías. El icono es un símbolo SVG de línea del panel (i-cat-*).
-import { asegurarEsquemaBitacora, stmtBitacora } from "./bitacora.js";
+import { asegurarEsquemaBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
 // Iconos disponibles (deben existir como <symbol id="i-cat-…"> en panel.html y turno.html)
@@ -128,15 +128,15 @@ export async function eliminarCategoria(env, nombre, quien) {
   await asegurarEsquemaBitacora(env);
   const st = [
     env.DB.prepare("DELETE FROM categorias WHERE nombre = ?").bind(nombre),
+    stmtBitacoraSiCambio(env, { quien, accion:"borrar", que:"Categoría de gastos", ref:nombre, detalle:{ efecto:"sin_categoria", tablas:vigentes } }),
     ...vigentes.map(tabla => env.DB.prepare("UPDATE " + tabla + " SET categoria = NULL WHERE categoria = ?").bind(nombre)),
-    env.DB.prepare("INSERT OR REPLACE INTO categorias_eliminadas (nombre, eliminado) VALUES (?, ?)").bind(nombre, new Date().toISOString()),
-    stmtBitacora(env, { quien, accion:"borrar", que:"Categoría de gastos", ref:nombre, detalle:{ efecto:"sin_categoria", tablas:vigentes } })
+    env.DB.prepare("INSERT OR REPLACE INTO categorias_eliminadas (nombre, eliminado) VALUES (?, ?)").bind(nombre, new Date().toISOString())
   ];
   const rs = await env.DB.batch(st);
   if (Number(rs[0]?.meta?.changes || 0) !== 1) {
     const e = new Error("La categoría cambió en otra sesión. Actualiza la lista."); e.code = "CAT_NO_EXISTE"; throw e;
   }
-  return Object.fromEntries(vigentes.map((tabla,i) => [tabla, Number(rs[i+1]?.meta?.changes || 0)]));
+  return Object.fromEntries(vigentes.map((tabla,i) => [tabla, Number(rs[i+2]?.meta?.changes || 0)]));
 }
 
 // Crear desde Configuración reactiva voluntariamente una etiqueta dada de baja.
@@ -175,19 +175,26 @@ export async function recategorizarRegistro(env, { origen, id, categoria, quien 
   }
   await asegurarEsquemaBitacora(env);
   const gastoId = origen === "caja_gastos" ? id : original.gasto_id;
-  const st = [env.DB.prepare("UPDATE " + origen + " SET categoria = ? WHERE id=? AND categoria IS NULL").bind(filaCat.nombre,id)];
-  if (gastoId && origen !== "caja_gastos" && await existeTablaCategoria(env,"caja_gastos")) {
-    st.push(env.DB.prepare("UPDATE caja_gastos SET categoria=? WHERE id=? AND categoria IS NULL").bind(filaCat.nombre,gastoId));
-  }
+  const st = [
+    env.DB.prepare("UPDATE " + origen + " SET categoria = ? WHERE id=? AND categoria IS NULL").bind(filaCat.nombre,id),
+    stmtBitacoraSiCambio(env, { quien, accion:"editar", que:"Categoría de gasto", ref:origen+":"+id, detalle:{ categoria:filaCat.nombre, importe:"sin cambios" } })
+  ];
+  // Cada vinculado se actualiza únicamente si la fila original tiene la
+  // categoría esperada; no sobrescribe recategorizaciones simultáneas distintas.
+  const asociar = (tabla, condicion, valor) =>
+    env.DB.prepare("UPDATE "+tabla+" SET categoria=? WHERE "+condicion+
+      " AND categoria IS NULL AND EXISTS (SELECT 1 FROM "+origen+" WHERE id=? AND categoria=?)")
+      .bind(filaCat.nombre,valor,id,filaCat.nombre);
+  if (gastoId && origen !== "caja_gastos" && await existeTablaCategoria(env,"caja_gastos"))
+    st.push(asociar("caja_gastos","id=?",gastoId));
   if (gastoId) {
     for (const tabla of ["agenda_pagos","agenda_items","compras_historial"]) {
       if (tabla === origen || !await existeTablaCategoria(env,tabla)) continue;
-      st.push(env.DB.prepare("UPDATE "+tabla+" SET categoria=? WHERE gasto_id=? AND categoria IS NULL").bind(filaCat.nombre,gastoId));
+      st.push(asociar(tabla,"gasto_id=?",gastoId));
     }
   }
   if (origen === "agenda_items" && await existeTablaCategoria(env,"compras_historial"))
-    st.push(env.DB.prepare("UPDATE compras_historial SET categoria=? WHERE id=? AND categoria IS NULL").bind(filaCat.nombre,"ag:"+id));
-  st.push(stmtBitacora(env, { quien, accion:"editar", que:"Categoría de gasto", ref:origen+":"+id, detalle:{ categoria:filaCat.nombre, importe:"sin cambios" } }));
+    st.push(asociar("compras_historial","id=?","ag:"+id));
   const rs = await env.DB.batch(st);
   if (!rs[0]?.meta?.changes) { const e = new Error("El registro cambió en otra sesión."); e.code = "CAT_CONFLICTO"; throw e; }
   return { categoria:filaCat.nombre };
