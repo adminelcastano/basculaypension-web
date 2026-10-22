@@ -5,7 +5,7 @@ import { feedCastagramAdmin } from "./agenda-feed.js";
 import { borrarArchivo, guardarArchivo } from "./fotos.js";
 import { idOperacionCastagram, asegurarEsquemaAvisos, stmtHistorial, resumenConversaciones, borrarConversaciones } from "./avisos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
-import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
+import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias, sugerirCategoriaVigente } from "./categorias.js";
 import { asegurarEsquemaCuentas, leerMedio, cuentaDefecto, listaCuentas } from "./cuentas.js";
 import { stmtBitacora } from "./bitacora.js";
 import { asegurarEsquemaCompras, stmtHistorialCompra, stmtQuitarHistorialCompra, memoriaCompras, limpiarMemoriaCompras } from "./compras.js";
@@ -638,7 +638,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     await insertarItem(env, id, tipo, d, usuario && usuario.email || null, ahora, fotos.length ? { foto: fotos[0] } : {});
     if (fotos.length) await env.DB.prepare("UPDATE agenda_items SET fotos = ? WHERE id = ?").bind(JSON.stringify(fotos), id).run();
     if (tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, null, d.forma), id).run();
-    if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || adivinarCategoria(d.titulo), id).run();
+    if (tipo === "pago" || tipo === "compra") await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind((await resolverCategoria(env, c.categoria)) || await sugerirCategoriaVigente(env, d.titulo), id).run();
     if (d.repetir) await env.DB.prepare("UPDATE agenda_items SET repetir = ? WHERE id = ?").bind(d.repetir, id).run();
     if (tipo === "compra") {
       const lugares = await listaLugares(env);
@@ -718,7 +718,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
         return json({ ok: false, error: "La fecha de la compra debe existir, ser de un mes abierto y no futura.", errores: { fecha_compra: "Fecha inválida." } }, 422);
       const gid = crypto.randomUUID();
       const concepto = ("Compra: " + d.titulo + (d.cantidad ? ` (${d.cantidad})` : "")).slice(0, 120);
-      const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(d.titulo);
+      const catC = (await resolverCategoria(env, c.categoria)) || fila.categoria || null;
       const cta = await cuentaDe(env, c, null, forma);
       const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
       if (errorCuenta) return json({ok:false,error:errorCuenta},422);
@@ -778,7 +778,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
     if (fila.tipo === "pago") await env.DB.prepare("UPDATE agenda_items SET importe = ?, frecuencia = ?, forma = ?, cuenta = ? WHERE id = ?").bind(d.importe, d.frecuencia, d.forma, await cuentaDe(env, c, fila.cuenta, d.forma), id).run();
     if ((fila.tipo === "pago" || fila.tipo === "compra") && "categoria" in c) {
       const cat = await resolverCategoria(env, c.categoria);
-      if (cat) {
+      {
         await env.DB.prepare("UPDATE agenda_items SET categoria = ? WHERE id = ?").bind(cat, id).run();
         const g = await env.DB.prepare("SELECT gasto_id FROM agenda_items WHERE id = ?").bind(id).first();
         if (fila.tipo === "compra" && g && g.gasto_id) await env.DB.prepare("UPDATE caja_gastos SET categoria = ? WHERE id = ?").bind(cat, g.gasto_id).run();
@@ -822,7 +822,7 @@ export async function agendaPanel(request, env, url, partes, usuario) {
       const dup = await env.DB.prepare("SELECT fecha, importe FROM agenda_pagos WHERE item_id = ? AND (substr(fecha, 1, 7) = ? OR substr(COALESCE(programado, ''), 1, 7) = ?) ORDER BY creado DESC LIMIT 1").bind(fila.id, fecha.slice(0, 7), mesP).first();
       if (dup) return json({ ok: false, duplicado: dup, error: `Ya registraste un pago de «${fila.titulo}» el ${dup.fecha} por $${Number(dup.importe).toFixed(2)}.` }, 409);
     }
-    const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || adivinarCategoria(fila.titulo);
+    const cat = (await resolverCategoria(env, c.categoria)) || fila.categoria || null;
     const cta = await cuentaDe(env, c, fila.forma === forma ? fila.cuenta : null, forma);
     const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);
     if (errorCuenta) return json({ok:false,error:errorCuenta},422);
