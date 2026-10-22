@@ -1,3 +1,7 @@
+import CSS_TURNO from "./turno-estilos.css";
+import { crearPinTurno } from "./turno-pin.js";
+import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
+export { turnoSugerido, diaDeTurno };
 import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
@@ -23,7 +27,7 @@ const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGEND
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio, guardarMovimientoAdminCaja, anularMovimientoAdminCaja } from "./caja.js";
 
-const TZ = "America/Mexico_City";
+
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
@@ -90,26 +94,6 @@ const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")
 const b64u = s => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const deB64u = s => atob(s.replace(/-/g, "+").replace(/_/g, "/"));
 
-// Hora local en México (sin horario de verano)
-function local(ahora = new Date()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .formatToParts(ahora).map(x => [x.type, x.value]));
-  return { dia: `${p.year}-${p.month}-${p.day}`, h: Number(p.hour) + Number(p.minute) / 60 };
-}
-const sumaDias = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-
-// Turno sugerido al entrar: el que empieza en los próximos 30 minutos ya cuenta
-export function turnoSugerido(ahora = new Date()) {
-  const { h } = local(ahora);
-  const x = (h + 0.5) % 24;
-  return x >= 6 && x < 14 ? "MAÑANA" : x >= 14 && x < 22 ? "TARDE" : "NOCHE";
-}
-// Día del corte para el turno elegido (la noche que pasa de medianoche es del día anterior)
-export function diaDeTurno(turno, ahora = new Date()) {
-  const { dia, h } = local(ahora);
-  if (turno === "NOCHE" && h < 12) return sumaDias(dia, -1);
-  return dia;
-}
 
 // ---------------------------------------------------------------------------
 // Esquema
@@ -145,25 +129,8 @@ export async function asegurarEsquemaTurno(env) {
 // 100 000 iteraciones de PBKDF2 (el máximo que admite Workers).
 // Formatos guardados: "v3$" (100 000, actual), "v2$" (2 000, plan gratuito) y sin prefijo (20 000).
 // Los v2 y sin prefijo se siguen aceptando y se convierten a v3 al entrar con el PIN correcto.
-const ITER_V3 = 100000;
-async function derivar(pin, sal, iteraciones) {
-  const llave = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: iteraciones }, llave, 256));
-}
-const hashPin = async (pin, sal) => "v3$" + await derivar(pin, sal, ITER_V3);
-const pinViejo = guardado => !String(guardado || "").startsWith("v3$");
-async function pinCorrecto(pin, sal, guardado) {
-  if (!guardado) return false;
-  const calculado = guardado.startsWith("v3$") ? await hashPin(pin, sal)
-    : guardado.startsWith("v2$") ? "v2$" + await derivar(pin, sal, 2000)
-    : await derivar(pin, sal, 20000);
-  return igual(calculado, guardado);
-}
-function igual(a, b) {
-  if (a.length !== b.length) return false;
-  let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
+// Las sesiones reutilizan exactamente el mismo comprobador de PIN.
+const { hashPin, pinViejo, pinCorrecto, igual } = crearPinTurno({ enc, hex, crypto });
 let secretoCache = null;
 async function secreto(env) {
   if (secretoCache) return secretoCache;
@@ -307,7 +274,7 @@ async function estado(env, s) {
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
 let versionHtml = null, htmlArmado = null;
-const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR));
+const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR).replace("/*__TURNO_CSS__*/", CSS_TURNO));
 function versionDe(html) {
   if (versionHtml) return versionHtml;
   html = armar(html);

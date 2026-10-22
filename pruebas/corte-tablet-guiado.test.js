@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const ui = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8");
+const ui = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8").replace("/*__TURNO_CSS__*/", readFileSync(new URL("../src/turno-estilos.css", import.meta.url), "utf8"));
 const server = readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
 
 // El script de la tablet sigue siendo una aplicación autónoma sin cambiar framework.
