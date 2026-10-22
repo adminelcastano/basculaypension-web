@@ -7,12 +7,14 @@ const rules = readFileSync(new URL("../src/facturacion-reglas.js", import.meta.u
 
 // Aislamos únicamente las rutas ya protegidas por Access. Los servicios externos
 // y D1 se reemplazan por dobles ficticios: nunca se consulta producción.
-const routeBody = worker.match(/async function rutasPanel\(request, env, url, usuario\) \{[\s\S]*?\n\}\n\nfunction cabecerasPanel/);
-const importeBody = worker.match(/function normalizarImporte\(v\) \{[\s\S]*?\n\}/);
+const routes = readFileSync(new URL("../src/worker-panel-rutas.js", import.meta.url), "utf8");
+const routeBody = routes.match(/async function rutasPanel\(request, env, url, usuario\) \{[\s\S]*?\n\}/);
+const importeFuente = readFileSync(new URL("../src/facturacion-entradas.js", import.meta.url), "utf8");
+const importeBody = importeFuente.match(/function normalizarImporte\(v\) \{[\s\S]*?\n\}/);
 assert.ok(routeBody && importeBody, "Localizar las funciones existentes del Worker");
 const factory = new Function("asegurarEsquema", "json", "REGIMENES", "USOS", "SERVICIOS", "FORMAS_PAGO", "limiteHistorico", "DIAS_RETENCION", "listarCfdis", "emitirMultiples", "cancelarRegistro", "sustituirRegistro",
   rules.replace(/^export /gm, "") + "\n" + importeBody[0] + "\n" +
-  routeBody[0].replace(/\nfunction cabecerasPanel$/, "") + "\nreturn rutasPanel;");
+  routeBody[0] + "\nreturn rutasPanel;");
 
 const catalogos = { regimenes: { "612": "Actividad empresarial" }, usos: { G03: "Gastos en general" } };
 const uid = n => "00000000-0000-4000-8000-" + String(n).padStart(12, "0");

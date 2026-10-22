@@ -38,7 +38,7 @@ test("El ensayo tiene únicamente KV propia y cero procesos o servicios producti
 });
 
 test("El Worker de ensayo deniega endpoints públicos, crons y escrituras ajenas a Finanzas",()=>{
-  const code=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8");
+  const code=readFileSync(new URL("../src/worker.js",import.meta.url),"utf8") + "\n" + readFileSync(new URL("../src/worker-panel-rutas.js",import.meta.url),"utf8");
   assert.match(code,/env\.ENSAYO_FINANZAS === "1"/);
   assert.match(code,/ruta\.startsWith\("\/api\/"\)/);
   assert.match(code,/ruta\.startsWith\("\/expediente\/"\)/);

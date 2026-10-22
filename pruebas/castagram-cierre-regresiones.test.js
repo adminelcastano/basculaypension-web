@@ -42,7 +42,7 @@ test("El identificador de reintento debe ser válido y estable", async () => {
 
 test("Cambiar PIN invalida las cargas anteriores y el fondo de diálogo respeta Atrás", () => {
   const tablet = readFileSync(new URL("../src/turno.html", import.meta.url), "utf8");
-  const panel = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/panel/cliente/07-castagram-controlador.js", import.meta.url), "utf8");
   const servidor = readFileSync(new URL("../src/turno.js", import.meta.url), "utf8");
   const agenda = readFileSync(new URL("../src/agenda.js", import.meta.url), "utf8");
   assert.match(tablet, /sesionGeneracion\+\+; \/\/ invalida cargas/);

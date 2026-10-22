@@ -1,0 +1,31 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {webcrypto} from "node:crypto";
+import {readFileSync} from "node:fs";
+import {execFileSync} from "node:child_process";
+import {crearPinTurno} from "../src/turno-pin.js";
+const src=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
+test("Bloque de verificación de PIN se conserva literalmente sin cambios de iteraciones",()=>{
+ const original=execFileSync("git",["show","be1fed8bc506e67bef9241c8bcf5e142859ecf4c:src/turno.js"],{encoding:"utf8"});
+ const a=original.indexOf("const ITER_V3 = 100000;"),b=original.indexOf("let secretoCache = null;",a);
+ assert.ok(a>0&&b>a&&src("src/turno-pin.js").includes(original.slice(a,b)));
+ assert.match(src("src/turno.js"),/crearPinTurno\(\{ enc, hex, crypto \}\)/);
+});
+test("PIN: correcto, incorrecto, versiones v3, v2, heredada y comparación",async()=>{
+ const enc=new TextEncoder(),hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+ const pin=crearPinTurno({enc,hex,crypto:webcrypto});
+ const sal="sal-ficticia-2026",valor="1284";
+ const nuevo=await pin.hashPin(valor,sal);
+ assert.match(nuevo,/^v3\$[a-f0-9]{64}$/);
+ assert.equal(await pin.pinCorrecto(valor,sal,nuevo),true);
+ assert.equal(await pin.pinCorrecto("0000",sal,nuevo),false);
+ assert.equal(pin.pinViejo(nuevo),false);
+ const anterior="v2$"+await pin.derivar(valor,sal,2000);
+ const legado=await pin.derivar(valor,sal,20000);
+ assert.equal(await pin.pinCorrecto(valor,sal,anterior),true);
+ assert.equal(await pin.pinCorrecto(valor,sal,legado),true);
+ assert.equal(pin.pinViejo(anterior),true);
+ assert.equal(pin.igual("igual","igual"),true);
+ assert.equal(pin.igual("igual","otra!"),false);
+ assert.equal(pin.igual("a","ab"),false);
+});
