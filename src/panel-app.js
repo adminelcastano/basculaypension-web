@@ -6,7 +6,10 @@
 // (huella del contenido) en la URL: el navegador los guarda un año y solo los vuelve a bajar cuando cambian.
 // Todo pasa por la verificación de Cloudflare Access igual que antes.
 import PAGINA from "./panel/pagina.html";
-import CSS from "./panel/estilos.css";
+import CSS_BASE from "./panel/estilos.css";
+import CSS_NAVEGACION from "./panel/estilos-navegacion.css";
+import CSS_CASTAGRAM from "./panel/estilos-castagram.css";
+const CSS = CSS_BASE.replace("/*__CASTAGRAM_CSS__*/", CSS_CASTAGRAM) + CSS_NAVEGACION;
 import J00 from "./panel/cliente/00-base.js";
 import J00P from "./panel/cliente/00-perfil-admin.js";
 import J01 from "./panel/cliente/01-facturacion.js";
@@ -18,6 +21,10 @@ import J05B from "./panel/cliente/05b-estados.js";
 import J05C from "./panel/cliente/05c-salarios.js";
 import J05E from "./panel/cliente/05e-obligaciones.js";
 import J06 from "./panel/cliente/06-inicio.js";
+import J07C from "./panel/cliente/07-compras-controlador.js";
+import J07P from "./panel/cliente/07-pagos-controlador.js";
+import J07A from "./panel/cliente/07-castagram-controlador.js";
+import J07K from "./panel/cliente/07-calendario-controlador.js";
 import J07 from "./panel/cliente/07-agenda.js";
 import J08 from "./panel/cliente/08-navegacion.js";
 import J09 from "./panel/cliente/09-ocultar.js";
@@ -26,7 +33,7 @@ import J11 from "./panel/cliente/11-configuracion.js";
 import J12 from "./panel/cliente/12-submenu.js";
 import { swPush } from "./push.js";
 
-export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05C, J05E, J06, J07, J08, J09, J10, J11, J12].join("\n;\n");
+export const JS = [J00, J00P, J01, J02, J03, J04, J05, J05B, J05C, J05E, J06, J07C, J07P, J07A, J07K, J07, J08, J09, J10, J11, J12].join("\n;\n");
 // Para instalar el panel como app en el celular ("Agregar a pantalla principal")
 const MANIFIESTO = {
   id: "/panel", name: "Panel · El Castaño", short_name: "El Castaño", start_url: "/panel", scope: "/panel", display: "standalone",

@@ -1,3 +1,8 @@
+import { crearSesionesTurno } from "./turno-sesion.js";
+import CSS_TURNO from "./turno-estilos.css";
+import { crearPinTurno } from "./turno-pin.js";
+import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
+export { turnoSugerido, diaDeTurno };
 import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
 import AV1 from "./avatares/a1.webp";
@@ -23,7 +28,7 @@ const INTERPRETAR = AGENDA_JS.slice(AGENDA_JS.indexOf("// <interpretar>"), AGEND
 import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
 import { asegurarEsquemaCaja, mesActual, TURNOS, unirConteos, calcularCortes, CONCEPTOS_EXTRA, cuentaComoIngreso, leerRetiros, turnoAnterior, idAumentoInicio, totalCambioInicio, guardarCambioInicio, guardarMovimientoAdminCaja, anularMovimientoAdminCaja } from "./caja.js";
 
-const TZ = "America/Mexico_City";
+
 const PERSONAS_INICIALES = ["JDOM", "JESC", "JOESC", "JURB", "ERI"];
 const SESION_HORAS = 14;
 const MAX_FALLAS = 5, BLOQUEO_MIN = 15;
@@ -90,26 +95,6 @@ const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")
 const b64u = s => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const deB64u = s => atob(s.replace(/-/g, "+").replace(/_/g, "/"));
 
-// Hora local en México (sin horario de verano)
-function local(ahora = new Date()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .formatToParts(ahora).map(x => [x.type, x.value]));
-  return { dia: `${p.year}-${p.month}-${p.day}`, h: Number(p.hour) + Number(p.minute) / 60 };
-}
-const sumaDias = (dia, n) => { const d = new Date(dia + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-
-// Turno sugerido al entrar: el que empieza en los próximos 30 minutos ya cuenta
-export function turnoSugerido(ahora = new Date()) {
-  const { h } = local(ahora);
-  const x = (h + 0.5) % 24;
-  return x >= 6 && x < 14 ? "MAÑANA" : x >= 14 && x < 22 ? "TARDE" : "NOCHE";
-}
-// Día del corte para el turno elegido (la noche que pasa de medianoche es del día anterior)
-export function diaDeTurno(turno, ahora = new Date()) {
-  const { dia, h } = local(ahora);
-  if (turno === "NOCHE" && h < 12) return sumaDias(dia, -1);
-  return dia;
-}
 
 // ---------------------------------------------------------------------------
 // Esquema
@@ -145,57 +130,10 @@ export async function asegurarEsquemaTurno(env) {
 // 100 000 iteraciones de PBKDF2 (el máximo que admite Workers).
 // Formatos guardados: "v3$" (100 000, actual), "v2$" (2 000, plan gratuito) y sin prefijo (20 000).
 // Los v2 y sin prefijo se siguen aceptando y se convierten a v3 al entrar con el PIN correcto.
-const ITER_V3 = 100000;
-async function derivar(pin, sal, iteraciones) {
-  const llave = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(sal), iterations: iteraciones }, llave, 256));
-}
-const hashPin = async (pin, sal) => "v3$" + await derivar(pin, sal, ITER_V3);
-const pinViejo = guardado => !String(guardado || "").startsWith("v3$");
-async function pinCorrecto(pin, sal, guardado) {
-  if (!guardado) return false;
-  const calculado = guardado.startsWith("v3$") ? await hashPin(pin, sal)
-    : guardado.startsWith("v2$") ? "v2$" + await derivar(pin, sal, 2000)
-    : await derivar(pin, sal, 20000);
-  return igual(calculado, guardado);
-}
-function igual(a, b) {
-  if (a.length !== b.length) return false;
-  let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
-let secretoCache = null;
-async function secreto(env) {
-  if (secretoCache) return secretoCache;
-  let s = await env.FILES.get("turno:secreto");
-  if (!s) { s = hex(crypto.getRandomValues(new Uint8Array(32))); await env.FILES.put("turno:secreto", s); }
-  return (secretoCache = s);
-}
-async function firmar(env, datos) {
-  const llave = await crypto.subtle.importKey("raw", enc.encode(await secreto(env)), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return hex(await crypto.subtle.sign("HMAC", llave, enc.encode(datos)));
-}
-async function crearSesion(env, persona, turno, dia) {
-  // La sal del PIN va en la sesión: si se cambia el PIN, las sesiones abiertas dejan de valer
-  const datos = b64u(JSON.stringify({ p: persona.clave, t: turno, d: dia, s: persona.pin_sal.slice(0, 8), g: persona.ses_gen || 0, e: Date.now() + SESION_HORAS * 3600e3 }));
-  return datos + "." + await firmar(env, datos);
-}
-function leerCookie(cab, nombre) {
-  for (const p of (cab || "").split(/;\s*/)) { const i = p.indexOf("="); if (i > 0 && p.slice(0, i) === nombre) return p.slice(i + 1); }
-  return "";
-}
-async function sesionActual(request, env) {
-  const v = leerCookie(request.headers.get("Cookie"), "turno_ses");
-  const [datos, firma] = v.split(".");
-  if (!datos || !firma || !igual(firma, await firmar(env, datos))) return null;
-  let s; try { s = JSON.parse(deB64u(datos)); } catch { return null; }
-  if (!s.e || s.e < Date.now() || !TURNOS.includes(s.t)) return null;
-  const persona = await env.DB.prepare("SELECT clave, nombre, pin_sal, activo, avatar, avatar_base, foto_ver, prefs, ses_gen FROM turno_personas WHERE clave = ?").bind(s.p).first();
-  if (!persona || !persona.activo || !persona.pin_sal || persona.pin_sal.slice(0, 8) !== s.s) return null;
-  if ((s.g || 0) !== (persona.ses_gen || 0)) return null;
-  return { persona: persona.clave, nombre: persona.nombre || persona.clave, avatar: avatarValido(persona.avatar), avatar_base: Object.hasOwn(AVATARES, persona.avatar_base) ? persona.avatar_base : null, avatar_url: urlAvatar(persona), tiene_foto: !!persona.foto_ver, prefs: leerPrefs(persona.prefs), turno: s.t, dia: s.d };
-}
-const cookie = (valor, maxAge) => `turno_ses=${valor}; Path=/turno; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+// Las sesiones reutilizan exactamente el mismo comprobador de PIN.
+const { hashPin, pinViejo, pinCorrecto, igual } = crearPinTurno({ enc, hex, crypto });
+// Sesión con el mismo HMAC, sal, generación de PIN, cookie y límites previos.
+const { secreto, firmar, crearSesion, leerCookie, sesionActual, cookie } = crearSesionesTurno({ crypto, enc, hex, b64u, deB64u, SESION_HORAS, igual, TURNOS, avatarValido, AVATARES, urlAvatar, leerPrefs });
 
 // ---------------------------------------------------------------------------
 // Fotos (llegan como data URL JPEG ya comprimido en la tablet)
@@ -307,7 +245,7 @@ async function estado(env, s) {
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
 let versionHtml = null, htmlArmado = null;
-const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR));
+const armar = html => htmlArmado || (htmlArmado = html.replace("/*__INTERPRETAR__*/", INTERPRETAR).replace("/*__TURNO_CSS__*/", CSS_TURNO));
 function versionDe(html) {
   if (versionHtml) return versionHtml;
   html = armar(html);
