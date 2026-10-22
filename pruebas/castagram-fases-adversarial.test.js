@@ -112,7 +112,9 @@ test("El feed de turno filtra autorizados ANTES del límite y pagina sin repetir
 
 test("Panel y turno tienen API paginada, protección de fotografías y flujo de prueba",()=>{
   assert.match(agenda,/partes\[1\] === "avisos-feed"/);
-  assert.match(agenda,/ORDER BY creado DESC,id DESC LIMIT 26/);
+  assert.match(agenda,/return feedCastagramAdmin\(env, url,/);
+  const feed = readFileSync(new URL("../src/agenda-feed.js", import.meta.url), "utf8");
+  assert.match(feed,/ORDER BY creado DESC,id DESC LIMIT 26/);
   assert.match(server,/partes\[1\] === "pagina"/);
   assert.match(panel,/data-casta-mas/);
   assert.match(turno,/data-casta-mas/);
