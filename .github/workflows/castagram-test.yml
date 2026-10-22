@@ -60,14 +60,14 @@ jobs:
         run: npm install --ignore-scripts --no-save --no-audit --no-fund playwright@1.56.1
       - name: Instalar Chromium y WebKit
         run: npx playwright install --with-deps chromium webkit
+      - name: Agenda y Personal con datos sintéticos (Chromium y WebKit)
+        run: node pruebas/ux-agenda-personal-sintetico.mjs
       - name: Navegación y viewport en servidor local sintético (11 perfiles)
         run: node pruebas/ux-browser-emulado.mjs
       - name: Turno sin PIN válido y aislamiento de tablet compartida (Chromium/WebKit)
         run: node pruebas/ux-turno-prepublicacion.mjs
       - name: Panel Financiero con API ficticia (escritorio y teléfono)
         run: node pruebas/ux-panel-financiero.mjs
-      - name: Agenda y Personal con datos sintéticos (Chromium y WebKit)
-        run: node pruebas/ux-agenda-personal-sintetico.mjs
       - name: Capturas exclusivamente sintéticas
         if: always()
         uses: actions/upload-artifact@v4
