@@ -42,9 +42,9 @@
     const conjuntos = {
       facturas: { numeros: ["i-pend"], textos: ["i-pend-l", "d-fact"], notas: ["i-pend-nota"] },
       personal: { numeros: ["i-exp"], notas: ["i-exp-nota"] },
-      caja: { numeros: ["i-hoy", "i-caja", "i-gastos"],
+      caja: { numeros: ["i-hoy", "i-caja", "i-gastos", "i-sobres"],
         textos: ["i-split", "i-turnos", "d-formas", "d-serv", "cmp", "g-dias", "ini-gastos-l"],
-        notas: ["i-caja-nota", "i-gastos-nota", "i-turno", "prom-txt"] },
+        notas: ["i-caja-nota", "i-gastos-nota", "i-sobres-nota", "i-turno", "prom-txt"] },
       agenda: { numeros: ["n-incid", "n-tareas", "n-avisos", "n-compras"],
         textos: ["m-incid", "m-tareas", "m-avisos", "m-incav", "m-eventos", "m-compras"] },
       pagos: { numeros: ["i-pp", "i-pg", "n-pagos", "n-noprog"],
@@ -60,6 +60,7 @@
     (grupo.textos || []).forEach(id => { const el = $("#" + id); if (el) el.replaceChildren(); });
     (grupo.notas || []).forEach(id => { const el = $("#" + id); if (el) el.textContent = "No disponible"; });
     if (tipo === "caja") {
+      const irSobres = $("#i-sobres-ir"); if (irSobres) irSobres.hidden = true;
       const activo = $("#ini-activo"), gastos = $("#ini-gastos-l");
       if (activo) activo.hidden = true;
       if (gastos) gastos.hidden = true;
@@ -267,7 +268,14 @@
     const sobres = conSobre.reduce((a, c) => a + (Number(c.conteo.sobre) || 0), 0);
     contar($("#i-sobres"), sobres, v => dinero(v));
     const n = conSobre.length;
-    $("#i-sobres-nota").textContent = n ? `${n} de ${lista.length} turnos entregados` : "Ningún turno ha entregado sobre";
+    const elegibles = conSobre.filter(c => Number(c.conteo.sobre) > 0);
+    const recibidos = elegibles.filter(c => c.recepcion_sobre?.recibido).length;
+    const pendientes = elegibles.length - recibidos;
+    $("#i-sobres-nota").textContent = n
+      ? `${n} de ${lista.length} turnos con corte · ${recibidos} recibidos · ${pendientes} pendientes`
+      : "Ningún turno ha entregado sobre";
+    const irSobres = $("#i-sobres-ir");
+    if (irSobres) irSobres.hidden = pendientes === 0;
   }
 
   let cargando = false;
@@ -458,6 +466,7 @@
     else if (a === "programar") window.agendaAbrir && window.agendaAbrir("pago", "programar");
     else window.agendaAbrir && window.agendaAbrir(a === "evento" ? "calendario" : a);
   }));
+  $("#i-sobres-ir")?.addEventListener("click", e => { e.stopPropagation(); if (window.irA) window.irA("caja", { historia: "push", vista: "entregas" }); });
   document.addEventListener("modulo", e => { if (e.detail === "inicio") { firmaGraf = null; cargar().catch(() => {}); } });
   document.addEventListener("recargar-todo", () => { if (!$("#mod-inicio").hidden) cargar().catch(() => {}); });
   let ancho = innerWidth;
