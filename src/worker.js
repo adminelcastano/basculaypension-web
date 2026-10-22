@@ -1,3 +1,4 @@
+import { permitirRutaTabletEnsayo } from "./ensayo-tablet.js";
 import { revisarConsumo, enAhorro, estadoConsumo } from "./consumo.js";
 import { normalizarFolioTicket, folioTicketValido, faltantesParaFacturar } from "./facturacion-reglas.js";
 import { asegurarEsquemaCfdis, listarCfdis, emitirMultiples, cancelarRegistro, sustituirRegistro } from "./facturas-registro.js";
@@ -66,16 +67,16 @@ export default {
     ].some(Boolean)) {
       return json({ok:false,error:"Configuración insegura del ensayo: hay servicios externos activos."},503);
     }
-    // Modo FINANZAS de ensayo: no exponer formularios públicos, expedientes,
-    // tablet ni mutaciones de personal o facturación. Se habilita SOLO por
-    // variable explícita del Worker aislado (ausente en producción).
+    // Ensayo aislado: la tableta se habilita SOLO con segunda bandera.
+    // La producción carece de ambas y mantiene sus rutas habituales.
+    const tabletEnsayo = env.ENSAYO_FINANZAS === "1" && env.ENSAYO_TABLET === "1";
     if (env.ENSAYO_FINANZAS === "1") {
-      const ruta = url.pathname;
+      const ruta = url.pathname, esTurno = ruta === "/turno" || ruta.startsWith("/turno/");
       if (ruta.startsWith("/api/") || ruta.startsWith("/expediente/") ||
-          ruta === "/turno" || ruta.startsWith("/turno/") ||
+          (esTurno && (!tabletEnsayo || !permitirRutaTabletEnsayo(ruta, request.method))) ||
           (request.method !== "GET" && request.method !== "HEAD" &&
-           !ruta.startsWith("/panel/api/"))) {
-        return json({ok:false,error:"Ruta no habilitada en el ensayo financiero."},403);
+           !ruta.startsWith("/panel/api/") && !esTurno)) {
+        return json({ok:false,error:"Ruta no habilitada en el ensayo."},403);
       }
     }
     try {
@@ -87,7 +88,11 @@ export default {
       if (url.pathname.startsWith("/api/expediente/")) return await expedienteApi(request, env, url, ctx, llamarScript, enviarCorreoA);
       if (url.pathname.startsWith("/expediente/")) return await expedientePagina(request, env, url);
       if (url.pathname === "/panel" || url.pathname.startsWith("/panel/")) return await panel(request, env, url);
-      if (url.pathname === "/turno" || url.pathname.startsWith("/turno/")) return await turnoRuta(request, env, url, { verificarAcceso, paginaBloqueada, cabeceras: cabecerasPanel, html: TURNO_HTML, llamarScript });
+      if (url.pathname === "/turno" || url.pathname.startsWith("/turno/")) {
+        const html = tabletEnsayo ? TURNO_HTML.replace("<body>",
+          '<body><div role="status" style="position:relative;z-index:9999;background:#fef3c7;color:#663c00;padding:12px;text-align:center;font:700 14px system-ui">TABLETA DE ENSAYO PRIVADO · SOLO DATOS FICTICIOS · NO ES PRODUCCIÓN</div>') : TURNO_HTML;
+        return await turnoRuta(request, env, url, { verificarAcceso, paginaBloqueada, cabeceras: cabecerasPanel, html, llamarScript });
+      }
       return env.ASSETS.fetch(request);
     } catch (err) {
       console.error("error", tipoErrorSeguro(err));
@@ -495,7 +500,10 @@ async function rutasPanel(request, env, url, usuario) {
       (partes.length === 3 && partes[2] === "lugar") ||
       (partes.length === 3 && partes[2] === "posponer")
     );
-    if (!financiero && !agendaDinero)
+    // Solo la cuenta ficticia ENSAYO puede recibir su PIN desde el panel privado.
+    const pinEnsayo = env.ENSAYO_TABLET === "1" && partes[0] === "turno" &&
+      partes[1] === "personas" && partes[2] === "ENSAYO" && partes.length === 3;
+    if (!financiero && !agendaDinero && !pinEnsayo)
       return json({ok:false,error:"Solo se permiten operaciones financieras sintéticas en el ensayo."},403);
   }
 
