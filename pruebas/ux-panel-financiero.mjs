@@ -67,7 +67,7 @@ try{
    assert.equal(await page.locator("#mod-finanzas").isVisible(),true);
    await page.locator('header.bar .modulos button[data-mod="agenda"]').click();
    await page.waitForFunction(()=>!document.querySelector("#mod-agenda").hidden);
-   assert.equal(await page.locator('#mod-agenda [data-bloque="compras"]').isVisible(),width>=1200);
+   assert.equal(await page.locator('#mod-agenda [data-bloque="compras"]').isVisible(),true);
    assert.equal(await page.locator('#mod-agenda [data-bloque="aviso"]').isVisible(),false);
    assert.equal(await page.locator('#mod-agenda [data-bloque="tarea"]').isVisible(),false);
    await page.evaluate(()=>window.irA("facturacion",{historia:"push"}));
