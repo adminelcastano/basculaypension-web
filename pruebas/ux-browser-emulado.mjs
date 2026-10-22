@@ -77,6 +77,9 @@ async function run(d,i){
   assert.ok(result.fields.every(x=>x.height>=40),"Control demasiado bajo "+JSON.stringify(result.fields));
   if(uno){
    await page.goto(URLbase()+"#dinero/bancos",{waitUntil:"domcontentloaded"});
+   // Hash navigation in the SAME page does not execute the startup script again.
+   // A direct link must be tested as a fresh document load, not an in-page hash edit.
+   await page.reload({waitUntil:"domcontentloaded"});
    await page.locator("#mod-finanzas .sub-volver").waitFor({state:"visible"});
    await page.locator("#mod-finanzas .sub-volver").click();
    await page.waitForFunction(()=>location.hash==="#dinero"&&document.querySelector("#mod-finanzas").classList.contains("en-idx"));
