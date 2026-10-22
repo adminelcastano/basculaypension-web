@@ -426,7 +426,7 @@ window.interpretarAgenda = function (texto, hoy) {
       [j, act] = await Promise.all([api("turno"), api("turno/activo").then(x => x.activo).catch(() => null)]);
       st.personas = j.personas;
     } catch (e) { if (e.message !== "sesion") c.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
-    try { colabs = ((await api("colaboradores?tipo=colaborador&estatus=activo")).colaboradores || []); } catch {}
+    if (modo === "encargados") try { colabs = ((await api("colaboradores?tipo=colaborador&estatus=activo")).colaboradores || []; } catch {}
     const DIN = v => (v < 0 ? "−" : "") + "$" + Math.abs(Number(v) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const dif = v => v == null ? "" : Math.abs(v) < 1 ? `<span class="dif ok">✓ Cuadra</span>` : v < 0 ? `<span class="dif falta">▼ Faltan ${DIN(-v)}</span>` : `<span class="dif sobra">▲ Sobran ${DIN(v)}</span>`;
     const avs = j.avatares || [];
