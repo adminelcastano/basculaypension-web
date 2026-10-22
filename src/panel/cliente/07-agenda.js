@@ -711,6 +711,7 @@ window.interpretarAgenda = function (texto, hoy) {
         st.totalCategoriasPendientes = r.total || 0;
         toast("Categoría eliminada");
         pintar();
+        await cargar();
       } catch(e) { if(e.message !== "sesion") toast(e.message); }
       finally { if(b.isConnected) b.disabled = false; }
     }));
