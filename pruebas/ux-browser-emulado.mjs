@@ -76,13 +76,15 @@ async function run(d,i){
   assert.ok(result.docWidth<=result.width+3,"Desbordamiento global "+JSON.stringify(result));
   assert.ok(result.fields.every(x=>x.height>=40),"Control demasiado bajo "+JSON.stringify(result.fields));
   if(uno){
-   await page.goto(URLbase()+"#dinero/bancos",{waitUntil:"domcontentloaded"});
-   // Hash navigation in the SAME page does not execute the startup script again.
-   // A direct link must be tested as a fresh document load, not an in-page hash edit.
-   await page.reload({waitUntil:"domcontentloaded"});
-   await page.locator("#mod-finanzas .sub-volver").waitFor({state:"visible"});
-   await page.locator("#mod-finanzas .sub-volver").click();
-   await page.waitForFunction(()=>location.hash==="#dinero"&&document.querySelector("#mod-finanzas").classList.contains("en-idx"));
+   // Nuevo tab sin historial anterior: reproduce un enlace exterior real.
+   const deep=await ctx.newPage();
+   deep.setDefaultTimeout(6500);
+   try{
+    await deep.goto(URLbase()+"#dinero/bancos",{waitUntil:"domcontentloaded"});
+    await deep.locator("#mod-finanzas .sub-volver").waitFor({state:"visible"});
+    await deep.locator("#mod-finanzas .sub-volver").click();
+    await deep.waitForFunction(()=>location.hash==="#dinero"&&document.querySelector("#mod-finanzas").classList.contains("en-idx"));
+   }finally{await deep.close();}
   }
   await page.screenshot({path:join(root,"ux-artifacts",String(i).padStart(2,"0")+"-"+name.replace(/[^a-z0-9]/gi,"-")+".png")});
   console.log("OK "+name+" "+width+"x"+height+" campos="+result.fields.length+" erroresJS="+errors.length);
