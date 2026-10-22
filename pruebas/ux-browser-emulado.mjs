@@ -52,6 +52,12 @@ async function run(d,i){
   await page.waitForSelector('#mod-finanzas .sub-idx [data-ir="bancos"]',{state:"attached",timeout:12000});
   const uno=width<=1200;
   const first=await page.evaluate(()=>({hidden:document.querySelector("#mod-finanzas").hidden,uno:document.querySelector("#mod-finanzas").classList.contains("uno"),index:document.querySelector("#mod-finanzas").classList.contains("en-idx")}));
+  const headerNav=await page.evaluate(()=>{
+   const n=document.querySelector("header.bar .modulos"),r=n.getBoundingClientRect();
+   return {scroll:n.scrollWidth,client:n.clientWidth,bottom:innerHeight-r.bottom};
+  });
+  assert.ok(headerNav.scroll<=headerNav.client+3,"Menú principal recortado "+JSON.stringify(headerNav));
+  if(width<=820)assert.ok(Math.abs(headerNav.bottom)<4,"La barra táctil debe quedar abajo: "+JSON.stringify(headerNav));
   assert.equal(first.hidden,false,"DINERO oculto");
   assert.equal(first.uno,uno,"Modo de navegación incorrecto");
   if(uno){

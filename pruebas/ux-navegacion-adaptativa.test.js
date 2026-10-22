@@ -21,4 +21,6 @@ test("Las tablets 821–1200px muestran Volver y el plegable dispone de tacto y 
  assert.match(s,/@media\(max-width:390px\)/);
  assert.match(s,/focus-visible/);
  assert.match(s,/prefers-reduced-motion:reduce/);
+ assert.match(s,/@media \(min-width:641px\) and \(max-width:820px\)/);
+ assert.match(s,/grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
 });
