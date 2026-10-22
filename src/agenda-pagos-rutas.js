@@ -1,6 +1,6 @@
 import { leerArchivo, guardarArchivo, borrarArchivo } from "./fotos.js";
 import { asegurarEsquemaCaja, mesesAbiertos } from "./caja.js";
-import { resolverCategoria, adivinarCategoria } from "./categorias.js";
+import { resolverCategoria, adivinarCategoria, sugerirCategoriaVigente } from "./categorias.js";
 import { stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 import { asegurarEsquemaObligaciones, stmtVincularAbono, vinculoPago, errorSaldoObligacion } from "./finanzas-obligaciones.js";
@@ -24,7 +24,7 @@ export async function pagosHechosRutas(request, env, partes, usuario, ahora, dep
       gid = await idFinanciero("gasto-pago-suelto", c.uid, quien);
       pid = await idFinanciero("pago-suelto", c.uid, quien);
     } catch (er) { return json({ok:false,error:er.message},422); }
-    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(v.titulo);
+    const cat = (await resolverCategoria(env, c.categoria)) || await sugerirCategoriaVigente(env, v.titulo);
     const cta = await cuentaDe(env, c, null, v.forma);
     const repetido = async () => {
       const p = c.uid ? await env.DB.prepare("SELECT * FROM agenda_pagos WHERE id = ?").bind(pid).first() : null;
@@ -140,7 +140,7 @@ export async function pagosHechosRutas(request, env, partes, usuario, ahora, dep
     const v = await validarPagoHecho(env, { ...c, titulo: c.titulo ?? pago.titulo }, pago.item_id ? pago : null);
     if (Object.keys(v.errores).length) return json({ ok: false, error: Object.values(v.errores).join(" "), errores: v.errores }, 422);
     const titulo = pago.item_id ? pago.titulo : v.titulo;
-    const cat = (await resolverCategoria(env, c.categoria)) || pago.categoria || adivinarCategoria(titulo);
+    const cat = "categoria" in c ? await resolverCategoria(env, c.categoria) : pago.categoria;
     const cta = await cuentaDe(env, c, pago.cuenta, v.forma);
     const errorCuenta = await errorCuentaEgreso(env, c, v.forma, cta);
     if (errorCuenta) return json({ok:false,error:errorCuenta},422);

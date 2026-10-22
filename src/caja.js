@@ -1,6 +1,6 @@
 import { crearCalculosCortes } from "./caja-cortes-calculos.js";
 import { leerArchivo, borrarArchivo } from "./fotos.js";
-import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias } from "./categorias.js";
+import { asegurarEsquemaCategorias, resolverCategoria, adivinarCategoria, listaCategorias, sugerirCategoriaVigente } from "./categorias.js";
 import { asegurarEsquemaCuentas, cuentaDefecto } from "./cuentas.js";
 import { idFinanciero, centavosIguales } from "./finanzas-idempotencia.js";
 import { asegurarEsquemaBitacora, stmtBitacora, stmtBitacoraSiCambio } from "./bitacora.js";
@@ -1321,7 +1321,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const quien = usuario && usuario.email || null;
     let id; try { id = await idFinanciero("gasto-turno-admin", c.uid, quien); }
     catch (er) { return json({ok:false,error:er.message},422); }
-    const cat = (await resolverCategoria(env, c.categoria)) || adivinarCategoria(concepto);
+    const cat = (await resolverCategoria(env, c.categoria)) || await sugerirCategoriaVigente(env, concepto);
     const repetido = async () => {
       const g = c.uid ? await env.DB.prepare("SELECT * FROM caja_gastos WHERE id = ?").bind(id).first() : null;
       if (!g) return null;

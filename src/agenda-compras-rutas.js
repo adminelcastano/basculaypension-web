@@ -101,7 +101,7 @@ export async function rutasComprasAgenda(request,env,partes,usuario,ahora,depend
     const lista = orden.map(f => f.titulo + (f.cantidad ? ` (${f.cantidad})` : "")).join(", ");
     const concepto = ((lugarN ? `Compra en ${lugarN}: ` : "Compra: ") + lista).slice(0, 120);
     // Categoría del egreso: la que más se repite entre los artículos
-    const cats = {}; for (const f of orden) { const k = f.categoria || adivinarCategoria(f.titulo); if (k) cats[k] = (cats[k] || 0) + 1; }
+    const cats = {}; for (const f of orden) { const k = f.categoria; if (k) cats[k] = (cats[k] || 0) + 1; }
     const cat = (await resolverCategoria(env, c.categoria)) || Object.entries(cats).sort((a, b) => b[1] - a[1]).map(x => x[0])[0] || null;
     const cta = await cuentaDe(env, c, null, forma), quien = usuario && usuario.email || null, gid = gidOperacion;
     const errorCuenta = await errorCuentaEgreso(env, c, forma, cta);

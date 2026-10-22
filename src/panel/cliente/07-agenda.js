@@ -331,16 +331,49 @@ window.interpretarAgenda = function (texto, hoy) {
         <form class="lg-fila" id="lg-nuevo"><input name="nombre" maxlength="40" placeholder="Nuevo lugar (ej. Ferretería Martínez)" aria-label="Nuevo lugar"><button class="btn btn-primary btn-sm" type="submit">Agregar</button></form>`;
   }
   function vistaCategorias() {
-    const ICONOS = ["servicios", "sueldos", "renta", "mantenimiento", "papeleria", "combustible", "impuestos", "tarjetas", "suscripciones", "familia", "otros", "carrito", "comida", "salud", "transporte", "limpieza"];
-      const ICO_TXT = { servicios: "Foco", sueldos: "Monedas", renta: "Casa", mantenimiento: "Llave", papeleria: "Clip", combustible: "Bomba de gasolina", impuestos: "Recibo", tarjetas: "Tarjeta", suscripciones: "Pantalla", familia: "Personas", otros: "Caja", carrito: "Carrito", comida: "Cubiertos", salud: "Cruz", transporte: "Camión", limpieza: "Escoba" };
-      return `<section class="card"><p class="note" style="margin:0 0 12px">Se usan en pagos, compras y gastos de caja. Una categoría nueva se crea sola cuando la escribes en un formulario. Aquí le cambias el nombre (con «Guardar») y el icono (se guarda al elegirlo). Al cambiar el nombre, lo ya registrado y los totales siguen igual, con el nombre nuevo.</p>
-        <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
-          <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría" autocomplete="off"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
-          <label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i => `<option value="${i}" ${i === c.icono ? "selected" : ""}>${esc(ICO_TXT[i] || i)}</option>`).join("")}</select></label></div>`).join("")}</div>
-        <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Publicidad" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form></section>`;
+    const ICONOS = ["servicios","sueldos","renta","mantenimiento","papeleria","combustible","impuestos","tarjetas","suscripciones","familia","otros","carrito","comida","salud","transporte","limpieza"];
+    const ICONO_TXT = { servicios:"Foco",sueldos:"Monedas",renta:"Casa",mantenimiento:"Llave",papeleria:"Clip",combustible:"Bomba de gasolina",impuestos:"Recibo",tarjetas:"Tarjeta",suscripciones:"Pantalla",familia:"Personas",otros:"Caja",carrito:"Carrito",comida:"Cubiertos",salud:"Cruz",transporte:"Camión",limpieza:"Escoba" };
+    const protegidas = new Set(["Sueldos","Otros","Comisiones bancarias","Faltantes de caja","Transporte"]);
+    const pendientes = st.categoriasPendientes || [];
+    const sugeridas = [["Limpieza e higiene","limpieza"],["Alimentos y bebidas","comida"],["Equipo operativo","mantenimiento"]];
+    const disponibles = sugeridas.filter(([nombre]) => !(window.CATS || []).some(c => (c.etiqueta || c.nombre).toLowerCase() === nombre.toLowerCase()));
+    return `<section class="card"><h3>Catálogo de gastos</h3>
+      <p class="note">Usa categorías por tipo de gasto, no por persona ni por artículo. Por ejemplo, «Sueldo turno noche» corresponde a Sueldos; «Oficina», a Papelería y consumibles.</p>
+      <p class="note">Eliminar una categoría no borra sus gastos ni importes. Los registros quedan «Sin categoría» para que los reclasifiques. Las categorías técnicas están protegidas.</p>
+      <div class="cat-lista">${(window.CATS || []).map(c => `<div class="cat-fila" style="--c:${esc(c.color)}"><span class="ci"><svg aria-hidden="true"><use href="#i-cat-${esc(c.icono)}"/></svg></span>
+          <form class="cat-nom" data-renombrar="${esc(c.nombre)}"><input name="nombre" value="${esc(c.etiqueta || c.nombre)}" maxlength="40" aria-label="Nombre de la categoría"><button class="btn btn-line btn-sm" type="submit">Guardar</button></form>
+          <div class="cat-sel" style="flex-wrap:wrap"><label class="cat-sel"><span>Icono</span><select data-cat="${esc(c.nombre)}" aria-label="Icono de ${esc(c.etiqueta || c.nombre)}">${ICONOS.map(i=>`<option value="${i}" ${i===c.icono?"selected":""}>${esc(ICONO_TXT[i] || i)}</option>`).join("")}</select></label>
+          ${protegidas.has(c.nombre) ? '<span class="note">Sistema</span>' : `<button class="btn btn-line btn-sm" type="button" data-cat-borrar="${esc(c.nombre)}">Eliminar</button>`}
+          </div>
+        </div>`).join("")}</div>
+      <form class="aform" id="cat-nueva" style="margin-top:14px"><label class="w2">Nueva categoría<input name="nombre" maxlength="40" placeholder="Ej. Limpieza e higiene" autocomplete="off"></label><button class="btn btn-primary" type="submit">Agregar</button><span class="err"></span></form>
+      ${disponibles.length ? `<p class="note">Categorías sugeridas (opcionales):</p><div class="row">${disponibles.map(([n,ico])=>`<button class="btn btn-line btn-sm" type="button" data-cat-sugerir="${esc(n)}" data-icono="${ico}">+ ${esc(n)}</button>`).join("")}</div>` : ""}
+    </section>
+    <section class="card"><h3>Sin categoría ${st.totalCategoriasPendientes != null ? "("+st.totalCategoriasPendientes+")" : ""}</h3>
+      <p class="note">Selecciona una categoría para cada registro pendiente. Ninguna operación modifica importes.</p>
+      ${st.categoriasPendientes === undefined ? '<p class="note">Consultando registros…</p>' : pendientes.length
+        ? `<div class="cat-pend-lista">${pendientes.map(x=>`<div class="cat-pend-fila" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)">
+             <div style="flex:1;min-width:180px"><b>${esc(x.concepto || "Gasto")}</b><p class="note">${esc(x.dia || "Sin fecha")} · ${esc(({caja_gastos:"Gasto",agenda_items:"Programado o compra",agenda_pagos:"Pago",compras_historial:"Compra histórica"})[x.origen] || "Registro")} ${x.importe!=null ? " · "+esc(MXN(x.importe)) : ""}</p></div>
+             <select data-cat-elegir aria-label="Categoría para ${esc(x.concepto || "registro")}" style="min-width:140px"><option value="">Elige categoría</option>${(window.CATS || []).map(cat=>`<option value="${esc(cat.nombre)}">${esc(cat.etiqueta || cat.nombre)}</option>`).join("")}</select>
+             <button class="btn btn-primary btn-sm" type="button" data-cat-asignar="${esc(x.id)}" data-origen="${esc(x.origen)}">Asignar</button>
+           </div>`).join("")}</div>` : '<p class="note">No hay registros pendientes de categorizar.</p>'}
+    </section>`;
   }
+
   function pintarConfig() {
     const m = $("#mod-config"); if (!m || m.hidden || !st.hoy) return;
+    if (st.categoriasPendientes === undefined && !st.categoriasLeyendo) {
+      st.categoriasLeyendo = true;
+      api("categorias?pendientes=1").then(r => {
+        st.categoriasPendientes = r.pendientes || [];
+        st.totalCategoriasPendientes = r.total || 0;
+        const cc = $("#cfg-categorias-c");
+        if (cc && !$("#mod-config").hidden) { cc.innerHTML = vistaCategorias(); conectar(cc); }
+      }).catch(() => {
+        st.categoriasPendientes = [];
+        st.totalCategoriasPendientes = null;
+      }).finally(() => { st.categoriasLeyendo = false; });
+    }
     const cc = $("#cfg-categorias-c"), cl = $("#cfg-lugares-c");
     if (cc) { cc.innerHTML = vistaCategorias(); conectar(cc); }
     if (cl) { cl.innerHTML = vistaLugares(); conectar(cl); }
@@ -663,8 +696,46 @@ window.interpretarAgenda = function (texto, hoy) {
     const cn = c.querySelector("#cat-nueva");
     if (cn) cn.addEventListener("submit", async ev => {
       ev.preventDefault(); cn.querySelector(".err").textContent = "";
-      try { const r = await post("categorias", { nombre: cn.nombre.value }); window.ponerCategorias(r.categorias); toast("Categoría agregada"); pintar(); } catch (e) { if (e.message !== "sesion") cn.querySelector(".err").textContent = e.message; }
+      try { const r = await post("categorias", { crear:true, nombre: cn.nombre.value }); window.ponerCategorias(r.categorias); toast("Categoría agregada"); pintar(); } catch (e) { if (e.message !== "sesion") cn.querySelector(".err").textContent = e.message; }
     });
+    c.querySelectorAll("[data-cat-borrar]").forEach(b => b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        const nombre = b.dataset.catBorrar;
+        const impacto = await post("categorias", { impacto:nombre });
+        if (!await EC.confirmar("¿Eliminar categoría «"+nombre+"»?",
+          `Se eliminará del catálogo; ${impacto.total} registro(s) quedarán «Sin categoría». No se eliminan gastos ni importes.`, "Eliminar categoría", true)) return;
+        const r = await post("categorias", { eliminar:nombre });
+        window.ponerCategorias(r.categorias);
+        st.categoriasPendientes = r.pendientes || [];
+        st.totalCategoriasPendientes = r.total || 0;
+        toast("Categoría eliminada");
+        pintar();
+        await cargar();
+      } catch(e) { if(e.message !== "sesion") toast(e.message); }
+      finally { if(b.isConnected) b.disabled = false; }
+    }));
+    c.querySelectorAll("[data-cat-sugerir]").forEach(b => b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        const r = await post("categorias", { crear:true, nombre:b.dataset.catSugerir, icono:b.dataset.icono });
+        window.ponerCategorias(r.categorias); toast("Categoría agregada"); pintar();
+      } catch(e) { if(e.message !== "sesion") toast(e.message); }
+      finally { if(b.isConnected) b.disabled = false; }
+    }));
+    c.querySelectorAll("[data-cat-asignar]").forEach(b => b.addEventListener("click", async () => {
+      const select = b.parentElement.querySelector("[data-cat-elegir]");
+      if (!select?.value) { toast("Elige una categoría"); return; }
+      b.disabled = true;
+      try {
+        const r = await post("categorias", { recategorizar:{origen:b.dataset.origen,id:b.dataset.catAsignar},categoria:select.value });
+        st.categoriasPendientes = r.pendientes || [];
+        st.totalCategoriasPendientes = r.total || 0;
+        toast("Registro categorizado sin cambiar importes");
+        await cargar();
+      } catch(e) { if(e.message !== "sesion") toast(e.message); }
+      finally { if(b.isConnected) b.disabled = false; }
+    }));
     c.querySelectorAll("[data-dia]").forEach(b => b.addEventListener("click", () => { st.sel = b.dataset.dia; if (b.classList.contains("fuera")) st.mes = st.sel.slice(0, 7); pintar(); }));
     c.querySelectorAll("[data-mes]").forEach(b => b.addEventListener("click", () => {
       if (b.dataset.mes === "hoy") { st.mes = st.hoy.slice(0, 7); st.sel = st.hoy; }

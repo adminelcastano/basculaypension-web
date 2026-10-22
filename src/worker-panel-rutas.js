@@ -94,7 +94,7 @@ async function rutasPanel(request, env, url, usuario) {
     }
   }
   if (partes[0] === "finanzas") return await finanzasPanel(request, env, url, partes, usuario);
-  if (partes[0] === "categorias" && partes.length === 1) return await categoriasPanel(request, env);
+  if (partes[0] === "categorias" && partes.length === 1) return await categoriasPanel(request, env, usuario);
   if (partes[0] === "caja") return await cajaPanel(request, env, url, partes, usuario, {});
   if (partes[0] === "agenda") return await agendaPanel(request, env, url, partes, usuario);
   if (partes[0] === "turno") return await turnoAdmin(request, env, url, partes);
