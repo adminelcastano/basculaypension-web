@@ -1791,3 +1791,50 @@ dialog.casta-visor::backdrop { background:rgba(0,0,0,.92); }
 #mod-finanzas .f-grupo-extra>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 #mod-finanzas .f-grupo-extra>div{padding-top:10px}
 #mod-caja #fb-transf{min-width:0}
+
+/* Navegación premium — retorno claro, foco y pulsación adaptable. */
+@media (min-width:821px) and (max-width:1200px) {
+  .mod.uno:not(.en-idx) .sub-volver {
+    display:inline-flex;min-height:44px;
+    margin-left:clamp(16px,3vw,32px);margin-bottom:14px;
+  }
+}
+.mod .sub-idx .ti,.mod .sub-volver,.mod .sub-nav [data-ir],header.bar .modulos button{
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.mod .sub-idx .ti:focus-visible,.mod .sub-volver:focus-visible,.mod .sub-nav [data-ir]:focus-visible,header.bar .modulos button:focus-visible{
+  outline:3px solid var(--amber);outline-offset:3px;
+}
+.mod .sub-idx .ti{
+  min-width:0;overflow-wrap:anywhere;border-color:var(--line-2);
+  transition:border-color .18s ease,background-color .18s ease,transform .18s cubic-bezier(.2,.8,.2,1);
+}
+@media (hover:hover) and (pointer:fine){
+ .mod .sub-idx .ti:hover{border-color:color-mix(in srgb,var(--amber) 35%,var(--line));background:var(--surface-2);transform:translateY(-2px)}
+ .mod .sub-volver:hover{background:var(--surface-2);border-color:var(--line-2)}
+}
+.mod .sub-idx .ti:active{transform:scale(.988)}
+.mod .sub-idx .ti[aria-current="page"]{border-color:var(--amber)}
+#mod-caja .sub-idx [data-ir="transferencias"]{--c:#2dd4bf}
+#mod-finanzas .sub-idx [data-ir="bancos"]{--c:#8e94ff}
+#mod-finanzas .sub-idx [data-ir="obligaciones"]{--c:#30d158}
+#mod-finanzas .sub-idx [data-ir="movimientos"]{--c:#64d2ff}
+#mod-finanzas .f-grupo-extra>summary:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+@media(max-width:820px){
+ .mod .sub-volver,.mod .sn-abrir{min-height:48px}
+ .mod .sub-idx{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+ .mod .sub-idx .ti{min-height:152px}
+ .mod .sub-main{min-width:0}
+ #mod-finanzas .f-secciones .card{max-width:100%}
+}
+@media(max-width:390px){
+ .mod .sub-idx{gap:10px}
+ .mod .sub-idx .ti{padding:14px;min-height:144px;border-radius:19px}
+ .mod .sub-idx .ti-v{font-size:clamp(24px,8vw,32px);margin-top:14px}
+ .mod .sub-idx .ti-t{font-size:14px}
+ .mod .sub-idx .ti-s{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .mod .sub-idx .ti,.mod .sub-volver,.mod .sub-nav{transition:none!important}
+ .mod .sub-idx .ti:hover,.mod .sub-idx .ti:active{transform:none}
+}
