@@ -7,7 +7,7 @@ const inicio = leer("../src/panel/cliente/06-inicio.js");
 const panel = leer("../src/panel/cliente/07-agenda.js") + "\n" + leer("../src/panel/cliente/07-castagram-controlador.js");
 const tablet = leer("../src/turno.html");
 const avisos = leer("../src/avisos.js");
-const agenda = leer("../src/agenda.js");
+const agenda = leer("../src/agenda.js") + "\n" + leer("../src/agenda-avisos-rutas.js");
 const turno = leer("../src/turno.js");
 const css = leer("../src/panel/estilos.css");
 
