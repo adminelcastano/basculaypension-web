@@ -79,11 +79,13 @@ test("No permite salir hacia Facturador con un folio corregido pero no guardado"
 });
 
 test("Los reportes conservan fecha de entrega y número de columnas coherente", () => {
-  const cab = worker.match(/^const ENCABEZADOS = \[[^\n]+\];/m);
-  const filas = worker.match(/function filasExcel\(results\) \{[\s\S]*?\n\}/);
+  const reporte = readFileSync(new URL("../src/facturacion-reporte-filas.js", import.meta.url), "utf8");
+  assert.match(worker,/filasFacturas: filasExcel/);
+  const cab = reporte.match(/^export const ENCABEZADOS = \[[^\n]+\];/m);
+  const filas = reporte.match(/function filasExcel\(results\) \{[\s\S]*?\n\}/);
   assert.ok(cab && filas);
   const fn = new Function("SERVICIOS", "REGIMENES", "USOS", "FORMAS_PAGO",
-    cab[0] + "\n" + filas[0] + "\nreturn filasExcel;");
+    cab[0].replace(/^export /, "") + "\n" + filas[0] + "\nreturn filasExcel;");
   const filasExcel = fn({ bascula: "Báscula" }, { "612": "Actividad" },
     { G03: "Gastos" }, { "01": "Efectivo" });
   const datos = filasExcel([{

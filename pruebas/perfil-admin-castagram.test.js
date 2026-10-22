@@ -9,7 +9,7 @@ const panel = readFileSync(new URL("../src/panel/cliente/00-perfil-admin.js", im
 const app = readFileSync(new URL("../src/panel-app.js", import.meta.url), "utf8");
 const html = readFileSync(new URL("../src/panel/pagina.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../src/panel/estilos.css", import.meta.url), "utf8");
-const agenda = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8");
+const agenda = readFileSync(new URL("../src/panel/cliente/07-agenda.js", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../src/panel/cliente/07-castagram-controlador.js", import.meta.url), "utf8");
 const routines = new Function(code.replace(/^export /gm, "") +
   "\nreturn {leerPerfilAdmin, servirFotoAdmin, rutaPerfilAdmin};")();
 

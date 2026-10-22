@@ -1,6 +1,6 @@
 // UI real del proyecto, servidor local exclusivamente sintético.
 import assert from "node:assert/strict";
-import {readFileSync,mkdirSync} from "node:fs";
+import {readFileSync,mkdirSync,existsSync} from "node:fs";
 import {createServer} from "node:http";
 import {join} from "node:path";
 import {chromium,webkit} from "playwright";
@@ -9,7 +9,10 @@ const imports=[...read("src/panel-app.js").matchAll(/import J\w+ from "\.\/panel
 assert.ok(imports.includes("12-submenu.js"));
 const js=imports.map(p=>read("src/panel/cliente/"+p)).join("\n;\n");
 const html=read("src/panel/pagina.html").replace("{{CSS}}","/panel/app.css").replace("{{JS}}","/panel/app.js");
-const css=read("src/panel/estilos.css");
+// El ensayo sirve exactamente las mismas hojas concatenadas por panel-app.js.
+const estilosExtra = existsSync(join(root,"src/panel/estilos-navegacion.css"));
+if (estilosExtra) assert.ok(read("src/panel-app.js").includes("CSS_BASE + CSS_NAVEGACION"));
+const css=read("src/panel/estilos.css") + (estilosExtra ? read("src/panel/estilos-navegacion.css") : "");
 const rjson=(res,obj)=>{res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify(obj));};
 const server=createServer((req,res)=>{
  const p=new URL(req.url,"http://127.0.0.1").pathname;
@@ -20,6 +23,12 @@ const server=createServer((req,res)=>{
    id:"00000000-0000-4000-8000-000000000001",acreedor:"Proveedor ficticio",concepto:"Factura sintética",
    total:150.25,pagado:50,saldo:100.25,estado:"activa",situacion:"pendiente",vencimiento:"2026-11-01",version:1
  }],resumen:{pendiente:100.25,vencido:0,proximos_7:0,proximos_30:100.25,cantidad:1,actualizado:"2026-10-21T12:00:00Z"}});
+ // CASTAGRAM / AGENDA: feed ficticio, nunca consulta D1 o KV de producción.
+ if(p==="/panel/api/agenda/avisos-feed")return rjson(res,{ok:true,items:[],mas:false,cursor:""});
+ if(p==="/panel/api/turno")return rjson(res,{ok:true,personas:[]});
+ if(p==="/panel/api/agenda")return rjson(res,{ok:true,items:[],hoy:"2026-10-21",
+   pagos_hechos:[],meses_abiertos:[],categorias:[],cuentas:[],frecuencias:{},lugares:[],
+   memoria_compras:[],abiertos:{tarea:0,incidencia:0,aviso:0},avisos_sin_leer:0});
  if(p.startsWith("/panel/api/"))return rjson(res,{ok:false,error:"API sintética deliberadamente sin operaciones"});
  res.writeHead(404);res.end("No disponible");
 });
@@ -114,6 +123,17 @@ async function run(d,i){
    const doc=await page.evaluate(()=>({screen:innerWidth,full:document.documentElement.scrollWidth}));
    assert.ok(doc.full<=doc.screen+3,mod+" desborda "+JSON.stringify(doc));
   }
+  // Render real de CASTAGRAM sobre datos de ejemplo y sin destinatarios preseleccionados.
+  const casta=await ctx.newPage();
+  casta.on("pageerror",e=>errors.push("CASTAGRAM: "+e.message));
+  try{
+   await casta.goto(URLbase()+"#agenda/aviso",{waitUntil:"domcontentloaded"});
+   await casta.locator("#ab-aviso .casta-identidad").waitFor({state:"visible",timeout:12000});
+   const muestra=await casta.locator("#ab-aviso").innerHTML();
+   assert.match(muestra,/Elige destinatarios \(obligatorio\)/);
+   assert.match(muestra,/No hay publicaciones activas/);
+   assert.doesNotMatch(muestra,/data-para="todos"\s+checked/);
+  }finally{await casta.close();}
   assert.equal(errors.length,0,"Excepciones del navegador: "+errors.join("; "));
   await page.screenshot({path:join(root,"ux-artifacts",String(i).padStart(2,"0")+"-"+name.replace(/[^a-z0-9]/gi,"-")+".png")});
   console.log("OK "+name+" "+width+"x"+height+" campos="+result.fields.length+" erroresJS="+errors.length);
