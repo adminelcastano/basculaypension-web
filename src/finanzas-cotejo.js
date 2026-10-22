@@ -1,7 +1,13 @@
 // Dos referencias bancarias sin asientos compensatorios.
 // Un saldo mensual operativo sólo se compara con un estado que cierre el MISMO día.
 // Estados que cruzan meses conservan su fecha real y no se imputan a otro periodo.
-export function cotejarCuentasMes(cuentas, documentos, mes, hoy) {
+export function cotejarCuentasMes(cuentas, documentos, mes, hoy, sinCuenta = {}) {
+  // Si hay salidas/entradas bancarias sin asignación, ningún saldo individual
+  // puede probarse completo: una diferencia numérica sería engañosa.
+  const asignacionPendiente=["pagos","transferencias"].some(k=>{
+    const n=Number(sinCuenta?.[k]||0);
+    return !Number.isFinite(n)||Math.abs(n)>=0.005;
+  });
   const [anio,m]=mes.split("-").map(Number);
   const cierre=new Date(Date.UTC(anio,m,0)).toISOString().slice(0,10);
   const porCuenta=new Map();
@@ -17,8 +23,9 @@ export function cotejarCuentasMes(cuentas, documentos, mes, hoy) {
     const confirmado=r?.saldo_final==null?null:Number(r.saldo_final);
     const comparable=calculado!==null&&Number.isSafeInteger(calculado)&&
       confirmado!==null&&Number.isSafeInteger(confirmado)&&
-      r.fecha_corte===cierre&&r.periodo_hasta===cierre&&cierre<hoy;
-    const porQue=!r?"Sin estado de cuenta capturado":
+      r.fecha_corte===cierre&&r.periodo_hasta===cierre&&cierre<hoy&&!asignacionPendiente;
+    const porQue=asignacionPendiente?"Hay pagos o transferencias sin cuenta asignada; no se calcula diferencia":
+      !r?"Sin estado de cuenta capturado":
       confirmado===null?"Estado sin saldo final capturado":
       calculado===null?"Sin saldo calculado verificable":
       cierre>=hoy?"Mes aún sin cierre completo":

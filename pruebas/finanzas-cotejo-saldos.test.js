@@ -15,6 +15,11 @@ test("Cotejo solo compara si fechas y referencias coinciden, sin inventar saldos
  assert.equal(x[0].diferencia,1);
  assert.equal(x[1].diferencia,null);
  assert.match(x[1].observacion,/Sin saldo calculado/);
+ const sinAsignar=cotejarCuentasMes(cuentas,estados,"2026-09","2026-10-21",{pagos:125.25,transferencias:0});
+ assert.equal(sinAsignar[0].comparable,false);
+ assert.equal(sinAsignar[0].diferencia,null);
+ assert.match(sinAsignar[0].observacion,/sin cuenta asignada/);
+ assert.equal(cotejarCuentasMes(cuentas,estados,"2026-09","2026-10-21",{pagos:0,transferencias:0})[0].comparable,true);
  const cruce=cotejarCuentasMes(cuentas,[{...estados[0],fecha_corte:"2026-09-25",periodo_hasta:"2026-09-25"}],"2026-09","2026-10-21");
  assert.equal(cruce[0].comparable,false);
  assert.equal(cruce[0].diferencia,null);
@@ -27,6 +32,7 @@ test("Interfaz y ruta leen dos referencias, sin UPDATE compensatorio",()=>{
  const fin=readFileSync(new URL("../src/finanzas.js",import.meta.url),"utf8");
  const ui=readFileSync(new URL("../src/panel/cliente/05b-estados.js",import.meta.url),"utf8");
  assert.match(fin,/cotejarCuentasMes\(datos\.banco\.lista/);
+ assert.match(fin,/datos\.banco\.sin_cuenta/);
  assert.ok(fin.includes("ROW_NUMBER() OVER(PARTITION BY cuenta"));
  assert.ok(fin.includes("WHERE rn=1"));
  assert.match(fin,/if \(partes\[1\] === "cotejo-estados"/);

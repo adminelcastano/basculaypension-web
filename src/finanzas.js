@@ -321,7 +321,7 @@ export async function finanzasPanel(request, env, url, partes, usuario) {
         WHERE rn=1`).bind(cierre,cierre).all()
     ]);
     const hoy = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City"}).format(new Date());
-    const resultados=cotejarCuentasMes(datos.banco.lista,documentos.results,mes,hoy);
+    const resultados=cotejarCuentasMes(datos.banco.lista,documentos.results,mes,hoy,datos.banco.sin_cuenta);
     return json({ok:true,mes,fecha_calculo:cierre,consultado:new Date().toISOString(),
       cuentas:resultados,aviso:"Solo se compara cuando estado bancario y libro calculado cierran el mismo día; nunca se ajustan saldos ni se crean movimientos."});
   }
