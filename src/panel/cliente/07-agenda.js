@@ -699,7 +699,7 @@ window.interpretarAgenda = function (texto, hoy) {
     b.disabled = true; b.classList.add("girando");
     let error = null;
     try { await post("caja/sincronizar"); } catch (err) { error = err; }
-    $("#recargar").click();                                   // facturación
+    if (document.body?.dataset.panelFinanciero !== "1") $("#recargar").click(); // facturación (solo panel completo)
     document.dispatchEvent(new CustomEvent("recargar-todo")); // ingresos, personal, agenda
     const m = ["inicio"].find(x => !$("#mod-" + x).hidden);
     if (m) document.dispatchEvent(new CustomEvent("modulo", { detail: m }));
