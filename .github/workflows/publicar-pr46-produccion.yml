@@ -1,0 +1,37 @@
+name: Publicar PR46 producción
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publicar-pr46-produccion.yml
+permissions:
+  contents: read
+concurrency:
+  group: publicacion-pr46-unica
+  cancel-in-progress: false
+jobs:
+  publicar:
+    if: github.event.head_commit.message == 'Publicar PR46 CAJA DINERO autorizado'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Guardas de Worker productivo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PRODUCTION_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          RELEASE_MODE: production
+        run: node scripts/seguridad/verificar-publicacion-pr46.mjs
+      - name: Dependencias
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Pruebas generales
+        run: node --test pruebas/*.test.js
+      - name: Compilar producción con D1 KV fijos
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.pr46-publicacion.generated.jsonc --dry-run --outdir /tmp/publicacion-pr46-validada
+      - name: Publicar únicamente Worker existente
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PRODUCTION_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ff18e14a20fef8a9c6e49eb88f19cf46
+        run: npx --yes wrangler@4.151.2 deploy --config wrangler.pr46-publicacion.generated.jsonc --keep-vars
