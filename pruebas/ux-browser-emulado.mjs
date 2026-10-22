@@ -86,6 +86,29 @@ async function run(d,i){
     await deep.waitForFunction(()=>location.hash==="#dinero"&&document.querySelector("#mod-finanzas").classList.contains("en-idx"));
    }finally{await deep.close();}
   }
+  // Rutas de negocio reales: cambio entre CAJA y AGENDA sin doble navegación.
+  for(const [mod,dest] of [["caja","transferencias"],["agenda","compras"]]){
+   await page.locator('header.bar .modulos button[data-mod="'+mod+'"]').click();
+   await page.waitForFunction(id=>!document.querySelector("#mod-"+id).hidden,mod);
+   if(uno){
+    const tile=page.locator('#mod-'+mod+' .sub-idx [data-ir="'+dest+'"]');
+    await tile.waitFor({state:"visible"});
+    await tile.click();
+    await page.waitForFunction(([m,v])=>document.querySelector("#mod-"+m).dataset.activo===v,[mod,dest]);
+    const volver=page.locator("#mod-"+mod+" .sub-volver");
+    assert.equal(await volver.isVisible(),true,"Sin regreso al índice de "+mod);
+    await volver.click();
+    await page.waitForFunction(id=>document.querySelector("#mod-"+id).classList.contains("en-idx"),mod);
+   }else{
+    const link=page.locator('#mod-'+mod+' .sub-nav [data-ir="'+dest+'"]');
+    await link.focus();
+    await link.press("Enter");
+    assert.equal(await link.getAttribute("aria-current"),"true","Teclado sin activar "+mod+"/"+dest);
+   }
+   const doc=await page.evaluate(()=>({screen:innerWidth,full:document.documentElement.scrollWidth}));
+   assert.ok(doc.full<=doc.screen+3,mod+" desborda "+JSON.stringify(doc));
+  }
+  assert.equal(errors.length,0,"Excepciones del navegador: "+errors.join("; "));
   await page.screenshot({path:join(root,"ux-artifacts",String(i).padStart(2,"0")+"-"+name.replace(/[^a-z0-9]/gi,"-")+".png")});
   console.log("OK "+name+" "+width+"x"+height+" campos="+result.fields.length+" erroresJS="+errors.length);
  }catch(e){
