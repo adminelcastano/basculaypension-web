@@ -575,7 +575,7 @@
       } catch (e) { if (e.message !== "sesion") l.innerHTML = `<p class="note">${esc(e.message)}</p>`; }
     });
     const irPagos = c.querySelector("[data-ir-pagos]"); if (irPagos) irPagos.addEventListener("click", () => window.agendaAbrir && window.agendaAbrir("hechos"));
-    if (window.reporteWidget && $("#f-rep-mes")) { st.cargarRep = window.reporteWidget({ tipos: ["turnos", "finanzas", "facturacion"], sel: $("#f-rep-mes"), btn: $("#f-rep-gen"), est: $("#f-rep-estado"), lista: $("#f-rep-lista") }); st.cargarRep(); }
+    if (window.reporteWidget && $("#f-rep-mes")) { st.cargarRep = window.reporteWidget({ tipos: document.body?.dataset.panelFinanciero === "1" ? ["turnos", "finanzas"] : ["turnos", "finanzas", "facturacion"], sel: $("#f-rep-mes"), btn: $("#f-rep-gen"), est: $("#f-rep-estado"), lista: $("#f-rep-lista") }); st.cargarRep(); }
   }
 
   $("#f-mes").addEventListener("change", e => { st.mes = e.target.value; cargar(); });
