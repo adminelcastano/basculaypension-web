@@ -40,6 +40,18 @@ const MANIFIESTO = {
   background_color: "#111214", theme_color: "#111214", orientation: "portrait",
   icons: [{ src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 };
+// Manifiesto propio del Panel Financiero: mismo backend y acceso, pero icono
+// instalable distinto de /panel (también al tener ambos en el mismo teléfono).
+// No se almacenan respuestas de Caja, Dinero o Compras ni se habilita uso offline.
+const MANIFIESTO_FINANCIERO = {
+  id: "/panel/financiero", name: "Panel Financiero · El Castaño", short_name: "Financiero",
+  start_url: "/panel/financiero", scope: "/panel/financiero", display: "standalone",
+  background_color: "#111214", theme_color: "#111214", orientation: "any",
+  icons: [
+    { src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
+  ]
+};
 // Service worker del panel: solo notificaciones (no guarda páginas; el panel siempre se pide a internet)
 const SW = `self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));` + swPush("/panel");
@@ -66,6 +78,9 @@ export async function paginaPanelFinanciero() {
 // /panel/app.css y /panel/app.js (null si no es uno de ellos)
 export async function recursoPanel(ruta, url) {
   if (ruta === "/panel/app.webmanifest") return new Response(JSON.stringify(MANIFIESTO), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache" } });
+  if (ruta === "/panel/financiero.webmanifest") return new Response(JSON.stringify(MANIFIESTO_FINANCIERO), {
+    headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }
+  });
   if (ruta === "/panel/sw.js") return new Response(SW, { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/panel", "X-Content-Type-Options": "nosniff" } });
   const tipo = ruta === "/panel/app.css" ? "text/css" : ruta === "/panel/app.js" ? "text/javascript" : null;
   if (!tipo) return null;
