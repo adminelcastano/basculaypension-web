@@ -6,7 +6,7 @@
 // (huella del contenido) en la URL: el navegador los guarda un año y solo los vuelve a bajar cuando cambian.
 // Todo pasa por la verificación de Cloudflare Access igual que antes.
 import PAGINA from "./panel/pagina.html";
-import { transformarPanelFinanciero } from "./panel-financiero.js";
+import { transformarPanelFinanciero, MANIFIESTO_FINANCIERO } from "./panel-financiero.js";
 import CSS_BASE from "./panel/estilos.css";
 import CSS_NAVEGACION from "./panel/estilos-navegacion.css";
 const CSS = CSS_BASE + CSS_NAVEGACION;
@@ -43,15 +43,6 @@ const MANIFIESTO = {
 // Manifiesto propio del Panel Financiero: mismo backend y acceso, pero icono
 // instalable distinto de /panel (también al tener ambos en el mismo teléfono).
 // No se almacenan respuestas de Caja, Dinero o Compras ni se habilita uso offline.
-const MANIFIESTO_FINANCIERO = {
-  id: "/panel/financiero", name: "Panel Financiero · El Castaño", short_name: "Financiero",
-  start_url: "/panel/financiero", scope: "/panel/financiero", display: "standalone",
-  background_color: "#111214", theme_color: "#111214", orientation: "any",
-  icons: [
-    { src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
-  ]
-};
 // Service worker del panel: solo notificaciones (no guarda páginas; el panel siempre se pide a internet)
 const SW = `self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));` + swPush("/panel");
