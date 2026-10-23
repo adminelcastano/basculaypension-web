@@ -1,3 +1,15 @@
+// Aplicación instalable separada del Panel completo; misma sesión Access y misma base D1.
+// No hay caché de datos financieros ni se habilita acceso sin conexión.
+export const MANIFIESTO_FINANCIERO = {
+  id: "/panel/financiero", name: "Panel Financiero · El Castaño", short_name: "Financiero",
+  start_url: "/panel/financiero", scope: "/panel/financiero", display: "standalone",
+  background_color: "#111214", theme_color: "#111214", orientation: "any",
+  icons: [
+    { src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
+  ]
+};
+
 // Vista independiente de los componentes económicos del Panel.
 // Conserva la misma aplicación y base de datos, sin duplicar movimientos.
 export function transformarPanelFinanciero(documento) {
