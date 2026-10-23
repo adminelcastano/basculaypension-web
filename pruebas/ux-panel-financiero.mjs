@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium, webkit } from "playwright";
-import { transformarPanelFinanciero } from "../src/panel-financiero.js";
+import { transformarPanelFinanciero, MANIFIESTO_FINANCIERO } from "../src/panel-financiero.js";
 
 const root=process.cwd(),leer=p=>readFileSync(join(root,p),"utf8");
 const fuentes=[...leer("src/panel-app.js").matchAll(/import J\w+ from "\.\/panel\/cliente\/([^"]+)";/g)]
@@ -16,6 +16,14 @@ const css=leer("src/panel/estilos.css")+leer("src/panel/estilos-navegacion.css")
 const pedidos=[];
 const server=createServer((req,res)=>{
  const ruta=new URL(req.url,"http://localhost").pathname;
+ if(ruta==="/panel/financiero.webmanifest"){
+   res.writeHead(200,{"Content-Type":"application/manifest+json","Cache-Control":"no-store"});
+   return res.end(JSON.stringify(MANIFIESTO_FINANCIERO));
+ }
+ if(ruta==="/img/turno-192.png"||ruta==="/img/turno-512.png"||ruta==="/apple-touch-icon.png"){
+   res.writeHead(200,{"Content-Type":"image/png"});
+   return res.end(readFileSync(join(root,"public"+ruta)));
+ }
  if(ruta==="/panel/financiero"){
   res.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});return res.end(html);
  }
@@ -55,6 +63,32 @@ try{
    const page=await c.newPage(),errores=[];page.on("pageerror",e=>errores.push(e.message));
    page.setDefaultTimeout(12000);
    await page.goto(base,{waitUntil:"domcontentloaded"});
+   // Chrome Android y Safari iOS deben recibir un manifest propio y recursos reales.
+   const pwa = await page.evaluate(async () => {
+     const link = document.querySelector('link[rel="manifest"]');
+     const respuesta=link && await fetch(link.href,{credentials:"include"});
+     const m=respuesta?.ok && await respuesta.json();
+     const iconos=m && await Promise.all(m.icons.map(async i=>{
+       const r=await fetch(i.src,{credentials:"include"});
+       return {src:i.src,status:r.status,tipo:r.headers.get("Content-Type")};
+     }));
+     return {href:link?.getAttribute("href"),crossorigin:link?.getAttribute("crossorigin"),
+       status:respuesta?.status,m,iconos,
+       ios:document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.content,
+       tituloIos:document.querySelector('meta[name="apple-mobile-web-app-title"]')?.content,
+       iconoIos:document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href")};
+   });
+   assert.equal(pwa.href,"/panel/financiero.webmanifest");
+   assert.equal(pwa.crossorigin,"use-credentials");
+   assert.equal(pwa.status,200);
+   assert.equal(pwa.m.id,"/panel/financiero");
+   assert.equal(pwa.m.start_url,"/panel/financiero");
+   assert.equal(pwa.m.scope,"/panel/financiero");
+   assert.equal(pwa.m.display,"standalone");
+   assert.deepEqual(pwa.iconos.map(x=>x.status),[200,200]);
+   assert.equal(pwa.ios,"yes");
+   assert.equal(pwa.tituloIos,"Financiero");
+   assert.equal(pwa.iconoIos,"/apple-touch-icon.png");
    await page.waitForFunction(()=>location.hash==="#caja");
    const opciones=await page.locator('header.bar .modulos button[data-mod]').evaluateAll(bs=>bs.map(b=>b.dataset.mod));
    assert.deepEqual(opciones,["caja","dinero","agenda"],"Menú financiero incorrecto");

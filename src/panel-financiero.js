@@ -1,9 +1,22 @@
+// Aplicación instalable separada del Panel completo; misma sesión Access y misma base D1.
+// No hay caché de datos financieros ni se habilita acceso sin conexión.
+export const MANIFIESTO_FINANCIERO = {
+  id: "/panel/financiero", name: "Panel Financiero · El Castaño", short_name: "Financiero",
+  start_url: "/panel/financiero", scope: "/panel/financiero", display: "standalone",
+  background_color: "#111214", theme_color: "#111214", orientation: "any",
+  icons: [
+    { src: "/img/turno-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/img/turno-512.png", sizes: "512x512", type: "image/png", purpose: "any" }
+  ]
+};
+
 // Vista independiente de los componentes económicos del Panel.
 // Conserva la misma aplicación y base de datos, sin duplicar movimientos.
 export function transformarPanelFinanciero(documento) {
   if (typeof documento !== "string" || !documento.includes('id="mod-finanzas"') ||
       !documento.includes('id="mod-caja"') || !documento.includes('id="mod-agenda"') ||
-      !documento.includes('<nav class="modulos" aria-label="Sección">')) {
+      !documento.includes('<nav class="modulos" aria-label="Sección">') ||
+      !documento.includes('href="/panel/app.webmanifest"')) {
     throw new Error("Cambió la estructura del Panel; revisar Panel Financiero.");
   }
 
@@ -40,6 +53,17 @@ export function transformarPanelFinanciero(documento) {
     .replace("<body>", '<body data-panel-financiero="1">')
     .replace(/<nav class="modulos" aria-label="Sección">[\s\S]*?<\/nav>/, menu)
     .replace(/<h1>El Castaño<\/h1>/, "<h1>Panel Financiero</h1>")
-    .replace(/<link rel="manifest" href="\/panel\/app\.webmanifest"[^>]*>\s*/, "")
-    .replace("</head>", estilos + "\n</head>");
+    // Identidad PWA independiente: instalar Finanzas no reemplaza al Panel general.
+    // Se conserva crossorigin para que Chrome solicite el manifest con Cloudflare Access.
+    .replace(/<link rel="manifest" href="\/panel\/app\.webmanifest"[^>]*>\s*/,
+      '<link rel="manifest" href="/panel/financiero.webmanifest" crossorigin="use-credentials">\n')
+    .replace("</head>", [
+      '<meta name="application-name" content="Panel Financiero">',
+      '<meta name="apple-mobile-web-app-capable" content="yes">',
+      '<meta name="apple-mobile-web-app-title" content="Financiero">',
+      '<meta name="apple-mobile-web-app-status-bar-style" content="black">',
+      '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+      estilos,
+      "</head>"
+    ].join("\n"));
 }
