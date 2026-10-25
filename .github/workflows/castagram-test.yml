@@ -60,6 +60,8 @@ jobs:
         run: npm install --ignore-scripts --no-save --no-audit --no-fund playwright@1.56.1
       - name: Instalar Chromium y WebKit
         run: npx playwright install --with-deps chromium webkit
+      - name: QR de tickets para Facturación (Android y Safari simulados, sin envío)
+        run: node pruebas/ux-factura-qr-g7.mjs
       - name: Agenda y Personal con datos sintéticos (Chromium y WebKit)
         run: node pruebas/ux-agenda-personal-sintetico.mjs
       - name: Navegación y viewport en servidor local sintético (11 perfiles)
