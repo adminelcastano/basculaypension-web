@@ -517,7 +517,12 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     const notaQr = qrActual && qrActual.servicio === form.servicio.value &&
       qrActual.folio === form.folio_ticket.value.trim().toUpperCase()
       ? window.CastaTicketQR.notaRevision(qrActual) : "";
-    datos.append("comentario", [form.comentario.value.trim(), notaQr].filter(Boolean).join("\n").slice(0,500));
+    const comentarioCliente = form.comentario.value.trim().slice(0,500);
+    // Preservar íntegro el comentario del cliente. Añadir referencia sólo si cabe.
+    const espacioQR = 500 - comentarioCliente.length - (comentarioCliente ? 1 : 0);
+    const comentarioCompleto = notaQr && notaQr.length <= espacioQR
+      ? [comentarioCliente, notaQr].filter(Boolean).join("\n") : comentarioCliente;
+    datos.append("comentario", comentarioCompleto);
     if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
