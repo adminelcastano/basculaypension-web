@@ -1264,6 +1264,10 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
 
   if (partes[1] === "corte" && request.method === "GET") {
     const dia = url.searchParams.get("dia") || "", turno = url.searchParams.get("turno") || "";
+    // La hoja puede contener tickets sin turno. Son movimientos a conciliar,
+    // no un cuarto corte de tablet. No calcular encadenamientos con turno inválido.
+    if (!TURNOS.includes(turno))
+      return json({ ok:false, error:"Este registro de la hoja no tiene un turno válido. Revísalo en la fuente de ingresos; no es un corte de la tablet." }, 422);
     const ant = turnoAnterior(dia, turno), sig = turnoSiguiente(dia, turno);
     const get = (sql, ...params) => env.DB.prepare(sql).bind(...params).all().then(r => r.results);
     const [movs, gastos, pendientes, conteos, extras, inicios, conteoAnt, inicioSig, historialFilas, adminMovs] = await Promise.all([
@@ -1287,7 +1291,7 @@ export async function cajaPanel(request, env, url, partes, usuario, h) {
     const corte = unirConteos(calcularCortes(movs, gastos, extras, inicios, adminMovs), conteos)[0] || null;
     if (corte) {
       corte.cambio_turno = cambiosEntreTurnos(conteoAnt, inicios).get(dia + "|" + turno) || null;
-      corte.cambio_siguiente = cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null;
+      corte.cambio_siguiente = sig ? cambiosEntreTurnos(conteos, inicioSig).get(sig.dia + "|" + sig.turno) || null : null;
     }
     const historial = historialFilas.map(x => { let d = {}; try { d = JSON.parse(x.datos); } catch {} return { persona: x.persona, creado: x.creado, ...d }; });
     // Folio de cada movimiento de caja del corte (gastos, ingresos extra, retiros y renglones de la hoja sin ticket)
