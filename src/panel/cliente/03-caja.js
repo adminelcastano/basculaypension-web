@@ -41,10 +41,20 @@
       const j = await api("caja" + consulta());
       if (solicitud !== secuenciaCaja) return;
       st.datos = j;
+      // SIN TURNO es una marca del origen (hoja), no un turno que pueda cerrar
+      // un encargado. Conservar sus importes en totales, pero no ofrecerlo
+      // como corte ni abrir una ficha de conciliación inexistente.
+      const cortesOperativos = j.cortes.filter(x => TURNOS_ORDEN.includes(x.turno));
+      const cortesSinTurno = j.cortes.filter(x => !TURNOS_ORDEN.includes(x.turno));
+      const avisoSinTurno = cortesSinTurno.length
+        ? `<section class="card" role="status" style="border-color:#b47b2b;margin-bottom:12px">
+             <b>Registros de origen sin turno asignado</b>
+             <p class="note">La hoja de ingresos contiene ${cortesSinTurno.length} grupo(s) de movimientos sin turno válido (${cortesSinTurno.map(c=>esc(diaTxt(c.dia))).join(", ")}). No son cortes de la tablet. Revisa el turno en la hoja de Google; no se reasignan automáticamente y sus importes permanecen en los totales.</p>
+           </section>` : "";
       if (j.categorias) window.ponerCategorias(j.categorias);
       if (j.cuentas) window.CUENTAS = j.cuentas;
       EC.bloqueN("caja", "movs", (j.movimientos || []).length);
-      EC.bloqueN("caja", "cortes", j.cortes.length);
+      EC.bloqueN("caja", "cortes", cortesOperativos.length);
       const sobresElegibles = j.cortes.filter(x => x.conteo && Number(x.conteo.sobre) > 0);
       const sobresPendientes = sobresElegibles.filter(x => !x.recepcion_sobre?.recibido).length;
       EC.bloqueN("caja", "entregas", sobresPendientes, sobresPendientes > 0);
@@ -64,17 +74,17 @@
       {
         const D0 = v => dinero(v, 0);
         const cur = j.cortes.find(x => x.dia === ahora.dia && x.turno === ahora.turno);
-        const sinCorte = j.cortes.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
+        const sinCorte = cortesOperativos.filter(x => !x.conteo && (x.registros || 0) > 0 && !(x.dia === ahora.dia && x.turno === ahora.turno)).length;
         EC.bloqueInfo("caja", "curso", { valor: cur ? D0(cur.efectivo_caja) : null, texto: `Turno de la ${(TURNO_TXT[ahora.turno] || "").toLowerCase()} · ${cur && cur.conteo ? "corte entregado" : "sin corte"}` });
-        EC.bloqueN("caja", "cortes", j.cortes.length, sinCorte > 0);
-        EC.bloqueInfo("caja", "cortes", { texto: sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
+        EC.bloqueN("caja", "cortes", cortesOperativos.length, sinCorte > 0 || cortesSinTurno.length > 0);
+        EC.bloqueInfo("caja", "cortes", { texto: cortesSinTurno.length ? `${cortesSinTurno.length} grupo(s) sin turno · revisar hoja` : sinCorte ? `${sinCorte} sin entregar` : "Todos entregados" });
         EC.bloqueInfo("caja", "movs", { texto: "gastos " + D0(t.gastos || 0) + (t.extras ? " · extras " + D0(t.extras) : "") });
         EC.bloqueInfo("caja", "entregas", { texto: sobresPendientes ? `${sobresPendientes} por recibir · ${sobresElegibles.length - sobresPendientes} recibidos` : `${sobresElegibles.length} sobres recibidos` });
         const fb = $("#c-fil-btn"); if (fb) fb.textContent = "Periodo: " + per.replace(/^(\S)/, c => c.toUpperCase()) + " ▾";
       }
       // Todo a la vista: turno en curso, cortes, movimientos y entregas (cada uno en su bloque)
       for (const [f, id] of [[vistaCurso, "#c-curso"], [vistaMovs, "#c-movs"], [vistaEntregas, "#c-entregas"]]) try { f(j); } catch (er) { console.error(er); $(id).innerHTML = `<p class="note">No se pudo mostrar: ${esc(er.message)}</p>`; }
-      if (!j.cortes.length) { lista.innerHTML = `<p class="empty">${j.conectado ? "Todavía no hay registros este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
+      if (!cortesOperativos.length) { lista.innerHTML = avisoSinTurno + `<p class="empty">${j.conectado ? "Todavía no hay cortes de turnos este mes." : "Conecta la hoja de Google para ver los ingresos."}</p>`; return; }
       const fila = c => {
         const es = c.dia === ahora.dia && c.turno === ahora.turno;
         return `<button class="item citem" data-k="${esc(clave(c))}" ${st.actual === clave(c) ? 'aria-current="true"' : ""}>
@@ -89,8 +99,8 @@
       };
       // Un grupo por día, con el total de ingresos del día en el encabezado
       const grupos = [];
-      for (const c of j.cortes) { const g = grupos[grupos.length - 1]; if (g && g.dia === c.dia) g.cs.push(c); else grupos.push({ dia: c.dia, cs: [c] }); }
-      lista.innerHTML = grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
+      for (const c of cortesOperativos) { const g = grupos[grupos.length - 1]; if (g && g.dia === c.dia) g.cs.push(c); else grupos.push({ dia: c.dia, cs: [c] }); }
+      lista.innerHTML = avisoSinTurno + grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
     } catch (e) { if (solicitud === secuenciaCaja && e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
