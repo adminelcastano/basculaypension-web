@@ -6,7 +6,8 @@ export function normalizarFolioTicket(folio) {
   return String(folio ?? "").trim().replace(/[\s-]+/g, "").toUpperCase().slice(0, 40);
 }
 export function folioTicketValido(folio) {
-  return /^\d{1,40}$/.test(normalizarFolioTicket(folio));
+  // El sistema de báscula ya imprime folios A00003; los históricos numéricos siguen válidos.
+  return /^(?:\d{1,40}|A\d{1,39})$/.test(normalizarFolioTicket(folio));
 }
 export function claveTicket(servicio, folio) {
   return String(servicio || "").trim().toLowerCase() + ":" + normalizarFolioTicket(folio);

@@ -218,7 +218,7 @@
             <div id="ticket-edicion" ${capturado ? "hidden" : ""}>
             <p class="note" style="margin:0 0 8px">Captura los datos viendo la foto del ticket (paso 6).</p>
             <div class="grid-form">
-              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 17372" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+              <label>Folio del ticket<input id="t-ticket" value="${esc(s.folio_ticket)}" placeholder="Ej. 17372" inputmode="text" autocomplete="off" spellcheck="false"></label>
               ${esBascula || s.servicio === "ambos" ? `<label class="wide">Cliente en el ticket<input id="t-cliente" value="${esc(s.cliente)}" placeholder="Ej. LESVIA RAVELES" autocomplete="off"></label>` : ""}
               ${esBascula ? "" : `<label>Placas<input id="t-placas" value="${esc(s.placas)}" placeholder="Ej. 49AR1X" autocomplete="off" autocapitalize="characters"></label>
               <label class="wide">Descripción auto<input id="t-desc" value="${esc(s.descripcion)}" placeholder="Ej. TRANSPORTES LOZANOS T24" autocomplete="off"></label>
@@ -325,7 +325,7 @@
       if (bloqueado) return; // factura ya registrada: acceso sólo de consulta
       const folioEnPantalla = $("#t-ticket")?.value.trim() || "";
       const importeEnPantalla = $("#t-importe")?.value.trim() || "";
-      if (!/^\d+$/.test(folioEnPantalla.replace(/[\s-]/g, ""))) { e.preventDefault(); toast("Verifica el número de folio del ticket."); return; }
+      if (!/^(?:\d+|A\d+)$/i.test(folioEnPantalla.replace(/[\s-]/g, ""))) { e.preventDefault(); toast("Verifica el número de folio del ticket."); return; }
       const importeGuardado = s.importe ? Number(s.importe).toFixed(2) : "";
       if (!folioEnPantalla || !s.folio_ticket || folioEnPantalla !== s.folio_ticket ||
           !importeEnPantalla || !importeGuardado || Number(importeEnPantalla) !== Number(importeGuardado)) {

@@ -59,6 +59,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); outline:
 .chip .ico-bascula { color: var(--amber); }
 .chip .ico-pension { color: #64d2ff; }
 .chip input:checked + span svg { color: inherit; }
+.qr-ticket { margin: 0 0 18px; padding:14px; background:#1c1a13; border:1px solid #76601b; border-radius:12px; }
+.qr-ticket h2 { font-size:1.05rem; margin:0 0 8px; color:var(--amber); }
+.qr-ticket dl { margin:8px 0; display:grid; grid-template-columns:110px minmax(0,1fr); gap:5px 12px; }
+.qr-ticket dt { color:var(--muted); } .qr-ticket dd { margin:0; font-weight:650; overflow-wrap:anywhere; }
+.qr-ticket p { margin:10px 0; font-size:.92rem; }
+@media(max-width:440px){ .qr-ticket dl {grid-template-columns:1fr;gap:2px} .qr-ticket dd{margin-bottom:6px} }
 .aviso-servicio { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #3a3010; color: #ffd60a; font-size: .95rem; }
 .chip input:focus-visible + span { outline: 3px solid var(--amber); outline-offset: 2px; }
 .opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -127,6 +133,18 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     <form id="form" novalidate>
       <fieldset>
         <legend><span class="paso">1</span>Tu servicio</legend>
+        <div class="qr-ticket" id="qr-ticket" hidden role="status" aria-live="polite">
+          <h2 id="qr-titulo">Referencia del ticket leída</h2>
+          <dl>
+            <dt>Servicio</dt><dd id="qr-servicio"></dd>
+            <dt>Folio</dt><dd id="qr-folio"></dd>
+            <dt>Matrícula</dt><dd id="qr-placa"></dd>
+            <dt>Cliente del ticket</dt><dd id="qr-cliente"></dd>
+            <dt>Importe declarado</dt><dd id="qr-importe"></dd>
+          </dl>
+          <p id="qr-mensaje">El QR no confirma el pago ni sustituye el comprobante físico.</p>
+          <button class="btn btn-line" id="qr-quitar" type="button">Usar captura manual</button>
+        </div>
         <div class="f" id="g-servicio">
           <div class="chips" role="radiogroup" aria-label="Servicio">
             <label class="chip"><input type="radio" name="servicio" value="bascula" required><span><svg class="ico-bascula" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.4 7.2a2.6 2.6 0 1 1 5.2 0M7.4 7.2h9.2l2.6 12.2H4.8z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9.6 15.6v-4l2.4 2.6 2.4-2.6v4"/></svg>Báscula</span></label>
@@ -161,7 +179,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
           <span class="err" data-err="ticket"></span>
         </div>
         <label class="f">Número de folio del ticket <span class="hint">Opcional. Escríbelo tal como aparece en el ticket.</span>
-          <input type="text" name="folio_ticket" maxlength="40" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Ej. 17372">
+          <input type="text" name="folio_ticket" maxlength="40" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Ej. 17372 o A00003">
         </label>
         <div class="f" id="g-facturas_solicitadas" style="margin-top:18px">
           <strong>¿Cuántas facturas necesitas solicitar?</strong>
@@ -305,6 +323,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
 </main>
 <footer class="wrap">© 2026 Báscula y Pensión El Castaño · Carretera Costera km 287, Tapachula, Chiapas · <a href="/aviso-de-privacidad/">Aviso de privacidad</a> · <a href="/condiciones-de-uso/">Condiciones de uso</a></footer>
 
+<script src="/factura/qr.js"></script>
 <script>
 (() => {
   const form = document.getElementById("form");
@@ -312,6 +331,46 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   const RE_RFC = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
   const RE_EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
   const archivos = { ticket: null, csf: null };
+  let qrActual = null;
+  function precargarQR() {
+    if (!location.search) return;
+    const qr = window.CastaTicketQR?.leerUrlQR(location.href);
+    if (qr?.sinQr) return;
+    // El QR puede contener identificadores operativos: reducir exposición en historial.
+    try { history.replaceState(history.state, "", location.pathname + location.hash); } catch {}
+    const cuadro = document.getElementById("qr-ticket");
+    if (!qr?.ok) {
+      if (qr?.error) {
+        cuadro.hidden = false;
+        document.getElementById("qr-titulo").textContent = "QR no reconocido";
+        cuadro.querySelector("dl").hidden = true;
+        document.getElementById("qr-mensaje").textContent = qr.error + " Puedes llenar el formulario manualmente.";
+      }
+      return;
+    }
+    qrActual = qr;
+    const radio = form.querySelector('input[name="servicio"][value="' + qr.servicio + '"]');
+    if (radio) radio.checked = true;
+    form.folio_ticket.value = qr.folio;
+    cuadro.hidden = false;
+    document.getElementById("qr-servicio").textContent = qr.servicio === "bascula" ? "Báscula" : "Pensión";
+    document.getElementById("qr-folio").textContent = qr.folio;
+    document.getElementById("qr-placa").textContent = qr.matricula || "No indicado";
+    document.getElementById("qr-cliente").textContent = qr.cliente || "No indicado";
+    document.getElementById("qr-importe").textContent = "$" + qr.importe;
+    document.getElementById("qr-mensaje").textContent =
+      "QR sintético de prueba: datos NO verificados. Adjunta foto del ticket. El importe y PAGOS no acreditan un cobro; elige tu forma de pago y completa tus datos fiscales.";
+  }
+  document.getElementById("qr-quitar").addEventListener("click", () => {
+    if (qrActual && form.folio_ticket.value === qrActual.folio) form.folio_ticket.value = "";
+    if (qrActual) {
+      const radio = form.querySelector('input[name="servicio"][value="' + qrActual.servicio + '"]');
+      if (radio) radio.checked = false;
+    }
+    qrActual = null;
+    document.getElementById("qr-ticket").hidden = true;
+    mostrarServicio();
+  });
 
   function modo() { return form.modo.value; }
   function mostrarDosFacturas() { document.getElementById("dos-facturas").hidden = form.facturas_solicitadas.value !== "2"; }
@@ -327,6 +386,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
     document.querySelectorAll("#g-ticket [data-servicio]").forEach(el => { el.hidden = el.dataset.servicio !== sv; });
     document.getElementById("ticket-titulo").textContent = { pension: "Foto del ticket de salida de la pensión", bascula: "Foto del ticket de pesaje" }[sv] || "Foto del ticket";
   }
+  precargarQR();
   mostrarServicio();
   mostrarModo();
   mostrarDosFacturas();
@@ -417,7 +477,7 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
   function validar() {
     const e = {};
     if (!form.servicio.value) e.servicio = "Elige el servicio.";
-    if (form.folio_ticket.value.trim() && !/^\d+$/.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "El folio debe contener sólo números.";
+    if (form.folio_ticket.value.trim() && !/^(?:\d+|A\d+)$/i.test(form.folio_ticket.value.replace(/[\s-]/g, ""))) e.folio_ticket = "Escribe un folio numérico o de báscula con prefijo A.";
     if (!form.forma_pago.value) e.forma_pago = "Elige cómo pagaste.";
     if (!["1","2"].includes(form.facturas_solicitadas.value)) e.facturas_solicitadas = "Elige una o dos facturas.";
     if (!archivos.ticket) e.ticket = "Adjunta la foto completa del ticket.";
@@ -452,7 +512,17 @@ footer { color: var(--muted); font-size: .9rem; padding-block: 0 40px; }
       return;
     }
     const datos = new FormData();
-    for (const n of ["servicio", "folio_ticket", "modo", "uso", "forma_pago", "email", "telefono", "comentario", "facturas_solicitadas", "facturas_motivo", "sitio"]) datos.append(n, form[n].value);
+    for (const n of ["servicio", "folio_ticket", "modo", "uso", "forma_pago", "email", "telefono", "facturas_solicitadas", "facturas_motivo", "sitio"]) datos.append(n, form[n].value);
+    // Referencia visible para administración, no comprobante de pago ni dato fiscal.
+    const notaQr = qrActual && qrActual.servicio === form.servicio.value &&
+      qrActual.folio === form.folio_ticket.value.trim().toUpperCase()
+      ? window.CastaTicketQR.notaRevision(qrActual) : "";
+    const comentarioCliente = form.comentario.value.trim().slice(0,500);
+    // Preservar íntegro el comentario del cliente. Añadir referencia sólo si cabe.
+    const espacioQR = 500 - comentarioCliente.length - (comentarioCliente ? 1 : 0);
+    const comentarioCompleto = notaQr && notaQr.length <= espacioQR
+      ? [comentarioCliente, notaQr].filter(Boolean).join("\n") : comentarioCliente;
+    datos.append("comentario", comentarioCompleto);
     if (modo() === "manual") for (const n of ["rfc", "nombre", "cp", "regimen"]) datos.append(n, form[n].value);
     datos.append("aviso", form.aviso.checked ? "si" : "");
     datos.append("ticket", archivos.ticket);
