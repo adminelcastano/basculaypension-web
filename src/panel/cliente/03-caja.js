@@ -70,6 +70,26 @@
       $("#c-totales").innerHTML = [["Tickets en efectivo", t.efectivo], ["Tarjeta (va a Mercado Pago)", t.tarjeta], ...(t.extras ? [["Ingresos extra", t.extras]] : []), ["Gastos de caja", t.gastos], ["Entregas a administración", sobres, "dest"]]
         .map(([k, v, c]) => `<div class="k ${c || ""}"><span>${k}</span><b>${dinero(v)}</b></div>`).join("");
       const ahora = turnoActual();
+      // No duplicar entregas ni reasignar movimientos: advertencia administrativa
+      // cuando alguien cerró un turno cuyo anterior tenía operaciones sin corte.
+      const porCorte = new Map(j.cortes.map(c => [c.dia + "|" + c.turno, c]));
+      const cortesParaRevisar = j.cortes.flatMap(c => {
+        if (!c.conteo) return [];
+        const clavePrev = c.turno === "TARDE" ? c.dia + "|MAÑANA"
+          : c.turno === "NOCHE" ? c.dia + "|TARDE"
+          : c.turno === "MAÑANA" ? sumar(c.dia, -1) + "|NOCHE" : "";
+        const anterior = porCorte.get(clavePrev);
+        if (!anterior || anterior.conteo || !((anterior.registros || 0) +
+            (anterior.n_gastos || 0) + (anterior.cambio?.n || 0) +
+            (anterior.extra?.n || 0) + (anterior.adminMovs?.n || 0))) return [];
+        return [{ corte:c, anterior }];
+      });
+      const avisoCortes = cortesParaRevisar.length
+        ? `<div class="card" role="alert" style="margin:0 0 14px;border-color:#ff9f0a">
+             <b>Revisar cierres y turnos</b>
+             <p class="note">Hay cortes registrados aunque el turno anterior tiene movimientos sin corte. Revisa la entrega física antes de corregir; no registres el mismo efectivo dos veces.</p>
+             <ul>${cortesParaRevisar.map(x=>`<li>${esc(TURNO_TXT[x.corte.turno] || x.corte.turno)} del ${esc(diaTxt(x.corte.dia))}: falta el corte de ${esc(TURNO_TXT[x.anterior.turno] || x.anterior.turno)} del ${esc(diaTxt(x.anterior.dia))}.</li>`).join("")}</ul>
+           </div>` : "";
       // Línea de estado de cada tarjeta del índice (celular y tablet) y botón de filtros plegados
       {
         const D0 = v => dinero(v, 0);
@@ -100,7 +120,7 @@
       // Un grupo por día, con el total de ingresos del día en el encabezado
       const grupos = [];
       for (const c of cortesOperativos) { const g = grupos[grupos.length - 1]; if (g && g.dia === c.dia) g.cs.push(c); else grupos.push({ dia: c.dia, cs: [c] }); }
-      lista.innerHTML = avisoSinTurno + grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
+      lista.innerHTML = avisoSinTurno + avisoCortes + grupos.map(g => `<div class="cgrupo"><h3 class="cdia"><span>${esc(diaTxt(g.dia))}</span><span>${dinero(g.cs.reduce((t, c) => t + (c.efectivo || 0) + (c.tarjeta || 0), 0))}</span></h3>${g.cs.map(fila).join("")}</div>`).join("");
     } catch (e) { if (solicitud === secuenciaCaja && e.message !== "sesion") lista.innerHTML = `<p class="empty">No se pudo cargar: ${esc(e.message)}</p>`; }
   }
 
