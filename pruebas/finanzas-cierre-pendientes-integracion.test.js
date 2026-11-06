@@ -267,7 +267,11 @@ test("Dos sincronizaciones simultáneas no pisan la hoja; una llave antigua se r
       "Al terminar se libera la llave de sincronización");
     const nueva=await sincronizarCaja(env);
     assert.ok(nueva.at && !nueva.ocupado,JSON.stringify(nueva));
-    assert.equal(consultas,2,"Después del cierre normal se permite una nueva lectura");
+    // La prueba debe funcionar en octubre (1 mes abierto) y en noviembre
+    // (octubre + noviembre abiertos): cada sincronización lee cada mes una vez.
+    const mesesConsultados = await mesesAbiertos(env);
+    assert.equal(consultas,2 * mesesConsultados.length,
+      "Cada sincronización completada consulta cada mes abierto una sola vez");
   }finally{
     liberar();
     globalThis.fetch=antes;
