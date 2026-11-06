@@ -101,6 +101,7 @@ test("Servidor comprueba la falta también al cerrar, conserva PIN y no revela e
 test("Ningún cambio presupone valores contables de las personas reales",()=>{
   const helper=readFileSync(new URL("../src/turno-cierre-prevencion.js",import.meta.url),"utf8");
   assert.doesNotMatch(helper,/SUM\(|importe|efectivo|cliente|folio|matricula|SELECT \*/i);
-  assert.match(helper,/EXISTS \(SELECT 1 FROM caja_mov/);
+  assert.match(helper,/\["caja_mov", ""\]/);
+  assert.match(helper,/return `EXISTS \(SELECT 1 FROM/);
   assert.match(helper,/EXISTS \(SELECT 1 FROM turno_cortes/);
 });
