@@ -96,6 +96,10 @@ test("Servidor comprueba la falta también al cerrar, conserva PIN y no revela e
   assert.match(html,/E\.corte_previo_pendiente/);
   assert.match(html,/const colaClave = \(\) => E && E\.persona && E\.turno && E\.dia/);
   assert.doesNotMatch(worker,/UPDATE caja_mov SET turno/);
+  const caja=readFileSync(new URL("../src/panel/cliente/03-caja.js",import.meta.url),"utf8");
+  assert.match(caja,/const cortesParaRevisar = j\.cortes\.flatMap/);
+  assert.match(caja,/Revisar cierres y turnos/);
+  assert.match(caja,/lista\.innerHTML = avisoSinTurno \+ avisoCortes \+ grupos\.map/);
 });
 
 test("Ningún cambio presupone valores contables de las personas reales",()=>{
