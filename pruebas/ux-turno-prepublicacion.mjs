@@ -33,7 +33,7 @@ const servidor=createServer((req,res)=>{
   }
   if(ruta==="/turno/api/estado")return respuesta(res,401,{ok:false,error:"Sesión sintética terminada",sesion:false});
   if(ruta==="/turno/api/personas")return respuesta(res,200,{
-    ok:true,sugerido:"MAÑANA",abierto:null,turnos:["MAÑANA","TARDE","NOCHE"],
+    ok:true,sugerido:"MAÑANA",abierto:null,corte_previo_pendiente:{dia:"2026-11-04",turno:"NOCHE"},turnos:["MAÑANA","TARDE","NOCHE"],
     personas:[{clave:"ENSAYO",nombre:"Encargado ficticio",tiene_pin:true,avatar_url:null}]
   });
   if(ruta==="/turno/api/entrar"){
@@ -58,6 +58,7 @@ try{
    pagina.setDefaultTimeout(10000);
    await pagina.goto(origen+"/turno",{waitUntil:"domcontentloaded"});
    await pagina.locator('#personas .persona[data-clave="ENSAYO"]').waitFor({state:"visible"});
+   assert.match(await pagina.locator("#aviso-abierto").textContent(),/Corte anterior pendiente/);
    const estilos=await pagina.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
    assert.equal(estilos,"#000",nombre+" no recibió el CSS de Turno");
    assert.equal(await pagina.locator("#entrada").isVisible(),true);

@@ -2,6 +2,7 @@ import { crearSesionesTurno } from "./turno-sesion.js";
 import CSS_TURNO from "./turno-estilos.css";
 import { crearPinTurno } from "./turno-pin.js";
 import { TZ, local, sumaDias, turnoSugerido, diaDeTurno } from "./turno-tiempo.js";
+import { turnoPrevioSinCorte, cierreAnticipado } from "./turno-cierre-prevencion.js";
 export { turnoSugerido, diaDeTurno };
 import { guardarArchivo, leerArchivo, borrarArchivo } from "./fotos.js";
 import { leerPerfilAdmin, servirFotoAdmin } from "./perfil-admin.js";
@@ -230,6 +231,8 @@ async function estado(env, s) {
     // Gastos o ingresos capturados después de entregar el corte: hay que volver a entregarlo
     corte.cambios_despues = [...gastos, ...extras].filter(x => x.creado > corte.actualizado).length;
   }
+  // El aviso es operativo: indica turno y fecha pendientes, nunca importes esperados.
+  const corte_previo_pendiente = corte ? null : await turnoPrevioSinCorte(env, s.dia, s.turno);
   // Calendario de la tablet: tareas programadas para los encargados (de todos los turnos) de 5 semanas atrás a 10 adelante
   const desde = new Date(Date.parse(hoy + "T12:00:00Z") - 35 * 864e5).toISOString().slice(0, 10), hasta = new Date(Date.parse(hoy + "T12:00:00Z") + 70 * 864e5).toISOString().slice(0, 10);
   const calendario = (await env.DB.prepare(`SELECT id, titulo, detalle, fecha, hora, prioridad, turno, estado, hecho_por, cerrado, repetir, reporto FROM agenda_items
@@ -240,7 +243,7 @@ async function estado(env, s) {
     .bind(new Date(Date.now() - 3 * 864e5).toISOString()).all()).results;
   let categorias = [];
   try { categorias = (await listaCategorias(env)).map(c => c.etiqueta || c.nombre); } catch {}
-  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, admin_movs, corte: corte || null, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
+  return { ...s, hoy, personas, admin_perfil: await leerPerfilAdmin(env), acentos: ACENTOS, inicio: inicioCompleto, cambio_anterior: anterior || null, avisos, avisos_cursor: pagina.cursor, avisos_mas: pagina.mas, tareas, hechas, incidencias, compras, calendario, gastos, extras, admin_movs, corte: corte || null, corte_previo_pendiente, areas: AREAS, conceptos: CONCEPTOS, conceptos_extra: CONCEPTOS_EXTRA, turnos: TURNOS, categorias };
 }
 
 // Versión de la página: si la tablet tiene abierta una versión vieja, se recarga sola
@@ -286,7 +289,9 @@ export async function turnoRuta(request, env, url, h) {
     const filas = (await env.DB.prepare("SELECT clave, nombre, avatar, foto_ver, pin_hash IS NOT NULL AS tiene_pin FROM turno_personas WHERE activo = 1 ORDER BY clave").all()).results;
     let ab = await env.DB.prepare("SELECT persona, dia, turno FROM turno_abierto WHERE id = 1").first();
     if (ab && await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(ab.dia, ab.turno).first()) ab = null;
-    return json({ ok: true, personas: filas.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p), tiene_pin: !!p.tiene_pin })), turnos: TURNOS, sugerido: ab ? ab.turno : turnoSugerido(), abierto: ab || null });
+    const sugerido = ab ? ab.turno : turnoSugerido();
+    const pendiente = await turnoPrevioSinCorte(env, diaDeTurno(sugerido), sugerido);
+    return json({ ok: true, personas: filas.map(p => ({ clave: p.clave, nombre: p.nombre || p.clave, avatar_url: urlAvatar(p), tiene_pin: !!p.tiene_pin })), turnos: TURNOS, sugerido, abierto: ab || null, corte_previo_pendiente: pendiente });
   }
 
   if (partes[0] === "entrar" && request.method === "POST") {
@@ -324,7 +329,15 @@ export async function turnoRuta(request, env, url, h) {
           : `Falta el corte ${cual}, que abrió ${ab.persona}. ${ab.persona} debe entrar y entregarlo, o la administración puede liberarlo desde el panel.`, turno_abierto: { persona: ab.persona, dia: ab.dia, turno: ab.turno } }, 409);
       }
     }
-    if (!(await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(diaNuevo, turno).first()))
+    const corteExistente = await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(diaNuevo, turno).first();
+    if (!corteExistente) {
+      const pendiente = await turnoPrevioSinCorte(env, diaNuevo, turno);
+      if (pendiente && c.confirmar_turno_pendiente !== true) {
+        return json({ ok: false, requiere_confirmacion_anterior: true, turno_pendiente: pendiente,
+          error: "Hay movimientos del turno anterior sin un corte entregado. Revisa el turno seleccionado antes de entrar." }, 409);
+      }
+    }
+    if (!corteExistente)
       await env.DB.prepare("INSERT INTO turno_abierto (id, persona, dia, turno, desde) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET persona = excluded.persona, dia = excluded.dia, turno = excluded.turno, desde = CASE WHEN turno_abierto.dia = excluded.dia AND turno_abierto.turno = excluded.turno THEN turno_abierto.desde ELSE excluded.desde END")
         .bind(clave, diaNuevo, turno, ahora.toISOString()).run();
     const ses = await crearSesion(env, p, turno, diaNuevo);
@@ -692,6 +705,17 @@ export async function turnoRuta(request, env, url, h) {
   }
 
   if (partes[0] === "corte" && request.method === "POST") {
+    const corteExistente = await env.DB.prepare("SELECT 1 FROM turno_cortes WHERE dia = ? AND turno = ?").bind(s.dia, s.turno).first();
+    if (!corteExistente) {
+      // Una sesión iniciada antes de sincronizar la hoja también debe comprobar
+      // el turno anterior al cerrar. Nunca mezclar el efectivo de dos turnos.
+      const pendiente = await turnoPrevioSinCorte(env, s.dia, s.turno);
+      if (pendiente) return json({ ok: false, turno_pendiente: pendiente,
+        error: "No puedes entregar este corte: el turno anterior tiene movimientos y no tiene corte. Pide a administración que lo revise antes de cerrar el actual." }, 409);
+      if (cierreAnticipado(s.turno, new Date(ahora)) && c.confirmar_cierre_anticipado !== true)
+        return json({ ok: false, requiere_confirmacion_anticipada: true,
+          error: "Estás intentando cerrar un turno antes de su horario de salida. Confirma que realmente corresponde a este turno." }, 409);
+    }
     const efectivo = numero(c.efectivo), tarjeta = c.tarjeta === "" || c.tarjeta == null ? null : numero(c.tarjeta);
     const opcional = v => v === "" || v == null ? 0 : numero(v);
     const sobre = opcional(c.sobre), cambioSig = opcional(c.cambio_sig);
@@ -732,7 +756,7 @@ export async function turnoRuta(request, env, url, h) {
         sobre = excluded.sobre, cambio_sig = excluded.cambio_sig, retiros = excluded.retiros`)
         .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, efectivo, tarjeta, texto(c.notas, 500) || null, ahora, ahora, sobre, cambioSig, JSON.stringify(retiros)),
       env.DB.prepare("INSERT INTO turno_cortes_hist (dia, turno, mes, persona, datos, creado) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null }), ahora),
+        .bind(s.dia, s.turno, s.dia.slice(0, 7), s.persona, JSON.stringify({ efectivo, tarjeta, sobre, cambio_sig: cambioSig, retiros, notas: texto(c.notas, 500) || null, cierre_anticipado_confirmado: !corteExistente && cierreAnticipado(s.turno, new Date(ahora)) }), ahora),
       env.DB.prepare("DELETE FROM turno_abierto WHERE dia = ? AND turno = ?").bind(s.dia, s.turno)
     ]);
     // Al celular de la administración: cómo se repartió el efectivo del turno

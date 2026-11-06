@@ -49,7 +49,8 @@ jobs:
 
   ux-refactor:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 no admite ubuntu-26.04; fijar runner soportado.
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4

@@ -35,7 +35,7 @@ test("Caja no ofrece SIN TURNO como corte ni lo oculta sin advertencia",()=>{
   assert.match(ui,/Registros de origen sin turno asignado/);
   assert.match(ui,/sus importes permanecen en los totales/);
   assert.match(ui,/for \(const c of cortesOperativos\)/);
-  assert.match(ui,/lista\.innerHTML = avisoSinTurno \+ grupos\.map/);
+  assert.match(ui,/lista\.innerHTML = avisoSinTurno \+ avisoCortes \+ grupos\.map/);
   assert.match(ui,/EC\.bloqueN\("caja", "cortes", cortesOperativos\.length/);
 });
 
