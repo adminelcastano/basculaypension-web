@@ -83,7 +83,8 @@
       <div class="personas" id="personas"><p class="muted">Cargando…</p></div>
     </div>
     <div class="paso" id="paso-turno" hidden>
-      <h2>Turno</h2>
+      <h2>¿Qué turno estás abriendo?</h2>
+      <p class="muted" style="margin:0 0 10px">Comprueba el turno y la fecha antes de ingresar el PIN. Si vas a entregar el dinero del turno anterior, selecciona ese turno.</p>
       <div class="turnos" id="turnos"></div>
     </div>
     <div class="paso" id="paso-pin" hidden>
@@ -205,7 +206,9 @@
       const j = await api("personas");
       turnoElegido = j.sugerido;
       const ab = j.abierto, aviso = $("#aviso-abierto");
-      aviso.hidden = !ab;
+      const previo = j.corte_previo_pendiente;
+      aviso.hidden = !(ab || previo);
+      if (!ab && previo) aviso.innerHTML = `${svg("i-alerta")}<span><b>Corte anterior pendiente:</b> el turno de la ${esc(TURNO_TXT[previo.turno] || previo.turno.toLowerCase())} del ${esc(diaTxt(previo.dia))} tiene movimientos y no aparece entregado. Si estás cerrando ese turno, selecciónalo antes de ingresar el PIN.</span>`;
       if (ab) aviso.innerHTML = `${svg("i-alerta")}<span>Falta el corte del turno de la ${esc(TURNO_TXT[ab.turno] || ab.turno.toLowerCase())} que abrió <b>${esc(ab.persona)}</b>. Solo ${esc(ab.persona)} puede entrar para entregarlo.</span>`;
       $("#personas").innerHTML = j.personas.map(p => `<button type="button" class="persona" data-clave="${esc(p.clave)}" aria-pressed="false">${p.avatar_url ? `<img class="pfoto" src="${esc(p.avatar_url)}" alt="" width="64" height="64">` : `<span class="pfoto ini" aria-hidden="true">${esc(p.clave.slice(0, 2))}</span>`}${esc(p.clave)}${p.nombre && p.nombre !== p.clave ? `<small>${esc(p.nombre)}</small>` : ""}${p.tiene_pin ? "" : "<small>sin PIN</small>"}</button>`).join("") || `<p class="muted">No hay encargados dados de alta.</p>`;
       $("#turnos").innerHTML = j.turnos.map(t => `<button type="button" class="chip" data-turno="${t}" aria-pressed="${t === turnoElegido}"><svg class="i"><use href="#${ICONO_TURNO[t]}"/></svg>${t[0] + t.slice(1).toLowerCase()}</button>`).join("");
@@ -232,7 +235,22 @@
     pintarPin(); $("#err-pin").textContent = "";
     if (pin.length === 4) {
       entrando = true;
-      try { await api("entrar", { clave: elegido, pin, turno: turnoElegido }); pedirInicio = true; await abrirApp(); }
+      try {
+        const ingreso = { clave:elegido, pin, turno:turnoElegido };
+        try {
+          await api("entrar", ingreso, { cola:false });
+        } catch (er) {
+          if (!er.datos?.requiere_confirmacion_anterior || !er.datos.turno_pendiente) throw er;
+          const anterior = er.datos.turno_pendiente;
+          const txtAnterior = TURNO_TXT[anterior.turno] || anterior.turno.toLowerCase();
+          if (!await confirmar("Corte del turno anterior pendiente",
+            `El turno de la ${txtAnterior} del ${diaTxt(anterior.dia)} aún no tiene corte. Si vas a entregar ese dinero, cancela y selecciona ese turno. ¿Confirmas que realmente estás COMENZANDO el turno de la ${TURNO_TXT[turnoElegido] || turnoElegido.toLowerCase()}? No podrás cerrarlo hasta resolver el anterior.`,
+            "Sí, estoy comenzando este turno", "Revisar turno anterior")) return;
+          await api("entrar", { ...ingreso, confirmar_turno_pendiente:true }, { cola:false });
+        }
+        pedirInicio = true;
+        await abrirApp();
+      }
       catch (e) { $("#err-pin").textContent = e.message; const p = $("#puntos"); p.classList.remove("mal"); void p.offsetWidth; p.classList.add("mal"); }
       finally { pin = ""; pintarPin(); entrando = false; }
     }
@@ -1045,9 +1063,20 @@
   }
 
   // ---------- Corte ----------
+  function cierreAntesDeHora(turno) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+      timeZone:"America/Mexico_City",hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+    }).formatToParts(new Date()).map(x=>[x.type,x.value]));
+    let h = Number(p.hour) + Number(p.minute) / 60;
+    const rango = { "MAÑANA":[6,14], "TARDE":[14,22], "NOCHE":[22,30] }[turno];
+    if (!rango) return false;
+    if (turno === "NOCHE" && h < 12) h += 24;
+    return h >= rango[0] - 0.5 && h < rango[1] - 1;
+  }
   function verCorte() {
     const c = E.corte, ci = E.inicio ? Number(E.inicio.total ?? E.inicio.cambio) || 0 : null;
-    sec().innerHTML = titulo("Corte de turno.", "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
+    sec().innerHTML = titulo("Corte de " + (TURNO_TXT[E.turno] || E.turno.toLowerCase()) + " · " + diaTxt(E.dia), "1. Cuenta el dinero físico · 2. Distribuye lo contado · 3. Verifica y entrega. No verás cuánto espera el sistema.") + `
+      ${!c && E.corte_previo_pendiente ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>El turno anterior tiene movimientos sin corte.</b> Primero deben revisarse y entregar el corte de ${esc(TURNO_TXT[E.corte_previo_pendiente.turno])} del ${esc(diaTxt(E.corte_previo_pendiente.dia))}. No podrás entregar este corte mientras falte el anterior.</div></div>` : ""}
       ${c ? `<div class="aviso-ok">${svg("i-check")}<div><b>Corte entregado</b> a las ${esc(hora12(c.actualizado))} por ${avi(c.persona, 1)}${esc(c.persona)}: efectivo físico ${dinero(c.efectivo)}${c.sobre != null ? ` · entregado a administración ${dinero(c.sobre)} · cambio para el siguiente turno ${dinero(c.cambio_sig || 0)}` : ""}. Si te equivocaste, corrígelo y vuelve a entregar.</div></div>` : ""}
       ${c && c.cambios_despues ? `<div class="aviso-ok aviso-warn" role="alert">${svg("i-alerta")}<div><b>Hay ${c.cambios_despues} ${c.cambios_despues === 1 ? "movimiento" : "movimientos"} después de entregar el corte.</b> Revisa el efectivo y vuelve a entregarlo para que la administración lo vea completo.</div></div>` : ""}
       <div class="cols">
@@ -1222,10 +1251,33 @@
         $("#revisado-corte").focus(); return;
       }
       const aviso = "";
-      if (!(await confirmar(c ? "¿Corregir el corte?" : "¿Entregar el corte?", `Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Entrega a administración: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
+      const nombreTurno = TURNO_TXT[E.turno] || E.turno.toLowerCase();
+      if (!(await confirmar(c ? "¿Corregir corte de " + nombreTurno + "?" : "¿Entregar corte de " + nombreTurno + "?", `¡Verifica el turno y el día! Estás registrando el corte de la ${nombreTurno} del ${diaTxt(E.dia)}, NO el de otro turno. Cambio inicial: ${dinero(ci || 0)}. Efectivo físico contado: ${dinero(ef)}. Entrega a administración: ${dinero(num(f.sobre.value))}. Retiros: ${dinero(rts.reduce((a, r) => a + num(r.monto), 0))}. Cambio para el siguiente turno: ${dinero(num(f.cambio_sig.value))}.${aviso} Queda registrado a tu nombre.`, c ? "Corregir" : "Entregar"))) return;
+      if (!c && E.corte_previo_pendiente) {
+        $("#err-corte").textContent = "Falta el corte del turno anterior. Consulta a administración antes de cerrar éste.";
+        return;
+      }
+      let anticipado = false;
+      if (!c && cierreAntesDeHora(E.turno)) {
+        if (!await confirmar("Cierre anticipado de " + nombreTurno,
+          "Todavía falta tiempo para terminar este turno. Si estás entregando el dinero del turno anterior, regresa y selecciona el turno correcto. ¿Confirmas que ESTE es un cierre anticipado real de " + nombreTurno + "?",
+          "Confirmar cierre anticipado", "Volver a revisar")) return;
+        anticipado = true;
+      }
       b.disabled = true; $("#err-corte").textContent = "";
       try {
-        const r = await api("corte", { efectivo: f.efectivo.value, notas: f.notas.value, sobre: f.sobre.value, cambio_sig: f.cambio_sig.value, retiros: rts, pagos_distintos_confirmados: !!$("#dup-confirmo")?.checked });
+        const datosCorte = { efectivo:f.efectivo.value, notas:f.notas.value, sobre:f.sobre.value,
+          cambio_sig:f.cambio_sig.value, retiros:rts, pagos_distintos_confirmados:!!$("#dup-confirmo")?.checked };
+        let r;
+        try {
+          r = await api("corte", { ...datosCorte, confirmar_cierre_anticipado: anticipado });
+        } catch (er) {
+          if (!er.datos?.requiere_confirmacion_anticipada) throw er;
+          if (!await confirmar("Cierre anticipado de " + nombreTurno,
+            "El servidor detectó que aún no termina el turno. ¿Confirmas que cuentas y entregas efectivo de ESTE turno, no del anterior?",
+            "Confirmar este turno", "Volver a revisar")) { b.disabled = false; return; }
+          r = await api("corte", { ...datosCorte, confirmar_cierre_anticipado:true }, { cola:false });
+        }
         guardarLS(llaveB, null);
         if (r.enCola) { b.disabled = false; toast("Sin internet: el corte se guardó en la tablet y se enviará al volver la conexión."); return; }
         await cargar(); verCorte();
