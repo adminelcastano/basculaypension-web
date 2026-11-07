@@ -1,0 +1,3 @@
+# Graphify v8 / graphifyy 0.9.93 — solo configuración documentada por upstream.
+# El grafo generado queda local y fuera de Git.
+viz_node_limit=1200
