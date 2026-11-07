@@ -217,7 +217,7 @@ async function crearSolicitud(request, env, ctx) {
   const facturasMotivo = texto(form, "facturas_motivo").slice(0, 300);
 
   if (!SERVICIOS[servicio] || servicio === "ambos") errores.servicio = "Elige el servicio: báscula o pensión.";
-  if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "El folio del ticket debe contener sólo números.";
+  if (folioTicket && !folioTicketValido(folioTicket)) errores.folio_ticket = "Escribe un folio numérico o con prefijo A para báscula.";
   if (!USOS[uso]) errores.uso = "Elige el uso del CFDI.";
   if (!FORMAS_PAGO[formaPago]) errores.forma_pago = "Elige cómo pagaste.";
   if (!["1", "2"].includes(facturasSolicitadas)) errores.facturas_solicitadas = "Elige una o dos facturas.";
